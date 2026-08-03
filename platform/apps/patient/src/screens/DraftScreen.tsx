@@ -12,13 +12,11 @@
 import type { Refusal } from "@dawai/domain";
 import { type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
-import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH, isBuilt } from "./graph.js";
 import { Screen, Label, Bidi, Digits, Primary, Secondary, RedirectNote, Note, Actions, Row, Card, Spacer, StepButton } from "../ui/kit.js";
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf, isBuilt } from "./graph.js";
 
 const R1 = CORE_LOOP.find((c) => c.id === "R1")!;
 
@@ -39,13 +37,13 @@ export type DraftProps = {
 export function DraftScreen(p: DraftProps) {
   const { t, draft } = p;
   const lines = draft?.lines ?? [];
-  const view = resolveView(
-    R1,
+  const view = viewOf(
+    R1.id,
     // An empty draft is the teaching state, not a failure. A refusal is shown
     // beside the draft rather than replacing it, so nothing the patient built
     // disappears behind an error.
     lines.length === 0 ? { kind: "empty", isSuccess: false } : { kind: "ready" },
-    GRAPH, p.history, PATIENT_FLOWS,
+    p.history,
   );
   const missing = draft ? DraftModel.linesNeedingPrescription(draft) : [];
   const blocked = draft ? DraftModel.validate(draft) : null;

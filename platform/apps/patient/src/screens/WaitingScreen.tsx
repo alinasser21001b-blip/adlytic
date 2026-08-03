@@ -20,14 +20,12 @@ import { instant } from "@dawai/domain";
 
 import { describe as describeItem, type OutboxItem } from "@dawai/offline";
 import { remaining, type Sent } from "../model/send.js";
-import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH, isBuilt } from "./graph.js";
 import {
   Card, Dial, Grow, Label, Primary, Row, Screen, Secondary, Section, Spacer,
 } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf, isBuilt } from "./graph.js";
 
 const R7 = CORE_LOOP.find((c) => c.id === "R7")!;
 
@@ -47,15 +45,15 @@ export function WaitingScreen(p: WaitingProps) {
   const queued = sent.state === "queued";
   const left = remaining(sent.windowEndsAt, p.urgency, instant(p.now));
 
-  const view = resolveView(
-    R7,
+  const view = viewOf(
+    R7.id,
     // Waiting with nothing yet is a success state, not an absence: we asked,
     // and nobody has answered YET. Offering an action here would invent
     // urgency the patient cannot act on.
     queued ? { kind: "offline", ageMs: null }
       : p.offerCount === 0 ? { kind: "empty", isSuccess: true }
       : { kind: "ready" },
-    GRAPH, p.history, PATIENT_FLOWS,
+    p.history,
   );
 
   return (

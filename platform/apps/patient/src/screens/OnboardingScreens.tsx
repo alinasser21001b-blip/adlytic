@@ -19,17 +19,14 @@
  */
 
 import * as Onboarding from "../model/onboarding.js";
-import { resolveView, type Phase } from "../model/view.js";
-import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
+import { type Phase } from "../model/view.js";
 import {
   Screen, Label, Primary, Secondary, Row, Section, Card, Note, InputField, ActionCard, Tag, Spacer,
 } from "../ui/kit.js";
 import { Shake } from "../ui/motion.jsx";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
-const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 
 /* ── E5 · the number ──────────────────────────────────────────────────── */
 
@@ -56,7 +53,7 @@ export function PhoneEntryScreen(p: PhoneEntryProps) {
   const phase: Phase = !p.online ? { kind: "offline", ageMs: null }
     : showError ? { kind: "error", detail: parsed.refusal!.code }
     : { kind: "ready" };
-  const view = resolveView(contract("E5"), phase, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf("E5", phase, p.history);
 
   const wrongCountry = parsed.refusal?.code === "UNSUPPORTED_COUNTRY";
 
@@ -147,7 +144,7 @@ export function CodeEntryScreen(p: CodeEntryProps) {
     : p.checking ? { kind: "loading" }
     : p.refusalCode === "WRONG_CODE" && !dead ? { kind: "error", detail: p.refusalCode }
     : { kind: "ready" };
-  const view = resolveView(contract("E6"), phase, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf("E6", phase, p.history);
 
   return (
     <Screen
@@ -256,7 +253,7 @@ export type NameProps = {
 export function NameScreen(p: NameProps) {
   const { t } = p;
   const checked = Onboarding.checkName(p.typed);
-  const view = resolveView(contract("E7"), { kind: "ready" }, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf("E7", { kind: "ready" }, p.history);
   const shown = Onboarding.firstNameOnly(p.typed);
 
   return (
@@ -317,7 +314,7 @@ export type DistrictProps = {
 
 export function DistrictScreen(p: DistrictProps) {
   const { t } = p;
-  const view = resolveView(contract("E8"), { kind: "ready" }, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf("E8", { kind: "ready" }, p.history);
   const shown = Onboarding.filterDistricts(p.districts, p.query);
   const picked = p.districts.find((d) => d.districtId === p.chosen) ?? null;
 

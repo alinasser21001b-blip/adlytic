@@ -23,14 +23,13 @@
  */
 
 import * as Offers from "../model/offers.js";
-import { resolveView, type Phase } from "../model/view.js";
+import { type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
 import { Screen, Label, ActionCard, InfoCard, Row, Spacer, Tag, Section } from "../ui/kit.js";
 import { Enter } from "../ui/motion.jsx";
 import { motion } from "@dawai/design";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
 const R8 = CORE_LOOP.find((c) => c.id === "R8")!;
 
@@ -55,7 +54,7 @@ export function OffersScreen(p: OffersProps) {
     : p.offers.length === 0 ? { kind: "empty", isSuccess: false }
     : { kind: "ready" };
 
-  const view = resolveView(R8, phase, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf(R8.id, phase, p.history);
   const ordered = Offers.forReading(p.offers);
 
   return (

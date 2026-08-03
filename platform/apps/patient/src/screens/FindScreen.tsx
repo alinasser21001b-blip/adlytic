@@ -10,16 +10,13 @@
  *      most annoying possible way to lose someone mid-search.
  */
 import * as Search from "../model/search.js";
-import { resolveView, type Phase } from "../model/view.js";
-import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
+import { type Phase } from "../model/view.js";
 
 import { ActionCard, Actions, Bidi, InfoCard, Label, Screen, SearchField, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import type { CatalogueHit } from "../ports.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
-const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 
 /** The state the screen is in, derived from the search rather than tracked
  *  separately — two sources for one truth is how a spinner survives its data. */
@@ -47,7 +44,7 @@ export type FindProps = {
 
 export function FindScreen({ t, search, history, now, onType, onAdd, onBack, onAction }: FindProps) {
   const id = search.kind === "idle" ? "F1" : "F2";
-  const view = resolveView(contract(id), phaseOf(search, now), GRAPH, history, PATIENT_FLOWS);
+  const view = viewOf(id, phaseOf(search, now), history);
   const hits = search.kind === "results" || search.kind === "offline" ? search.hits : [];
 
   return (

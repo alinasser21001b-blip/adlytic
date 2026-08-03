@@ -19,12 +19,11 @@
 
 import * as Consent from "../model/consent.js";
 import * as Offers from "../model/offers.js";
-import { resolveView, type Phase } from "../model/view.js";
+import { type Phase } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
 import { Screen, Label, Bidi, Primary, Choice, InfoCard, Row, Spacer, Grow, Card, Section } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
 const R9 = CORE_LOOP.find((c) => c.id === "R9")!;
 
@@ -45,7 +44,7 @@ export function OfferDetailScreen(p: OfferDetailProps) {
   const { t, summary, consent } = p;
   const blocked = Consent.gate(consent);
   const phase: Phase = p.withdrawn ? { kind: "error", detail: "withdrawn" } : { kind: "ready" };
-  const view = resolveView(R9, phase, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf(R9.id, phase, p.history);
   const outstanding = Consent.outstanding(consent);
 
   return (

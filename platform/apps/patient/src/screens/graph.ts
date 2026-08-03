@@ -15,6 +15,9 @@
  *      the other.
  */
 import { buildGraph, guardDestinations, ROUTE_GUARDS, type NavGraph } from "@dawai/navigation";
+import { resolveView, type Phase } from "../model/view.js";
+import type { ScreenView } from "../model/view.js";
+import { PATIENT_FLOWS } from "./flows.js";
 import type { ScreenContract } from "@dawai/design";
 import { CORE_LOOP, type ScreenId } from "./core-loop.contract.js";
 
@@ -44,3 +47,22 @@ export const contractFor = (id: ScreenId): ScreenContract => CONTRACTS.get(id)!;
 export const NOT_YET_BUILT: readonly string[] = [...new Set(
   CORE_LOOP.flatMap((c) => c.exits).filter((e) => !CONTRACTS.has(e)),
 )].sort();
+
+/**
+ * What a screen presents, resolved from its contract.
+ *
+ * Every screen asked the same question with the same two ambient answers:
+ * `resolveView(contract(id), phase, GRAPH, history, PATIENT_FLOWS)`, sixteen
+ * times. The graph and the flows are not a screen's to supply — a screen knows
+ * its own id, its phase and where the user came from, and nothing else in that
+ * call varied. Four screens had also each grown a private
+ * `contract = (id) => CORE_LOOP.find(...)!` to reach the first argument: four
+ * linear scans and four non-null assertions for a lookup this module already
+ * has as a Map, keyed by a type that makes an unknown id impossible.
+ */
+export const viewOf = (
+  id: ScreenId,
+  phase: Phase,
+  history: readonly string[],
+  skippedSteps: readonly string[] = [],
+): ScreenView => resolveView(contractFor(id), phase, GRAPH, history, PATIENT_FLOWS, skippedSteps);

@@ -12,14 +12,11 @@
  */
 
 import * as Prescription from "../model/prescription.js";
-import { resolveView, type Phase } from "../model/view.js";
-import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
+import { type Phase } from "../model/view.js";
 import { Actions, InfoCard, Label, PhotoFrame, Primary, Screen, Secondary } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
-const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 
 export type PrescriptionProps = {
   readonly t: Theme;
@@ -47,7 +44,7 @@ function Camera(p: PrescriptionProps) {
   const { t } = p;
   const refused = p.capture.kind === "refused";
   const phase: Phase = refused ? { kind: "permissionRefused" } : { kind: "ready" };
-  const view = resolveView(contract("R2"), phase, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf("R2", phase, p.history);
 
   return (
     <Screen
@@ -82,10 +79,10 @@ function Camera(p: PrescriptionProps) {
 function ReviewShot(p: PrescriptionProps) {
   const { t } = p;
   const failed = p.capture.kind === "failed";
-  const view = resolveView(
-    contract("R3"),
+  const view = viewOf(
+    "R3",
     failed ? { kind: "error", detail: "upload" } : { kind: "ready" },
-    GRAPH, p.history, PATIENT_FLOWS,
+    p.history,
   );
 
   return (

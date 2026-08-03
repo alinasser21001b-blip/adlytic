@@ -13,13 +13,11 @@
 import { Marketplace, type Refusal } from "@dawai/domain";
 import { type RedirectReason } from "@dawai/navigation";
 import * as DraftModel from "../model/draft.js";
-import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
 import { Card, Chip, Digits, Grow, Label, Note, Primary, RedirectNote, Row, Screen, Section } from "../ui/kit.js";
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
 const R6 = CORE_LOOP.find((c) => c.id === "R6")!;
 
@@ -48,12 +46,12 @@ export type ConfirmProps = {
 export function ConfirmScreen(p: ConfirmProps) {
   const { t, draft } = p;
   const blocked = DraftModel.validate(draft);
-  const view = resolveView(
-    R6,
+  const view = viewOf(
+    R6.id,
     p.refusal ? { kind: "error", detail: p.refusal.code }
       : !p.online ? { kind: "offline", ageMs: null }
       : { kind: "ready" },
-    GRAPH, p.history, PATIENT_FLOWS,
+    p.history,
   );
 
   return (

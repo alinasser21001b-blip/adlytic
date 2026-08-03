@@ -15,14 +15,11 @@ import { instant } from "@dawai/domain";
 
 import * as Reservation from "../model/reservation.js";
 import { formatPrice } from "../model/offers.js";
-import { resolveView, type Phase } from "../model/view.js";
-import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
+import { type Phase } from "../model/view.js";
 import { Screen, Label, Digits, Primary, Secondary, InfoCard, CodePanel, FactRow, Row } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
-const contract = (id: string) => CORE_LOOP.find((c) => c.id === id)!;
 
 export type ReservationProps = {
   readonly t: Theme;
@@ -50,7 +47,7 @@ export function ReservationScreen(p: ReservationProps) {
 
 /** V1 — deliberately un-poppable and deliberately without a timer. */
 function Requesting({ t, branchName, history, onBack, onAction }: ReservationProps & { branchName: string }) {
-  const view = resolveView(contract("V1"), { kind: "loading" }, GRAPH, history, PATIENT_FLOWS);
+  const view = viewOf("V1", { kind: "loading" }, history);
   return (
     <Screen t={t} view={view} onBack={onBack} onAction={onAction}>
       <InfoCard t={t}>
@@ -71,7 +68,7 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
   const left = Reservation.timeLeft(hold, instant(p.now));
   const cached = p.freshness.kind === "cached";
   const phase: Phase = cached ? { kind: "offline", ageMs: p.now - p.freshness.asOf } : { kind: "ready" };
-  const view = resolveView(contract("V2"), phase, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf("V2", phase, p.history);
 
   return (
     <Screen
@@ -145,7 +142,7 @@ function Held(p: ReservationProps & { hold: Reservation.Hold; kind: "held" | "co
 
 /** V4 — D39. They confirmed and then could not. */
 function Refused({ t, branchName, reopened, history, onBack, onAction }: ReservationProps & { branchName: string; reopened: boolean }) {
-  const view = resolveView(contract("V4"), { kind: "ready" }, GRAPH, history, PATIENT_FLOWS);
+  const view = viewOf("V4", { kind: "ready" }, history);
   return (
     <Screen
       t={t} view={view} onBack={onBack} onAction={onAction}

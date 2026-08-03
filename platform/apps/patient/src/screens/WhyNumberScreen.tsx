@@ -22,12 +22,10 @@
  *      typed. See DEV-16.
  */
 
-import { resolveView } from "../model/view.js";
 import { CORE_LOOP } from "./core-loop.contract.js";
-import { GRAPH } from "./graph.js";
 import { Screen, Label, Primary, Secondary, Row, Section, InfoStrip } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
-import { PATIENT_FLOWS } from "./flows.js";
+import { viewOf } from "./graph.js";
 
 const E4 = CORE_LOOP.find((c) => c.id === "E4")!;
 
@@ -45,7 +43,7 @@ export type WhyNumberProps = {
 
 export function WhyNumberScreen(p: WhyNumberProps) {
   const { t } = p;
-  const view = resolveView(E4, { kind: "ready" }, GRAPH, p.history, PATIENT_FLOWS);
+  const view = viewOf(E4.id, { kind: "ready" }, p.history);
 
   return (
     <Screen
