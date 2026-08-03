@@ -56,6 +56,13 @@ export default defineConfig({
    * globals above the host, and this is the host.
    */
   define: { global: "globalThis" },
+  /**
+   * Copied verbatim to the publish root: `_redirects` and `_headers`, which a
+   * static host reads from the output itself rather than from a config file
+   * whose location depends on the build's base directory. The deploy that
+   * answered 404 at its own front door is why they live here.
+   */
+  publicDir: at("./web/public"),
   resolve: {
     alias: {
       // The app is written against React Native primitives; react-native-web
