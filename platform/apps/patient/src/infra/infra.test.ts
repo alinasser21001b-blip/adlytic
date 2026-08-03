@@ -361,3 +361,59 @@ describe("attempts are the server's count, never the client's guess", () => {
     expect(await verify(400, { attemptsLeft: 4 })).toMatchObject({ attemptsLeft: 4 });
   });
 });
+
+describe("a row the clinical gate cannot judge is never offered", () => {
+  const full = {
+    itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500mg",
+    requestable: true, requiresPrescription: false, isControlled: false,
+  };
+  const cat = (fetchImpl: Fetch, cache?: SearchCache) =>
+    makeCatalogue(makeHttp("https://api", fetchImpl), cache ?? { read: async () => null, write: async () => {} }, () => 5_000);
+  const serve = (hits: readonly unknown[]) =>
+    cat(async () => ({ status: 200, text: async () => JSON.stringify({ hits, at: 1 }) })).search("بان");
+
+  it("a complete row is served", async () => {
+    const r = await serve([full]);
+    expect(r.kind === "fresh" && r.value.hits).toHaveLength(1);
+  });
+
+  it("a row missing isControlled is DROPPED, not gated as safe", async () => {
+    // `gateRequestLine` reads `item.isControlled` as a boolean: absent is
+    // falsy, so this row was returned ALLOWED and D42 never fired for a
+    // medicine that cannot be requested from the app at all.
+    const { isControlled: _omitted, ...withoutFlag } = full;
+    const r = await serve([withoutFlag]);
+    expect(r.kind === "fresh" && r.value.hits).toHaveLength(0);
+  });
+
+  it("a row missing requiresPrescription is dropped too (D18)", async () => {
+    const { requiresPrescription: _omitted, ...withoutFlag } = full;
+    const r = await serve([withoutFlag]);
+    expect(r.kind === "fresh" && r.value.hits).toHaveLength(0);
+  });
+
+  it("a flag sent as a string is not a boolean", async () => {
+    const r = await serve([{ ...full, isControlled: "false" }]);
+    expect(r.kind === "fresh" && r.value.hits).toHaveLength(0);
+  });
+
+  it("one bad row does not discard the good ones beside it", async () => {
+    const r = await serve([full, { itemId: "i2", name: "دواء" }]);
+    expect(r.kind === "fresh" && r.value.hits).toHaveLength(1);
+  });
+
+  it("CACHED rows are validated too — an older build wrote them", async () => {
+    // The path that makes this real: no server is in the loop to correct a row
+    // an earlier schema stored, and the offline answer went straight to the
+    // gate unchecked.
+    const stale = { itemId: "i9", name: "دواء قديم", latinName: "Old", form: "ف", strength: "1" };
+    const cache: SearchCache = {
+      read: async () => ({ value: { hits: [stale, full] as never, at: 1 }, at: 1 }),
+      write: async () => {},
+    };
+    const r = await cat(async () => { throw new Error("offline"); }, cache).search("بان");
+    expect(r.kind).toBe("cached");
+    expect(r.kind === "cached" && r.value.hits).toHaveLength(1);
+    expect(r.kind === "cached" && r.value.hits[0]!.itemId).toBe("i1");
+  });
+});
