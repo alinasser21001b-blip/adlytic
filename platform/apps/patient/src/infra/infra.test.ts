@@ -14,6 +14,7 @@ import { instant } from "@dawai/domain";
 import { shouldRetry, DEFAULT_POLICY } from "@dawai/net";
 import { empty, enqueue, cancel, type Outbox } from "@dawai/offline";
 import { makeHttp, type Fetch } from "./http.js";
+import { makeMarketplace } from "./marketplace.js";
 import { makeIdentity } from "./identity.js";
 import { makeCatalogue, type SearchCache } from "./catalogue.js";
 import { flush, resetFlushLane } from "./flush.js";
@@ -255,6 +256,7 @@ describe("the full round trip — store to server to store", () => {
   const ports = (fetchImpl: Fetch): Ports => ({
     catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
+    marketplace: makeMarketplace(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1",
     startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {},
   });
@@ -298,6 +300,7 @@ describe("a verification that cannot reach a verdict still answers the screen", 
   const ports = (fetchImpl: Fetch): Ports => ({
     catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
+    marketplace: makeMarketplace(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {},
   });
 
@@ -335,6 +338,7 @@ describe("attempts are the server's count, never the client's guess", () => {
   const ports = (fetchImpl: Fetch): Ports => ({
     catalogue: makeCatalogue(makeHttp("https://api", fetchImpl), { read: async () => null, write: async () => {} }, () => 5_000),
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
+    marketplace: makeMarketplace(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {},
   });
   const verify = (status: number, body: unknown) => perform(

@@ -21,6 +21,7 @@ import { makeHttp } from "../infra/http.js";
 import { makeCatalogue, type SearchCache } from "../infra/catalogue.js";
 import { makeIdentity } from "../infra/identity.js";
 import { makeRequests } from "../infra/requests.js";
+import { makeMarketplace } from "../infra/marketplace.js";
 import { flush } from "../infra/flush.js";
 import type { Runtime } from "../App.js";
 import type { Environment, SearchResponse } from "../ports.js";
@@ -234,6 +235,7 @@ export async function createRuntime(
   const runtime: Runtime = {
     catalogue: makeCatalogue(http, searchCache(host), now),
     identity: makeIdentity(http),
+    marketplace: makeMarketplace(http),
     env,
     deviceId,
     startFlush: (queued) => {

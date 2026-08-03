@@ -72,6 +72,21 @@ await show("waited");
 await press("شوف العرض الواصل");
 await show("offers");
 
+// Each row IS the action, labelled with its own pharmacy — D12 forbids a
+// screen-level primary that would pick one on the patient's behalf.
+const row = await page.locator('[aria-label^="افتح عرض"]').first().getAttribute("aria-label");
+await press(row);
+await show("offer");
+// §4 R10 — an offer with a substitution cannot be accepted until the patient
+// has answered it. The reserve control is disabled until they do, which is the
+// rule working rather than a screen being awkward.
+const decision = await page.locator('[aria-label^="أوافق على"]').first().getAttribute("aria-label");
+if (decision) { await press(decision); await show("decided"); }
+
+await press("احجز من هنا");
+await page.waitForTimeout(1_500);
+await show("reserved");
+
 console.log(`\nERRORS: ${errors.length === 0 ? "none" : ""}`);
 for (const e of errors) console.log(`  ${e}`);
 if (SHOTS) writeFileSync(`${SHOTS}/errors.txt`, errors.join("\n"));

@@ -24,6 +24,17 @@ const devApi = (): Plugin => ({
 export default defineConfig({
   root: at("../.."),
   plugins: [devApi()],
+  /**
+   * react-native-web's Animated reads `global`, which exists in a React Native
+   * runtime and not in a browser. Without this the app rendered, ran, and then
+   * unmounted its entire tree the first time a transition mounted — a blank
+   * dark screen with `ReferenceError: global is not defined` in a console
+   * nobody had open. It reached R8 and died on the way to R9.
+   *
+   * The app's own code never touches it; the layer gate forbids browser
+   * globals above the host, and this is the host.
+   */
+  define: { global: "globalThis" },
   resolve: {
     alias: {
       // The app is written against React Native primitives; react-native-web

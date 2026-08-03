@@ -14,14 +14,15 @@
  *      things is two effects, and keeping that rule here means the runner
  *      cannot become a second reducer.
  */
-import { instant } from "@dawai/domain";
+import { instant, REFUSAL } from "@dawai/domain";
 import type { Outbox } from "@dawai/offline";
 import type { Effect, Intent } from "../app/store.js";
-import type { CataloguePort, Environment, IdentityPort } from "../ports.js";
+import type { CataloguePort, Environment, IdentityPort, MarketplacePort } from "../ports.js";
 
 export type Ports = {
   readonly catalogue: CataloguePort;
   readonly identity: IdentityPort;
+  readonly marketplace: MarketplacePort;
   readonly env: Environment;
   /** Stable per install. The verify contract requires it for device binding. */
   readonly deviceId: string;
@@ -91,6 +92,38 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
         case "expired": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "expired" };
         case "tooManyAttempts": return { kind: "codeJudged", challengeId: effect.challengeId, verdict: "exhausted" };
         case "suspended": return null; // E13's case — a separate slice owns that screen.
+      }
+      return null;
+    }
+
+    case "acceptOffer": {
+      const res = await ports.marketplace.accept(
+        effect.offerId, effect.acceptedLineIds, effect.substitutionAcknowledged, effect.idempotencyKey,
+      );
+      // A failed call is not a refusal. D39's V4 is a pharmacy saying no —
+      // telling a patient their pharmacy declined because a connection dropped
+      // would be the app inventing a rejection nobody made. V1 keeps waiting,
+      // which is true: the acceptance may still have landed, and the key means
+      // a retry returns the original answer rather than a second reservation.
+      if (res.kind === "failed") return null;
+
+      const v = res.value;
+      switch (v.kind) {
+        case "held": return { kind: "holdConfirmed", hold: v.hold };
+        // The offer left while the patient was deciding. Not D39: nobody
+        // refused them, so V4's «ما كدرت الصيدلية تثبّت الحجز» would name an
+        // event that did not happen. R8's stale-offer state is the declared
+        // treatment, and it says which of the two occurred.
+        case "withdrawn": return { kind: "offerGone", offerId: effect.offerId, why: REFUSAL.OFFER_WITHDRAWN };
+        case "expired": return { kind: "offerGone", offerId: effect.offerId, why: REFUSAL.OFFER_EXPIRED };
+        // §5 rule 1 — the server refused what the client had gated. Reaching
+        // this means the two disagree, which is a defect and not a patient's
+        // mistake; R9 is where the decision lives, so they go and make it.
+        case "substitutionNotAcknowledged":
+          return { kind: "openOffer", offerId: effect.offerId };
+        // 404 and a forbidden offer are byte-identical by design, so this
+        // cannot say which. "It is not there for you" is the whole truth.
+        case "gone": return { kind: "offerGone", offerId: effect.offerId, why: REFUSAL.OFFER_WITHDRAWN };
       }
       return null;
     }

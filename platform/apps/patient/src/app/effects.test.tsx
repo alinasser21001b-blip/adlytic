@@ -20,6 +20,7 @@ const runtime = (over: Partial<Runtime>): Runtime => {
     requestCode: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }),
     verify: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }),
   },
+    marketplace: { accept: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
   env: { now: () => 1_000, newId: () => "id-1", online: () => true },
   deviceId: "dev-1",
   startFlush: () => {},

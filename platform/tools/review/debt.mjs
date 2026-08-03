@@ -55,11 +55,11 @@ export const DEBT = [
   },
   {
     id: "TD-20",
-    description: "R7's «ألغِ الطلب» does not cancel anything. The contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: there is no cancel intent, no marketplace transition, no call. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.",
-    impact: "A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. What cancelling a broadcast request DOES — whether it is a state on the request machine, what pharmacies that already answered are told, and whether it is even offered once an offer exists — is not in Blueprint v3, so implementing it here would be inventing a state transition and a notification at once.",
+    description: "R7's «ألغِ الطلب» does not cancel anything. The SCREEN contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.",
+    impact: "A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. This item first said the behaviour was unstated and therefore blocked; that was wrong, and read only the screen contract. `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted), so the client half is buildable against a route that already exists. What remains unstated is only what a pharmacy that already answered is told, which belongs to the notification service rather than to this control.",
     priority: "high",
     owner: "marketplace-engine",
-    slice: "Blocked — needs the cancellation rule",
+    slice: "Next — the cancel contract exists",
     status: "open",
   },
   {

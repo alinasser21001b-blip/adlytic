@@ -109,7 +109,29 @@ export type Effect =
   /** Ask the identity service to send an SMS. Delivery is infrastructure's
    *  job; the store only says that it should happen. */
   | { readonly kind: "requestCode"; readonly e164: string }
-  | { readonly kind: "verifyCode"; readonly challengeId: string; readonly code: string };
+  | { readonly kind: "verifyCode"; readonly challengeId: string; readonly code: string }
+  /**
+   * Take this offer, on these lines.
+   *
+   * The lines are the CONSENT decisions, already resolved: a substitution the
+   * patient refused is not in the list, and D06 sends that line to a child
+   * request. `substitutionAcknowledged` is §4 R10's acknowledgement, and the
+   * server refuses without it — the client gate is a courtesy, the server's is
+   * the control (§5 rule 1).
+   *
+   * The idempotency key is minted HERE, once, by the reducer that decided to
+   * accept. Minting it in the transport would produce a new key on every
+   * attempt, and the contract's third rule — replaying a state-changing call
+   * returns the original result — is exactly what stops a retry from becoming
+   * a second reservation at a second pharmacy.
+   */
+  | {
+      readonly kind: "acceptOffer";
+      readonly offerId: string;
+      readonly acceptedLineIds: readonly string[];
+      readonly substitutionAcknowledged: boolean;
+      readonly idempotencyKey: string;
+    };
 
 export type Intent =
   | { readonly kind: "open"; readonly screen: string }
@@ -136,6 +158,9 @@ export type Intent =
   | { readonly kind: "openOffer"; readonly offerId: string }
   | { readonly kind: "decideSubstitution"; readonly requestLineId: string; readonly decision: "agreed" | "refused" }
   | { readonly kind: "dismissRefusal" }
+  /** The offer is gone — the server's word, not the client's guess. R8 names
+   *  the pharmacy and says which of the two happened. */
+  | { readonly kind: "offerGone"; readonly offerId: string; readonly why: RefusalCode }
   /** What the flusher made of the queue: attempts spent, items accepted,
    *  rejected or requeued. The store owns the outbox, so a delivery attempt
    *  reports back rather than mutating it from outside. */
@@ -391,7 +416,21 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
           reservation: Reservation.requesting(offer.branchName),
           reservationState: "requested",
         }, "V1"),
-        effects: [{ kind: "flushOutbox", outbox: state.outbox }],
+        // The acceptance, actually made. `chosen.acceptance` was computed and
+        // discarded here — the reducer worked out exactly which lines the
+        // patient had agreed to and then emitted a flush of an outbox nothing
+        // had been added to, so V1 waited for an answer to a call nobody made.
+        effects: [{
+          kind: "acceptOffer",
+          offerId: offer.offerId,
+          acceptedLineIds: chosen.acceptance.outcome.reservedLineIds,
+          // §4 R10 — true only when there was something to acknowledge AND the
+          // patient answered every proposal. `Consent.acceptance` has already
+          // refused the alternative, so this reports a fact rather than
+          // asserting one.
+          substitutionAcknowledged: Offers.substitutionsOf(offer).length > 0,
+          idempotencyKey: env.newId(),
+        }],
       };
     }
 
@@ -617,6 +656,28 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
 
     case "dismissRefusal":
       return { state: { ...state, refusal: null, staleOffer: null }, effects: [] };
+
+    case "offerGone": {
+      // R8's declared error state, with the pharmacy named. The list stays —
+      // the other offers are still real, and the patient is one tap from them.
+      // The pharmacy is named from the offer the app already holds. The runner
+      // knows the offer id and nothing else, and passing an id where a name
+      // belongs would print «off-req-3-b1» to a patient.
+      const gone = state.offers.find((o) => o.offerId === intent.offerId);
+      if (!gone) return { state, effects: [] };
+      const offers = state.offers.filter((o) => o.offerId !== intent.offerId);
+      return {
+        state: navigate({
+          ...state,
+          offers,
+          staleOffer: gone.branchName,
+          refusal: { code: intent.why },
+          reservation: null,
+          reservationState: null,
+        }, "R8"),
+        effects: [],
+      };
+    }
 
     case "outboxChanged":
       return { state: { ...state, outbox: intent.outbox }, effects: [] };

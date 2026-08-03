@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 16:42 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 16:59 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1195,7 +1195,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">140 file(s) scanned across 11 layer(s)</div></div>
+  <div class="note mono">142 file(s) scanned across 11 layer(s)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
@@ -1207,11 +1207,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">1067 passed (1067)</div></div>
+  <div class="note mono">1078 passed (1078)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">41 test file(s) on disk · 41 reported by the runner</div></div>
+  <div class="note mono">42 test file(s) on disk · 42 reported by the runner</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Generated documents</b> — <span class="tag ok">PASS</span>
@@ -1560,10 +1560,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <div class="panel">
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
-    <div><div class="kpi">82<small>source files</small></div></div>
-    <div><div class="kpi">11,482<small>source lines</small></div></div>
+    <div><div class="kpi">83<small>source files</small></div></div>
+    <div><div class="kpi">11,750<small>source lines</small></div></div>
     <div><div class="kpi">0.55×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.49s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">5.47s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1625,11 +1625,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="note">Device build — push notifications</td>
 </tr><tr>
   <td class="mono">TD-20</td>
-  <td>R7's «ألغِ الطلب» does not cancel anything. The contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: there is no cancel intent, no marketplace transition, no call. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.</td>
-  <td class="note">A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. What cancelling a broadcast request DOES — whether it is a state on the request machine, what pharmacies that already answered are told, and whether it is even offered once an offer exists — is not in Blueprint v3, so implementing it here would be inventing a state transition and a notification at once.</td>
+  <td>R7's «ألغِ الطلب» does not cancel anything. The SCREEN contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else: no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked, and because nothing routes back to R7 the patient cannot return to the screen that was tracking it.</td>
+  <td class="note">A control that states an outcome and produces none, on a live request other people are working on. A patient who wants to stop a request believes they have. This item first said the behaviour was unstated and therefore blocked; that was wrong, and read only the screen contract. `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted), so the client half is buildable against a route that already exists. What remains unstated is only what a pharmacy that already answered is told, which belongs to the notification service rather than to this control.</td>
   <td><span class="tag warn">high</span></td>
   <td class="mono">marketplace-engine</td>
-  <td class="note">Blocked — needs the cancellation rule</td>
+  <td class="note">Next — the cancel contract exists</td>
 </tr><tr>
   <td class="mono">TD-17</td>
   <td>The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.</td>

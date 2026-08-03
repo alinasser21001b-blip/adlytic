@@ -12,6 +12,7 @@
  */
 import type { Outcome } from "@dawai/net";
 import type { Offer } from "./model/offers.js";
+import type { Hold } from "./model/reservation.js";
 
 /**
  * A catalogue row as the patient app needs it. The clinical flags are the
@@ -92,6 +93,47 @@ export type RequestView = {
 export interface RequestsPort {
   /** GET /v1/requests/{id} */
   read(requestId: string, signal?: AbortSignal): Promise<Fetched<RequestView>>;
+}
+
+/**
+ * What POST /v1/offers/{id}/accept can say.
+ *
+ * The declared responses and nothing else — 201 { reservation, childRequestId? },
+ * 409 offer_withdrawn, 409 offer_expired, 400 substitution_not_acknowledged,
+ * 404 not_found_or_not_yours — so a screen cannot receive an answer the
+ * contract does not contain. The two 409s are separate variants because they
+ * are separate things to a patient: a pharmacy took the offer back, or the
+ * patient took too long, and R8's error state names which.
+ */
+export type AcceptResult =
+  | { readonly kind: "held"; readonly hold: Hold; readonly childRequestId: string | null }
+  | { readonly kind: "withdrawn" }
+  | { readonly kind: "expired" }
+  | { readonly kind: "substitutionNotAcknowledged" }
+  | { readonly kind: "gone" };
+
+export interface MarketplacePort {
+  /**
+   * POST /v1/offers/{id}/accept
+   *
+   * `acceptedLineIds` is the contract's field and carries the consent
+   * decisions: a substitution the patient refused is simply not in it (D06
+   * sends that line to a child request). `substitutionAcknowledged` is the
+   * §4 R10 acknowledgement, and the server refuses without it — the client's
+   * gate is a courtesy, the server's is the control.
+   *
+   * The idempotency key is passed IN rather than minted here, because the
+   * contract's third rule is that replaying a state-changing call returns the
+   * original result: a key minted inside a transport would be new on every
+   * call and every retry would be a second acceptance.
+   */
+  accept(
+    offerId: string,
+    acceptedLineIds: readonly string[],
+    substitutionAcknowledged: boolean,
+    idempotencyKey: string,
+    signal?: AbortSignal,
+  ): Promise<Fetched<AcceptResult>>;
 }
 
 /* ── Identity — the declared auth contract, as a port ─────────────────── */

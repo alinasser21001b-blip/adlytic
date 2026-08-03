@@ -44,6 +44,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
     requestCode: async () => ({ kind: "fresh", value: { challengeId: "ch-1", resendAfter: 45 } }),
     verify: async () => ({ kind: "fresh", value: { kind: "verified", accountId: "acc-1", subjectId: "sub-1" } }),
   },
+    marketplace: { accept: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "x" } }) },
   env: { now: () => 1_000, newId: () => "id-1", online: () => true },
   deviceId: "dev-1",
   startFlush: () => {},
