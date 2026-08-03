@@ -13,6 +13,15 @@ import { join, dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { SLICE, CHANGELOG, LIMITATIONS } from "./changelog.mjs";
 import { DEBT, RESOLVED } from "./debt.mjs";
+
+/** Ids used more than once across the register, open and resolved together —
+ *  a resolved item keeps its number, so reusing it is the same collision. */
+const duplicateDebtIds = (() => {
+  const seen = new Set();
+  const twice = new Set();
+  for (const { id } of [...DEBT, ...RESOLVED]) (seen.has(id) ? twice : seen).add(id);
+  return [...twice].sort();
+})();
 import { MEASURED, NOT_VERIFIED } from "./measure.mjs";
 import { COMPONENT_NOTES, MISSING_COMPONENTS } from "../design/notes.mjs";
 
@@ -166,8 +175,15 @@ const derived = [
   },
   {
     name: "Technical debt registered",
-    pass: DEBT.every((d) => d.owner && d.priority && d.slice),
-    detail: `${DEBT.filter((d) => d.status === "open").length} open · ${DEBT.filter((d) => d.priority === "critical").length} critical · ${RESOLVED.length} resolved`,
+    // Every item is owned, prioritised, scheduled — and uniquely NAMED. The id
+    // is how a debt item is referenced from code comments and commit messages,
+    // so two items sharing one is worse than an unnumbered item: a reader
+    // following "see TD-10" lands on whichever the register happens to list
+    // first. It happened, to me, while adding two items to a hand-kept list.
+    pass: DEBT.every((d) => d.owner && d.priority && d.slice) && duplicateDebtIds.length === 0,
+    detail: duplicateDebtIds.length
+      ? `duplicate debt id(s): ${duplicateDebtIds.join(", ")}`
+      : `${DEBT.filter((d) => d.status === "open").length} open · ${DEBT.filter((d) => d.priority === "critical").length} critical · ${RESOLVED.length} resolved`,
   },
 ];
 

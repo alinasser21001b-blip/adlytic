@@ -101,7 +101,7 @@ export const DEBT = [
     status: "open",
   },
   {
-    id: "TD-10",
+    id: "TD-12",
     description: "ActionCard sets accessibilityLabel on the Pressable, which makes the card ONE accessibility element on both platforms: the label is announced and the children are not. On R8 an offer card therefore reads as «افتح عرض صيدلية الرشيد» alone — the price, the coverage («يغطي ٢ من ٢»), the substitution flag, the distance and the honoured band are all rendered and none of them is spoken. On F2 a result reads as «أضف بانادول للطلب», dropping the strength, the form, the Latin name and the price.",
     impact: "A patient using TalkBack or VoiceOver makes the most consequential decision in the product — which pharmacy to reserve from — without hearing anything the decision is based on. The visible card and the spoken card are different products. The engineering defect is clear; the fix is not, because what an offer card should announce, in which order, in Iraqi Arabic, is a content decision. §25 and the Blueprint state no spoken-content rule for a composite card, so implementation must not invent one. Blocked on a product/design answer, not on code.",
     priority: "high",
@@ -110,7 +110,7 @@ export const DEBT = [
     status: "open",
   },
   {
-    id: "TD-11",
+    id: "TD-13",
     description: "Offline.cancel refuses silently while an item is in flight. It returns the outbox object unchanged (identical by reference) when state is \"sending\", so the reducer stores the same value, the screen re-renders identically, and the patient's cancel produces no signal of any kind. With DEFAULT_POLICY the retry loop holds an item in \"sending\" for roughly 30 seconds of backoff across six attempts, and flush only re-reads the live outbox BETWEEN items, never between retries.",
     impact: "For up to half a minute after pressing send, R13's cancel does nothing and says nothing. The comment in flush.ts names this exact failure — 'the user\'s cancel does nothing but move a label' — and guards against it at the item boundary, which is not where the waiting happens. Whether a request already on the wire SHOULD be cancellable is a product decision (§21 · D27 · R13): a POST that may already have been accepted cannot simply be dropped, and the honest options — refuse visibly, or cancel and reconcile against the idempotency key — differ in what the patient is promised. The engineering half is unambiguous and unblocked: a function that can refuse must say so rather than returning its input.",
     priority: "medium",

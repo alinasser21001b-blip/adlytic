@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 12:32 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 12:41 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1561,9 +1561,9 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
     <div><div class="kpi">75<small>source files</small></div></div>
-    <div><div class="kpi">10,319<small>source lines</small></div></div>
+    <div><div class="kpi">10,325<small>source lines</small></div></div>
     <div><div class="kpi">0.52×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">4.43s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">4.37s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1659,14 +1659,14 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="mono">marketplace-engine</td>
   <td class="note">Stage 5 — Infrastructure</td>
 </tr><tr>
-  <td class="mono">TD-10</td>
+  <td class="mono">TD-12</td>
   <td>ActionCard sets accessibilityLabel on the Pressable, which makes the card ONE accessibility element on both platforms: the label is announced and the children are not. On R8 an offer card therefore reads as «افتح عرض صيدلية الرشيد» alone — the price, the coverage («يغطي ٢ من ٢»), the substitution flag, the distance and the honoured band are all rendered and none of them is spoken. On F2 a result reads as «أضف بانادول للطلب», dropping the strength, the form, the Latin name and the price.</td>
   <td class="note">A patient using TalkBack or VoiceOver makes the most consequential decision in the product — which pharmacy to reserve from — without hearing anything the decision is based on. The visible card and the spoken card are different products. The engineering defect is clear; the fix is not, because what an offer card should announce, in which order, in Iraqi Arabic, is a content decision. §25 and the Blueprint state no spoken-content rule for a composite card, so implementation must not invent one. Blocked on a product/design answer, not on code.</td>
   <td><span class="tag warn">high</span></td>
   <td class="mono">patient-app</td>
   <td class="note">Blocked — needs a spoken-content decision for composite cards</td>
 </tr><tr>
-  <td class="mono">TD-11</td>
+  <td class="mono">TD-13</td>
   <td>Offline.cancel refuses silently while an item is in flight. It returns the outbox object unchanged (identical by reference) when state is &quot;sending&quot;, so the reducer stores the same value, the screen re-renders identically, and the patient's cancel produces no signal of any kind. With DEFAULT_POLICY the retry loop holds an item in &quot;sending&quot; for roughly 30 seconds of backoff across six attempts, and flush only re-reads the live outbox BETWEEN items, never between retries.</td>
   <td class="note">For up to half a minute after pressing send, R13's cancel does nothing and says nothing. The comment in flush.ts names this exact failure — 'the user's cancel does nothing but move a label' — and guards against it at the item boundary, which is not where the waiting happens. Whether a request already on the wire SHOULD be cancellable is a product decision (§21 · D27 · R13): a POST that may already have been accepted cannot simply be dropped, and the honest options — refuse visibly, or cancel and reconcile against the idempotency key — differ in what the patient is promised. The engineering half is unambiguous and unblocked: a function that can refuse must say so rather than returning its input.</td>
   <td><span class="tag ">medium</span></td>
