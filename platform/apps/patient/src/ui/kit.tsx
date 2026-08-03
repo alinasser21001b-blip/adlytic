@@ -426,6 +426,35 @@ export function StepButton(
  * The fraction is on the accessible value as a percentage, so the arc is never
  * the only thing carrying it.
  */
+/**
+ * Half the dial, swept.
+ *
+ * Declared here rather than inside `Dial`, where it used to live: a component
+ * defined in a render body is a NEW component type on every render, so React
+ * cannot match it to the previous tree — it unmounts the old one and mounts a
+ * fresh one each time the countdown ticks. State and any animation attached to
+ * it are discarded on every frame, which is precisely what a dial does.
+ */
+function Wedge(
+  { t, deg, side, half, size }:
+  { t: Theme; deg: number; side: "leading" | "trailing"; half: number; size: number },
+) {
+  return (
+    <View style={{ width: half, height: size, overflow: "hidden" }}>
+      <View style={{
+        width: half, height: size, backgroundColor: t.color.accent,
+        transform: [
+          // Rotate about the ring's centre rather than the wedge's own, by
+          // stepping to the centre line, turning, and stepping back.
+          { translateX: side === "leading" ? half / 2 : -half / 2 },
+          { rotate: `${deg}deg` },
+          { translateX: side === "leading" ? -half / 2 : half / 2 },
+        ],
+      }} />
+    </View>
+  );
+}
+
 export function Dial(
   { t, fraction, value, label }: { t: Theme; fraction: number; value: string; label: string },
 ) {
@@ -435,21 +464,6 @@ export function Dial(
   // Each half sweeps its own 180°. The leading half is fully swept once the
   // fraction passes the halfway mark, and the trailing half starts from zero.
   const sweep = (from: number) => Math.min(180, Math.max(0, (f - from) * 360));
-
-  const Wedge = ({ deg, side }: { deg: number; side: "leading" | "trailing" }) => (
-    <View style={{ width: half, height: SIZE, overflow: "hidden" }}>
-      <View style={{
-        width: half, height: SIZE, backgroundColor: t.color.accent,
-        transform: [
-          // Rotate about the ring's centre rather than the wedge's own, by
-          // stepping to the centre line, turning, and stepping back.
-          { translateX: side === "leading" ? half / 2 : -half / 2 },
-          { rotate: `${side === "leading" ? deg : deg}deg` },
-          { translateX: side === "leading" ? -half / 2 : half / 2 },
-        ],
-      }} />
-    </View>
-  );
 
   return (
     <View
@@ -462,8 +476,8 @@ export function Dial(
         flexDirection: "row", alignItems: "center", justifyContent: "center",
       }}
     >
-      <Wedge deg={sweep(0.5)} side="leading" />
-      <Wedge deg={sweep(0)} side="trailing" />
+      <Wedge t={t} deg={sweep(0.5)} side="leading" half={half} size={SIZE} />
+      <Wedge t={t} deg={sweep(0)} side="trailing" half={half} size={SIZE} />
       {/* The well, which turns the disc into a ring and holds the figure. */}
       <View style={{
         position: "absolute",
