@@ -10,6 +10,7 @@
  *      comes from the published machine, so a state it does not contain cannot
  *      be produced.
  */
+import { counted } from "@dawai/design";
 import { MarketplaceMachines, transition, isErr, isOk, type Instant, type Refusal } from "@dawai/domain";
 
 /** How long a confirmed hold lasts. Fixed by the pharmacy on confirmation and
@@ -125,13 +126,21 @@ export function timeLeft(hold: Hold, now: Instant): {
  * patient has to convert it before they know whether they can walk or must
  * hurry. Hours are how people hold time.
  */
+/** One vocabulary each, so a countdown and a cache label cannot inflect the
+ *  same word two different ways. */
+const MINUTES = { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" } as const;
+const HOURS = { one: "ساعة", two: "ساعتين", few: "ساعات", many: "ساعة" } as const;
+
 export function describeRemaining(minutes: number): string {
   if (minutes <= 0) return "انتهى الوقت";
-  if (minutes < 60) return `${minutes} دقيقة`;
+  // This module already knew the dual for hours and applied the singular to
+  // every minute count — so «٥ دقيقة» and «١١ ساعات», on the screen a patient
+  // reads to decide whether they can walk or must hurry.
+  if (minutes < 60) return counted(minutes, MINUTES);
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
-  const hours = h === 1 ? "ساعة" : h === 2 ? "ساعتين" : `${h} ساعات`;
-  return m === 0 ? hours : `${hours} و${m} دقيقة`;
+  const hours = counted(h, HOURS);
+  return m === 0 ? hours : `${hours} و${counted(m, MINUTES)}`;
 }
 
 /**

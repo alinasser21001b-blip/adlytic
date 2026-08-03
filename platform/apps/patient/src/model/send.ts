@@ -12,6 +12,7 @@
  */
 import { MarketplaceMachines, Marketplace, transition, isErr, isOk, type Refusal, type Instant } from "@dawai/domain";
 import { enqueue, type Outbox } from "@dawai/offline";
+import { plural } from "@dawai/design";
 import { submission, type Draft } from "./draft.js";
 import type { Environment, RequestSubmission } from "../ports.js";
 
@@ -93,9 +94,18 @@ export function send(
 export function describeRequest(draft: Draft): string {
   const first = draft.lines[0];
   if (!first) return "طلب دواء";
-  return draft.lines.length === 1
+  // «و٢ غيره» — the pronoun agrees with how many others there are, and this
+  // counted them all as one. R13 shows this label, so it is what a patient
+  // reads to recognise their own queued request.
+  const others = draft.lines.length - 1;
+  return others === 0
     ? `طلب ${first.name}`
-    : `طلب ${first.name} و${draft.lines.length - 1} غيره`;
+    : `طلب ${first.name} و${plural(others, {
+        one: "واحد غيره",
+        two: "اثنين غيرهم",
+        few: `${others} غيرهم`,
+        many: `${others} غيره`,
+      })}`;
 }
 
 /**

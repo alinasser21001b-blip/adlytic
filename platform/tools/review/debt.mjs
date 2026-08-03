@@ -63,6 +63,15 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-22",
+    description: "The Arabic plural forms are engineering's reading of the grammar, not a native speaker's or the copywriter's. `plural`/`counted` encode the four CLDR categories and every counted string in the app now selects through them, which fixes what was unambiguously wrong — «١ دقائق», «٢ محاولات», «٥ دقيقة». What is NOT verified is the dialect: this product is written in Iraqi Arabic, and some inflections have a colloquial form that differs from Modern Standard — the dual «دوائين», the non-human plural agreement in «٣ أدوية تحتاج وصفة», and «اثنين غيرهم» on the outbox label are the three worth a second pair of eyes.",
+    impact: "Strictly better than what shipped, and not yet confirmed. Nothing here changes what a screen SAYS, only how the number agrees with it, so the risk is a phrase that reads as slightly formal rather than one that misinforms. It needs a native Iraqi reader — ideally the person who wrote the original copy — to confirm the four forms for each noun. Until then the register carries this rather than the tests implying it was reviewed.",
+    priority: "medium",
+    owner: "patient-app",
+    slice: "Next copy review",
+    status: "open",
+  },
+  {
     id: "TD-17",
     description: "The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.",
     impact: "Nothing in the app hard-codes an id from the list and the real one replaces the file wholesale, so this cannot leak into logic. It does mean a patient in a district Dawai actually serves may not find it, and the coverage claim on each row is not yet a claim product has made. Needs the coverage list as a product input.",

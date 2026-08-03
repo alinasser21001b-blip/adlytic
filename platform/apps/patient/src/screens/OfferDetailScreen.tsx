@@ -24,6 +24,7 @@ import { CORE_LOOP } from "./core-loop.contract.js";
 import { Screen, Label, Bidi, Primary, Choice, InfoCard, Row, Spacer, Grow, Card, Section } from "../ui/kit.js";
 import type { Theme } from "../ui/theme.js";
 import { viewOf } from "./graph.js";
+import { plural } from "@dawai/design";
 
 const R9 = CORE_LOOP.find((c) => c.id === "R9")!;
 
@@ -56,7 +57,12 @@ export function OfferDetailScreen(p: OfferDetailProps) {
             // Says what is left rather than only refusing. A disabled button
             // with no count is a puzzle, not a control.
             ? <Label t={t} role="caption" color="warning">
-                {outstanding === 1 ? "باقي بديل واحد تقرر بيه" : `باقي ${outstanding} بدائل تقرر بيهم`}
+                {plural(outstanding, {
+                  one: "باقي بديل واحد تقرر بيه",
+                  two: "باقي بديلين تقرر بيهم",
+                  few: `باقي ${outstanding} بدائل تقرر بيهم`,
+                  many: `باقي ${outstanding} بديل تقرر بيهم`,
+                })}
               </Label>
             : null}
           <Primary

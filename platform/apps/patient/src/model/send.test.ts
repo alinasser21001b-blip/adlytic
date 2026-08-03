@@ -76,7 +76,10 @@ describe("sending while offline (D27)", () => {
 describe("what the patient reads in the pending list", () => {
   it("names the medicine, because a list of four 'طلب' tells nobody anything", () => {
     expect(describeRequest(draftWith("بانادول"))).toBe("طلب بانادول");
-    expect(describeRequest(draftWith("بانادول", "أموكسيسيلين"))).toBe("طلب بانادول و1 غيره");
+    // Arabic counts in four forms: one other is «واحد غيره», two are «اثنين
+    // غيرهم». This asserted «و1 غيره», which is neither.
+    expect(describeRequest(draftWith("بانادول", "أموكسيسيلين"))).toBe("طلب بانادول وواحد غيره");
+    expect(describeRequest(draftWith("بانادول", "أموكسيسيلين", "بروفين"))).toBe("طلب بانادول واثنين غيرهم");
   });
 });
 

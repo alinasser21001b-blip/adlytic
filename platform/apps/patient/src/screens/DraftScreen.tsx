@@ -17,6 +17,9 @@ import { Screen, Label, Bidi, Digits, Primary, Secondary, RedirectNote, Note, Ac
 import { word } from "../ui/refusal.js";
 import type { Theme } from "../ui/theme.js";
 import { viewOf, isBuilt } from "./graph.js";
+import { counted, plural } from "@dawai/design";
+
+const MEDICINES = { one: "دواء", two: "دوائين", few: "أدوية", many: "دواء" } as const;
 
 const R1 = CORE_LOOP.find((c) => c.id === "R1")!;
 
@@ -78,16 +81,29 @@ export function DraftScreen(p: DraftProps) {
         <LineRow key={line.itemId} t={t} line={line} onSetPacks={p.onSetPacks} onRemove={p.onRemove} />
       ))}
 
-      {lines.length > 0 ? (
+      {/* Only while there is room. At the eighth line this said «تكدر تضيف ٠
+          دواء بعد» — a sentence that offers and refuses in the same breath.
+          The full case already has its own declared treatment: adding a ninth
+          is refused with «تكدر تطلب ٨ أدوية بالطلب الواحد». */}
+      {lines.length > 0 && DraftModel.remainingLines(draft!) > 0 ? (
         <Label t={t} role="caption" color="inkMuted">
-          {`تكدر تضيف ${DraftModel.remainingLines(draft!)} أدوية بعد`}
+          {`تكدر تضيف ${counted(DraftModel.remainingLines(draft!), MEDICINES)} بعد`}
         </Label>
       ) : null}
 
       {missing.length > 0 ? (
         <Note t={t} tone="caution" gap={2}>
           <Label t={t} role="body" color="warning">
-            {`${missing.length === 1 ? "دواء واحد" : `${missing.length} أدوية`} يحتاج وصفة`}
+            {/* The verb agrees too — «دواء واحد يحتاج» against «٣ أدوية
+                تحتاج», which is the feminine-singular agreement Arabic uses
+                for non-human plurals. Selecting whole phrases is what makes
+                that expressible. */}
+            {plural(missing.length, {
+              one: "دواء واحد يحتاج وصفة",
+              two: "دوائين يحتاجون وصفة",
+              few: `${missing.length} أدوية تحتاج وصفة`,
+              many: `${missing.length} دواء يحتاج وصفة`,
+            })}
           </Label>
           <Primary t={t} label="صوّر الوصفة" onPress={() => p.onAction("R2")} />
         </Note>

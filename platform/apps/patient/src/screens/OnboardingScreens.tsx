@@ -19,6 +19,9 @@
  */
 
 import * as Onboarding from "../model/onboarding.js";
+import { counted, plural } from "@dawai/design";
+
+const SECONDS = { one: "ثانية", two: "ثانيتين", few: "ثواني", many: "ثانية" } as const;
 import { type Phase } from "../model/view.js";
 import {
   Screen, Label, Primary, Secondary, Row, Section, Card, Note, InputField, ActionCard, Tag, Spacer,
@@ -198,9 +201,14 @@ export function CodeEntryScreen(p: CodeEntryProps) {
           tries remain will guess, which is how the tries get spent. */}
       {p.refusalCode === "WRONG_CODE" && !dead ? (
         <Label t={t} role="caption" color="warning">
-          {status.attemptsLeft === 1
-            ? "باقيتلك محاولة وحدة قبل ما نطلب رمز جديد"
-            : `باقيلك ${status.attemptsLeft} محاولات`}
+          {/* Four forms, not two. «باقيلك ٢ محاولات» is what a patient on
+              their third try was told, where Arabic wants the dual. */}
+          {plural(status.attemptsLeft, {
+            one: "باقيتلك محاولة وحدة قبل ما نطلب رمز جديد",
+            two: "باقيتلك محاولتين",
+            few: `باقيلك ${status.attemptsLeft} محاولات`,
+            many: `باقيلك ${status.attemptsLeft} محاولة`,
+          })}
         </Label>
       ) : null}
 
@@ -226,7 +234,9 @@ export function CodeEntryScreen(p: CodeEntryProps) {
         <Label t={t} role="body" color="inkMuted">ما وصلتك الرسالة؟</Label>
         {status.canResendIn > 0 && !dead ? (
           <Label t={t} role="caption" color="inkSubtle">
-            {`تكدر تطلب رمز جديد بعد ${status.canResendIn} ثانية`}
+            {/* Counts 45 down to 0, so it passes through every category on
+                the way: «٤٥ ثانية», «٥ ثواني», «ثانيتين», «ثانية». */}
+            {`تكدر تطلب رمز جديد بعد ${counted(status.canResendIn, SECONDS)}`}
           </Label>
         ) : (
           <Row t={t}>

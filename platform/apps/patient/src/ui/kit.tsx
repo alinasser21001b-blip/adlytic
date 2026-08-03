@@ -15,7 +15,10 @@
 import * as React from "react";
 import { View, Text, TextInput, Pressable, ScrollView, ActivityIndicator } from "react-native";
 import type { StateTreatment } from "@dawai/design";
-import { formatDigits, isolate, needsIsolation, toWesternDigits, tracking } from "@dawai/design";
+import { counted, formatDigits, isolate, needsIsolation, toWesternDigits, tracking } from "@dawai/design";
+
+/** §25 — one vocabulary for a minute, so two screens cannot inflect it two ways. */
+const MINUTES = { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" } as const;
 import type { ScreenView } from "../model/view.js";
 import type { Theme } from "./theme.js";
 import { textStyle } from "./theme.js";
@@ -830,7 +833,10 @@ function OfflineBanner(
           ? "من الذاكرة — ما في اتصال"
           : "ما في اتصال — راح نرسله أول ما يرجع"}
       {...(treatment.blocked !== true && treatment.showsAge && typeof ageMs === "number"
-        ? { aside: `آخر تحديث قبل ${Math.max(1, Math.round(ageMs / 60_000))} دقائق` }
+        // «آخر تحديث قبل ١ دقائق» is what this said, in an Arabic-first
+        // product, on the reassurance a patient reads when the network is
+        // gone. Arabic counts in four forms and this one used one of them.
+        ? { aside: `آخر تحديث قبل ${counted(Math.max(1, Math.round(ageMs / 60_000)), MINUTES)}` }
         : {})}
     />
   );

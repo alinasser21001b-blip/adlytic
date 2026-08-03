@@ -3397,6 +3397,7 @@
       "modules": [
         "packages/contracts/src/index.ts",
         "packages/design/src/a11y.ts",
+        "packages/design/src/arabic.ts",
         "packages/design/src/index.ts",
         "packages/design/src/rtl.ts",
         "packages/design/src/tokens/color.ts",

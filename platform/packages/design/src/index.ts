@@ -14,4 +14,5 @@ export * from "./tokens/color.js";
 export * from "./tokens/motion.js";
 export * from "./a11y.js";
 export * from "./rtl.js";
+export * from "./arabic.js";
 export * from "./ux/contract.js";
