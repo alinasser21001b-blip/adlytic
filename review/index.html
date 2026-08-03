@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 18:27 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 18:30 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -1563,7 +1563,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <div><div class="kpi">84<small>source files</small></div></div>
     <div><div class="kpi">12,112<small>source lines</small></div></div>
     <div><div class="kpi">0.57×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.90s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">6.07s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1608,7 +1608,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="note">No medicine that requires a prescription can be requested AT ALL. D18 refuses the send without an image, the only way to attach one is a photograph, and no photograph can be taken — so the class is closed, and in a real catalogue that class is antibiotics, inhalers and much else. The rest of the journey around it is correct and was verified in the browser: D42 refuses a controlled medicine on the row with no add control at all, a prescription row says «يحتاج وصفة — راح نطلب صورتها» before the tap, the draft line carries «يحتاج صورة الوصفة», and R2 offers «اكتب الاسم بدال الصورة» rather than being a wall. What is missing is the one step in the middle, and a control that does nothing without saying so is worse than the feature being absent.</td>
   <td><span class="tag warn">high</span></td>
   <td class="mono">media-service</td>
-  <td class="note">Device build</td>
+  <td class="note">NOT blocked on a device — see below — This said &quot;Device build&quot;, and that is wrong. A browser can take a photograph, `POST /v1/prescriptions` is a declared contract (§4 R2 · media-service — multipart image + { subjectId } → 201 { imageId }, 413 too_large, 415 unsupported_type), and R2/R3's capture-confirm-attach flow is already built and tested. What stands in the way is one design decision this repository made and can unmake: `Host.camera` returns an `imageId`, which a platform cannot know — an id is minted by the media service, so the interface asks the host to do the app's job. Building it means the host returns bytes, a MediaPort uploads them over the declared route, and `Prescription.Capture` gains the moment between confirmed and attached. Awaiting a decision because it changes the Host interface and a model with tests, not because anything is missing.</td>
 </tr><tr>
   <td class="mono">TD-3</td>
   <td>SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.</td>

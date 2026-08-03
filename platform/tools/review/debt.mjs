@@ -32,8 +32,9 @@ export const DEBT = [
     impact: "No medicine that requires a prescription can be requested AT ALL. D18 refuses the send without an image, the only way to attach one is a photograph, and no photograph can be taken — so the class is closed, and in a real catalogue that class is antibiotics, inhalers and much else. The rest of the journey around it is correct and was verified in the browser: D42 refuses a controlled medicine on the row with no add control at all, a prescription row says «يحتاج وصفة — راح نطلب صورتها» before the tap, the draft line carries «يحتاج صورة الوصفة», and R2 offers «اكتب الاسم بدال الصورة» rather than being a wall. What is missing is the one step in the middle, and a control that does nothing without saying so is worse than the feature being absent.",
     priority: "high",
     owner: "media-service",
-    slice: "Device build",
+    slice: "NOT blocked on a device — see below",
     status: "open",
+    note: "This said \"Device build\", and that is wrong. A browser can take a photograph, `POST /v1/prescriptions` is a declared contract (§4 R2 · media-service — multipart image + { subjectId } → 201 { imageId }, 413 too_large, 415 unsupported_type), and R2/R3's capture-confirm-attach flow is already built and tested. What stands in the way is one design decision this repository made and can unmake: `Host.camera` returns an `imageId`, which a platform cannot know — an id is minted by the media service, so the interface asks the host to do the app's job. Building it means the host returns bytes, a MediaPort uploads them over the declared route, and `Prescription.Capture` gains the moment between confirmed and attached. Awaiting a decision because it changes the Host interface and a model with tests, not because anything is missing.",
   },
   {
     id: "TD-3",
