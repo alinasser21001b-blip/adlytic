@@ -1,0 +1,169 @@
+/**
+ * @blueprint §3 · §5 · §8 · §21 · F2 · D26 · D28
+ * @owner patient-app
+ * @why TD-1: every screen, the reducer, the ports and the effect loop were
+ *      proved in isolation, and the assembled application had never started.
+ *      These tests start it — a real Runtime built by `createRuntime`, driving
+ *      the real store through the real effect loop — so "a patient can search"
+ *      is a fact about the composed app rather than about its pieces.
+ */
+import { describe, expect, it } from "vitest";
+import TestRenderer, { act } from "react-test-renderer";
+import { usePatientApp } from "../App.js";
+import { createRuntime, deviceIdFrom, searchCache, authorityFrom, NO_SESSION } from "./runtime.js";
+import type { Host, Store } from "./host.js";
+import type { Intent } from "../app/store.js";
+
+const memoryStore = (): Store & { seen: Map<string, string> } => {
+  const seen = new Map<string, string>();
+  return {
+    seen,
+    read: async (k) => seen.get(k) ?? null,
+    write: async (k, v) => { seen.set(k, v); },
+  };
+};
+
+const hit = (over: Record<string, unknown> = {}) => ({
+  itemId: "i1", name: "بانادول", latinName: "Panadol", form: "أقراص", strength: "500mg",
+  requestable: true, requiresPrescription: false, isControlled: false, ...over,
+});
+
+/** A host with no platform under it: fixed clock, counted ids, memory store. */
+const testHost = (over: Partial<Host> = {}): Host & { store: Store & { seen: Map<string, string> } } => {
+  const store = memoryStore();
+  let n = 0;
+  return {
+    baseUrl: "https://api.test",
+    clock: () => 1_700_000_000_000,
+    newId: () => `id-${++n}`,
+    online: () => true,
+    store,
+    sleep: async () => {},
+    random: () => 0.5,
+    camera: null,
+    log: () => {},
+    ...over,
+    // `store` is preserved through the spread so a caller overriding other
+    // fields still gets the one this helper hands back.
+    ...(over.store ? {} : { store }),
+  } as Host & { store: Store & { seen: Map<string, string> } };
+};
+
+/** The real fetch, replaced by a script. Everything else is production code. */
+const scriptFetch = (reply: (url: string) => { status: number; body: unknown }) =>
+  (async (url: string) => {
+    const { status, body } = reply(String(url));
+    return { status, text: async () => JSON.stringify(body) };
+  }) as never;
+
+describe("TD-1 — the assembled application starts", () => {
+  it("mints a device id once and keeps it", async () => {
+    // The verify contract binds a session to it; a value that changed between
+    // launches would ask the patient to verify again every time.
+    const host = testHost();
+    const first = await deviceIdFrom(host);
+    const second = await deviceIdFrom(host);
+    expect(first).toBe(second);
+    expect(host.store.seen.get("dawai.deviceId")).toBe(first);
+  });
+
+  it("builds a runtime with every port the effect loop needs", async () => {
+    const { runtime } = await createRuntime(testHost(), () => {});
+    for (const key of ["catalogue", "identity", "env", "deviceId", "startFlush", "emit", "capture", "telemetry", "authority", "onEffectFailed"] as const)
+      expect(runtime[key], key).toBeDefined();
+  });
+
+  it("a guest has no order scope, so the first action needing one sends them to E4 (D26)", async () => {
+    const { runtime } = await createRuntime(testHost(), () => {});
+    expect(runtime.authority().hasOrderScope).toBe(false);
+  });
+});
+
+describe("F2 — a patient searches, through the composed app", () => {
+  const mount = (rt: Parameters<typeof usePatientApp>[0]) => {
+    const seen: { send: (i: Intent) => void; state: ReturnType<typeof usePatientApp>["state"] | null } =
+      { send: () => {}, state: null };
+    function Probe() {
+      const app = usePatientApp(rt);
+      seen.send = app.send;
+      seen.state = app.state;
+      return null;
+    }
+    let r: TestRenderer.ReactTestRenderer;
+    act(() => { r = TestRenderer.create(<Probe />); });
+    return { seen, unmount: () => act(() => { r.unmount(); }) };
+  };
+  const settle = async () => { await act(async () => { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }); };
+
+  it("typing reaches the catalogue and the results come back", async () => {
+    const host = testHost();
+    globalThis.fetch = scriptFetch(() => ({ status: 200, body: { hits: [hit()], at: 1 } }));
+    const { runtime } = await createRuntime(host, () => {});
+    const app = mount(runtime);
+
+    await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
+    await settle();
+
+    expect(app.seen.state?.search.kind, JSON.stringify(app.seen.state?.search)).toBe("results");
+    app.unmount();
+  });
+
+  it("the results are cached, so F2 can keep its offline promise (§21)", async () => {
+    const host = testHost();
+    globalThis.fetch = scriptFetch(() => ({ status: 200, body: { hits: [hit()], at: 1 } }));
+    const { runtime } = await createRuntime(host, () => {});
+    const app = mount(runtime);
+    await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
+    await settle();
+
+    expect([...host.store.seen.keys()].some((k) => k.startsWith("dawai.search."))).toBe(true);
+    app.unmount();
+  });
+
+  it("with the network down, the cache answers and is labelled as cached", async () => {
+    const host = testHost();
+    globalThis.fetch = scriptFetch(() => ({ status: 200, body: { hits: [hit()], at: 1 } }));
+    const { runtime } = await createRuntime(host, () => {});
+    const app = mount(runtime);
+    await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
+    await settle();
+    app.unmount();
+
+    // Same host, same store — a second launch with no network at all.
+    globalThis.fetch = (async () => { throw new Error("no network"); }) as never;
+    const { runtime: offlineRt } = await createRuntime(host, () => {});
+    const app2 = mount(offlineRt);
+    await act(async () => { app2.seen.send({ kind: "typed", raw: "بانادول" }); });
+    await settle();
+
+    // §21 — never presented as live.
+    expect(app2.seen.state?.search.kind).toBe("offline");
+    app2.unmount();
+  });
+
+  it("a cache entry an older build wrote is ignored, not served half-understood", async () => {
+    const host = testHost();
+    await host.store.write("dawai.search.بانادول", "{ not json at all");
+    globalThis.fetch = (async () => { throw new Error("no network"); }) as never;
+    const { runtime } = await createRuntime(host, () => {});
+    const app = mount(runtime);
+    await act(async () => { app.seen.send({ kind: "typed", raw: "بانادول" }); });
+    await settle();
+
+    expect(app.seen.state?.search.kind).toBe("error");
+    app.unmount();
+  });
+});
+
+describe("the cache and the authority are the host's, not the app's", () => {
+  it("a cache round-trips through whatever store the host supplied", async () => {
+    const host = testHost();
+    const cache = searchCache(host);
+    await cache.write("q", { hits: [], at: 5 }, 7);
+    expect(await cache.read("q")).toEqual({ value: { hits: [], at: 5 }, at: 7 });
+  });
+
+  it("no session means no scope — the store never derives a permission (§5 rule 2)", () => {
+    expect(authorityFrom(NO_SESSION.relationships, null, null, false, "d1").hasOrderScope).toBe(false);
+  });
+});
