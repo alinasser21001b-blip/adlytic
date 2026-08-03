@@ -33,7 +33,7 @@ export type Theme = {
   readonly infoStrip: typeof patientInfoStrip;
 };
 
-export const themeFor = (scheme: Scheme): Theme => ({
+const build = (scheme: Scheme): Theme => ({
   scheme,
   color: palettes.patient[scheme],
   space, frame, radius, tap, type: typeScale,
@@ -43,6 +43,20 @@ export const themeFor = (scheme: Scheme): Theme => ({
   codePanel: patientCodePanel,
   infoStrip: patientInfoStrip,
 });
+
+/**
+ * There are two themes and they are constants, so there are two objects.
+ *
+ * Building a fresh one per call gave every render a theme with a new identity.
+ * `t` is threaded through every component in the app, so that identity is a
+ * prop on all of them: nothing downstream can ever be skipped by React.memo or
+ * held stable by a dependency array, however carefully it is written. The
+ * theme is derived from frozen tokens and cannot change at runtime — a new
+ * object per render was never describing a new value.
+ */
+const BUILT: Readonly<Record<Scheme, Theme>> = { light: build("light"), dark: build("dark") };
+
+export const themeFor = (scheme: Scheme): Theme => BUILT[scheme];
 
 /** A text style from a role. Line height is a multiplier in the token and an
  *  absolute value in React Native, so the conversion happens once, here. */
