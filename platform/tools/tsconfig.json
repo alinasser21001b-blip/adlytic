@@ -4,18 +4,41 @@
     "outDir": "../dist-tools",
     "rootDir": "..",
     "jsx": "react-jsx",
-    "types": ["node"],
-    "lib": ["ES2022", "DOM"],
+    "types": [
+      "node"
+    ],
+    "lib": [
+      "ES2022",
+      "DOM"
+    ],
     "noEmit": false
   },
-  "include": ["**/*.ts", "**/*.tsx"],
+  "include": [
+    "**/*.ts",
+    "**/*.tsx",
+    "../vitest.config.ts"
+  ],
   "references": [
-    { "path": "../packages/design" },
-    { "path": "../packages/domain" },
-    { "path": "../packages/navigation" },
-    { "path": "../packages/session" },
-    { "path": "../packages/offline" },
-    { "path": "../packages/net" },
-    { "path": "../apps/patient" }
+    {
+      "path": "../packages/design"
+    },
+    {
+      "path": "../packages/domain"
+    },
+    {
+      "path": "../packages/navigation"
+    },
+    {
+      "path": "../packages/session"
+    },
+    {
+      "path": "../packages/offline"
+    },
+    {
+      "path": "../packages/net"
+    },
+    {
+      "path": "../apps/patient"
+    }
   ]
 }

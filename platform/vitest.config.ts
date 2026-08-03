@@ -12,6 +12,8 @@ export default defineConfig({
       "@dawai/net": new URL("./packages/net/src/index.ts", import.meta.url).pathname,
       "@dawai/domain": new URL("./packages/domain/src/index.ts", import.meta.url).pathname,
       "@dawai/observability": new URL("./packages/observability/src/index.ts", import.meta.url).pathname,
+      "@dawai/config": new URL("./packages/config/src/index.ts", import.meta.url).pathname,
+      "@dawai/contracts": new URL("./packages/contracts/src/index.ts", import.meta.url).pathname,
       // React Native's entry point is Flow-typed source only Metro parses.
       // The double maps each primitive onto a host element of the same name and
       // passes every prop through, so a rendered tree still carries the real

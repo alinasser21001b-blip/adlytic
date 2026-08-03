@@ -89,8 +89,51 @@ for (const file of found) {
     problems.push(`${project} is not referenced by the root tsconfig, so tsc -b never compiles it`);
 }
 
+/* ── every TypeScript file belongs to a project ─────────────────────────── */
+/**
+ * A file outside every project is a file the compiler never opens.
+ *
+ * `tools/` was exactly that: five .tsx files — the review renderer, the RN-web
+ * shim, the gallery, the data generator, the test double — with no tsconfig
+ * anywhere above them. A deliberately broken file compiled clean, and the
+ * three real errors hiding there included one that would have crashed the
+ * renderer mid-run.
+ *
+ * The check above asks whether every project is referenced; this asks the
+ * question from the other side, which is the one that found it: whether every
+ * file is in a project at all.
+ */
+const projectRoots = [...referenced].map((r) => join(PLATFORM, r));
+/**
+ * Files a project names explicitly rather than owning by location. A config at
+ * the repository root belongs to no directory but is still compiled when a
+ * project lists it — `vitest.config.ts` decides what every test imports, so it
+ * being unchecked was worth fixing rather than excusing.
+ */
+const alsoIncluded = new Set();
+for (const root of projectRoots) {
+  let cfg;
+  try { cfg = read(join(root, "tsconfig.json")); } catch { continue; }
+  for (const pattern of cfg.include ?? [])
+    if (!pattern.includes("*")) alsoIncluded.add(resolve(root, pattern));
+}
+const orphans = [];
+(function scan(dir) {
+  for (const name of readdirSync(dir)) {
+    if (name === "node_modules" || name === "dist" || name.startsWith("dist-")) continue;
+    const p = join(dir, name);
+    if (statSync(p).isDirectory()) scan(p);
+    else if (/\.tsx?$/.test(name)
+      && !projectRoots.some((root) => p.startsWith(`${root}/`))
+      && !alsoIncluded.has(p))
+      orphans.push(relative(PLATFORM, p));
+  }
+})(PLATFORM);
+for (const o of orphans)
+  problems.push(`${o} is not inside any referenced project, so the compiler never opens it`);
+
 console.log(`\nCompiler strictness — the flags the code is written to assume\n`);
-console.log(`  ${Object.keys(REQUIRED).length} required flag(s) · ${found.length} tsconfig(s) · ${referenced.size} project(s) built\n`);
+console.log(`  ${Object.keys(REQUIRED).length} required flag(s) · ${found.length} tsconfig(s) · ${referenced.size} project(s) built · ${orphans.length} orphan file(s)\n`);
 
 if (problems.length) {
   for (const p of problems) console.log(`  FAIL  ${p}`);
