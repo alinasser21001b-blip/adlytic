@@ -153,7 +153,29 @@ export function Note(
   { t: Theme; tone?: "neutral" | "caution" | "alert"; gap?: SpaceToken; children: React.ReactNode },
 ) {
   return (
-    <View style={{
+    <View
+      /**
+       * WCAG 2.1 §4.1.3 — a status message must be presentable without taking
+       * focus. An alert or a caution appears BECAUSE something happened: a
+       * refusal after a tap, a number the server would not accept. A sighted
+       * patient sees it arrive; without this a screen-reader user is told
+       * nothing at all, and the sentence the design already wrote never
+       * reaches them.
+       *
+       * `polite` rather than `assertive` deliberately. Assertive interrupts
+       * whatever is being read, and a patient mid-sentence about their own
+       * medicine should finish hearing it.
+       *
+       * A neutral note is not a status message — it is explanatory text that
+       * was always there — so it stays silent. That is also why this lives on
+       * `tone` rather than being a prop a call site could set anywhere.
+       *
+       * This is Android's mechanism. iOS needs announceForAccessibility, which
+       * needs a device build to verify (TD-2); it is not stubbed here, because
+       * an announcement nobody has heard is not evidence of anything.
+       */
+      accessibilityLiveRegion={tone === "neutral" ? "none" : "polite"}
+      style={{
       padding: t.space[4], gap: t.space[gap],
       borderRadius: t.radius.md,
       backgroundColor: t.color.surfaceSunken,

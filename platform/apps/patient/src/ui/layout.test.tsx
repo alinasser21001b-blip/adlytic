@@ -186,3 +186,36 @@ describe("the Dial draws the fraction it is given", () => {
     expect(dial.props.accessibilityLabel).toBe("متبقي");
   });
 });
+
+describe("WCAG 4.1.3 — a status message reaches someone who cannot see it", () => {
+  const t = themeFor("dark");
+  const liveRegionOf = (tone?: "neutral" | "caution" | "alert") => {
+    const props = tone === undefined
+      ? { t, children: null }
+      : { t, tone, children: null };
+    const tree = TestRenderer.create(<Note {...props} />).toJSON();
+    return (tree as { props: Record<string, unknown> }).props["accessibilityLiveRegion"];
+  };
+
+  it("an alert announces itself", () => {
+    // It appears because something happened — a refusal after a tap. A sighted
+    // patient sees it arrive; without this nobody else is told at all.
+    expect(liveRegionOf("alert")).toBe("polite");
+  });
+
+  it("a caution announces itself too", () => {
+    expect(liveRegionOf("caution")).toBe("polite");
+  });
+
+  it("never assertive — a patient mid-sentence about their medicine finishes hearing it", () => {
+    for (const tone of ["alert", "caution"] as const)
+      expect(liveRegionOf(tone), tone).not.toBe("assertive");
+  });
+
+  it("a neutral note stays silent, because it was always there", () => {
+    // Explanatory text is not a status message, and announcing it would train
+    // a patient to ignore the announcements that matter.
+    expect(liveRegionOf("neutral")).toBe("none");
+    expect(liveRegionOf()).toBe("none");
+  });
+});
