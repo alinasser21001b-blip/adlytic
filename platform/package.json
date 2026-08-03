@@ -17,7 +17,7 @@
     "types": "tsc -b",
     "test": "vitest run",
     "test:watch": "vitest",
-    "review": "npm run review:render && npm run review:data && node tools/review/shoot.mjs && node tools/review/responsive.mjs && node tools/review/regress.mjs && node tools/review/build.mjs",
+    "review": "npm run review:render && npm run review:data && node tools/review/shoot.mjs && node tools/review/responsive.mjs && node tools/review/regress.mjs && node tools/review/manifest.mjs && node tools/review/build.mjs",
     "review:render": "vite-node -c tools/review/vite.config.ts tools/review/render.tsx",
     "review:data": "vite-node -c tools/review/vite.config.ts tools/review/data.tsx",
     "design": "node tools/design/build.mjs && node tools/design/responsive-report.mjs && node tools/design/fidelity-report.mjs"
