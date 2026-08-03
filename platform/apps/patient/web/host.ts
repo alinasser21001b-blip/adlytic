@@ -34,9 +34,50 @@ export function browserHost(baseUrl: string): Host {
     store: localStore,
     sleep: (ms) => new Promise((resolve) => { globalThis.setTimeout(resolve, ms); }),
     random: () => Math.random(),
-    // TD-9 — no camera in a browser build. R2 offers typing the name instead,
-    // which is the declared alternative rather than a workaround.
-    camera: null,
+    /**
+     * A photograph, from the one camera a browser has.
+     *
+     * `<input type="file" accept="image/*" capture="environment">` opens the
+     * rear camera on a phone and a file picker on a desktop, which is the right
+     * behaviour in both places: R2 asks for a picture of a piece of paper, and
+     * on a laptop the paper has usually already been photographed.
+     *
+     * It answers with a `blob:` url and nothing else — the id belongs to the
+     * media service, and `MediaPort` reads these bytes back through `fetch`.
+     * Null when the patient dismissed the picker, which is not a failure and
+     * must not be reported as one.
+     */
+    camera: () => new Promise<{ readonly localUri: string } | null>((resolve) => {
+    const doc = globalThis.document;
+    const input = doc.createElement("input");
+    input.type = "file";
+    input.accept = "image/*";
+    input.setAttribute("capture", "environment");
+    input.style.display = "none";
+
+    let answered = false;
+    const answer = (value: { readonly localUri: string } | null) => {
+      if (answered) return;
+      answered = true;
+      input.remove();
+      resolve(value);
+    };
+
+    input.addEventListener("change", () => {
+      const file = input.files?.[0];
+      answer(file ? { localUri: URL.createObjectURL(file) } : null);
+    });
+    // Dismissing the picker fires no `change` in any browser, so the promise
+    // would never settle and R2 would sit on «تصوير» for ever. `cancel` is
+    // supported where it exists; the focus fallback covers the rest.
+    input.addEventListener("cancel", () => answer(null));
+    globalThis.addEventListener("focus", () => {
+      globalThis.setTimeout(() => { if (input.files?.length === 0) answer(null); }, 500);
+    }, { once: true });
+
+    doc.body.appendChild(input);
+    input.click();
+  }),
     log: (line) => { globalThis.console.log(line); },
   };
 }

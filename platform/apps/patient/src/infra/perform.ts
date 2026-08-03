@@ -17,12 +17,13 @@
 import { instant, REFUSAL } from "@dawai/domain";
 import type { Outbox } from "@dawai/offline";
 import type { Effect, Intent } from "../app/store.js";
-import type { CataloguePort, Environment, IdentityPort, MarketplacePort } from "../ports.js";
+import type { CataloguePort, Environment, IdentityPort, MarketplacePort, MediaPort } from "../ports.js";
 
 export type Ports = {
   readonly catalogue: CataloguePort;
   readonly identity: IdentityPort;
   readonly marketplace: MarketplacePort;
+  readonly media: MediaPort;
   readonly env: Environment;
   /** Stable per install. The verify contract requires it for device binding. */
   readonly deviceId: string;
@@ -155,6 +156,23 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
       // §5 rule 1 — the server refuses a district the client accepted, and
       // E12's sentence is the one the patient already understands.
       return { kind: "profileRefused", why: REFUSAL.OUTSIDE_COVERAGE };
+    }
+
+    case "uploadPrescription": {
+      const res = await ports.media.upload(effect.localUri, effect.subjectId);
+      // `accepted` never reaches here, but the type includes it; naming the
+      // reason only where one exists beats asserting it always does.
+      if (res.kind === "failed")
+        return { kind: "uploadFailed", reason: "reason" in res.outcome ? res.outcome.reason : "unknown" };
+      switch (res.value.kind) {
+        // D18's precondition, satisfied. Only now can the line be sent.
+        case "stored": return { kind: "attachPrescription", imageId: res.value.imageId };
+        // D37 — the failure names the condition, never the person. R2 already
+        // owns those sentences; these are the codes it words.
+        case "tooLarge": return { kind: "uploadFailed", reason: "too_large" };
+        case "unsupportedType": return { kind: "uploadFailed", reason: "unsupported_type" };
+      }
+      return null;
     }
 
     case "flushOutbox":

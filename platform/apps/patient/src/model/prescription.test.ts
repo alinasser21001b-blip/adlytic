@@ -11,6 +11,8 @@ import { describe, expect, it } from "vitest";
 import {
   ready, fromPermission, capturing, captured, confirmed, retake, failed,
   whatToFix, LEGIBILITY_CHECKS, type Capture, type CameraPermission,
+  attached,
+  uploading,
 } from "./prescription.js";
 
 describe("§5 — refusing the camera is never a wall", () => {
@@ -35,21 +37,33 @@ describe("§5 — refusing the camera is never a wall", () => {
 });
 
 describe("D18 — nothing attaches an image the patient has not confirmed", () => {
-  it("a captured photo is under review, not attached", () => {
-    expect(captured("img-1", "file:///a.jpg")).toEqual({ kind: "review", imageId: "img-1", localUri: "file:///a.jpg" });
+  it("a captured photo is under review, and has NO image id", () => {
+    // An id is minted by POST /v1/prescriptions. Before it answers there is
+    // not one, and the interface used to ask the platform to supply it.
+    expect(captured("file:///a.jpg")).toEqual({ kind: "review", localUri: "file:///a.jpg" });
   });
 
-  it("confirming is the only path to an image id", () => {
+  it("confirming is the only path to an upload", () => {
     // Skipping R3 would send a blurred photo to a pharmacist who then cannot
     // dispense, and the patient finds out at the counter.
-    expect(confirmed(captured("img-1", "file:///a.jpg"))).toEqual({ imageId: "img-1" });
+    expect(confirmed(captured("file:///a.jpg"))).toEqual({ localUri: "file:///a.jpg" });
     for (const c of [ready(), capturing(ready()), fromPermission("denied")] as readonly Capture[])
       expect(confirmed(c), c.kind).toBeNull();
   });
 
   it("a failed upload can still be confirmed — the image survived, only the send did not", () => {
-    const f = failed(captured("img-1", "file:///a.jpg"), "upload");
-    expect(confirmed(f)).toEqual({ imageId: "img-1" });
+    const f = failed(uploading(captured("file:///a.jpg")), "upload");
+    expect(confirmed(f)).toEqual({ localUri: "file:///a.jpg" });
+  });
+
+  it("only an upload that was in flight can fail", () => {
+    // A photo under review has not been sent yet, so there is nothing to fail.
+    const review = captured("file:///a.jpg");
+    expect(failed(review, "upload")).toBe(review);
+  });
+
+  it("an image id enters at exactly one place", () => {
+    expect(attached("img-9")).toEqual({ kind: "attached", imageId: "img-9" });
   });
 
   it("retaking discards rather than keeping both", () => {
@@ -61,16 +75,16 @@ describe("D18 — nothing attaches an image the patient has not confirmed", () =
 describe("the capture states only move when they legally can", () => {
   it("capturing starts only from ready", () => {
     expect(capturing(ready())).toEqual({ kind: "capturing" });
-    const review = captured("img-1", "file:///a.jpg");
+    const review = captured("file:///a.jpg");
     expect(capturing(review)).toBe(review);
     const refused = fromPermission("denied");
     expect(capturing(refused)).toBe(refused);
   });
 
-  it("failing applies only to something under review", () => {
+  it("failing applies only to something in flight", () => {
     const r = ready();
     expect(failed(r, "upload")).toBe(r);
-    expect(failed(captured("i", "u"), "upload")).toMatchObject({ kind: "failed", imageId: "i", reason: "upload" });
+    expect(failed(uploading(captured("u")), "upload")).toMatchObject({ kind: "failed", localUri: "u", reason: "upload" });
   });
 });
 

@@ -28,7 +28,10 @@ function server(script: readonly { status: number; body?: unknown }[]) {
   const calls: { url: string; method: string; body: unknown; headers: Record<string, string> }[] = [];
   const queue = [...script];
   const fetchImpl: Fetch = async (url, init) => {
-    calls.push({ url, method: init.method, body: init.body ? JSON.parse(init.body) : null, headers: { ...init.headers } });
+    // A multipart body is not JSON and is recorded as itself — the one caller
+    // that sends one is the prescription upload.
+    const body = typeof init.body === "string" ? JSON.parse(init.body) : (init.body ?? null);
+    calls.push({ url, method: init.method, body, headers: { ...init.headers } });
     const next = queue.shift();
     if (!next) throw new Error(`unscripted call: ${init.method} ${url}`);
     return { status: next.status, text: async () => (next.body === undefined ? "" : JSON.stringify(next.body)) };
@@ -259,6 +262,7 @@ describe("the full round trip — store to server to store", () => {
     marketplace: makeMarketplace(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1",
     startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {}, onDistrict: () => {},
+    media: { upload: async () => ({ kind: "fresh", value: { kind: "stored", imageId: "img-1" } }) },
   });
 
   it("E5 to E7 against the declared responses, ending authenticated on the interrupted screen", async () => {
@@ -302,6 +306,7 @@ describe("a verification that cannot reach a verdict still answers the screen", 
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
     marketplace: makeMarketplace(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {}, onDistrict: () => {},
+    media: { upload: async () => ({ kind: "fresh", value: { kind: "stored", imageId: "img-1" } }) },
   });
 
   it("a dropped connection mid-verify returns codeCheckFailed, not nothing", async () => {
@@ -340,6 +345,7 @@ describe("attempts are the server's count, never the client's guess", () => {
     identity: makeIdentity(makeHttp("https://api", fetchImpl)),
     marketplace: makeMarketplace(makeHttp("https://api", fetchImpl)),
     env, deviceId: "dev-1", startFlush: () => {}, emit: () => {}, capture: () => {}, onVerified: () => {}, onDistrict: () => {},
+    media: { upload: async () => ({ kind: "fresh", value: { kind: "stored", imageId: "img-1" } }) },
   });
   const verify = (status: number, body: unknown) => perform(
     { kind: "verifyCode", challengeId: "ch-1", code: "123456" },

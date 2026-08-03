@@ -115,17 +115,22 @@ describe("R2 and R3 — photographing the paper", () => {
   });
 
   it("a captured image is NOT attached until the patient says it is readable (D18)", () => {
-    const captured = Prescription.captured("img-1", "file://a.jpg");
+    const captured = Prescription.captured("file://a.jpg");
     expect(captured.kind).toBe("review");
     // Nothing reads the prescription, so the patient is the only judge.
-    expect(Prescription.confirmed(captured)).toEqual({ imageId: "img-1" });
+    // Confirming yields the LOCAL uri to upload — an image id is minted by the
+    // media service and does not exist yet.
+    expect(Prescription.confirmed(captured)).toEqual({ localUri: "file://a.jpg" });
     expect(Prescription.confirmed(Prescription.ready())).toBeNull();
   });
 
   it("a failed upload keeps the image — only the send failed", () => {
-    const failed = Prescription.failed(Prescription.captured("img-1", "file://a.jpg"), "timeout");
-    expect(failed).toMatchObject({ kind: "failed", imageId: "img-1", localUri: "file://a.jpg" });
-    expect(Prescription.confirmed(failed)).toEqual({ imageId: "img-1" });
+    const sent = Prescription.uploading(Prescription.captured("file://a.jpg"));
+    const failed = Prescription.failed(sent, "timeout");
+    expect(failed).toMatchObject({ kind: "failed", localUri: "file://a.jpg" });
+    // Confirmable again, on the SAME photograph — a patient who has already
+    // held a paper up to a camera must not be asked to do it twice.
+    expect(Prescription.confirmed(failed)).toEqual({ localUri: "file://a.jpg" });
   });
 
   it("retaking discards rather than keeping two photos of one paper", () => {

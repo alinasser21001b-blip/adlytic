@@ -44,7 +44,18 @@ export type Host = {
    * instead, so a host without a camera is a reduced app rather than a broken
    * one — which is what TD-9 has been describing.
    */
-  readonly camera: null | (() => Promise<{ readonly imageId: string; readonly localUri: string } | null>);
+  /**
+   * Take a photograph, or null if this host cannot.
+   *
+   * It answers with a LOCAL uri and nothing else. It used to answer with an
+   * `imageId` too, which a platform cannot know: an id is minted by the media
+   * service when the bytes reach it, so the interface was asking the host
+   * either to talk to the API — a host that does that is not a host — or to
+   * make one up. Uploading is the app's job, and `MediaPort` does it.
+   *
+   * Null when the patient dismissed the picker without choosing.
+   */
+  readonly camera: null | (() => Promise<{ readonly localUri: string } | null>);
   /** Where a structured log line goes. */
   readonly log: (line: string) => void;
 };

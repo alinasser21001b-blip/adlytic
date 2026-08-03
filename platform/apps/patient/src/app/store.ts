@@ -143,7 +143,17 @@ export type Effect =
    * one failed, and the district is what every request this account makes will
    * search from.
    */
-  | { readonly kind: "saveProfile"; readonly name: string; readonly districtId: string };
+  | { readonly kind: "saveProfile"; readonly name: string; readonly districtId: string }
+  /**
+   * Send the photograph — POST /v1/prescriptions, §4 R2.
+   *
+   * The LOCAL uri travels, not the bytes: the store holds values, and turning
+   * a uri into bytes is a platform question that belongs behind the port. The
+   * subject is on the request because the contract takes it and because a
+   * prescription belongs to the person it was written for, not to the account
+   * that photographed it.
+   */
+  | { readonly kind: "uploadPrescription"; readonly localUri: string; readonly subjectId: string };
 
 export type Intent =
   | { readonly kind: "open"; readonly screen: string }
@@ -164,7 +174,12 @@ export type Intent =
   | { readonly kind: "holdRefused"; readonly branchName: string; readonly reopened: boolean }
   | { readonly kind: "cameraPermission"; readonly permission: Prescription.CameraPermission }
   | { readonly kind: "capture" }
-  | { readonly kind: "captured"; readonly imageId: string; readonly localUri: string }
+  /** The camera returned. A local uri and nothing else — an `imageId` does not
+   *  exist until the media service mints one. */
+  | { readonly kind: "captured"; readonly localUri: string }
+  /** POST /v1/prescriptions refused or could not be reached. R2 keeps the
+   *  photograph and says what it was. */
+  | { readonly kind: "uploadFailed"; readonly reason: string }
   | { readonly kind: "confirmPhoto" }
   | { readonly kind: "retakePhoto" }
   | { readonly kind: "openOffer"; readonly offerId: string }
@@ -373,11 +388,6 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
         ? { state: { ...state, draft: DraftModel.setSubject(state.draft, intent.subjectId) }, effects: [] }
         : { state, effects: [] };
 
-    case "attachPrescription":
-      return state.draft
-        ? { state: { ...state, draft: DraftModel.attachPrescription(state.draft, intent.imageId), refusal: null }, effects: [] }
-        : { state, effects: [] };
-
     case "send": return doSend(state, intent.at, env, authority);
 
     case "authenticated": {
@@ -498,20 +508,46 @@ export function dispatch(state: AppState, intent: Intent, env: Environment, auth
     case "captured":
       // R3 — captured is NOT attached. The patient confirms legibility first,
       // because nothing in Phase 0 reads the prescription (D18).
-      return { state: navigate({ ...state, capture: Prescription.captured(intent.imageId, intent.localUri) }, "R3"), effects: [] };
+      return { state: navigate({ ...state, capture: Prescription.captured(intent.localUri) }, "R3"), effects: [] };
 
     case "confirmPhoto": {
+      /**
+       * The patient said it is readable — and that is when it is SENT.
+       *
+       * This used to attach an `imageId` the host had supplied, so the
+       * photograph became part of the request without ever leaving the device.
+       * The id is minted by POST /v1/prescriptions; until it answers there is
+       * nothing to attach, and R2's own `failed` state has always said so:
+       * "the upload failed, the image survives, only the send did not".
+       */
       const done = Prescription.confirmed(state.capture);
       if (!done || !state.draft) return { state, effects: [] };
       return {
+        state: { ...state, capture: Prescription.uploading(state.capture) },
+        effects: [{ kind: "uploadPrescription", localUri: done.localUri, subjectId: state.draft.subjectId }],
+      };
+    }
+
+    case "attachPrescription": {
+      // The media service answered. Only now does the draft carry it, and only
+      // now does R1 get the patient back.
+      if (!state.draft) return { state, effects: [] };
+      return {
         state: navigate({
           ...state,
-          draft: DraftModel.attachPrescription(state.draft, done.imageId),
-          capture: { kind: "attached", imageId: done.imageId },
+          draft: DraftModel.attachPrescription(state.draft, intent.imageId),
+          capture: Prescription.attached(intent.imageId),
+          refusal: null,
         }, "R1"),
         effects: [],
       };
     }
+
+    case "uploadFailed":
+      // R2's declared error state. The photograph is kept — a patient who has
+      // already held a piece of paper up to a camera must not be asked to do
+      // it again because a connection dropped.
+      return { state: { ...state, capture: Prescription.failed(state.capture, intent.reason) }, effects: [] };
 
     case "retakePhoto":
       return { state: navigate({ ...state, capture: Prescription.retake() }, "R2"), effects: [] };

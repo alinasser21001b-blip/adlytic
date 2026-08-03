@@ -27,9 +27,14 @@ export type Capture =
   | { readonly kind: "refused"; readonly permission: Exclude<CameraPermission, "granted" | "undetermined"> }
   | { readonly kind: "capturing" }
   /** R3 — the patient judges legibility, because nothing here reads it. */
-  | { readonly kind: "review"; readonly imageId: string; readonly localUri: string }
+  | { readonly kind: "review"; readonly localUri: string }
+  /** Confirmed, and on its way to the media service. The image is on the
+   *  device and has no server identity yet. */
+  | { readonly kind: "uploading"; readonly localUri: string }
   /** The upload failed. The image survives; only the send did not. */
-  | { readonly kind: "failed"; readonly imageId: string; readonly localUri: string; readonly reason: string }
+  | { readonly kind: "failed"; readonly localUri: string; readonly reason: string }
+  /** The one state that carries an `imageId`, because that id is minted by
+   *  POST /v1/prescriptions and does not exist before it answers. */
   | { readonly kind: "attached"; readonly imageId: string };
 
 export const ready = (): Capture => ({ kind: "ready" });
@@ -47,10 +52,20 @@ export function fromPermission(p: CameraPermission): Capture {
 
 export const capturing = (c: Capture): Capture => (c.kind === "ready" ? { kind: "capturing" } : c);
 
-/** An image exists on the device. It is NOT attached to the draft yet — R3
- *  exists precisely so the patient confirms it is readable first. */
-export function captured(imageId: string, localUri: string): Capture {
-  return { kind: "review", imageId, localUri };
+/**
+ * An image exists on the device, and nowhere else.
+ *
+ * It takes no `imageId`, because at this moment there is not one: an id is
+ * minted by the media service when the bytes reach it (POST /v1/prescriptions
+ * → 201 { imageId }), and a platform cannot know it. The interface used to ask
+ * the host for one, which meant either the host talked to the API — a host
+ * that does that is not a host — or the id was a fiction.
+ *
+ * It is NOT attached to the draft yet either: R3 exists precisely so the
+ * patient confirms it is readable first.
+ */
+export function captured(localUri: string): Capture {
+  return { kind: "review", localUri };
 }
 
 /**
@@ -60,16 +75,26 @@ export function captured(imageId: string, localUri: string): Capture {
  * skipping R3 would mean a blurred photo travels to a pharmacist who then
  * cannot dispense, and the patient discovers it at the counter.
  */
-export function confirmed(c: Capture): { readonly imageId: string } | null {
-  return c.kind === "review" || c.kind === "failed" ? { imageId: c.imageId } : null;
+export function confirmed(c: Capture): { readonly localUri: string } | null {
+  return c.kind === "review" || c.kind === "failed" ? { localUri: c.localUri } : null;
 }
+
+/** Confirmed and on its way. Only from a state that HAS an image — a retry
+ *  after a failed upload is the second one, and it uses the same photograph
+ *  rather than asking for another. */
+export function uploading(c: Capture): Capture {
+  return c.kind === "review" || c.kind === "failed" ? { kind: "uploading", localUri: c.localUri } : c;
+}
+
+/** The media service minted an id. This is the only place one enters. */
+export const attached = (imageId: string): Capture => ({ kind: "attached", imageId });
 
 /** Retaking discards the image rather than keeping both — two photos of one
  *  paper is a choice the patient did not ask to make. */
 export const retake = (): Capture => ({ kind: "ready" });
 
 export function failed(c: Capture, reason: string): Capture {
-  return c.kind === "review" ? { kind: "failed", imageId: c.imageId, localUri: c.localUri, reason } : c;
+  return c.kind === "uploading" ? { kind: "failed", localUri: c.localUri, reason } : c;
 }
 
 /**

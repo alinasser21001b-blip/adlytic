@@ -22,6 +22,7 @@ import { makeCatalogue, type SearchCache } from "../infra/catalogue.js";
 import { makeIdentity } from "../infra/identity.js";
 import { makeRequests } from "../infra/requests.js";
 import { makeMarketplace } from "../infra/marketplace.js";
+import { makeMedia } from "../infra/media.js";
 import { flush } from "../infra/flush.js";
 import type { Runtime } from "../App.js";
 import type { Environment, SearchResponse } from "../ports.js";
@@ -280,6 +281,7 @@ export async function createRuntime(
     catalogue: makeCatalogue(http, searchCache(host), now),
     identity: makeIdentity(http),
     marketplace: makeMarketplace(http),
+    media: makeMedia(http),
     env,
     deviceId,
     startFlush: (queued) => {
@@ -313,7 +315,7 @@ export async function createRuntime(
     capture: () => {
       if (!host.camera) return; // TD-9 — R2 offers typing the name instead.
       void host.camera().then((shot) => {
-        if (shot) onIntent({ kind: "captured", imageId: shot.imageId, localUri: shot.localUri });
+        if (shot) onIntent({ kind: "captured", localUri: shot.localUri });
       });
     },
     // §8 — a record carries the event, when, a correlation id and dimensions.

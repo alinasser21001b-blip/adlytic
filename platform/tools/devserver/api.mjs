@@ -37,6 +37,10 @@ const state = { requests: new Map(), offers: new Map(), reservations: new Map(),
  *  declared `invalid_district` path is reachable rather than theoretical. */
 const COVERED = ["d1", "d2", "d3"];
 
+/** Eight megabytes. A number this server needs in order to answer 413 at all;
+ *  the real limit is the media service's and is not declared in the contract. */
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
 const norm = (s) => (s ?? "")
   .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
   .replace(/[ـ]/g, "").replace(/[أإآٱ]/g, "ا").replace(/ى/g, "ي").replace(/ة/g, "ه")
@@ -114,6 +118,24 @@ export async function handle(req, res) {
     if (typeof body.districtId === "string") state.profile.districtId = body.districtId;
     console.log(`\n  [dev] profile: ${state.profile.name || "(no name)"} in ${state.profile.districtId || "(no district)"}\n`);
     return json(res, 200, { account: { accountId: "acc-dev", ...state.profile } });
+  }
+
+  /* ── Prescriptions — POST /v1/prescriptions ────────────────────────── */
+  /* §4 R2 · media-service — multipart image + { subjectId } → 201 { imageId },
+     413 too_large, 415 unsupported_type. The bytes are counted and dropped:
+     Phase 0 reads nothing (D18), the pharmacist reads the paper, and a dev
+     server that stored images would be keeping clinical data it has no reason
+     to hold. The two refusals are real checks rather than decoration — a
+     photograph from a modern phone camera genuinely exceeds a sane limit. */
+  if (path === "/v1/prescriptions" && req.method === "POST") {
+    const type = String(req.headers["content-type"] ?? "");
+    if (!type.startsWith("multipart/form-data")) return json(res, 415, { error: "unsupported_type" });
+    let bytes = 0;
+    for await (const chunk of req) bytes += chunk.length;
+    if (bytes > MAX_IMAGE_BYTES) return json(res, 413, { error: "too_large" });
+    const imageId = `img-${Math.random().toString(36).slice(2, 10)}`;
+    console.log(`\n  [dev] prescription ${imageId} — ${Math.round(bytes / 1024)}KB, not stored (D18)\n`);
+    return json(res, 201, { imageId });
   }
 
   /* ── Requests — POST /v1/requests ──────────────────────────────────── */

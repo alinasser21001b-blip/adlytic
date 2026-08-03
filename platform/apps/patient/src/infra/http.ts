@@ -40,13 +40,25 @@ export type HttpResponse = {
 export type Fetch = (url: string, init: {
   readonly method: string;
   readonly headers: Readonly<Record<string, string>>;
-  readonly body?: string;
+  readonly body?: string | FormData;
   readonly signal?: AbortSignal;
 }) => Promise<{ readonly status: number; text(): Promise<string> }>;
 
 export type Http = {
   get(path: string, signal?: AbortSignal): Promise<HttpResponse>;
   post(path: string, body: Readonly<Record<string, unknown>>, opts?: {
+    readonly idempotencyKey?: string;
+    readonly signal?: AbortSignal;
+  }): Promise<HttpResponse>;
+  /**
+   * A multipart POST — one endpoint needs it, and it is the only one that
+   * carries anything but JSON: POST /v1/prescriptions takes an image.
+   *
+   * The content-type is deliberately NOT set: the platform's fetch writes it
+   * with the multipart boundary it generated, and a hand-written header
+   * without that boundary produces a body no server can parse.
+   */
+  postForm(path: string, form: FormData, opts?: {
     readonly idempotencyKey?: string;
     readonly signal?: AbortSignal;
   }): Promise<HttpResponse>;
@@ -63,11 +75,15 @@ export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => stri
   const call = async (
     method: string,
     path: string,
-    body?: Readonly<Record<string, unknown>>,
+    body?: Readonly<Record<string, unknown>> | FormData,
     idempotencyKey?: string,
     signal?: AbortSignal,
   ): Promise<HttpResponse> => {
-    const headers: Record<string, string> = { "content-type": "application/json" };
+    const multipart = typeof FormData !== "undefined" && body instanceof FormData;
+    // The platform writes content-type for a multipart body, because only it
+    // knows the boundary it generated. Setting one here produces a body no
+    // server can parse.
+    const headers: Record<string, string> = multipart ? {} : { "content-type": "application/json" };
     const token = session?.();
     if (token) headers["authorization"] = `Bearer ${token}`;
     // The header name the API contract fixes. Stable across retries by
@@ -77,7 +93,7 @@ export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => stri
     try {
       const res = await fetchImpl(`${baseUrl}${path}`, {
         method, headers,
-        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+        ...(body === undefined ? {} : { body: multipart ? (body as FormData) : JSON.stringify(body) }),
         ...(signal === undefined ? {} : { signal }),
       });
       let parsed: unknown = null;
@@ -107,5 +123,6 @@ export function makeHttp(baseUrl: string, fetchImpl: Fetch, session?: () => stri
     get: (path, signal) => call("GET", path, undefined, undefined, signal),
     post: (path, body, opts) => call("POST", path, body, opts?.idempotencyKey, opts?.signal),
     patch: (path, body, opts) => call("PATCH", path, body, opts?.idempotencyKey, opts?.signal),
+    postForm: (path, form, opts) => call("POST", path, form, opts?.idempotencyKey, opts?.signal),
   };
 }

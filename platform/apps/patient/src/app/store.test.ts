@@ -463,18 +463,25 @@ describe("R2 and R3 — the prescription photo", () => {
   ]).state;
 
   it("a captured photo is NOT attached until the patient confirms it (D18)", () => {
-    let s = run(withRxDraft(), [{ kind: "captured", imageId: "img-1", localUri: "file://a.jpg" }]).state;
+    let s = run(withRxDraft(), [{ kind: "captured", localUri: "file://a.jpg" }]).state;
     expect(s.screen).toBe("R3");
     // Still blocked: nothing has been attached.
     expect(s.draft!.lines[0]!.prescriptionImageId).toBeNull();
 
-    s = run(s, [{ kind: "confirmPhoto" }]).state;
+    // Confirming SENDS it. The id does not exist until the media service
+    // answers, so the line is still unattached while it is in flight.
+    const sending = run(s, [{ kind: "confirmPhoto" }]);
+    expect(sending.effects.map((e) => e.kind)).toContain("uploadPrescription");
+    expect(sending.state.capture.kind).toBe("uploading");
+    expect(sending.state.draft!.lines[0]!.prescriptionImageId).toBeNull();
+
+    s = run(sending.state, [{ kind: "attachPrescription", imageId: "img-1" }]).state;
     expect(s.draft!.lines[0]!.prescriptionImageId).toBe("img-1");
     expect(s.screen).toBe("R1");
   });
 
   it("retaking returns to the camera with nothing attached", () => {
-    let s = run(withRxDraft(), [{ kind: "captured", imageId: "img-1", localUri: "file://a.jpg" }]).state;
+    let s = run(withRxDraft(), [{ kind: "captured", localUri: "file://a.jpg" }]).state;
     s = run(s, [{ kind: "retakePhoto" }]).state;
     expect(s.screen).toBe("R2");
     expect(s.capture.kind).toBe("ready");

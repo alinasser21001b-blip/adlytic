@@ -297,12 +297,12 @@ export const SHOTS: readonly Shot[] = [
   {
     id: "R3-review", screen: "R3", state: "ready",
     note: "The patient judges legibility because nothing else does — so the screen states what 'clear' means instead of asking them to guess.",
-    element: <PrescriptionScreen {...rxProps(Prescription.captured("img-1", "file://a.jpg"))} />,
+    element: <PrescriptionScreen {...rxProps(Prescription.captured("file://a.jpg"))} />,
   },
   {
     id: "R3-failed", screen: "R3", state: "error",
     note: "The upload failed; the photo survived. D37 — the failure names the fixable condition, never the person.",
-    element: <PrescriptionScreen {...rxProps(Prescription.failed(Prescription.captured("img-1", "file://a.jpg"), "timeout"))} />,
+    element: <PrescriptionScreen {...rxProps(Prescription.failed(Prescription.captured("file://a.jpg"), "timeout"))} />,
   },
   {
     id: "R9-undecided", screen: "R9", state: "ready · consent outstanding",

@@ -30,6 +30,7 @@ const runtime = (over: Partial<Runtime>): Runtime => {
   telemetry: { emit: () => {} },
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: () => {},
+    media: { upload: async () => ({ kind: "fresh", value: { kind: "stored", imageId: "img-1" } }) },
     onVerified: () => {},
     onDistrict: () => {},
     connect: () => () => {},

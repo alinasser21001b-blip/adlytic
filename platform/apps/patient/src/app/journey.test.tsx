@@ -74,6 +74,7 @@ const runtime = (over: Partial<Runtime> = {}): Runtime => {
   telemetry: { emit: () => {} },
   authority: () => ({ hasOrderScope: true, activeSubjectMemorialised: false, districtId: "d1" }),
   onEffectFailed: (_e, cause) => { throw cause; },
+    media: { upload: async () => ({ kind: "fresh", value: { kind: "stored", imageId: "img-1" } }) },
     onVerified: () => {},
     onDistrict: () => {},
     connect: () => () => {},
@@ -571,6 +572,70 @@ describe("onboarding finishes before the request replays (TD-18)", () => {
     // Pressable again, rather than stuck busy.
     expect(controls(app.root()).find((c) => c.props["accessibilityLabel"] === "خلص")!
       .props["accessibilityState"].disabled).toBe(false);
+    app.unmount();
+  });
+});
+
+describe("a prescription medicine can be requested at all (TD-9)", () => {
+  const RX: CatalogueHit = {
+    itemId: "i2", name: "أموكسيسيلين", latinName: "Amoxicillin", form: "كبسول", strength: "500 ملغم",
+    requestable: true, requiresPrescription: true, isControlled: false,
+  };
+
+  const withCamera = (over: Partial<Runtime> = {}) => runtime({
+    catalogue: { search: async () => ({ kind: "fresh", value: { hits: [RX], at: 1_000 } }) },
+    capture: () => { CAMERA.shots += 1; },
+    ...over,
+  });
+
+  const CAMERA = { shots: 0 };
+
+  it("the photograph is sent, and only then does the line carry one", async () => {
+    /**
+     * The class this closes. D18 refuses the send without an image, the only
+     * way to attach one is a photograph, and no photograph could be taken —
+     * so antibiotics and inhalers could not be requested at all. TD-9 called
+     * that a device problem; it was an interface that asked the platform for
+     * an `imageId` it cannot know.
+     */
+    CAMERA.shots = 0;
+    const app = open(withCamera());
+    await app.type("أموكسيسيلين");
+    await app.press("أضف أموكسيسيلين للطلب");
+
+    // R1 says the line is blocked, before anything is attempted.
+    expect(app.said()).toContain("يحتاج صورة الوصفة");
+
+    await app.press("صوّر الوصفة");
+    await app.press("صوّر");
+    expect(CAMERA.shots, "the shutter did not reach the platform").toBe(1);
+
+    // The platform answers with a local uri and NO id.
+    await app.deliver({ kind: "captured", localUri: "blob:x" });
+    expect(app.said()).toContain("شوف الصورة");
+
+    await app.press("واضحة — كمّل");
+    // Confirming sends it; the id arrives from the media service.
+    expect(app.said()).toContain("طلب جديد");
+    expect(app.said()).not.toContain("يحتاج صورة الوصفة");
+    app.unmount();
+  });
+
+  it("an upload that fails keeps the photograph rather than the paper", async () => {
+    // A patient who has already held a piece of paper up to a camera must not
+    // be asked to do it again because a connection dropped.
+    const app = open(withCamera({
+      media: { upload: async () => ({ kind: "failed", outcome: { kind: "transient", reason: "no signal" } }) },
+    }));
+    await app.type("أموكسيسيلين");
+    await app.press("أضف أموكسيسيلين للطلب");
+    await app.press("صوّر الوصفة");
+    await app.deliver({ kind: "captured", localUri: "blob:x" });
+    await app.press("واضحة — كمّل");
+
+    // Still on the review, with the same photograph, and the line still blocked
+    // rather than silently attached.
+    expect(app.said()).toContain("شوف الصورة");
     app.unmount();
   });
 });

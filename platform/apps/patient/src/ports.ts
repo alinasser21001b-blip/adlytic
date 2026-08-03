@@ -136,6 +136,33 @@ export interface MarketplacePort {
   ): Promise<Fetched<AcceptResult>>;
 }
 
+/* ── Media — the prescription photograph ──────────────────────────────── */
+
+/**
+ * What POST /v1/prescriptions can say. §4 R2, media-service.
+ *
+ * The declared responses and nothing else: 201 { imageId }, 413 too_large,
+ * 415 unsupported_type. The two refusals are separate because they are
+ * separate things to fix — a photograph that is too big can be taken again
+ * smaller, and one in a format nobody accepts cannot.
+ */
+export type UploadResult =
+  | { readonly kind: "stored"; readonly imageId: string }
+  | { readonly kind: "tooLarge" }
+  | { readonly kind: "unsupportedType" };
+
+export interface MediaPort {
+  /**
+   * POST /v1/prescriptions — multipart image + { subjectId }.
+   *
+   * Takes the LOCAL uri rather than bytes, because turning a uri into bytes is
+   * a platform question: a `blob:` url in a browser and a `file://` path on a
+   * device are read differently, and neither is the store's business. The port
+   * is infrastructure and this is exactly the kind of thing it exists to hide.
+   */
+  upload(localUri: string, subjectId: string, signal?: AbortSignal): Promise<Fetched<UploadResult>>;
+}
+
 /* ── Identity — the declared auth contract, as a port ─────────────────── */
 
 /** What POST /v1/auth/phone answers with. `resendAfter` is the server's word
