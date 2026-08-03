@@ -25,14 +25,21 @@ import { OfferDetailScreen } from "./screens/OfferDetailScreen.jsx";
 import * as Offers from "./model/offers.js";
 import { Label } from "./ui/kit.jsx";
 import { instant } from "@dawai/domain";
-import type { CataloguePort, Environment } from "./ports.js";
+import { perform as performEffect, type Ports } from "./infra/perform.js";
+import type { Authority as _A } from "./app/store.js";
 
-export type Runtime = {
-  readonly catalogue: CataloguePort;
-  readonly env: Environment;
+/**
+ * What the root needs from the outside.
+ *
+ * `Ports` is the effect runner's dependency set and is reused verbatim rather
+ * than re-declared: this file used to carry its own runner AND its own
+ * dependency list, and the copy drifted — the shipped one never handled
+ * `requestCode` or `verifyCode`, so a patient submitting a phone number
+ * emitted an effect nothing performed. Two runners is one runner and one
+ * decoy.
+ */
+export type Runtime = Ports & {
   readonly telemetry: TelemetrySink;
-  /** Delivery of queued work. Infrastructure owns it; the app only asks. */
-  readonly flush: () => void;
   readonly authority: () => Authority;
 };
 
@@ -97,31 +104,15 @@ const reduceRuntime = (rt: Runtime) => (prev: RuntimeState, action: RuntimeActio
   return { state: step.state, effects: [...prev.effects, ...step.effects] };
 };
 
+/**
+ * Perform, then feed the answer back through the reducer.
+ *
+ * The runner itself lives in infra/ and returns an Intent or nothing, so this
+ * file holds no knowledge of HTTP, ports or response shapes — and the effect
+ * loop is testable without React.
+ */
 function perform(effect: Effect, rt: Runtime, send: (i: Intent) => void): void {
-  switch (effect.kind) {
-    case "search":
-      void rt.catalogue.search(effect.query).then((result) =>
-        send({ kind: "searchResolved", query: effect.query, result }));
-      return;
-    case "emit":
-      rt.telemetry.emit({
-        // The event name came from the closed set in the reducer; this only
-        // stamps it with a time and a correlation id.
-        event: effect.event as never,
-        at: rt.env.now(),
-        correlationId: rt.env.newId(),
-        attributes: effect.attributes,
-      });
-      return;
-    case "flushOutbox":
-      rt.flush();
-      return;
-    case "capturePrescription":
-      // The camera itself is a native module and arrives with the device
-      // build. Nothing is faked here: the reducer has already moved the screen
-      // to a capturing state, and this is the one place that will ask the OS.
-      return;
-  }
+  void performEffect(effect, rt).then((answer) => { if (answer) send(answer); });
 }
 
 /** Platform intents this slice does not own. Wired when their slice lands;

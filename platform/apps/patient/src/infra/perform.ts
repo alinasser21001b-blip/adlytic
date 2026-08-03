@@ -76,5 +76,20 @@ export async function perform(effect: Effect, ports: Ports): Promise<Intent | nu
     case "capturePrescription":
       ports.capture();
       return null;
+
+    default: {
+      /**
+       * A new Effect kind is a COMPILE error here, not a silent no-op.
+       *
+       * The app shipped with two runners: this one, complete, imported by
+       * nothing, and a copy in App.tsx that never handled `requestCode` or
+       * `verifyCode`. A patient submitting a phone number emitted an effect
+       * that fell on the floor, and nothing said so — because an unhandled
+       * case in a switch is just a switch that ends. This makes the omission
+       * impossible to compile.
+       */
+      const unhandled: never = effect;
+      throw new Error(`no runner for effect ${JSON.stringify(unhandled)}`);
+    }
   }
 }

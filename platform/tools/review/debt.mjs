@@ -10,8 +10,8 @@
 export const DEBT = [
   {
     id: "TD-1",
-    description: "The CLIENT half of the infrastructure now exists: one HTTP transport classifying through @dawai/net, IdentityPort and CataloguePort over the declared contracts, the outbox flusher driving retry/backoff/idempotency, and an effect runner closing the store → server → store loop — all proved against a scripted fake server. What does not exist is a server: no backend has ever answered a real request, no session token is stored or refreshed, and deviceId/baseUrl have no production source.",
-    impact: "The product is proven against the API CONTRACT but not against an implementation of it. Real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists.",
+    description: "The patient app has no ENTRY POINT: nothing constructs a Runtime and nothing mounts App.tsx, so the assembled application has never run. Separately, the CLIENT half of the infrastructure now exists: one HTTP transport classifying through @dawai/net, IdentityPort and CataloguePort over the declared contracts, the outbox flusher driving retry/backoff/idempotency, and an effect runner closing the store → server → store loop — all proved against a scripted fake server. What does not exist is a server: no backend has ever answered a real request, no session token is stored or refreshed, and deviceId/baseUrl have no production source.",
+    impact: "Every screen, the reducer, the ports and the effect loop are proved in isolation and against a scripted server, but the composed app has never started once. Real latency, pagination, token refresh, TLS and server-side authorization remain unexercised until a backend exists, and nothing has been observed on a device.",
     priority: "critical",
     owner: "platform-foundation",
     slice: "Stage 5 — Infrastructure",
