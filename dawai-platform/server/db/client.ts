@@ -1,5 +1,6 @@
+import { mkdirSync } from "node:fs";
 import { readdir, readFile } from "node:fs/promises";
-import { resolve } from "node:path";
+import { dirname, resolve } from "node:path";
 import { PGlite } from "@electric-sql/pglite";
 import postgres from "postgres";
 import { config } from "../config";
@@ -178,6 +179,13 @@ export async function createDatabase(options?: {
       }),
     );
   } else {
+    // PGlite creates its own data directory but NOT the parent, so a fresh
+    // clone died on boot with `ENOENT: mkdir .data/dawai` — a first-run
+    // failure that says nothing about what to do. Production uses DATABASE_URL
+    // and never reaches this branch.
+    if (!options?.memory) {
+      mkdirSync(dirname(config.pglitePath), { recursive: true });
+    }
     const pglite = new PGlite(options?.memory ? undefined : config.pglitePath);
     await pglite.waitReady;
     database = wrapPglite(pglite);
