@@ -1,0 +1,46 @@
+# Fly.io — the full Dawai platform: server, database, three portals.
+#
+# This app is a SERVER, not a static site. It needs Postgres, it holds sessions,
+# and it hashes passwords with a native module. That is why it lives here and
+# not on a static host: a static host can serve the screens but cannot run the
+# product.
+#
+# Everything below is derived from what the code already requires — the
+# Dockerfile's port, config.ts's fail-closed variables, and the fact that
+# server/index.ts does NOT migrate in production (it passes migrate:false when
+# NODE_ENV is production), which is why the release command exists.
+#
+# See DEPLOY.md beside this file for the exact commands, in order.
+
+app = "dawai"
+primary_region = "fra"   # Frankfurt — the closest Fly region to Iraq.
+
+[build]
+  dockerfile = "Dockerfile"
+
+# Migrations run ONCE per deploy, before the new version takes traffic. If this
+# command fails the deploy is aborted and the old version keeps serving, which
+# is the behaviour you want when a migration is wrong.
+[deploy]
+  release_command = "node dist-server/db/migrate.js"
+
+[env]
+  DAWAI_ENV = "production"
+  NODE_ENV = "production"
+  PORT = "8787"
+  STORAGE_BACKEND = "local"
+  STORAGE_PATH = "/var/lib/dawai/storage"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_start_machines = true
+  # NOT auto-stopping: the server runs a lifecycle sweep on a timer (offers
+  # expire, reservations lapse). A machine that sleeps stops expiring things,
+  # and a patient would see a reservation that is still "held" after it died.
+  auto_stop_machines = false
+  min_machines_running = 1
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"   # sharp and argon2 are memory-hungry; 512mb OOMs on upload.

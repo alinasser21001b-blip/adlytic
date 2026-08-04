@@ -1,0 +1,67 @@
+# Render — the same deployment, if you prefer Render to Fly.
+#
+# One blueprint: the server and its database together. Render reads this file
+# from the repository root path given in the dashboard (set the blueprint's
+# root to dawai-platform).
+#
+# The two things that are easy to get wrong, and are handled here:
+#   1. Migrations. server/index.ts does NOT migrate when NODE_ENV=production,
+#      so preDeployCommand runs them. Without it the app boots against empty
+#      tables and every request fails with `relation ... does not exist` —
+#      which is exactly how the first local run failed.
+#   2. Secrets. config.ts refuses to start in production without them, on
+#      purpose. sync:false means Render asks you for the value instead of
+#      inventing one.
+
+databases:
+  - name: dawai-db
+    databaseName: dawai
+    user: dawai
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: dawai
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    region: frankfurt          # the closest Render region to Iraq
+    plan: starter              # sharp and argon2 need more than the free tier
+    healthCheckPath: /
+    preDeployCommand: node dist-server/db/migrate.js
+    disk:
+      name: dawai-storage
+      mountPath: /var/lib/dawai
+      sizeGB: 5
+    envVars:
+      - key: DAWAI_ENV
+        value: production
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 8787
+      - key: STORAGE_BACKEND
+        value: local
+      - key: STORAGE_PATH
+        value: /var/lib/dawai/storage
+      - key: DATABASE_URL
+        fromDatabase:
+          name: dawai-db
+          property: connectionString
+      # Generated once by Render and kept — never printed in a chat log.
+      - key: SESSION_PEPPER
+        generateValue: true
+      # 32 bytes, base64. Render's generateValue is not base64-shaped, so this
+      # one you paste yourself — DEPLOY.md has the command that makes it.
+      - key: STORAGE_ENCRYPTION_KEY
+        sync: false
+      # Your real site address. CORS and cookies are bound to it.
+      - key: WEB_ORIGIN
+        sync: false
+      - key: PUBLIC_APP_URL
+        sync: false
+      # One-time admin bootstrap. Remove both once you can sign in.
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: ADMIN_PASSWORD
+        sync: false
