@@ -124,8 +124,15 @@ redeploy.
 ### 4 · Verify
 
 ```
-GET  https://<your-domain>/            → the app shell
+GET  https://<your-domain>/health/ready  → {"status":"ready","database":"connected"}
+GET  https://<your-domain>/              → the app shell
 ```
+
+`railway.json` health-checks `/health/ready`, not `/`. `/` serves
+`dist/index.html`, which is a file on disk — it would report healthy while the
+database was unreachable and every real request was failing. `/health/ready`
+runs `SELECT 1`, so a deploy that cannot reach Postgres fails the health check
+and the previous version keeps serving, which is the behaviour you want.
 
 Then walk it: patient registration → home → أدويتي timeline → family access →
 profile; pharmacy registration → licence gate; admin sign-in → operations
