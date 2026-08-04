@@ -1,110 +1,404 @@
-# START HERE — Dawai Engineering Knowledge Base
+# START HERE — the Dawai engineering brain
 
-This is the single entry point for a new engineer or AI picking up the Dawai project with zero prior context. It was synthesized from every doc and every line of schema/route code in this repository as of 2026-08-04. Read this file first, then follow the links.
+You are picking this project up with no prior context. Read this file completely
+before you open an editor. It takes about fifteen minutes and it will save you
+several days.
 
-## 0. The one fact that changes how you read everything else
+Everything in this knowledge base was written from the source, not from memory.
+Every claim below names the file it came from, so you can verify any of it in
+one `open`.
 
-**This repository contains two different, non-interoperating implementations of "Dawai":**
+---
 
-1. **`dawai-platform/`** — a complete, tested, running product (React + Hono + PostgreSQL/PGlite). This is **the real, shipped MVP**. It implements the model described in `dawai-platform/ARCHITECTURE.md`, `dawai-platform/README.md`, and `docs/dawai/PRODUCT_BLUEPRINT_AR.md`: `users` with roles `PATIENT/PHARMACY/ADMIN`, email+password auth, `medicine_requests → pharmacy_offers → reservations`, a clinical/adherence module, and drug-interaction safety. It has migrations 0001–0007, a full server, a full React client, e2e tests, and a readiness report (`docs/dawai/FINAL_MVP_READINESS.md`) dated 2026-07-31 declaring it "Pilot MVP READY".
-2. **`platform/`** — an in-progress, parallel rebuild (packages workspace: `@dawai/domain`, `@dawai/navigation`, `@dawai/design`, `@dawai/net`, `@dawai/session`, `@dawai/offline`, `@dawai/observability`, `@dawai/config`, `@dawai/contracts`, plus `platform/apps/patient`). It implements a **different, more elaborate spec called "Blueprint v3"** (`docs/product/v3/blueprint-v3.html`, mirrored in `docs/technical/*.html`): phone+OTP auth, `Account/Subject/Guardianship/PeerGrant` identity model, `Request/Offer/Reservation` marketplace entities with different field names, a `clinical-engine` that is prescription-gate-only (no interaction checking exists in Blueprint v3 Phase 0), and 12 named services. `docs/design/*` (SCREEN_INVENTORY, DESIGN_TOKENS, COMPONENT_INVENTORY) is generated from this v3 spec, not from `dawai-platform`.
+## 0. The single most important fact in this repository
 
-These are **not two views of the same system** — they use different entity names, different auth mechanisms, and in places directly contradicting product rules (e.g. Blueprint v3 explicitly has no interaction-safety engine in Phase 0, while `dawai-platform` migrations 0005–0007 build exactly that). Full detail and the reasoning for treating them separately: `19-open-decisions.md` §1, `17-known-limitations.md` §1.
+**This git repository holds two unrelated products, and Dawai is the smaller
+one by file count.**
 
-**Practical rule while this is unresolved: treat `dawai-platform/` as the product you ship, and `platform/` as an architecture/design-system R&D track whose output (screens, tokens, domain state machines) has not been wired into `dawai-platform` and should not be assumed to describe it.**
+| What | Where | Is it Dawai? |
+|---|---|---|
+| **Adlytic** — an ads-intelligence platform (Meta/Google ads analytics, Prisma, Railway) | repo root: `src/`, `prisma/`, `test_*.ts`, `runEngines.ts`, ~60 `*.command` scripts, `ADLYTIC_*.md`, `package.json` (`"name": "adlytic"`) | **No.** Different product, different customers, different stack. Ignore it. |
+| **Dawai** — a medicine request/offer network for Iraq | `platform/`, `dawai-platform/`, `docs/product/`, `docs/technical/`, `docs/knowledge-base/`, `dawai-site/`, `hub/`, `qareeb-platform/` | Yes |
 
-## 1. What Dawai is (30 seconds)
+Do not "clean up" the root. `package.json` at the repo root belongs to Adlytic.
+Dawai has its own `package.json` files inside `platform/` and `dawai-platform/`.
 
-A time-bounded medicine-request and pharmacy-offer network for Iraq (Baghdad-first pilot): a patient asks for a medicine, the platform dispatches the request to nearby verified pharmacy branches, pharmacies answer with structured offers (brand, price, quantity, prep time), the patient picks one, the pharmacy acknowledges, a 15-minute hold starts, and the patient picks up. See `00-project-overview.md` and `01-product-vision.md`.
+---
 
-## 2. How to run it
+## 1. The second most important fact
 
-`dawai-platform/` is the runnable app (Node 24 required):
+**Dawai itself exists twice, and only one of the two is the current engineering
+track.**
+
+### `platform/` — the current track. This is what you work on.
+
+A TypeScript monorepo (`npm workspaces`) built to a frozen specification called
+**Blueprint v3**. Domain-first, with architecture rules enforced by nine
+standalone checker scripts rather than by code review. The patient app's core
+loop runs end to end in a browser.
+
+Evidence that this is the live track, not a side experiment:
+
+- The last ~15 commits before this knowledge base all touch `platform/apps/patient`
+  (`git log --oneline`).
+- The repository root `netlify.toml` sets `base = "platform"` and
+  `command = "npm ci && npm run build:web"`. **The deployed URL serves this app.**
+- `platform/netlify.toml` additionally assembles `/design/` and `/review/` beside it.
+
+### `dawai-platform/` — an earlier, complete, differently-shaped implementation.
+
+React 19 + Hono + PostgreSQL/PGlite, 7 SQL migrations, its own server, its own
+client, e2e tests, a Dockerfile, `fly.toml` and `render.yaml`. It implements a
+*different* model: email+password auth, `users` with `PATIENT/PHARMACY/ADMIN`
+roles, `medicine_requests → pharmacy_offers → reservations`, plus a clinical
+adherence module and a drug-interaction engine that **Blueprint v3 explicitly
+does not have** (D16 removed interaction checking from Phase 0).
+
+It is not dead code — it builds and deploys — but it is not what the current
+work extends, and its entity names, auth model and clinical posture contradict
+Blueprint v3 in ways that cannot be merged without a product decision. See
+`19-open-decisions.md` §1.
+
+**Working rule: build in `platform/`. Treat `dawai-platform/` as a reference
+implementation and a source of ideas, never as the definition of the product.**
+
+Everything else Dawai-shaped in the repo (`hub/`, `pharmacy/`, `qareeb-platform/`,
+`dawai-developed.html`, `dawai-ui-preview.html`, `docs/product/v3/blueprint-v3.html`)
+is prototype, spec or design artefact. `02-architecture.md` §6 maps every one of
+them.
+
+---
+
+## 2. What Dawai is, in thirty seconds
+
+A patient in Baghdad needs a medicine. Today they phone pharmacies one at a
+time, or walk between them, because nobody — including the pharmacies — knows
+what is in stock anywhere.
+
+Dawai turns that into one action: the patient assembles a request, the platform
+asks every eligible nearby pharmacy branch **simultaneously**, pharmacies answer
+with structured offers (per line: available / unavailable / a substitute, with a
+binding price), the patient compares and accepts one, the pharmacy confirms, a
+hold starts with a pickup code, and the patient collects.
+
+It is **not** delivery, payment, diagnosis, dosing, a pharmacy ERP, or a
+prescription issuer. Nobody pays anything in Phase 0 or Phase 1 (**D43**).
+
+Full detail: `00-project-overview.md`, `01-product-vision.md`.
+
+---
+
+## 3. How to run it
+
 ```bash
-cd dawai-platform
-npm ci
-npm run dev          # API on :8787 (tsx watch server/index.ts), web on :5173 (vite)
-npm run check        # tsc -b (client) + tsc -p tsconfig.server.json (server)
-npm test             # vitest run (server/tests, src/*.test.tsx)
-npm run test:e2e     # playwright
-npm run build         # tsc check + vite build + esbuild bundle of server/worker/migrate
-npm run db:migrate   # tsx server/db/migrate.ts
-npm run start         # NODE_ENV=production node dist-server/index.js
-npm run start:worker  # NODE_ENV=production node dist-server/worker.js (lifecycle sweep every 30s)
+cd platform
+npm ci                 # NOT npm install — see below
+npm run dev            # → http://localhost:5173
 ```
-Local dev uses PGlite (embedded Postgres) automatically — no external DB needed. Production requires `DATABASE_URL`, `SESSION_PEPPER`, `STORAGE_ENCRYPTION_KEY`, `WEB_ORIGIN` or the app fails closed (`dawai-platform/server/config.ts`). One-time admin bootstrap: set `ADMIN_EMAIL`/`ADMIN_PASSWORD` env vars on first `npm run dev`/start, then remove them.
 
-`platform/` packages are libraries (`type:module`, `main:./src/index.ts`, no build step needed for consumption in TS); `platform/apps/patient` has its own `package.json` — check it before assuming it runs standalone. `platform/tools/*` are validators (`layer-check.mjs`, `deps-check.mjs`, `debt-check.mjs`, `docs-check.mjs`, `strict-check.mjs`, `trace-check.mjs`, `test-reach-check.mjs`, `ux-check.mjs`) that enforce the v3 architecture rules on that tree.
+That is the patient app in a browser, served against a development server that
+answers the declared v1 API contracts **on the same origin**, so there is no
+base URL to configure and no CORS to arrange.
 
-## 3. How the architecture works (recap — full detail in `02-architecture.md`)
+The whole core loop works: search a medicine → build a request → sign in when
+the guard asks → enter your name and district → send → watch pharmacies answer →
+compare offers → consent to a substitution → reserve → read the pickup code.
 
-`dawai-platform` is a **modular monolith**: one Hono API process (`server/app.ts`), route modules per audience (`routes/{auth,patient,pharmacy,admin,files,public,clinical,shared}.ts`), service modules for business logic (`services/{matching,clinical,interactions,lifecycle,notifications,ocr,audit,sku-key}.ts`), PostgreSQL (PGlite in dev/test) via `db/client.ts`, encrypted file storage (`storage/encrypted-files.ts`, `storage/object-store.ts`), and a separate lifecycle worker process (`worker.ts`) that sweeps expirations every 30s. The browser is never an authorization boundary — every query is scoped server-side by authenticated user/role. See `02-architecture.md` for the full diagram and `09-permissions.md` for the auth model.
+**The SMS verification code is printed to the terminal running the server** —
+`[dev] SMS to +9647…: your code is 123456`. It is never returned in a response,
+because the contract does not carry it and returning it would be inventing a
+response field.
 
-## 4. What must never be changed without extreme care
+`npm ci`, not `npm install`: the lockfile is the reproducible answer, and
+`tools/deps-check.mjs` exists because a package that was installed but never
+declared made every check pass on a machine where a clean clone would have failed.
 
-Everything in `10-clinical-safety.md` is safety-critical. In summary:
-- **Interaction checks fail closed to `UNAVAILABLE`**, never a false "clear" — `dawai-platform/migrations/0005_interaction_safety.sql`, `server/services/interactions.ts`.
-- **`dose_events` and `audit_events` are append-only** — corrections are new rows, never updates (`migrations/0004_clinical_core.sql`, `0001_init.sql`).
-- **`SEV_ALERT` attention events can never expire on a timer and have no dismiss control** — `migrations/0006_clinical_integrity.sql` (`attention_sev_never_expires` CHECK constraint) and `PillBar.tsx`.
-- **`sig_source = 'PHARMACIST'` can only be written by a pharmacy account** — a patient can never self-assert pharmacist authorship of a dosing instruction.
-- **The 15-minute reservation hold timer starts only on pharmacy acknowledgement, never on patient selection** — `ARCHITECTURE.md`, `services/lifecycle.ts`.
-- **A non-selected pharmacy can never access a prescription image**; access is time-boxed to an acknowledged hold and audited.
-- Low-trust SKUs are excluded from forecasting entirely, never shown with a caveat — `services/sku-key.ts`, `sku_trust` table.
+### Checking it
 
-Read `10-clinical-safety.md` and `04-business-rules.md` before touching any migration 0004–0007 code or `server/services/{clinical,interactions,lifecycle}.ts`.
+```bash
+npm run check      # 10 gates: trace, layers, ux, types, tests + 5 standalone checkers
+npm run review     # 22 gates, regenerates review/index.html (needs a browser)
+npm run design     # regenerates the six derived design documents
+npx playwright install chromium   # once, before `npm run review`
+```
+
+### Walking it
+
+```bash
+node tools/devserver/smoke.mjs          # the whole loop, screen by screen
+node tools/devserver/smoke-offline.mjs  # the failure states — offline, wrong code, queued send
+```
+
+Neither is a gate. They print what a patient would see and any error the page
+raised. **Every defect found in the running app so far was found by pressing a
+button rather than by reading.** Do this before you claim something works.
+
+### The other track, if you need it
+
+```bash
+cd dawai-platform && npm ci && npm run dev   # API :8787, web :5173, PGlite embedded
+```
+
+---
+
+## 4. How the architecture works
+
+Five ideas, in dependency order. Full detail in `02-architecture.md`.
+
+1. **The domain is pure and holds every business rule.**
+   `platform/packages/domain` imports no Node built-in, performs no I/O, reads
+   no clock and generates no randomness. `tools/layer-check.mjs` fails the build
+   if it does. Consequence: every rule is deterministic and testable in
+   milliseconds with no infrastructure.
+
+2. **A state machine *is* its transition table.**
+   `defineMachine({ transitions: [...] })` in `packages/domain/src/shared/machine.ts`.
+   `transition()` is the only way to move. A transition the Blueprint does not
+   contain is **unrepresentable**, not merely forbidden. Eight machines are
+   declared this way (`05-state-machines.md`).
+
+3. **The client decides nothing.**
+   Route guards exist so a user is not shown a door that will be slammed. The
+   server refuses regardless. `packages/navigation/src/guards.ts` says this in
+   its own docblock, and the reducer re-runs the guard *at the action*, not only
+   at the door (`store.ts` → `doSend`).
+
+4. **A screen is a contract before it is a component.**
+   `packages/design/src/ux/contract.ts` makes "where am I / what do I do next /
+   how do I go back" a **type**. A screen with no purpose, no title, two primary
+   actions, an error state that says "something went wrong", or an empty state
+   with nothing to do **does not compile past `tools/ux-check.mjs`**.
+
+5. **The store is a pure reducer that returns state *and* effects.**
+   `apps/patient/src/app/store.ts` — `dispatch(state, intent, env, authority)`
+   returns `{ state, effects }` and performs nothing. `infra/perform.ts` is the
+   only place I/O happens, and it answers back in intents. So the round trip is
+   **store → effect → port → intent → store**, and "the user tapped send while
+   offline" is a unit test rather than a manual check on a phone in aeroplane mode.
+
+### The layer stack
+
+```
+apps/patient/web/         host — the only place that touches browser globals
+apps/patient/src/main/    composition root — the only place that reads a clock
+apps/patient/src/infra/   ports over HTTP; the outbox flusher; the effect runner
+apps/patient/src/app/     the pure reducer
+apps/patient/src/model/   presentation models — ask the domain, never decide
+apps/patient/src/screens/ contracts + components
+packages/*                domain, design, navigation, session, offline, net,
+                          observability, config, contracts
+```
+
+Dependencies point **inward and downward only**. `tools/layer-check.mjs`
+enforces it, `tools/deps-check.mjs` proves a clean clone builds.
+
+---
 
 ## 5. Where decisions live
 
-- Product decisions and rationale: `docs/dawai/PRODUCT_BLUEPRINT_AR.md` (Arabic, the blueprint `dawai-platform` actually implements), `docs/product/DAWAI_PRODUCT_BLUEPRINT.md` (v1, superseded, English, kept for reasoning), `docs/product/v3/blueprint-v3.html` (v3, the unimplemented spec `platform/` targets).
-- Architecture decisions and rationale: migration SQL comments (unusually rich — read them, they explain *why*, not just *what*), `dawai-platform/ARCHITECTURE.md`, `docs/dawai/BLUEPRINT_EXECUTION.md`.
-- Open/unresolved: `19-open-decisions.md`.
-- Known gaps/incomplete work: `17-known-limitations.md`, `18-technical-debt.md`.
-- Next priorities: `20-next-priorities.md`.
+There are exactly four authorities. Learn to reach for them in this order.
 
-## 6. How to contribute (to `dawai-platform`, the shipped product)
+| Authority | Location | What it settles |
+|---|---|---|
+| **Blueprint v3** (frozen) | `docs/product/v3/blueprint-v3.html`, machine-readable in `docs/product/v3/phase0.js` (133 screens) and `register.js` (43 decisions D01–D43) | What the product *is*. Screens, states, decisions, quantities. |
+| **Technical model** (frozen) | `docs/technical/*.html`, machine-readable in `docs/technical/model.js` | 12 services, 21 entities, 54 events, 67 endpoints, 22 tables, 11 known gaps. |
+| **The code's own docblocks** | every `.ts` file in `platform/` | `@blueprint` (why it is allowed to exist), `@owner` (who owns it), `@why` (why it exists at all). Enforced by `tools/trace-check.mjs`. |
+| **The debt register** | `platform/tools/review/debt.mjs` | Everything known to be missing, wrong or blocked, with impact and owner. |
 
-1. Read `02-architecture.md`, `03-domain-model.md`, `04-business-rules.md` for the module you're touching.
-2. If touching clinical/interaction/proxy code, read `10-clinical-safety.md` fully first.
-3. Migrations are additive and numbered sequentially (`000N_description.sql`); they run via `server/db/migrate.ts` and must be idempotent/PGlite-safe (`IF NOT EXISTS` everywhere) — see the style in `migrations/0006` and `0007`, which is itself a record of fixing bugs introduced by `0004`/`0005`.
-4. Every mutation route uses strict Zod schemas; retryable creation/selection endpoints require an `Idempotency-Key` header (`server/security/idempotency.ts`).
-5. Run `npm run check && npm test && npm run build` before considering work done; `npm run test:e2e` for anything touching a full user journey.
-6. Never introduce a static/mock stock figure — all availability must carry `source`/`observed_at`/`expires_at` per `availability_signals`/`stock_movements`.
+`tools/trace-check.mjs` loads `register.js`, `phase0.js` and `model.js` and
+**refuses to build** if a `@blueprint` reference does not resolve against one of
+them. Traceability here is not a comment convention; it is a link check.
 
-## 7. Common mistakes (things this repo's own history shows people got wrong)
+---
 
-- Scoping an offline-replay dedupe key too coarsely (branch-wide instead of per-SKU) — silently swallowed multi-line offline sales; fixed in `0006`, see comment there.
-- Forgetting `expires_at` in a dedupe partial index — permanently blocked re-raising a resolved alert; fixed in `0006`.
-- Allowing multiple "live" proxy links between the same owner/member pair with `LIMIT 1` and no `ORDER BY` — nondeterministic effective scope; fixed in `0006`/`0007`.
-- A `CHECK (delta_qty <> 0)` that made a *confirming* stock count unrecordable, inverting the trust signal; fixed in `0007`.
-- Assuming `docs/design/*` and `docs/technical/*` describe `dawai-platform` — they describe the unimplemented v3 spec targeted by `platform/`. Don't build dawai-platform screens off `SCREEN_INVENTORY.md` without checking which codebase it's for (see §0 above).
+## 6. What must never be changed
 
-## 8. Current priorities
+These are not style preferences. Each one has a defect behind it.
 
-See `20-next-priorities.md`. Short version: OCR provider wiring, RxNorm/DDInter ingestion for interaction data, offline mutation queue on native shell, patient-facing clinical timeline UI, and (separately, on the `platform/` track) closing the 11 Blueprint v3 gaps (`BD-1`…`BD-11`) documented in `docs/technical/11-validation-report.html`.
+1. **Never put a business rule outside `packages/domain`.** Not in a screen, not
+   in a hook, not in a controller. `tools/layer-check.mjs` will reject it, and
+   the reason it will reject it is that a rule in a component cannot be tested
+   and cannot be found.
 
-## 9. Map of this knowledge base
+2. **Never write a state transition as an assignment.** Go through
+   `transition(Machine, from, event)`. `store.ts` does this even when the server
+   already decided the outcome — the server picks the *edge*, but only edges the
+   machine contains exist.
 
-| File | Contents |
+3. **Never let the domain read a clock, a random source, or the network.** Time
+   is an `Instant` parameter (`shared/instant.ts`); randomness is a `() => number`
+   parameter (`net/delayFor`). This is what makes every rule deterministic.
+
+4. **Never return `SAFE`, `CLEAR` or `no interactions found` from anything
+   clinical.** `Clinical.GateOutcome` is `"ALLOWED" | "REFUSED"` and there is no
+   third value, deliberately (`packages/domain/src/clinical/gates.ts`). Phase 0
+   performs **no** automated clinical checking (**D16**), and a partial check a
+   user believes is complete is more dangerous than a stated absence.
+
+5. **Never present a queued request as sent** (**D27**). `@dawai/offline`'s
+   `describe()` is the only function a screen may use to word an outbox item,
+   so no screen can invent a friendlier word for "not yet sent".
+
+6. **Never start a reservation countdown before the pharmacy confirms.** The
+   `Reservation` machine's clock starts at `held`, never at `requested`. A
+   countdown before anyone has committed stock counts down to a disappointment.
+
+7. **Never rank, weight or paid-place a pharmacy** (**D12**). `Offers.forReading`
+   sorts by coverage then price — both printed on every row, so a patient can
+   check the order themselves — and it is named `forReading`, not `rank`.
+
+8. **Never invent a quantity the Blueprint has not fixed.** The whole reason
+   `marketplace/rules.ts` exists is that v1 settled principles and left every
+   load-bearing number undefined. If you need a number and no decision supplies
+   one, register it as debt (see TD-16) rather than choosing one.
+
+9. **Never make a refusal distinguishable from a not-found.**
+   `NOT_FOUND_OR_NOT_YOURS` is one refusal for both cases (§5 rule 3) — v1's
+   family endpoint became an identity oracle by returning 403 where it should
+   have returned 404.
+
+10. **Never remove an item from the debt register by deleting it.** It leaves by
+    being fixed, and it stays in `RESOLVED` with how it was resolved.
+
+---
+
+## 7. How to build a new feature
+
+The order matters and it is not the obvious one.
+
+1. **Find the Blueprint reference first.** A screen id (`R9`), a decision
+   (`D19`), an endpoint (`POST /v1/offers/{id}/accept`), an entity, an event.
+   If there is no reference, you are inventing product — stop and register the
+   gap instead (`19-open-decisions.md` explains how the eleven existing BD-*
+   gaps were recorded).
+
+2. **Write the rule in `packages/domain` first**, as a pure function returning
+   `Result<T, Refusal>`. Add its test beside it. It runs in milliseconds because
+   it needs no infrastructure — that is Rule 7 paying off.
+
+3. **If it has states, declare the machine** in the relevant `machines.ts`, with
+   a `bp` reference on *every edge*, and run `audit()` on it in a test.
+
+4. **Write the screen contract before the component**, in
+   `apps/patient/src/screens/core-loop.contract.ts`. `tools/ux-check.mjs` will
+   check it against the Blueprint's declared states for that screen.
+
+5. **Add the port type in `ports.ts`**, naming the declared endpoint and each
+   declared response as its own variant. Never add a response the contract does
+   not list.
+
+6. **Add the intent and the effect to the store.** The reducer decides; it never
+   performs. Then add the runner branch in `infra/perform.ts` — the `never`
+   exhaustiveness check at the bottom makes a missing runner a compile error.
+
+7. **Add the adapter in `infra/`**, with a type guard over the response body.
+   Every adapter in this codebase validates the bytes before they reach a rule —
+   `infra/catalogue.ts` explains at length why (a hit missing `isControlled` was
+   gated ALLOWED, so D42 never fired for a controlled medicine).
+
+8. **Run `npm run check`, then walk it** with `node tools/devserver/smoke.mjs`
+   or in a browser. Reading is not walking.
+
+9. **Register what you could not finish** in `tools/review/debt.mjs`, with an
+   impact and an owner. `tools/debt-check.mjs` verifies every `TD-n` cited in
+   source resolves to exactly one register entry.
+
+---
+
+## 8. Common mistakes, all of which have already happened here
+
+Each of these was a real defect in this repository. They are listed because the
+next person will reach for the same shortcut.
+
+| Mistake | What it cost | Where it is written up |
+|---|---|---|
+| Building a second copy of a runner "temporarily" | `App.tsx` had its own effect runner that never handled `requestCode`/`verifyCode` — a patient submitting a phone number emitted an effect that fell on the floor | `infra/perform.ts` bottom comment |
+| Trusting a response body without a type guard | A catalogue row missing `isControlled` was gated ALLOWED, so D42 never refused a controlled medicine | `infra/catalogue.ts` `isHit` |
+| Defaulting a missing field to a "safe" value | A 400 without `attemptsLeft` defaulted to `0`, which the reducer reads as *exhausted* — a patient's first wrong digit told them all five attempts were gone | `infra/identity.ts` 400 branch |
+| Letting a screen mean "has a contract" by "is built" | R1's «لمن؟» rendered, was tapped, navigated successfully and drew the **search** screen over the request the patient had just built | TD-19, `screens/graph.ts` `isBuilt` |
+| Treating a 409 as an error | A duplicate *is* success — the earlier attempt landed. Treating it as failure tells a patient their sent request failed | `@dawai/net` `classify`, `@dawai/offline` `markDuplicate` |
+| Pushing effects from inside a `setState` updater | React re-invokes updaters (twice under StrictMode) — two verification SMS per tap, and the outbox flushed twice concurrently | `App.tsx` `usePatientApp` |
+| Reading `env.now()` during render and never re-rendering | Every clock on screen froze. A six-minute hold still read «٦ دقائق» after two minutes | `App.tsx` `ticks` |
+| Assuming English plural rules in Arabic | «آخر تحديث قبل ١ دقائق» ("1 minutes ago") and «باقيلك ٢ محاولات» where Arabic needs the dual | `packages/design/src/arabic.ts` |
+| Reading a UTC hour and calling it local | A hold expiring at 7pm in Baghdad printed as «٤:٠٠ م» — three hours early, on the line that says when the medicine stops being held | `model/reservation.ts` `clockTime` |
+| Polling until every branch answers | A branch that never answers is *ordinary*, so `thinking` never reached zero — a request every three seconds for up to two days | `main/runtime.ts` `watch` |
+| Working from a private snapshot of shared state | The flusher re-read its own copy, so a cancel on R13 mid-flush sent anyway | `infra/flush.ts` `merge` |
+| "Fixing" a contradiction by walking around a guard | TD-24: `addItem` calls `navigate` instead of `open`, so R1's guards never run — and that bypass is the only reason the product works end to end | TD-24 |
+
+---
+
+## 9. What is not here
+
+Be precise about this when you report status. From `platform/README.md` and the
+debt register:
+
+- **No backend.** `tools/devserver` speaks the declared contracts and invents
+  **data** (nine catalogue rows, three Karrada pharmacies), never **behaviour**.
+  No session token is stored or refreshed. (TD-1)
+- **No device build.** The browser host runs through `react-native-web`, which
+  is *not* React Native. Native gestures, platform chrome, safe-area insets and
+  keyboard avoidance are unverified. (TD-1, TD-2)
+- **No push notifications.** Offers reach the patient by polling
+  `GET /v1/requests/{id}` every three seconds. (TD-21)
+- **No pharmacy app and no owner console.** Blocked on Stages 2/3/5.
+- **Four contracted screens have no component** — R4, R5, R11, R13 — and S1 has
+  a stand-in. Nothing renders a control that leads to one.
+- **Light mode is not designed.** The patient palette is dark-only; `patientLight`
+  is an alias of `patientDark` so nothing renders half-designed. (TD-10)
+
+Full accounting: `17-known-limitations.md` and `18-technical-debt.md`.
+
+---
+
+## 10. Current priorities
+
+Ordered, with the reasoning in `20-next-priorities.md`.
+
+1. **Resolve the two-track question** (`platform/` vs `dawai-platform/`). It is
+   a product decision, it blocks any convergence work, and every week it stays
+   open the two diverge further.
+2. **Unblock the four frozen-document contradictions**: TD-20 (R7's cancel — the
+   API and the §6 machine disagree), TD-24 (R1's guards vs §3.1), TD-23 (R7 never
+   ends because R11 is undesigned), TD-25 (E8 has no failure sentence). None can
+   be fixed in code; each needs one of two frozen documents to move.
+3. **Build a real backend** for `platform/` — or adopt `dawai-platform`'s. TD-1
+   is the root of TD-6, TD-8, TD-14 and TD-21.
+4. **Design the missing screens**: S1, R4, R5, R11, R13, and the light palette.
+5. **Answer the accessibility content question** (TD-12) — composite cards
+   announce only their label, so a screen-reader user chooses a pharmacy without
+   hearing the price, coverage or substitution flag.
+
+---
+
+## 11. Reading order for the rest of this knowledge base
+
+| Read | When |
 |---|---|
-| `00-project-overview.md` | What/why/roadmap |
-| `01-product-vision.md` | Users, value prop, philosophy |
-| `02-architecture.md` | Every module, boundaries, diagram |
-| `03-domain-model.md` | Entities/invariants from SQL |
-| `04-business-rules.md` | Clinical/business constraints |
-| `05-state-machines.md` | Request/Offer/Reservation/etc. |
-| `06-user-flows.md` | Per-role flows |
-| `07-screen-catalog.md` | Every screen |
-| `08-navigation.md` | Navigation architecture |
-| `09-permissions.md` | Auth/RBAC |
-| `10-clinical-safety.md` | Safety-critical design |
-| `11-runtime.md` | Startup, DI, offline, sync, jobs |
-| `12-design-system.md` | Tokens, components, RTL, a11y |
-| `13-api-contracts.md` | Routes and contracts |
-| `14-data-model.md` | Full schema table-by-table |
-| `15-events.md` | Event architecture |
-| `16-testing.md` | Testing philosophy, CI |
-| `17-known-limitations.md` | Honest gaps |
-| `18-technical-debt.md` | Debt/TODOs |
-| `19-open-decisions.md` | Contradictions, unresolved |
-| `20-next-priorities.md` | What's next |
-| `SYSTEM_MAP.html` | Interactive visual map |
+| `00-project-overview.md`, `01-product-vision.md` | Now — what and why |
+| `02-architecture.md` | Before your first change |
+| `04-business-rules.md`, `05-state-machines.md` | Before touching the domain |
+| `07-screen-catalog.md`, `08-navigation.md`, `12-design-system.md` | Before touching a screen |
+| `11-runtime.md` | Before touching startup, ports or the outbox |
+| `13-api-contracts.md`, `15-events.md`, `14-data-model.md` | Before touching a boundary |
+| `03-domain-model.md`, `09-permissions.md`, `10-clinical-safety.md` | Before touching identity or anything clinical |
+| `16-testing.md` | Before adding a test, and before trusting one |
+| `17-known-limitations.md`, `18-technical-debt.md`, `19-open-decisions.md` | Before promising anything to anyone |
+| `20-next-priorities.md` | When you have finished what you were doing |
+| `SYSTEM_MAP.html` | Any time you need to see how a piece connects — open it in a browser |
+
+---
+
+## 12. How to contribute
+
+- Branch, commit with a message that says what changed *and why the previous
+  behaviour was wrong*. The existing history does this
+  (`patient: a withdrawn offer is shown as unavailable, not deleted`) and it is
+  the reason this knowledge base could be written at all.
+- `npm run check` must pass. It is ten gates and it runs in seconds.
+- If you touch a screen, run `npm run review` and look at the diff in
+  `review/index.html`. `tools/review/regress.mjs` compares against
+  `review/.baseline.json` — an unexplained pixel change is a finding.
+- If you could not finish, register the debt. An unregistered gap is a gap the
+  next person discovers by shipping it.
+- Update this knowledge base in the same commit. It is the deliverable, not the
+  paperwork.

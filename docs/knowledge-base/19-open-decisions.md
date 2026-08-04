@@ -1,42 +1,361 @@
-# 19 — Open Decisions & Contradictions
+# 19 — Open decisions
 
-## 1. [MAJOR CONTRADICTION] Two non-interoperating "Dawai" implementations, with at least one direct factual conflict
+Decisions that are **not engineering's to make**, stated with enough context that
+whoever owns them can decide without re-deriving anything.
 
-**The contradiction.** `docs/technical/01-system-architecture.html` (Blueprint v3 Phase 0, generated from `docs/technical/model.js`, internally validated 11/11) states as a hard "Must never" rule for `clinical-engine`: *"Perform any interaction check — Phase 0 has none (D16)"* and *"Ever return a clear result; in Phase 0 it returns only ALLOWED or REFUSED, never SAFE."* Meanwhile `dawai-platform/migrations/0005_interaction_safety.sql` through `0007_review_round2.sql`, plus `server/services/interactions.ts` and `server/routes/clinical.ts`'s `/interaction-check*` endpoints, **build and ship exactly the interaction-checking system Blueprint v3 says does not exist**, complete with a `CLEAR/INFO/INTERRUPT/UNAVAILABLE` outcome enum.
+Each entry names: the question, why it is open, what depends on it, the options
+with their consequences, and a recommendation where engineering has one.
 
-**Why this isn't a simple "one doc is stale" situation.** These are not sequential drafts of the same document — they are two structurally different codebases (`platform/` vs `dawai-platform/`) with different entity names, different auth mechanisms (phone+OTP vs email+password), different screen inventories, and different validated test suites. `docs/design/SCREEN_INVENTORY.md` is explicitly generated from `docs/product/v3/phase0.js` and reports only 22-of-133 v3 screens implemented — implying `platform/apps/patient` is the (partial) implementation target for v3, not `dawai-platform`. There is no source-control or product-brief evidence read in this pass that formally declares one track superseded by the other, beyond `docs/product/DAWAI_PRODUCT_BLUEPRINT.md`'s own header marking the *v1 product blueprint* (not the technical architecture) "SUPERSEDED by Blueprint v3."
+---
 
-**What we know for certain:**
-- `dawai-platform` is tested, builds, passes its E2E suite, and is declared "Pilot MVP READY" as of 2026-07-31 (`docs/dawai/FINAL_MVP_READINESS.md`).
-- Blueprint v3 / `platform/` is architecturally self-consistent and validated (`docs/technical/11-validation-report.html`, 11/11 checks) but has 111-of-133 screens **not implemented**, 11 named product gaps (BD-1…BD-11) blocking further screens, and no evidence in this repo of a running server implementing its 67-endpoint contract.
-- `docs/dawai/BLUEPRINT_EXECUTION.md` (which documents the clinical-core migrations that add interaction safety) tracks progress against *"Dawai — Engineering-Ready Blueprint for a Smart Pharmacy Platform (Baghdad-First)"* — i.e. `PRODUCT_BLUEPRINT_AR.md`, not Blueprint v3. So `dawai-platform`'s clinical-core wave was never claiming Blueprint v3 conformance in the first place; the two simply describe different products that happen to share a name and a general problem space.
+## 1. 🔴 Which Dawai is the product? — the two-track question
 
-**This needs a human decision**, not an engineering fix: is `platform/` (a) the actual next-generation replacement for `dawai-platform` that should eventually retire it, (b) a design/architecture R&D exercise whose *patterns* (state-machine engine, navigation graph, design tokens) should be selectively backported into `dawai-platform` without adopting the v3 entity model wholesale, or (c) an abandoned exploration that should be archived? Until answered, **do not build new `dawai-platform` features against `docs/technical/*.html` or `docs/design/*` contracts** — they are not that product's spec.
+**Owner: product leadership. Nothing else on this list matters as much.**
 
-## 2. Guardian vs. peer-consent authority model — real product gap, not just a naming difference
+### The question
 
-Blueprint v3 distinguishes **Guardianship** (unilateral authority over a dependent who cannot consent — e.g. a young child) from **PeerGrant** (mutual, requires the grantee's approval — the adult-child-for-elderly-parent case). `dawai-platform`'s `family_members` table only implements the mutual-consent model (`consent_granted_at` always required, from the member or a witnessing pharmacist). **If the pilot needs a parent managing a minor's medication without that minor's consent, the current schema has no clean way to express it** — every proxy link requires an acceptance step. Needs a product decision: is unilateral guardianship in scope for the pilot, and if so, does it get bolted onto `family_members` (e.g. an `age_of_subject`-gated auto-consent path) or does it wait?
+This repository contains two complete, non-interoperating implementations of
+Dawai. Which one is the product, and what happens to the other?
 
-## 3. Design system unification
+| | `platform/` | `dawai-platform/` |
+|---|---|---|
+| Spec | **Blueprint v3 (frozen)** | v1 blueprint + a later clinical wave |
+| Identity | `Account` / `Subject` / `Guardianship` / `PeerGrant` | `users` with roles `PATIENT`/`PHARMACY`/`ADMIN` |
+| Auth | **Phone + OTP** — *no password exists, so none can leak* | Email + Argon2id password |
+| Entities | `Request`/`RequestLine`/`Offer`/`OfferLine`/`Reservation` | `medicine_requests`/`dispatches`/`pharmacy_offers`/`reservations` |
+| Clinical posture | **D16: no interaction checking, and says so in the product** | **A severity-tiered interaction engine** (migrations 0005–0007) |
+| Dose events | **None** — §10 change 1 removed the `confirm` scope *because there are none* | Dose schedules and dose events exist |
+| Backend | **None** (TD-1) | Hono + PostgreSQL, sessions, worker, encrypted storage |
+| Architecture gates | **9 checkers + negative tests + measured contrast + derived nav graph** | None of these |
+| Deployment | **The live preview URL** (root `netlify.toml` → `base = "platform"`) | `Dockerfile`, `fly.toml`, `render.yaml` |
+| Activity | **The last ~15 commits** | Earlier |
 
-Two independent token/CSS systems exist with no sharing (`12-design-system.md`). Open question: should `dawai-platform` migrate to consume `@dawai/design` tokens, should `platform/apps/patient` eventually replace `dawai-platform`'s patient UI, or should the two remain permanently separate (e.g. if `platform/` targets native and `dawai-platform` stays web-only)? No doc reviewed states an intended end state.
+### Why it is open
 
-## 4. Gender-inclusive Arabic copy — flagged, not resolved
+These are **not two views of one system.** They use different entity names,
+different authentication, and in one place **directly contradicting clinical
+policy**: Blueprint v3's §7 argues that a partial check a user believes is
+complete is *more dangerous than a stated absence*, and `dawai-platform`'s
+migrations 0005–0007 build exactly the check D16 removed.
 
-`docs/product/review/INDEPENDENT_REVIEW.md` finding #1 (survived adversarial verification, MAJOR severity) identifies that v1's Arabic copy is universally masculine second-person with no gender field in onboarding. The review proposes two concrete fixes (add an optional gender field + ship masculine/feminine string variants, or rewrite to gender-neutral nominal constructions) but does not choose between them, and no doc reviewed in this pass confirms either fix landed. Needs a product decision before further Arabic copy is written at scale in either codebase.
+Merging them is not a refactor. It is a product decision about which model of
+identity, which authentication, and which clinical posture Dawai has.
 
-## 5. Multi-node outbox claiming strategy
+### What depends on it
 
-Noted as PARTIAL in `FINAL_MVP_READINESS.md` — optimistic claiming is fine for one worker but not proven safe for N workers. Needs an explicit decision (e.g. adopt `SELECT ... FOR UPDATE SKIP LOCKED`) before horizontal scaling of `worker.ts`, not left implicit.
+Everything. Every hour spent on either track is an hour that may be discarded.
+`platform/` cannot ship without a backend; `dawai-platform/` cannot ship
+Blueprint v3's product. **Both are blocked, on different things, and the
+resolution to each is the other's existence.**
 
-## 6. Whether `TimelinePages.tsx` fully implements the clinical timeline UI
+### Options
 
-Flagged as unverified in `18-technical-debt.md` item 7 — resolve by reading the file directly; not treated as either "done" or "missing" here to avoid asserting an unverified claim.
+| Option | Consequence |
+|---|---|
+| **A. `platform/` is the product; build its backend** | Keeps Blueprint v3, the identity model, the gates and the design system. Costs a backend build. `dawai-platform`'s server patterns — encrypted object storage with magic-byte inspection and EXIF stripping, the notification outbox, the lifecycle worker, idempotency and rate-limit middleware, PGlite for zero-setup dev — are **directly reusable** |
+| **B. `dawai-platform/` is the product; retro-fit Blueprint v3** | Keeps a running backend. Costs an identity-model migration (`users` → `Account`/`Subject`/`Guardianship`), an auth change, a clinical-policy reversal, and **loses every architecture gate** unless they are ported |
+| **C. Both, for different markets** | Two products, two teams, twice the maintenance. Nothing in the repository supports this |
+| **D. Neither; a third** | Discards both. Not recommended |
 
-## 7. Admin file-decryption access — policy vs. code control
+### Engineering's recommendation
 
-`FINAL_MVP_READINESS.md` notes admins can decrypt any prescription file by role, and calls this an "ops need procedure" item rather than a code defect. Open decision: should this instead become a code-level control (e.g. requiring a second-admin approval, or removing blanket decrypt access and requiring per-file audited elevation) before pilot scale increases, or is an operational procedure (logging + access review) sufficient? Not decided in any doc reviewed.
+**Option A.** The reasoning is narrow and does not depend on preference:
 
-## 8. Blueprint v1 vs. PRODUCT_BLUEPRINT_AR.md vs. Blueprint v3 — which is "the" product blueprint going forward
+1. **The clinical contradiction only resolves one way.** D16's argument is a
+   safety argument. Adopting `dawai-platform`'s interaction engine means arguing
+   the opposite in a document that is currently frozen.
+2. **The identity model is the harder half, and `platform/` has it.** `Account`
+   vs `Subject` exists because *v1 could not represent its own primary persona*.
+   Retro-fitting it into a `users`-with-roles schema is a migration of every
+   clinical row.
+3. **A backend is a known quantity; the gates are not.** Ports of
+   `trace-check`, `layer-check`, `ux-check`, measured contrast and the derived
+   navigation graph into an existing codebase are each a project.
+4. **The deployed URL already serves `platform/`.**
 
-Three documents each claim to define the product: `docs/product/DAWAI_PRODUCT_BLUEPRINT.md` (v1, self-declared superseded by v3 for product decisions, but still the source the independent review critiques and whose vocabulary `FINAL_MVP_READINESS.md` cross-references), `docs/dawai/PRODUCT_BLUEPRINT_AR.md` (Arabic, the blueprint `dawai-platform`'s README explicitly points to and `BLUEPRINT_EXECUTION.md` implements against), and `docs/product/v3/blueprint-v3.html` (v3, target of `platform/`). This knowledge base treats `PRODUCT_BLUEPRINT_AR.md` + `ARCHITECTURE.md` as authoritative for `dawai-platform` (since that's what the running code actually implements) and v3 as authoritative only for the `platform/` tree — but no single document in the repo states this reconciliation explicitly. Recommend a human write a one-paragraph canonical statement of which blueprint governs which codebase, and add it to `dawai-platform/README.md` and a `platform/README.md` (the latter does not appear to exist — see `20-next-priorities.md`).
+### What is needed to decide
+
+A ruling on: (a) does Phase 0 perform interaction checking — **yes or no**;
+(b) is authentication phone+OTP or email+password; (c) is the identity model
+Account/Subject or users-with-roles. **Any one of the three settles it.**
+
+---
+
+## 2. 🔴 `POST /v1/requests/{id}/cancel` vs the §6 Request machine — TD-20
+
+**Owner: product + technical architecture. Two frozen documents disagree.**
+
+### The question
+
+Can a patient cancel a request that has already been broadcast?
+
+### Why it is open
+
+- **§4 R7** declares the control «ألغِ الطلب», and the API model declares
+  `POST /v1/requests/{id}/cancel` → 200 `{ request }`, 404, 409 `already_accepted`.
+- **§6's Request machine has no outgoing edge for a cancellation** from
+  `broadcast` or `answered`. Its only two are `cancelFromOutbox` (queued → draft
+  — a request that never left the device) and `abandon` (from `unanswered` or
+  `partially_filled`).
+- **The domain model agrees with the machine, not the endpoint:** it lists eight
+  Request states and the producer of each, and no state is produced by that route.
+
+Calling the endpoint would return a request in a state the client has no edge to
+reach. **Adding the edge is inventing a state transition, which Rule 5 refuses.**
+
+### What depends on it
+
+Today «ألغِ الطلب» **states an outcome and produces none**, on a live request
+other people are working on. A patient who wants to stop a request believes they
+have.
+
+### Options
+
+| Option | Consequence |
+|---|---|
+| **A. §6 gains `broadcast/answered --cancel--> closed`** | The control works. Pharmacies that have already answered must be told; `offer.sent` responses become moot mid-flight. Needs a new event or a reuse of `request.unanswered` |
+| **B. §4 R7 loses the control** | Nothing to build. The patient's only exit from a live request is to leave the screen and let the window elapse — **which today never happens (TD-23)**, so B requires TD-23 to be resolved first |
+| **C. Reinterpret it as "stop notifying me"** | The request stays live for the pharmacies; the patient stops being told. Honest, small, and needs new copy — the control cannot keep saying «ألغِ» |
+
+Engineering has **no recommendation** — this is a promise to a patient, not a
+technical choice. Note only that **B and C both depend on TD-23**, because a
+patient with no cancel and no window end has no exit at all.
+
+---
+
+## 3. 🔴 R1's guards vs §3.1 and D26 — TD-24
+
+**Owner: product. Two frozen sections contradict each other.**
+
+### The question
+
+Can a **guest** assemble a draft request?
+
+- **§4** gives R1 the permission *"authenticated, subject with Order scope or self
+  or guardian"* and the guards `requireSession · requireOrderScope ·
+  blockMemorialised`.
+- **§3.1** forbids a sign-in wall and requests the account **at the first action
+  that needs one**.
+- **D26** preserves the interrupted work, and **E4 is drawn showing
+  «طلبك محفوظ: أموكسيسيلين + باراسيتامول» — a draft only a guest could have
+  built.**
+
+**If R1 needs a session, no guest can assemble the request E4 promises to keep.**
+
+### Current state
+
+`addItem` calls `navigate` rather than `open`, so R1's guards are never asked.
+**That bypass is the only reason the product works end to end** — and it is
+visible: R2's «اكتب الاسم بدال الصورة» goes through the declared exit, *does* run
+the guards, and sends a guest to sign in by a control that offered to let them
+type instead.
+
+### Options
+
+| Option | Consequence |
+|---|---|
+| **A. R1 loses `requireSession`** | Matches §3.1, D26 and E4's drawing. The guard moves to R6 (send), where it already is. **Smallest change, and it makes the existing behaviour honest** |
+| **B. §3.1 and D26 say where a guest assembles a draft instead** | A pre-account draft screen the Blueprint does not currently have |
+| **C. Keep both and formalise the bypass** | **Rejected by engineering.** A guard that one path enforces and another does not is not a guard (§5 rule 1) |
+
+**Recommendation: A.** It is what the drawn product already does; the guard list
+is what is out of step.
+
+---
+
+## 4. 🟠 R11's design — TD-23
+
+**Owner: design.** Design package entry: **«OPEN to the designer: Everything. Not
+rendered.»**
+
+R11 is the honest empty case — *nobody answered.* Without it:
+
+- Nothing fires `windowElapsed`, so a request stays `broadcast` forever;
+- R7's promise («إذا خلصت بدون رد، نكلّك الصدك ونقترح شنو تسوي») **is not kept**;
+- `widen` (R11's primary) and `request.unanswered` have no surface.
+
+**Required to unblock**: R11 drawn, with its three declared exits (widen → R7,
+watch → R12, later → S1). The machine edge and the event already exist.
+
+---
+
+## 5. 🟠 The daylight palette — TD-10
+
+**Owner: design.** Night Mint is dark-only. `patientLight` aliases `patientDark`
+so nothing renders half-designed — **and that means the contrast gate cannot
+catch a light-scheme regression.**
+
+Also open in the same delivery:
+
+- **R-5** — is `success` distinct from `accent`? Design did not distinguish them,
+  and the delivery uses mint for "replied — offer arrived". **Held equal rather
+  than invented.**
+- **TD-11** — V2's caption ships at `#63726B` because the delivered `#6B7A74`
+  measures 4.10:1, below the 4.5 floor, on the screen that must never fail.
+  **Reverts on confirmation of a replacement.**
+- **`alert` was inverted** from the delivery, because Design's alert is a
+  *ground* and the role system is text-on-surface. **Flagged in the handoff.**
+
+---
+
+## 6. 🟠 What a composite card announces — TD-12
+
+**Owner: product + design + a native Iraqi Arabic speaker.**
+
+An R8 offer card currently reads as «افتح عرض صيدلية الرشيد» alone. The price,
+the coverage, the substitution flag, the distance and the honoured band are
+**rendered and silent**.
+
+> What an offer card should announce, **in which order, in Iraqi Arabic**, is a
+> content decision. §25 and the Blueprint state no spoken-content rule for a
+> composite card, **so implementation must not invent one.**
+
+**Required to unblock**: a spoken-content rule for composite cards — which fields,
+in which order, and how to word coverage and the honoured band aloud.
+
+---
+
+## 7. 🟠 Cancelling an in-flight write — TD-13
+
+**Owner: product** (§21 · D27 · R13).
+
+A `POST` that may already have been accepted cannot simply be dropped. The honest
+options **differ in what the patient is promised**:
+
+| Option | Promise |
+|---|---|
+| **A. Refuse visibly while sending** | "You can cancel until it starts sending." Simple, honest, and **the engineering half is unblocked**: a function that can refuse must *say so* rather than returning its input |
+| **B. Cancel and reconcile against the idempotency key** | "You can cancel any time." Needs a server-side cancel-by-key and a reconciliation path |
+
+Note the split: **A's engineering half is not blocked.** `cancel` returning its
+input unchanged is a defect regardless of which promise is chosen.
+
+---
+
+## 8. 🟠 What a screen shows when its state is gone — TD-15
+
+**Owner: product.**
+
+V2 without a reservation, R9 without an offer, R3 without a capture. §4 V2 says
+the reservation lives on Today, **but that is back behaviour, not a fallback.**
+
+Becomes reachable **the moment S1 lands**, and through D26's replay of a pending
+screen — both ordinary paths.
+
+**No redirect was invented.** The `Placeholder` is honest about the failure and is
+still a screen nobody designed.
+
+---
+
+## 9. 🟠 Inert declared controls — TD-14
+
+**Owner: product + platform.**
+
+V2's «الاتجاهات» and «اتصال بالصيدلية» are declared and do nothing, because there
+is no maps handoff and no dialer.
+
+| Option | Consequence |
+|---|---|
+| **A. Wire them** | Needs a device build (TD-1) |
+| **B. Disable with a stated reason** | Honest today; §23 requires the reason |
+| **C. Drop them until a device build exists** | Changes the contract, which changes the Blueprint |
+
+**A general question sits underneath this one:** what should the product do with
+a declared control whose *capability* — not whose screen — does not exist?
+`isBuilt` cannot express it, because a dialer is not a screen.
+
+---
+
+## 10. 🟡 A ceiling on packs per line — TD-16
+
+**Owner: product.** `Marketplace.packs` accepts **1,000,000, verified by probe.**
+
+§2 fixes maximum *lines* at 8. **Blueprint v3 does not state a maximum quantity
+per line**, and *any ceiling chosen here would be an invented business rule.*
+
+Consequence is bounded: a pharmacy receives an absurd request and refuses it —
+**a pharmacist's attention rather than a patient's safety.**
+
+**Needed: one number.** It then belongs beside `MAX_REQUEST_LINES` in
+`marketplace/rules.ts`.
+
+---
+
+## 11. 🟡 The district coverage list — TD-17
+
+**Owner: product.** The bundled list is four Baghdad districts with three marked
+covered — *the four E8 has been drawn and reviewed against since it was
+designed.*
+
+The **shape** is the Blueprint's (bundled, location never requested, an uncovered
+district shown honestly rather than hidden — E12). **The contents are not a claim
+product has made.**
+
+*Nothing in the app hard-codes an id from the list and the real one replaces the
+file wholesale, so this cannot leak into logic.* It does mean a patient in a
+served district may not find it.
+
+---
+
+## 12. 🟡 E8's failure sentence — TD-25
+
+**Owner: copy.** Needs one sentence for «ما كدرنا نحفظ — جرّب مرة ثانية».
+
+Today the control returns from busy and **says nothing**, because the only
+alternative available without a decision was worse: the first version answered a
+dropped connection with `DISTRICT_REQUIRED` — *telling a patient who did choose a
+district that they had not.*
+
+---
+
+## 13. 🟡 The Iraqi dialect — TD-22
+
+**Owner: the person who wrote the original copy.**
+
+The four CLDR plural categories are implemented and every counted string selects
+through them. **What is not verified is the dialect.** Three worth a second pair
+of eyes: the dual «دوائين», the non-human plural agreement in «٣ أدوية تحتاج
+وصفة», and «اثنين غيرهم» on the outbox label.
+
+*Strictly better than what shipped, and not yet confirmed. The risk is a phrase
+that reads as slightly formal rather than one that misinforms.*
+
+---
+
+## 14. The eleven Blueprint gaps (BD-1 … BD-11)
+
+Recorded in the frozen technical model with the exact question each needs
+answered. **Four are blockers.**
+
+| Gap | Question that must be answered |
+|---|---|
+| **BD-1** 🔴 | Is a **saved pharmacy** per Account or per Subject? Capped? Does it survive branch closure? |
+| **BD-2** 🔴 | What is a **price dispute's** lifecycle? Can a branch respond? Does it resolve, or only accumulate? **Does it affect the honoured rate, which D11 defines without it?** |
+| **BD-3** 🔴 | **Support ticket** lifecycle, who may read one, whether a patient ticket may reference a subject, and retention |
+| **BD-5** 🔴 | Which patient screen shows the **support-session consent** prompt? How long is it time-boxed? What does the banner appear on? **What happens if the user is offline?** |
+| **BD-4** 🟠 | **Unmatched search** retention period, whether a term is linked to an account, how it is aggregated. *Until answered, **D29's retention promise is unverifiable**.* |
+| **BD-6** 🟠 | Can an **invite** be resent? Cancelled? How many are allowed? **Does resending extend the 7-day expiry?** |
+| **BD-7** 🟠 | **Export** format, link expiry, whether the artifact is retained, **whether an export appears in the access log** |
+| **BD-8** 🟠 | **One device or many** per account? What happens when a token is invalidated? **Is there a fallback when push is refused** — the app is usable without it, but nothing says what replaces the alert |
+| **BD-10** 🟠 | Is **"not carried"** a persistent branch-level fact, or only a one-off decline reason? If persistent, where does a branch un-mark it, given K9 was removed? |
+| **BD-11** 🟡 | Does an observed-availability count of **zero** mean "nobody has it" or "nobody has been asked"? *§13 of v1 insisted these are different; v3's §8 does not carry the distinction forward* |
+| **BD-9** ✅ | *None.* The outbox is correctly absent from the ERD because it is client-side only. **Closed by explanation, not by a decision** |
+
+---
+
+## 15. Decision-making protocol
+
+The pattern this project already follows, and should keep following:
+
+1. **State the contradiction precisely**, naming both documents and both
+   sections. TD-20 does this in three sentences.
+2. **Do not resolve it in code.** *Fixing the symptom would mean weakening a rule
+   to make code pass rather than resolving the contradiction* (TD-24).
+3. **Register it** with the impact on a **user**, not on the build.
+4. **State what would unblock it** — not "needs design" but *"needs a
+   spoken-content decision for composite cards"*.
+5. **Record corrections rather than overwriting them.** TD-20 carries two.
+6. **When it is answered, the answer goes in the code as a comment with its
+   reason**, and the item moves to `RESOLVED` with how. TD-18 is the model:
+   *"which comes first was stated nowhere, and product answered: the name and the
+   district first."*

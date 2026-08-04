@@ -1,69 +1,369 @@
-# 03 — Domain Model (as implemented in `dawai-platform`)
+# 03 — Domain model
 
-Source of truth: `dawai-platform/migrations/0001_init.sql` through `0007_review_round2.sql`. Every entity below is a real table. Blueprint v3's parallel 21-entity model (Account/Subject/Guardianship/PeerGrant/CatalogueItem/District/...) is documented in `docs/technical/02-domain-model.html` and is **not** this schema — see `19-open-decisions.md`.
+Every entity, every value object, every aggregate, every invariant — and why
+each one exists.
 
-## Identity & access
+Two sources: the frozen model (`docs/technical/model.js`, 21 entities, 22 tables)
+and the implemented domain (`platform/packages/domain`). Where they differ, the
+difference is stated.
 
-- **`users`** — the single account table for all three roles (`PATIENT`/`PHARMACY`/`ADMIN`). `status ∈ {ACTIVE, SUSPENDED, DELETED}`. Invariant: one email per account (`UNIQUE(email)`); `deleted_at` added in `0002` for soft deletion.
-- **`sessions`** — opaque bearer/cookie sessions; only a token hash and CSRF-token hash are stored, never the raw token. Revocable (`revoked_at`); indexed for "my active sessions" queries.
-- **`patient_profiles`** — 1:1 with a `PATIENT` user; default area, coordinates, notification preferences JSON.
-- **`password_reset_tokens`**, **`device_tokens`**, **`user_consents`** (`0002`) — reset flow, push-token registration per platform (WEB/IOS/ANDROID), and a versioned consent-acceptance ledger (`PRIVACY_POLICY`/`TERMS_OF_SERVICE`/`PHARMACY_TERMS`/`MARKETING`) unique per `(user, type, version)` — re-acceptance is required when a document version changes.
+---
 
-## Pharmacy
+## 1. The entity map
 
-- **`pharmacies`** — the legal business entity. `owner_user_id` unique (`0002`, one pharmacy per owner account). `verification_status ∈ {PENDING, UNDER_REVIEW, VERIFIED, REJECTED, SUSPENDED}`, set only by admin action. License number, issuer (defaults to "Iraqi Pharmacists Syndicate"), expiry.
-- **`pharmacy_branches`** — the operational unit patients actually match against. Governorate/district/address/landmark, lat/long (required, unlike the coarse patient-side geohash), IANA `timezone` (default `Asia/Baghdad`) + `opening_hours` JSON used to exclude closed branches from dispatch, `pickup_enabled`/`delivery_enabled`, `accepting_requests` (pharmacy-controlled pause switch), `operational_status ∈ {ACTIVE, PAUSED, SUSPENDED}`.
-- **`verification_documents`** — license/pharmacist-ID/other uploads backing a pharmacy's verification; `status ∈ {PENDING, ACCEPTED, REJECTED}`.
-- **`reliability_metrics`** — 1:1 per branch, private (never patient-facing per the "no public star ratings" rule): response rate, average response time, successful reservations, completed requests, confirmed-not-found count, cancellation rate.
+```mermaid
+erDiagram
+  ACCOUNT ||--|| SUBJECT : "owns exactly one self"
+  ACCOUNT ||--o{ GUARDIANSHIP : "holds (max 6)"
+  GUARDIANSHIP }o--|| SUBJECT : "over one managed"
+  SUBJECT ||--o{ PEERGRANT : "granted on"
+  ACCOUNT ||--o{ PEERGRANT : "granted to"
 
-## Medicine catalogue
+  SUBJECT ||--o{ REQUEST : "made for"
+  ACCOUNT ||--o{ REQUEST : "acted by"
+  REQUEST ||--|{ REQUESTLINE : "1..8"
+  REQUESTLINE }o--|| CATALOGUEITEM : "asks for"
+  REQUESTLINE }o--o| PRESCRIPTIONIMAGE : "D18 when required"
+  REQUEST ||--o{ OFFER : "answered by"
+  REQUEST ||--o| REQUEST : "D06 child"
 
-- **`medicines`** — generic drug identity. `classification ∈ {OTC, PRESCRIPTION, CONTROLLED, UNKNOWN}`.
-- **`medicine_presentations`** — brand/strength/dosage-form/pack-size variant of a medicine, with an optional `gudea_reference` (Iraq's Gudea national drug database reference) and `barcode`.
-- **`medicine_aliases`** — searchable alias table (Arabic/English), `normalized_alias` indexed for lookup — this is the search-normalization surface (see also the Arabic-normalization test rule in Blueprint v3's testing strategy, `09-testing.md` reference, though the actual normalization implementation lives in the search route, not a separate service module here).
+  BRANCH ||--o{ OFFER : "sends"
+  OFFER ||--|{ OFFERLINE : "one per request line"
+  OFFERLINE }o--o| CATALOGUEITEM : "substitute (D19)"
+  OFFER ||--o| RESERVATION : "accepted becomes"
+  RESERVATION ||--|{ RESERVATIONLINE : "only accepted lines"
+  RESERVATION ||--o| DISPENSERECORD : "collection writes exactly one"
+  DISPENSERECORD }o--|| SUBJECT : "the medication record"
 
-## The core marketplace loop
+  PHARMACY ||--|{ BRANCH : "has"
+  PHARMACY ||--|{ LICENCE : "holds"
+  BRANCH ||--o{ BRANCHHOURS : "standard/exception/ramadan"
+  BRANCH ||--o{ STAFF : "employs"
+  STAFF }o--|| ACCOUNT : "is an"
+  STAFF }o--o| LICENCE : "pharmacist requires verified"
+  BRANCH }o--|| DISTRICT : "sits in"
 
-- **`medicine_requests`** — a patient's request. `public_reference` is the patient-visible ID; `status` is a 12-value enum (`DRAFT, NEEDS_CLARIFICATION, ACTIVE, HOLD_PENDING, RESERVED, READY, COMPLETED, EXPIRED, CANCELLED, NO_MATCH, BLOCKED`) — see `05-state-machines.md`. `quantity` capped at 20 (anti-hoarding / anti-controlled-diversion bound), `urgency ∈ {NOW, TODAY, TOMORROW}`, `radius_km ∈ {2,5,10}` (the fixed 2→5→10 expansion ladder), `prescription_status ∈ {NOT_PROVIDED, PROVIDED, REVIEW_REQUIRED, VERIFIED}`. `version` column supports optimistic concurrency. `coarse_geohash` (added `0003`) separates a coarse location signal from the exact matching coordinates stored alongside it — a deliberate privacy split (exact coords used for matching math only; `coarse_geohash` is what's safe to expose more broadly).
-- **`request_dispatches`** — the fan-out record: which branch was sent which request, with `distance_km`, `match_score`, `match_reasons` JSON, and a `status` lifecycle (`SENT → VIEWED → RESPONDED`/`DECLINED`/`EXPIRED`). `notify_after` (added `0003`) implements the staged 3+3 dispatch: a second wave of branches is queued but its notification is deferred.
-- **`pharmacy_offers`** — a branch's structured answer to a request: `offer_type ∈ {EXACT, PARTIAL, ALTERNATIVE_REVIEW_REQUIRED, ORDERABLE}`, brand/strength/form actually offered, quantity, `price_iqd`, pickup/delivery flags, `preparation_minutes`. Partial unique index enforces **one active/hold offer per (request, branch)** — a branch can't spam duplicate offers on the same request.
-- **`reservations`** — the patient's selection of one offer. `public_reference` for pickup-ticket display. `status ∈ {PENDING_ACK, ACTIVE, READY, COMPLETED, REJECTED, CANCELLED, EXPIRED, FAILED, NO_SHOW}`. Partial unique index enforces **one live reservation per request** (`PENDING_ACK|ACTIVE|READY`) — a patient cannot double-book. `acknowledgement_deadline` and `hold_expires_at` are the two timers driving the state machine; **the hold timer is never started until the pharmacy acknowledges** — this is enforced by the fact `hold_expires_at` is only set on the ACK transition, not on reservation creation (`services/lifecycle.ts`, `ARCHITECTURE.md`).
-- **`availability_signals`** — append-only, sourced (`PHARMACIST_CONFIRMATION`/`MANUAL_STOCK`/`POS_SYNC`/`REALTIME_SYNC`), state (`AVAILABLE`/`LOW`/`UNAVAILABLE`/`ORDERABLE`), always time-boxed with `expires_at`. This is what powers "search" (not "request") results.
-- **`saved_pharmacies`** — simple patient↔branch bookmark, composite PK.
+  SUBJECT ||--o{ WATCH : "max 5, 14 days"
+  ACCOUNT ||--o{ AUDITENTRY : "actor"
+```
 
-## Messaging & notifications
+---
 
-- **`conversations`** — exactly one per reservation (`UNIQUE(reservation_id)`), scoping chat to an active transaction, not open-ended pharmacy messaging.
-- **`messages`** — text body, 1–1000 chars, belongs to a conversation.
-- **`notifications`** — durable, patient/pharmacy-facing inbox row.
-- **`notification_outbox`** — the delivery-channel projection of a notification. `channel ∈ {IN_APP, WEB_PUSH, APNS, FCM, SMS}`, `status ∈ {PENDING, DELIVERED, FAILED}`, retry bookkeeping (`attempts`, `next_attempt_at`), `idempotency_key` (unique, `0002`) to prevent duplicate sends across retries. Payload is deliberately minimal (`{eventType, resourceId}` — no PHI, no medicine name, no coordinates) — see `10-clinical-safety.md` and `15-events.md`.
-- **`notification_delivery_logs`** (`0002`) — per-attempt delivery audit trail (`SENT`/`FAILED`/`SKIPPED`) linked to an outbox row.
+## 2. Identity aggregate
 
-## Clinical core (migration 0004) — the adherence/family module
+### Account
 
-- **`family_members`** — a proxy-consent link, `owner_user_id → member_user_id` (nullable until the member accepts), `proxy_scope ∈ {VIEW, ORDER, CONFIRM}` (additive, least-privilege), `consent_granted_at` NULL until granted, `consent_witnessed_by` for the "elderly relative without a phone" case, `revoked_at`. Invariant added in `0006`: **exactly one live link per (owner, member) pair** (`family_members_live_pair_idx`), making authority deterministic — this fixed a real bug where `requirePatientAuthority()` used `LIMIT 1` with no `ORDER BY` and could nondeterministically pick between duplicate links.
-- **`dose_schedules`** — a patient's medication regimen. `sig_source ∈ {PHARMACIST, MONOGRAPH_TEMPLATE, PATIENT_SELF_REPORT}` defaulting to the lowest-trust option; `confirmed_by_user_id` records who actually confirmed it. `units_per_dose` (added `0006`) fixed a days-of-cover math bug that assumed one unit per administration.
-- **`dose_events`** — **append-only** confirmation log (`TAKEN`/`MISSED`/`SNOOZED`/`UNKNOWN`), with `client_event_id` + partial unique index for idempotent offline replay, and `confirmed_via_family_member_id` recording proxy confirmations.
-- **`stock_movements`** — the passive inventory ledger (explicitly "NOT an ERP"): on-hand quantity is *derived* as `SUM(delta_qty)`, never stored directly. `reason ∈ {SALE, PURCHASE, ADJUST, RETURN, COUNT}`. Dedupe key fixed in `0006` to be scoped per-SKU (`branch_id, medicine_name, client_event_id`), not branch-wide, after a bug where a multi-line offline sale under one client-event-id silently dropped every line after the first. The `delta_qty <> 0` constraint was loosened in `0007` (`OR reason = 'COUNT'`) so a *confirming* stock count (delta 0) is recordable — without this fix, trust could never rise from a clean reconciliation.
-- **`sku_trust`** — per-(branch, medicine_name) forecast-readiness gate; `trust_score` 0–1. Below the threshold a SKU is excluded from forecasting entirely (see `10-clinical-safety.md`).
-- **`attention_events`** — the unified "needs your attention" feed replacing notification floods. `priority ∈ {SEV_ALERT, ACTION_REQUIRED, IN_PROGRESS, SUGGESTION}`. `SEV_ALERT` rows can never carry an `expires_at` (CHECK constraint added `0006`) and are dismissed only by resolving their cause. Dedupe (`dedupe_key`, partial unique index) also fixed in `0006` to account for `expires_at`, after a bug where an expired-but-undismissed event permanently blocked the same condition from ever being raised again.
-- **`model_output_log`** — every AI/OCR model call, its confidence, whether it was `gated`, and who resolved a gated output. The audit trail for the "AI never asserts clinical certainty" rule.
+The thing that signs in. One per phone number (**D03**), `UNIQUE(phone_hash)`.
+Phone stored as a **hash for lookup and encrypted for display** — the hash is
+what indexes.
 
-## Interaction safety (migration 0005)
+**Invariant (§9, §2):** an Account owns **exactly one** self Subject, created
+**atomically with it** by `POST /v1/auth/verify`. Enforced in the database as
+`UNIQUE(owner_account_id) WHERE type='self'`.
 
-- **`interaction_dataset_meta`** — source/version/`updated_at`/ingredient count of the loaded interaction dataset (DDInter 2.0 + openFDA labels, normalized via RxNorm upstream — no enterprise dataset like DrugBank/FDB/Micromedex assumed).
-- **`interaction_ingredients`** — the coverage table; an ingredient absent here cannot be evaluated.
-- **`drug_interactions`** — pairwise, stored canonically with `ingredient_a < ingredient_b` so a pair has exactly one row; `severity ∈ {CONTRAINDICATED, SEVERE, MODERATE, MINOR}`, sourced (`source`, `source_version`).
-- **`interaction_checks`** — every check performed, including ones that returned `UNAVAILABLE` (regulatory defensibility — the system must be able to show what it knew and told the pharmacist). `outcome ∈ {CLEAR, INFO, INTERRUPT, UNAVAILABLE}`; override fields constrained so an override can only exist for an `INTERRUPT` outcome and requires a ≥10-character typed reason (`CHECK` constraints). `condition_key` (added `0007`) lets an override handler find and clear the alert it's responding to.
+This invariant is load-bearing in the client. `main/runtime.ts` `authority()`
+relies on it and says so at length: a client that has just been handed both ids
+by `/v1/auth/verify` *knows* the self relationship holds, so it can supply that
+fact to `Authority.authorise`, which still decides. A **grant over someone else's
+record is NOT inferred** — `grants[]` comes from `GET /v1/me` and no port reads
+it yet, so a guardian or peer still has no order scope in this build.
 
-## Platform / cross-cutting
+### Subject
 
-- **`secure_files`** — encrypted upload metadata (never plaintext on disk): `purpose ∈ {PRESCRIPTION, PHARMACY_LICENSE, PHARMACIST_ID}`, `attachment_kind` (added `0003`, `PRESCRIPTION`/`BOX_IMAGE`), size capped at 10 MB, AES-GCM `nonce`/`auth_tag`, retention `delete_at`.
-- **`reports`** — user-filed reports against a user/pharmacy/request/reservation; admin-resolved.
-- **`audit_events`** — actor, role, action, resource, `result ∈ {SUCCESS, DENIED, FAILED}`, free-form `metadata` JSON. Written by `writeAudit()` (`services/audit.ts`) from nearly every mutating route.
-- **`rate_limits`**, **`idempotency_keys`** — infrastructure tables backing `security/rate-limit.ts` and `security/idempotency.ts`.
+**The person the medicine is for.** A Subject *need not authenticate*
+(**D01**) — this is the change that made the product's primary persona
+representable at all.
 
-## Two cross-entity invariants worth internalizing
+States: `self | managed | claim_pending | memorialised | deleted`.
 
-1. **Nothing clinical is silently overwritten.** `dose_events`, `stock_movements`, and `audit_events` are append-only by convention (no UPDATE/DELETE code paths write over history) — corrections are new rows. This mirrors Blueprint v3's stated invariant for `dispense_records`/`audit_entries`, even though the table names differ.
-2. **A missing relationship and a forbidden one should not be distinguishable by response shape** where privacy-sensitive (e.g. proxy-authority checks return 404 for "no link" rather than leaking existence via a 403) — `docs/dawai/BLUEPRINT_EXECUTION.md`: *"Insufficient scope → 403; no link at all → 404, not 403."*
+| Invariant | Why | Enforced |
+|---|---|---|
+| A managed subject has exactly one active guardianship | Two guardians is two people with unresolvable authority over one medical record | `UNIQUE(subject_id) WHERE state='active'` on `guardianships` |
+| A guardian holds at most **6** managed subjects | §4 S3. A household, not a directory | `Family.canAddManagedSubject` |
+| On claim, **guardianship ENDS** — it does not weaken and is not retained silently | **D01**. The former guardian is left holding a revocable `view` peer grant | `SubjectMachine` edge `claim_pending --numberVerified--> self`; `Family.claim()` |
+| A memorialised subject accepts no new activity but stays readable | **D04**. Only `order` is refused; `view` stays open for existing grant holders | `Authority.authorise` |
+| Memorialisation reverses within **30 days**, and not after | **D04** | `Family.canReverseMemorialisation` |
+
+The claim edge is the most consequential in the product. From
+`identity/machines.ts`:
+
+> Writing it as a table is what stops that being softened later by someone who
+> finds ending it inconvenient.
+
+### Guardianship
+
+`guardian_account_id → subject_id`, with `state`, `ended_at`, `ended_reason`.
+**Never deleted — ended.** The record that authority once existed survives.
+
+### PeerGrant
+
+An access grant from a Subject to another Account, at a scope.
+
+- Scopes are exactly `view` and `order` — **there is no `confirm` scope in
+  Phase 0**, because there are no dose events to confirm (§10 change 1).
+- **D02**: an invitation to a number with **no account is the NORMAL case**, not
+  an error. `GrantMachine` starts at `invited`; `invited --inviteeSignsIn-->
+  pending`.
+- Expires after **7 days** (`INVITE_TTL_MS`).
+- **Never deleted — revoked**, so the record that it existed survives.
+- A subject may `narrow` an active grant (`active --narrow--> active`).
+
+---
+
+## 3. Marketplace aggregate
+
+### Request (aggregate root)
+
+Carries lines; an Offer answers **per line**; a Reservation covers **one branch**
+(**D06**).
+
+| Invariant | Value | Why |
+|---|---|---|
+| Line count | **1..8** | `Marketplace.MAX_REQUEST_LINES`; `NO_LINES` / `TOO_MANY_LINES` |
+| Urgency | exactly `now` \| `today` \| `soon` | **D09**. Mapping to 20m / 4h / 48h *exactly*. No other value exists |
+| Idempotency | `UNIQUE(idempotency_key)` | The client mints it once at enqueue; a retry returns the original result |
+| District | required | It drives routing; a request with `districtId: ""` is a request no branch can be found for — this was a real defect (TD-18) |
+
+Lines the accepted offer did not fill become a **child request automatically**
+(**D06**) so the patient never re-enters a line. The parent moves
+`accepted --childCreated--> partially_filled` and the child re-broadcasts.
+
+### RequestLine
+
+`packs >= 1` (**D07** — the unit is the pack, defined by the catalogue, and there
+is no other unit). `prescription_image_id NOT NULL` when the item requires one
+(**D18**). The item must not be controlled (**D42**).
+
+> **Open:** nothing bounds `packs` upward. `Marketplace.packs` refuses zero,
+> negatives and non-integers and accepts 1,000,000. Blueprint v3 does not state
+> a ceiling, and inventing one would be an invented business rule — registered as
+> **TD-16** rather than guessed.
+
+### Offer
+
+One answer per branch per request: `UNIQUE(request_id, branch_id)`.
+
+Each `OfferLine` carries exactly one of three answers (**D08**):
+
+| Answer | Requires | Refusal if missing |
+|---|---|---|
+| `available` | integer `priceMinor > 0` | `PRICE_REQUIRED` |
+| `unavailable` | a reason from `out_of_stock \| not_carried \| closing \| cannot_supply` | `UNAVAILABLE_REASON_REQUIRED` |
+| `substitute` | price, `itemId`, a **non-empty note**, and a verified pharmacist author | `SUBSTITUTION_REQUIRES_PHARMACIST` |
+
+**Invariant (D08):** the offer price **binds for the reservation window**.
+Withdrawal is the correction path for a mistyped binding price and it exists
+**only before acceptance** — `sent --withdraw--> withdrawn`, and there is no
+edge out of `accepted`.
+
+**Invariant (D19):** a substitute line carries `authorised_by_staff_id` with a
+verified pharmacist licence. In the patient app this surfaces as
+`Offers.ProposedBy { name, licenceVerified, branchName }` — because until it
+existed, R9 showed **a clinical claim with no author**: a patient was asked to
+accept a different medicine on the word of nobody in particular.
+
+### Reservation
+
+**Invariant (§6):** `held_at NOT NULL` before `expires_at` is set. **The clock
+starts at `held`, never at `requested`.** `expires_at` is computed from
+**server time only**.
+
+**Invariant:** `UNIQUE(code) WHERE state='held'` — the code is the collection
+right (**D14**) and two live holds may not share one.
+
+**Invariant (D06):** `reservation_lines` contains **only lines the patient
+accepted**. A refused or undecided substitution is not among them.
+
+**D39** — when a branch confirms and then cannot hold: the parent request
+**re-opens automatically**, and the refusal counts against the honoured rate
+*unless it came within five minutes* of confirming.
+
+### DispenseRecord — the medication record
+
+**The most protected entity in the system.**
+
+- **APPEND ONLY.** No UPDATE and no DELETE permission is granted to **any**
+  role (§2 invariant 2). `clinical-engine`'s forbidden list: "Edit or delete a
+  dispense record."
+- `UNIQUE(reservation_id)` — a collection writes **exactly one**.
+- Written by `clinical-engine` and by nothing else (**D22**). It is the *only*
+  writer of the medication record.
+- **D22**: built from completed pickups. **Phase 0 predicts nothing.**
+- Removed only via the account-deletion cascade.
+
+---
+
+## 4. Catalogue aggregate
+
+### CatalogueItem
+
+`name_ar`, `name_latin`, `name_ku_reserved` (**D34** — the Kurdish slot is
+reserved in the schema; the font stack is not, because a font stack for a
+language we do not ship would be a claim we cannot honour), `form`, `strength`,
+`pack_size`, `requires_prescription`, `is_controlled`, `state`, `version`.
+
+**Invariant (§3 prerequisite 3):** `state='requestable'` requires `pack_size`,
+`requires_prescription` **and** `is_controlled` all NOT NULL. An item lacking any
+of the three cannot be published.
+
+**This invariant has a client-side twin, and it was a real defect.** From
+`infra/catalogue.ts`:
+
+> `gateRequestLine` reads them as plain booleans, so a hit carrying
+> `requestable: true` but **missing** `isControlled` was gated as ALLOWED, and
+> D42's "this cannot be requested from the app" never fired for a controlled
+> medicine.
+
+The path that makes it more than theoretical is the **cache** — it stores what a
+previous version wrote, so a device upgrading across a schema change replays old
+rows straight into the gate with no server in the loop to correct them. The type
+guard now requires all three booleans; **a row we cannot judge is a row we must
+not offer**, and it is dropped.
+
+Prohibitions: the catalogue **holds no price** (**D08**), **holds no stock**, and
+**never autocorrects a medicine name silently**.
+
+### District
+
+**The area unit** (**D10**). `id, city, name_ar, name_latin`,
+`UNIQUE(city, name_ar)`. A district is stored; **a GPS coordinate never is, and
+no location history exists** (**D29**).
+
+Branch location is verified during application — an operator sets the map point
+at approval (**D10**), which is why `verified_point NOT NULL` is required before
+`state='verified'`.
+
+---
+
+## 5. Pharmacy aggregate
+
+| Entity | Key facts |
+|---|---|
+| **Pharmacy** | `owner_account_id` and `named_pharmacist_account_id` recorded **separately** (§3.3) — they are frequently different people. Closed, never removed |
+| **Branch** | `verified_point NOT NULL` before verified (**D10**); `radius_km`, `capacity_open_reservations`, `paused_until`, `eligibility_reason` (**D13**) |
+| **BranchHours** | `kind ∈ {standard, exception, ramadan}`. **Ramadan rows carry a `hijri_range`, not a Gregorian date** (**D33** — Ramadan is a scheduling model, not an exception list) |
+| **Staff** | `role ∈ {assistant, pharmacist, manager}`; `role='pharmacist'` **requires a verified `licence_id`**; **at least one active manager per branch** (§10 change 5) |
+| **Licence** | `expires_at`, indexed `WHERE state IN ('valid','expiring')` so the 60/30/7-day warnings can be found cheaply |
+
+**Invariant:** a lapsed licence **stops routing but never cancels a live
+reservation** — those are honoured. From `pharmacy/machines.ts`: *"That
+distinction lives here so no cleanup job can forget it."*
+
+---
+
+## 6. Media
+
+### PrescriptionImage
+
+Encrypted at rest; **the key reference is stored apart from the object**. Hard
+delete on patient request (§4 M5).
+
+### PrescriptionAccess
+
+The join that makes **D18** real: `image_id → branch_id + reservation_id`, with
+`granted_at` and `revoked_at`. A branch may read the image **only while its
+reservation is live**; `revoked_at` is set when the reservation resolves —
+collected, expired or cancelled.
+
+Both tables audit **all writes and all reads**.
+
+---
+
+## 7. Watch (notify-me)
+
+**D30** makes notify-me an entity with a lifecycle rather than a checkbox.
+`subject_id, item_id, district_id, state, expires_at`. **Max 5 active per
+subject**; `expires_at = created_at + 14 days`. A match fires the watch and
+closes it.
+
+---
+
+## 8. AuditEntry
+
+`actor_account_id, actor_tombstone_id, subject_id, branch_id, action,
+target_ref, reason, occurred_at, payload_digest`.
+
+| Invariant | Why |
+|---|---|
+| **APPEND ONLY** — no principal, including the operator, holds UPDATE or DELETE | §5 platform matrix |
+| **A digest, not the content** | The audit records *that* a read happened, never *what* was read |
+| On account deletion the **actor is replaced by a tombstone and the entry is preserved** | **D05** — deletion must not erase the record that someone acted |
+| Never dropped under load — backpressure instead | `audit-service` forbidden list |
+
+It is projected into three surfaces: the patient access log (S12), the branch
+access log (P26), and the operator audit log (O23/O24).
+
+---
+
+## 9. Value objects and primitives
+
+### `Result<T, Refusal>`
+
+The domain's **only** way to fail.
+
+> A rule that returns a boolean will eventually be ignored by a caller who
+> forgets to check it. A rule that throws loses the reason. Result carries the
+> reason and **cannot be used without unwrapping**, so a caller cannot
+> accidentally proceed on a refusal.
+
+`all()` keeps the **first** error — ordering matters for reproducible refusals.
+
+### `Refusal` — a closed set
+
+~35 codes grouped by area, each traced to a decision. `detail` is
+`Record<string, string|number|boolean>` — **structured context, never a rendered
+string**, because the domain does not decide how a refusal is worded (Rule 4).
+
+The most important one: **`NOT_FOUND_OR_NOT_YOURS`**. A missing relationship and
+a forbidden one are the *same* refusal, so no lookup becomes an identity oracle
+(§5 rule 3).
+
+### `Instant` — branded epoch milliseconds
+
+Always supplied by the caller. §21 requires every countdown to run on **server**
+time, never the device's. Making time a parameter rather than an ambient global
+is how that becomes structurally true instead of a convention, and it is what
+lets every time-dependent rule be tested deterministically. `Clock` is an
+explicit dependency; `fixedClock(at)` is what tests use.
+
+### Branded ids
+
+16 of them. From `shared/ids.ts`:
+
+> Blueprint §2 invariant 1 says those are frequently different people. Branding
+> makes passing one where the other is expected **a compile error rather than a
+> clinical incident**.
+
+Ids are **minted by infrastructure, never by the domain** — the domain is pure
+and an id generator is a source of nondeterminism. `asAccountId(s)` only tags.
+
+### `Packs`
+
+`Marketplace.packs(n)` — a branded integer ≥ 1. **D07**: the unit is the pack and
+there is no other unit.
+
+### `HonouredBand`
+
+`trusted | new | needs_attention | null`. **D11**: a band, **never** a decimal.
+`null` means fewer than 10 samples — too few to say.
+
+---
+
+## 10. Where the implemented domain is narrower than the frozen model
+
+Honest accounting of the delta:
+
+| Frozen model has | Implemented domain has | Note |
+|---|---|---|
+| 21 entities | Rules and machines for Account, Subject, Guardianship, PeerGrant, Request, Offer, Reservation, Branch, Licence + verification challenges | No persisted entities anywhere — there is no server (TD-1) |
+| `Watch` with D30 limits | `REFUSAL.WATCH_LIMIT` declared, no rule module | R12 is not in this slice |
+| `DispenseRecord` | Not modelled in `packages/domain` | Written by `clinical-engine`, which does not exist yet |
+| `AuditEntry` | Not modelled | Same |
+| `BranchHours` / Ramadan (D33) | Not modelled | Pharmacy app is Stage 7 |
+| 11 declared gaps (BD-1…BD-11) | Correctly absent | See `19-open-decisions.md` |
+
+The patient app additionally carries **app-level value objects** that are not
+domain entities and deliberately live in `apps/patient/src/model/`: `Draft`,
+`Sent`, `SearchState`, `OfferSummary`, `Hold`, `ReservationView`, `ConsentState`,
+`Capture`, `OnboardingState`. They are presentation models — they *ask* the
+domain and never decide.
