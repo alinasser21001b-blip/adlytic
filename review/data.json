@@ -3,7 +3,7 @@
   "progress": {
     "blueprintScreens": 133,
     "contracted": 22,
-    "rendered": 17,
+    "rendered": 18,
     "remaining": 111,
     "percentContracted": 16.5
   },
@@ -95,7 +95,43 @@
           "bp": "D26 · §3.2"
         }
       ],
-      "shots": []
+      "shots": [
+        {
+          "id": "S1-new",
+          "state": "empty · teaching",
+          "note": "§22's first empty, and the highest-attention moment in the product: a brand-new account is TAUGHT what this screen will carry, and the one action is worded for a first time rather than a hundredth. The generic «أطلب دواء» is deliberately absent — two controls to one destination on the emptiest screen would be the app repeating itself."
+        },
+        {
+          "id": "S1-quiet",
+          "state": "empty · quiet",
+          "note": "§22's second empty, and the opposite screen: a well-managed patient on an ordinary day is REASSURED, not taught. It carries no state action at all — offering one would invent urgency nobody has — so the standing «أطلب دواء» is what a thumb finds."
+        },
+        {
+          "id": "S1-held",
+          "state": "ready · a live hold",
+          "note": "The one thing that needs the patient today, stated as information rather than as a card-sized button: the pharmacy, the expiry and the time left are all readable by a screen reader instead of being swallowed by a single card label (TD-12). The code stays on V2 — one place to keep honest when a hold lapses."
+        },
+        {
+          "id": "S1-last",
+          "state": "ready · nearly expired",
+          "note": "The same hold, near its end. The countdown changes colour as it becomes urgent instead of staying calm to the last minute, on the screen a patient glances at before deciding whether to walk."
+        },
+        {
+          "id": "S1-cached",
+          "state": "offline",
+          "note": "S1's offline rule — active reservations from cache, age-labelled. The hold still renders because a patient without a signal still has to reach the counter; the countdown says plainly that it is the last thing we were told."
+        },
+        {
+          "id": "S1-failed",
+          "state": "error",
+          "note": "§23 — what failed, that nothing was lost, and one thing to press. The hold stays on screen behind the failure: a refresh that could not happen is no reason to take away what we already knew."
+        },
+        {
+          "id": "S1-loading",
+          "state": "loading",
+          "note": "A skeleton shaped like what is coming, so Today does not jump when it arrives."
+        }
+      ]
     },
     {
       "id": "E4",
@@ -3079,6 +3115,24 @@
         "light": 11.42,
         "dark": 11.42,
         "passes": true
+      },
+      {
+        "pair": "accent on surfaceRaised",
+        "light": 7.84,
+        "dark": 7.84,
+        "passes": true
+      },
+      {
+        "pair": "warning on surfaceRaised",
+        "light": 8.19,
+        "dark": 8.19,
+        "passes": true
+      },
+      {
+        "pair": "alert on surfaceRaised",
+        "light": 7.74,
+        "dark": 7.74,
+        "passes": true
       }
     ],
     "contrastFloor": {
@@ -3088,6 +3142,48 @@
     }
   },
   "shots": [
+    {
+      "id": "S1-new",
+      "screen": "S1",
+      "state": "empty · teaching",
+      "note": "§22's first empty, and the highest-attention moment in the product: a brand-new account is TAUGHT what this screen will carry, and the one action is worded for a first time rather than a hundredth. The generic «أطلب دواء» is deliberately absent — two controls to one destination on the emptiest screen would be the app repeating itself."
+    },
+    {
+      "id": "S1-quiet",
+      "screen": "S1",
+      "state": "empty · quiet",
+      "note": "§22's second empty, and the opposite screen: a well-managed patient on an ordinary day is REASSURED, not taught. It carries no state action at all — offering one would invent urgency nobody has — so the standing «أطلب دواء» is what a thumb finds."
+    },
+    {
+      "id": "S1-held",
+      "screen": "S1",
+      "state": "ready · a live hold",
+      "note": "The one thing that needs the patient today, stated as information rather than as a card-sized button: the pharmacy, the expiry and the time left are all readable by a screen reader instead of being swallowed by a single card label (TD-12). The code stays on V2 — one place to keep honest when a hold lapses."
+    },
+    {
+      "id": "S1-last",
+      "screen": "S1",
+      "state": "ready · nearly expired",
+      "note": "The same hold, near its end. The countdown changes colour as it becomes urgent instead of staying calm to the last minute, on the screen a patient glances at before deciding whether to walk."
+    },
+    {
+      "id": "S1-cached",
+      "screen": "S1",
+      "state": "offline",
+      "note": "S1's offline rule — active reservations from cache, age-labelled. The hold still renders because a patient without a signal still has to reach the counter; the countdown says plainly that it is the last thing we were told."
+    },
+    {
+      "id": "S1-failed",
+      "screen": "S1",
+      "state": "error",
+      "note": "§23 — what failed, that nothing was lost, and one thing to press. The hold stays on screen behind the failure: a refresh that could not happen is no reason to take away what we already knew."
+    },
+    {
+      "id": "S1-loading",
+      "screen": "S1",
+      "state": "loading",
+      "note": "A skeleton shaped like what is coming, so Today does not jump when it arrives."
+    },
     {
       "id": "F1-empty",
       "screen": "F1",
@@ -3367,6 +3463,7 @@
         "apps/patient/src/screens/OnboardingScreens.tsx",
         "apps/patient/src/screens/PrescriptionScreen.tsx",
         "apps/patient/src/screens/ReservationScreen.tsx",
+        "apps/patient/src/screens/TodayScreen.tsx",
         "apps/patient/src/screens/WaitingScreen.tsx",
         "apps/patient/src/screens/WhyNumberScreen.tsx",
         "apps/patient/src/screens/gallery.tsx",
@@ -3388,6 +3485,7 @@
         "apps/patient/src/model/reservation.ts",
         "apps/patient/src/model/search.ts",
         "apps/patient/src/model/send.ts",
+        "apps/patient/src/model/today.ts",
         "apps/patient/src/model/view.ts"
       ]
     },

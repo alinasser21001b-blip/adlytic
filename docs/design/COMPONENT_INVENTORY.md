@@ -9,14 +9,14 @@
 | --- | --- | --- |
 | `Banner` | 1 | — |
 | `CodePanel` | 1 | ReservationScreen |
-| `FactRow` | 3 | ReservationScreen |
-| `Row` | 26 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Spacer` | 9 | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen |
+| `FactRow` | 4 | ReservationScreen, TodayScreen |
+| `Row` | 29 | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen |
+| `Spacer` | 11 | DraftScreen, OfferDetailScreen, OffersScreen, TodayScreen, WaitingScreen |
 | `Grow` | 5 | ConfirmScreen, OfferDetailScreen, WaitingScreen |
 | `Actions` | 4 | DraftScreen, FindScreen, PrescriptionScreen |
-| `Card` | 12 | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen |
+| `Card` | 14 | ConfirmScreen, DraftScreen, OfferDetailScreen, TodayScreen, WaitingScreen |
 | `Note` | 8 | ConfirmScreen, DraftScreen |
-| `Section` | 11 | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen |
+| `Section` | 12 | ConfirmScreen, OfferDetailScreen, OffersScreen, TodayScreen, WaitingScreen, WhyNumberScreen |
 | `Field` | 0 | — |
 | `Chip` | 1 | ConfirmScreen |
 | `StepButton` | 1 | DraftScreen |
@@ -24,15 +24,15 @@
 | `ProgressBar` | 0 | — |
 | `PhotoFrame` | 1 | PrescriptionScreen |
 | `SearchField` | 1 | FindScreen |
-| `Screen` | 16 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Primary` | 19 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Secondary` | 14 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
+| `Screen` | 17 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen |
+| `Primary` | 20 | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen |
+| `Secondary` | 15 | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen |
 | `ActionCard` | 3 | FindScreen, OffersScreen |
 | `InfoCard` | 12 | FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen |
 | `Choice` | 2 | OfferDetailScreen |
 | `StateBlock` | 1 | (rendered by Screen, on every screen) |
-| `Label` | 127 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen |
-| `Digits` | 4 | ConfirmScreen, DraftScreen, ReservationScreen |
+| `Label` | 137 | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen |
+| `Digits` | 5 | ConfirmScreen, DraftScreen, ReservationScreen, TodayScreen |
 | `Bidi` | 5 | DraftScreen, FindScreen, OfferDetailScreen |
 | `RedirectNote` | 2 | ConfirmScreen, DraftScreen |
 
@@ -78,7 +78,7 @@ A labelled fact — muted label on one edge, value on the other — so the eye s
 
 | | |
 | --- | --- |
-| **Used by** | ReservationScreen (3 usages) |
+| **Used by** | ReservationScreen, TodayScreen (4 usages) |
 | **Required variants** | `first (no divider)`, `subsequent (divider above)`, `string value`, `composed value` |
 | **Required interactions** | none |
 | **Accessibility** | Label and value are adjacent in reading order, so the pair is announced as one fact. |
@@ -94,7 +94,7 @@ Things side by side. The single place `flexDirection` is written in the patient 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (26 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen (29 usages) |
 | **Required variants** | `align baseline / center / stretch`, `justify center / space-between`, `any gap token` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -110,7 +110,7 @@ Pushes what follows to the far edge of a Row.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen (9 usages) |
+| **Used by** | DraftScreen, OfferDetailScreen, OffersScreen, TodayScreen, WaitingScreen (11 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Transparent. |
@@ -158,7 +158,7 @@ A rectangle of content raised off the ground. The one card primitive.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen (12 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, TodayScreen, WaitingScreen (14 usages) |
 | **Required variants** | `raised / sunken`, `border line / accent / alert / warning / none`, `1pt or 2pt border`, `any pad and gap token` |
 | **Required interactions** | none — a card that is an action is ActionCard |
 | **Accessibility** | Transparent; grouping is conveyed by the content, not by the container. |
@@ -190,7 +190,7 @@ A heading and the things it governs, as one unit.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen (11 usages) |
+| **Used by** | ConfirmScreen, OfferDetailScreen, OffersScreen, TodayScreen, WaitingScreen, WhyNumberScreen (12 usages) |
 | **Required variants** | `none` |
 | **Required interactions** | none |
 | **Accessibility** | Provides no heading semantics — nothing in the product exposes a heading level yet. A real gap. |
@@ -318,7 +318,7 @@ The frame every screen renders through. It is the reason no screen can ship with
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (16 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen (17 usages) |
 | **Required variants** | `header with back (pop/replace)`, `header without back (tab root)`, `with flow progress`, `with sticky slot`, `with screen footer`, `with state footer`, `no footer` |
 | **Required interactions** | back press; scroll; sticky slot behaviour on scroll |
 | **Accessibility** | The title is the screen's accessible name. The back control has a 44pt hit area and an explicit label. |
@@ -334,7 +334,7 @@ The one dominant action. At most one per screen, counted from the rendered tree 
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (19 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen (20 usages) |
 | **Required variants** | `default`, `disabled`, `busy` |
 | **Required interactions** | press; long-press (not specified); disabled press (no-op, but the reason must be visible) |
 | **Accessibility** | accessibilityState carries disabled and busy. A disabled primary MUST have a visible explanation near it — the build checks that something readable is on screen. |
@@ -350,7 +350,7 @@ Never competes with the primary: no fill, no accent background.
 
 | | |
 | --- | --- |
-| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (14 usages) |
+| **Used by** | DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen (15 usages) |
 | **Required variants** | `default`, `with a distinct spoken label` |
 | **Required interactions** | press |
 | **Accessibility** | Supports a spoken label different from the visible text, so repeated row actions are distinguishable to a screen reader while the visible text stays short. |
@@ -430,7 +430,7 @@ All text. 5 type roles × 7 colour roles.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen (127 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen (137 usages) |
 | **Required variants** | `display`, `title`, `headline`, `body`, `caption` |
 | **Required interactions** | none |
 | **Accessibility** | display and caption are barred from clinical content by type — a dosage in caption is a compile error. |
@@ -446,7 +446,7 @@ Countdowns, prices, quantities, the reservation code.
 
 | | |
 | --- | --- |
-| **Used by** | ConfirmScreen, DraftScreen, ReservationScreen (4 usages) |
+| **Used by** | ConfirmScreen, DraftScreen, ReservationScreen, TodayScreen (5 usages) |
 | **Required variants** | `body`, `headline`, `title`, `display` |
 | **Required interactions** | none — but the reservation code should arguably be selectable |
 | **Accessibility** | Read as a number by screen readers; the reservation code is grouped in pairs so it can be read aloud. |
@@ -494,7 +494,7 @@ Says why a guard sent the user here, so a screen never appears for no reason.
 
 | Component | Needed by | Consequence today |
 | --- | --- | --- |
-| **TabBar** | S1, F1 and all eight declared destinations | No top-level navigation exists. S1 and F1 declare 'root of a tab' and there are no tabs. |
+| **TabBar (icons, badges)** | the six destinations this build has no root for | TabBar exists and the frame draws it from the view, so «اليوم» and «ابحث» are reachable from each other for the first time. What is NOT designed: an ICON set — the tabs are words, because the only glyph in this product is the header's «‹» and two invented pictograms would be two things to learn — and a badge, so `inbox` still cannot show pending work. The other six destinations have no built root to be a tab of. |
 | **Sheet / modal chrome** | R1, R4, R5, R7 (destination: modal) | Modals render as full screens; the 'temporary and layered above' signal is absent. |
 | **TextField (states)** | F1/F2 search, and 28 form screens in Entry and Account | SearchField exists as a real component, but no focus, error or disabled state is designed — so 28 form screens still have nothing to build against. |
 | **PhotoViewer** | R3 | PhotoFrame renders a labelled frame, deliberately, because no photograph is ever captured (TD-9). Nothing displays, zooms or retakes a real image. |

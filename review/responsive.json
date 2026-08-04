@@ -673,6 +673,125 @@
       }
     },
     {
+      "name": "S1-cached",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-cached@320.png",
+        "360": "responsive/S1-cached@360.png",
+        "390": "responsive/S1-cached@390.png",
+        "430": "responsive/S1-cached@430.png"
+      }
+    },
+    {
+      "name": "S1-failed",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-failed@320.png",
+        "360": "responsive/S1-failed@360.png",
+        "390": "responsive/S1-failed@390.png",
+        "430": "responsive/S1-failed@430.png"
+      }
+    },
+    {
+      "name": "S1-held",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-held@320.png",
+        "360": "responsive/S1-held@360.png",
+        "390": "responsive/S1-held@390.png",
+        "430": "responsive/S1-held@430.png"
+      }
+    },
+    {
+      "name": "S1-last",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-last@320.png",
+        "360": "responsive/S1-last@360.png",
+        "390": "responsive/S1-last@390.png",
+        "430": "responsive/S1-last@430.png"
+      }
+    },
+    {
+      "name": "S1-loading",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-loading@320.png",
+        "360": "responsive/S1-loading@360.png",
+        "390": "responsive/S1-loading@390.png",
+        "430": "responsive/S1-loading@430.png"
+      }
+    },
+    {
+      "name": "S1-new",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-new@320.png",
+        "360": "responsive/S1-new@360.png",
+        "390": "responsive/S1-new@390.png",
+        "430": "responsive/S1-new@430.png"
+      }
+    },
+    {
+      "name": "S1-quiet",
+      "verdict": "pass",
+      "issues": [],
+      "heights": {
+        "320": 844,
+        "360": 844,
+        "390": 844,
+        "430": 844
+      },
+      "shots": {
+        "320": "responsive/S1-quiet@320.png",
+        "360": "responsive/S1-quiet@360.png",
+        "390": "responsive/S1-quiet@390.png",
+        "430": "responsive/S1-quiet@430.png"
+      }
+    },
+    {
       "name": "V1-requesting",
       "verdict": "pass",
       "issues": [],
@@ -780,7 +899,7 @@
       "Sticky slots are photographed at scroll position 0 only."
     ]
   ],
-  "pass": 44,
+  "pass": 51,
   "minor": 0,
   "fail": 0
 }

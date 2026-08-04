@@ -44,7 +44,8 @@ answers the declared v1 contracts on the same origin — so there is no base URL
 to configure and no CORS to arrange. The whole core loop works: search a
 medicine, build a request, sign in when the guard asks, send, watch the
 pharmacies answer, compare the offers, consent to a substitution, reserve, and
-read the pickup code.
+read the pickup code — and leave for Today, which now carries the hold and
+returns you to it, instead of dropping you on a search box.
 
 The verification code is **printed to the terminal** running the server —
 `[dev] SMS to +9647…: your code is 123456`. It is never returned in a
@@ -90,10 +91,15 @@ pressing a button rather than by reading.
 - **No device build.** The browser host runs through `react-native-web`, which
   is not React Native. Native gestures, platform chrome, safe-area insets and
   keyboard avoidance are unverified.
-- **Five contracted screens have no component** — S1, R4, R5, R11, R13. Each
-  is marked *OPEN to the designer* in the design package on exactly the
-  question you would have to answer to draw it, so none has been guessed at.
-  Nothing renders a control that leads to one.
+- **Four contracted screens have no component** — R4, R5, R11, R13. Each is
+  marked *OPEN to the designer* in the design package on exactly the question
+  you would have to answer to draw it, so none has been guessed at. Nothing
+  renders a control that leads to one, and `journey.test.tsx` fails the build
+  if one ever does.
+- **Today knows only this session.** S1 is built and is the app's home, but
+  the Blueprint also gives it the dispense history and the active subject, and
+  there is no port for either — so a returning patient is greeted as a new one.
+  See TD-27; it resolves with the reads, not with a decision.
 
 Everything known to be missing or wrong is in the technical debt register
 (`tools/review/debt.mjs`), which the review dashboard publishes.
@@ -107,7 +113,7 @@ Everything known to be missing or wrong is in the technical debt register
 | 3 | Navigation, auth, session, offline, networking | **built** |
 | 4 | Domain layer — entities, state machines, rules, events | **built** |
 | 5 | Infrastructure — repositories, storage, sync, queues, notifications, audit | client half built; **no server** |
-| 6 | Patient app | core loop runs end to end; 5 screens blocked on design |
+| 6 | Patient app | core loop runs end to end, with a home and a tab bar; 4 screens blocked on design |
 | 7 | Pharmacy app | blocked on 2, 3, 5 |
 | 8 | Owner console | blocked on 2, 3, 5 |
 
