@@ -135,3 +135,17 @@ Four blocker-level defects are awaiting product approval. They are recorded in
 and block four screens — not the core loop.
 
 **Nothing in this package implements a workaround for any of them.**
+
+## Deploying it
+
+`dawai1.netlify.app` builds this directory from `main`. For a container host —
+Railway is the default now — see [`RAILWAY.md`](../RAILWAY.md) at the repository
+root, which also names the trap that has already cost this project time: the
+root `railway.json` deploys **Adlytic**, not Dawai, so every Dawai service has
+to set its config path explicitly.
+
+`tools/serve.mjs` is what makes this deployable to a host that runs a process
+rather than a CDN. It carries the rules `netlify.toml` declares — the front-door
+rewrite, the catch-all, the cache policy and the security headers — because a
+container host applies none of them, and without the rewrite the deployed site
+answers 404 at its own front door. It has no dependencies.
