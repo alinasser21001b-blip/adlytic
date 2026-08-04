@@ -1,0 +1,446 @@
+<title>Dawai — System Map</title>
+<style>
+:root{
+  --bg:#fbfaf7; --panel:#fff; --line:#e2e0d8; --line2:#cfccc0;
+  --ink:#16211d; --ink2:#4b5b55; --ink3:#6d7d76;
+  --accent:#1f6f52; --accent2:#8c3a2c; --soft:#e8f2ed;
+  --warn:#8a5a12; --warn-bg:#fbf1de; --bad:#8c3a2c; --bad-bg:#fbe9e5;
+  --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root{ --bg:#101614; --panel:#161e1b; --line:#26332e; --line2:#35453f;
+    --ink:#eef3f1; --ink2:#a9bab3; --ink3:#849790; --accent:#5ec89a; --accent2:#f0917f;
+    --soft:#16302a; --warn:#e2b46b; --warn-bg:#33280f; --bad:#f0917f; --bad-bg:#3a1f19; }
+}
+:root[data-theme="dark"]{ --bg:#101614; --panel:#161e1b; --line:#26332e; --line2:#35453f;
+  --ink:#eef3f1; --ink2:#a9bab3; --ink3:#849790; --accent:#5ec89a; --accent2:#f0917f;
+  --soft:#16302a; --warn:#e2b46b; --warn-bg:#33280f; --bad:#f0917f; --bad-bg:#3a1f19; }
+:root[data-theme="light"]{ --bg:#fbfaf7; --panel:#fff; --line:#e2e0d8; --line2:#cfccc0;
+  --ink:#16211d; --ink2:#4b5b55; --ink3:#6d7d76; --accent:#1f6f52; --accent2:#8c3a2c;
+  --soft:#e8f2ed; --warn:#8a5a12; --warn-bg:#fbf1de; --bad:#8c3a2c; --bad-bg:#fbe9e5; }
+*{box-sizing:border-box}
+html{background:var(--bg)}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 var(--sans);}
+code,pre{font-family:var(--mono);}
+code{background:var(--soft);padding:.05em .35em;border-radius:5px;font-size:.85em}
+a{color:var(--accent)}
+h1{font-size:1.5rem;margin:.2rem 0}
+h2{font-size:1.05rem;margin:0 0 .5rem}
+p{margin:.5rem 0}
+header{padding:1rem 1.4rem;border-bottom:1px solid var(--line);background:var(--panel)}
+header p{color:var(--ink2);margin:.2rem 0 0;font-size:.9rem}
+.contradiction-banner{background:var(--bad-bg);color:var(--bad);border:1px solid var(--bad);
+  border-radius:8px;padding:.6rem .9rem;margin-top:.7rem;font-size:.86rem}
+.wrap{display:grid;grid-template-columns:260px minmax(0,1fr);gap:0;max-width:1400px;margin:0 auto}
+nav{border-inline-end:1px solid var(--line);padding:1rem .7rem;position:sticky;top:0;
+  align-self:start;max-height:100vh;overflow-y:auto}
+nav button.tab{display:block;width:100%;text-align:start;background:none;border:none;color:var(--ink2);
+  font:inherit;padding:.5rem .6rem;border-radius:7px;cursor:pointer;font-size:.86rem}
+nav button.tab:hover{background:var(--soft)}
+nav button.tab.active{background:var(--soft);color:var(--accent);font-weight:600}
+nav .group-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:var(--ink3);
+  margin:1rem 0 .3rem .6rem}
+main{padding:1.2rem 1.5rem 4rem;min-width:0}
+.panel{display:none}
+.panel.active{display:block}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:1rem 1.2rem;margin-bottom:1rem}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+@media(max-width:800px){.grid2{grid-template-columns:1fr}.wrap{grid-template-columns:1fr}
+  nav{position:static;max-height:none;border-inline-end:none;border-bottom:1px solid var(--line)}}
+.tag{display:inline-block;font-size:.72rem;padding:.12em .5em;border-radius:5px;margin-inline-end:.3rem;
+  border:1px solid var(--line2);color:var(--ink2)}
+.tag.live{background:var(--soft);color:var(--accent);border-color:var(--accent)}
+.tag.spec{background:var(--warn-bg);color:var(--warn);border-color:var(--warn)}
+.tag.safety{background:var(--bad-bg);color:var(--bad);border-color:var(--bad)}
+table{border-collapse:collapse;width:100%;font-size:.85rem;margin:.5rem 0}
+th,td{border-bottom:1px solid var(--line);padding:.4rem .5rem;text-align:start;vertical-align:top}
+th{color:var(--ink3);font-weight:600;font-size:.78rem;text-transform:uppercase;letter-spacing:.03em}
+.mdlink{font-size:.78rem;color:var(--ink3)}
+.node{cursor:pointer}
+.node rect,.node circle{transition:filter .15s}
+.node:hover rect,.node:hover circle{filter:brightness(1.15)}
+svg text{fill:currentColor}
+svg .dim{opacity:.55}
+.detail{border:1px solid var(--line);border-radius:10px;padding:.9rem 1rem;margin-top:.8rem;background:var(--soft)}
+.detail h3{margin:0 0 .4rem;font-size:.95rem}
+.detail p{font-size:.86rem;margin:.3rem 0}
+.search-box{width:100%;padding:.5rem .7rem;border:1px solid var(--line2);border-radius:8px;background:var(--panel);
+  color:var(--ink);font:inherit;margin-bottom:.7rem}
+.legend{display:flex;gap:1rem;flex-wrap:wrap;font-size:.78rem;color:var(--ink2);margin:.6rem 0}
+.legend span{display:inline-flex;align-items:center;gap:.35em}
+.swatch{width:12px;height:12px;border-radius:3px;display:inline-block}
+figure{margin:0}
+figcaption{font-size:.8rem;color:var(--ink3);margin-top:.4rem}
+ul.compact{margin:.3rem 0;padding-inline-start:1.1rem;font-size:.86rem}
+ul.compact li{margin:.15rem 0}
+</style>
+
+<header>
+  <h1>🗺️ Dawai — System Map</h1>
+  <p>Interactive companion to <code>docs/knowledge-base/</code>. Click any node below to see what it is and which knowledge-base file has the full story. This page is static (no live data) — text references to <code>NN-file.md</code> are pointers for a reader browsing the repo, since GitHub-rendered HTML can't deep-link into rendered Markdown headings reliably.</p>
+  <div class="contradiction-banner">⚠ This repository contains <strong>two non-interoperating implementations</strong> of "Dawai" — the shipped <code>dawai-platform/</code> and the parallel, unintegrated <code>platform/</code> (Blueprint v3) workspace. Nodes below are tagged <span class="tag live">live</span> (dawai-platform, shipped) or <span class="tag spec">spec</span> (platform/, design target only). See <code>19-open-decisions.md</code> §1.</div>
+</header>
+
+<div class="wrap">
+<nav>
+  <div class="group-label">Overview</div>
+  <button class="tab active" data-tab="architecture">Architecture</button>
+  <button class="tab" data-tab="packages">Packages &amp; Modules</button>
+  <div class="group-label">Product</div>
+  <button class="tab" data-tab="entities">Business Entities</button>
+  <button class="tab" data-tab="states">State Machines</button>
+  <button class="tab" data-tab="screens">Screens</button>
+  <button class="tab" data-tab="navigation">Navigation</button>
+  <div class="group-label">Platform</div>
+  <button class="tab" data-tab="services">Services &amp; API</button>
+  <button class="tab" data-tab="events">Events &amp; Notifications</button>
+  <button class="tab" data-tab="safety">Clinical Safety</button>
+</nav>
+
+<main>
+
+<!-- ARCHITECTURE -->
+<section class="panel active" id="architecture">
+  <div class="card">
+    <h2>Two codebases, one product name</h2>
+    <p>Click a box.</p>
+    <figure>
+      <svg viewBox="0 0 920 460" role="img" aria-label="Dawai architecture: the shipped dawai-platform modular monolith on the left (client, Hono API, Postgres, worker), and the separate, unwired platform/ Blueprint v3 packages workspace on the right, with no import edge between them.">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <!-- dawai-platform column -->
+        <text x="20" y="26" font-size="13" font-weight="700">dawai-platform/ — shipped, live</text>
+        <g class="node" data-detail="arch-client">
+          <rect x="20" y="45" width="190" height="55" rx="8" fill="none" stroke="currentColor"/>
+          <text x="115" y="68" font-size="12" text-anchor="middle">React 19 RTL SPA</text>
+          <text x="115" y="85" font-size="10" text-anchor="middle" class="dim">src/pages/*.tsx</text>
+        </g>
+        <line x1="115" y1="100" x2="115" y2="135" stroke="currentColor" marker-end="url(#arrow)"/>
+        <text x="130" y="122" font-size="9" class="dim">REST /api/v1</text>
+        <g class="node" data-detail="arch-api">
+          <rect x="20" y="135" width="190" height="55" rx="8" fill="none" stroke="currentColor"/>
+          <text x="115" y="158" font-size="12" text-anchor="middle">Hono API</text>
+          <text x="115" y="175" font-size="10" text-anchor="middle" class="dim">server/app.ts + routes/*</text>
+        </g>
+        <line x1="115" y1="190" x2="115" y2="225" stroke="currentColor" marker-end="url(#arrow)"/>
+        <text x="128" y="212" font-size="9" class="dim">calls</text>
+        <g class="node" data-detail="arch-services">
+          <rect x="20" y="225" width="190" height="55" rx="8" fill="none" stroke="currentColor"/>
+          <text x="115" y="248" font-size="12" text-anchor="middle">Services</text>
+          <text x="115" y="265" font-size="10" text-anchor="middle" class="dim">matching, clinical, interactions…</text>
+        </g>
+        <line x1="115" y1="280" x2="115" y2="315" stroke="currentColor" marker-end="url(#arrow)"/>
+        <text x="128" y="302" font-size="9" class="dim">reads/writes</text>
+        <g class="node" data-detail="arch-db">
+          <rect x="20" y="315" width="190" height="55" rx="8" fill="none" stroke="currentColor"/>
+          <text x="115" y="338" font-size="12" text-anchor="middle">PostgreSQL / PGlite</text>
+          <text x="115" y="355" font-size="10" text-anchor="middle" class="dim">32 tables, 7 migrations</text>
+        </g>
+        <g class="node" data-detail="arch-worker">
+          <rect x="240" y="315" width="190" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+          <text x="335" y="338" font-size="12" text-anchor="middle">worker.ts</text>
+          <text x="335" y="355" font-size="10" text-anchor="middle" class="dim">lifecycle sweep · every 30s</text>
+        </g>
+        <line x1="240" y1="342" x2="212" y2="342" stroke="currentColor" marker-end="url(#arrow)"/>
+
+        <!-- gap -->
+        <line x1="450" y1="230" x2="500" y2="230" stroke="currentColor" stroke-dasharray="2 5" opacity=".5"/>
+        <text x="475" y="200" font-size="10" text-anchor="middle" class="dim">no import edge —</text>
+        <text x="475" y="213" font-size="10" text-anchor="middle" class="dim">connected only by</text>
+        <text x="475" y="226" font-size="10" text-anchor="middle" class="dim">shared product name</text>
+
+        <!-- platform/ column -->
+        <text x="530" y="26" font-size="13" font-weight="700">platform/ — Blueprint v3, not wired to shipped app</text>
+        <g class="node" data-detail="arch-app">
+          <rect x="530" y="45" width="190" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+          <text x="625" y="68" font-size="12" text-anchor="middle">apps/patient</text>
+          <text x="625" y="85" font-size="10" text-anchor="middle" class="dim">Find→Draft→Offers→Reservation</text>
+        </g>
+        <line x1="625" y1="100" x2="625" y2="135" stroke="currentColor" marker-end="url(#arrow)"/>
+        <g class="node" data-detail="arch-domain">
+          <rect x="530" y="135" width="190" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+          <text x="625" y="158" font-size="12" text-anchor="middle">@dawai/domain</text>
+          <text x="625" y="175" font-size="10" text-anchor="middle" class="dim">state machines, gates, rules</text>
+        </g>
+        <g class="node" data-detail="arch-nav">
+          <rect x="740" y="135" width="150" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+          <text x="815" y="158" font-size="12" text-anchor="middle">@dawai/navigation</text>
+          <text x="815" y="175" font-size="10" text-anchor="middle" class="dim">graph, guards</text>
+        </g>
+        <g class="node" data-detail="arch-design">
+          <rect x="530" y="225" width="150" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+          <text x="605" y="248" font-size="12" text-anchor="middle">@dawai/design</text>
+          <text x="605" y="265" font-size="10" text-anchor="middle" class="dim">tokens, rtl, a11y</text>
+        </g>
+        <g class="node" data-detail="arch-infra">
+          <rect x="700" y="225" width="190" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 3"/>
+          <text x="795" y="248" font-size="12" text-anchor="middle">net · session · offline</text>
+          <text x="795" y="265" font-size="10" text-anchor="middle" class="dim">observability · config · contracts</text>
+        </g>
+        <line x1="625" y1="190" x2="605" y2="225" stroke="currentColor" marker-end="url(#arrow)"/>
+        <line x1="625" y1="190" x2="795" y2="225" stroke="currentColor" marker-end="url(#arrow)"/>
+        <line x1="815" y1="190" x2="795" y2="225" stroke="currentColor" marker-end="url(#arrow)"/>
+
+        <g class="node" data-detail="arch-tools">
+          <rect x="530" y="315" width="360" height="55" rx="8" fill="none" stroke="currentColor" stroke-dasharray="2 2"/>
+          <text x="710" y="338" font-size="12" text-anchor="middle">platform/tools/* — architecture validators</text>
+          <text x="710" y="355" font-size="10" text-anchor="middle" class="dim">layer-check · deps-check · debt-check · trace-check · ux-check</text>
+        </g>
+        <line x1="625" y1="280" x2="700" y2="315" stroke="currentColor" stroke-dasharray="2 2" opacity=".6"/>
+        <text x="710" y="308" font-size="9" class="dim" text-anchor="middle">validates ↑</text>
+
+        <text x="20" y="410" font-size="10" class="dim">32 tables · 67 endpoints (v1 shipped) vs. 67 spec'd (v3, unimplemented)</text>
+        <text x="20" y="428" font-size="10" class="dim">Tagged 🟢 live = dawai-platform, running · Tagged 🟡 spec = platform/, design-only</text>
+      </svg>
+      <figcaption>The shipped modular monolith (left) and the parallel Blueprint v3 packages workspace (right) share no import edge — see the dashed gap. Click any box for detail.</figcaption>
+    </figure>
+  </div>
+  <div id="architecture-detail" class="detail" style="display:none"></div>
+</section>
+
+<!-- PACKAGES -->
+<section class="panel" id="packages">
+  <div class="card">
+    <h2>Modules &amp; packages</h2>
+    <input class="search-box" placeholder="Filter modules…" oninput="filterList('packages-list', this.value)">
+    <table id="packages-list">
+      <thead><tr><th>Module</th><th>Status</th><th>Responsibility</th><th>Doc</th></tr></thead>
+      <tbody>
+        <tr><td><code>dawai-platform/src</code></td><td><span class="tag live">live</span></td><td>React 19 RTL client — pages per audience, session context, PillBar attention UI</td><td class="mdlink">02-architecture.md</td></tr>
+        <tr><td><code>dawai-platform/server/routes</code></td><td><span class="tag live">live</span></td><td>Hono route modules: auth, patient, pharmacy, admin, clinical, files, public, shared</td><td class="mdlink">13-api-contracts.md</td></tr>
+        <tr><td><code>dawai-platform/server/services</code></td><td><span class="tag live">live</span></td><td>matching, clinical, interactions, lifecycle, notifications, ocr, audit, sku-key</td><td class="mdlink">04-business-rules.md</td></tr>
+        <tr><td><code>dawai-platform/server/security</code></td><td><span class="tag live">live</span></td><td>Argon2id auth, sessions, CSRF, idempotency, rate limiting</td><td class="mdlink">09-permissions.md</td></tr>
+        <tr><td><code>dawai-platform/server/storage</code></td><td><span class="tag live">live</span></td><td>AES-256-GCM encrypted file pipeline, pluggable object store</td><td class="mdlink">10-clinical-safety.md</td></tr>
+        <tr><td><code>dawai-platform/worker.ts</code></td><td><span class="tag live">live</span></td><td>Separate process; 30s lifecycle sweep (holds, expirations, notification retry)</td><td class="mdlink">11-runtime.md</td></tr>
+        <tr><td><code>dawai-platform/migrations</code></td><td><span class="tag live">live</span></td><td>7 SQL files, 32 tables, idempotent DDL</td><td class="mdlink">14-data-model.md</td></tr>
+        <tr><td><code>@dawai/domain</code></td><td><span class="tag spec">spec</span></td><td>Blueprint v3 state machines: identity, marketplace, pharmacy, clinical gates</td><td class="mdlink">05-state-machines.md</td></tr>
+        <tr><td><code>@dawai/navigation</code></td><td><span class="tag spec">spec</span></td><td>v3 navigation graph + route guards</td><td class="mdlink">08-navigation.md</td></tr>
+        <tr><td><code>@dawai/design</code></td><td><span class="tag spec">spec</span></td><td>Design tokens, RTL, Arabic normalization, a11y, UX 5-state contract</td><td class="mdlink">12-design-system.md</td></tr>
+        <tr><td><code>@dawai/net / session / offline</code></td><td><span class="tag spec">spec</span></td><td>Typed fetch, session state, offline outbox primitives</td><td class="mdlink">11-runtime.md</td></tr>
+        <tr><td><code>@dawai/observability</code></td><td><span class="tag spec">spec</span></td><td>Logger, telemetry, error taxonomy</td><td class="mdlink">02-architecture.md</td></tr>
+        <tr><td><code>@dawai/config / contracts</code></td><td><span class="tag spec">spec</span></td><td>Env/flags/secrets loading; shared API contract types</td><td class="mdlink">13-api-contracts.md</td></tr>
+        <tr><td><code>platform/apps/patient</code></td><td><span class="tag spec">spec</span></td><td>Find→Draft→Offers→Confirm→Reservation screens on the v3 domain layer</td><td class="mdlink">07-screen-catalog.md</td></tr>
+        <tr><td><code>platform/tools/*</code></td><td><span class="tag spec">spec</span></td><td>Architecture conformance validators for the platform/ tree</td><td class="mdlink">18-technical-debt.md</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ENTITIES -->
+<section class="panel" id="entities">
+  <div class="card">
+    <h2>Core business entities (dawai-platform, live schema)</h2>
+    <input class="search-box" placeholder="Filter entities…" oninput="filterList('entities-list', this.value)">
+    <table id="entities-list">
+      <thead><tr><th>Table</th><th>Group</th><th>Key invariant</th></tr></thead>
+      <tbody>
+        <tr><td><code>medicine_requests</code></td><td>Marketplace</td><td>12-state enum; radius only expands on explicit patient action</td></tr>
+        <tr><td><code>pharmacy_offers</code></td><td>Marketplace</td><td>One active offer per (request, branch)</td></tr>
+        <tr><td><code>reservations</code></td><td>Marketplace</td><td>One live reservation per request; hold timer starts only on pharmacy ACK</td></tr>
+        <tr><td><code>request_dispatches</code></td><td>Marketplace</td><td>Staged 3+3 wave via <code>notify_after</code></td></tr>
+        <tr><td><code>availability_signals</code></td><td>Marketplace</td><td>Always sourced + time-boxed; never a static catalogue row</td></tr>
+        <tr><td><code>family_members</code></td><td>Clinical</td><td>Two-sided consent required; exactly one live link per (owner,member)</td></tr>
+        <tr><td><code>dose_schedules / dose_events</code></td><td>Clinical</td><td>Append-only events; <code>sig_source=PHARMACIST</code> only from a pharmacy account</td></tr>
+        <tr><td><code>stock_movements / sku_trust</code></td><td>Clinical</td><td>Passive ledger — on-hand always derived, never stored directly</td></tr>
+        <tr><td><code>attention_events</code></td><td>Clinical</td><td>SEV_ALERT never expires, never dismissible</td></tr>
+        <tr><td><code>interaction_checks / drug_interactions</code></td><td>Clinical safety</td><td>Missing coverage ⇒ UNAVAILABLE, never a false CLEAR</td></tr>
+        <tr><td><code>secure_files</code></td><td>Platform</td><td>AES-256-GCM; access time-boxed to an acknowledged hold</td></tr>
+        <tr><td><code>audit_events</code></td><td>Platform</td><td>Written on every mutating route, including denials</td></tr>
+        <tr><td><code>notification_outbox</code></td><td>Platform</td><td>Minimal payload; never fakes delivery for an unconfigured provider</td></tr>
+      </tbody>
+    </table>
+    <p class="mdlink">Full detail: 03-domain-model.md · 14-data-model.md</p>
+  </div>
+</section>
+
+<!-- STATE MACHINES -->
+<section class="panel" id="states">
+  <div class="card">
+    <h2>Reservation state machine (live)</h2>
+    <figure>
+      <svg viewBox="0 0 900 130" role="img" aria-label="Reservation state machine: PENDING_ACK to ACTIVE on pharmacy acknowledge (hold timer starts here), then READY, then COMPLETED, with side exits to REJECTED, EXPIRED, CANCELLED, FAILED, and NO_SHOW.">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="currentColor"/>
+          </marker>
+        </defs>
+        <g font-size="11">
+          <rect x="10" y="40" width="140" height="40" rx="20" fill="none" stroke="currentColor"/>
+          <text x="80" y="64" text-anchor="middle">PENDING_ACK</text>
+          <line x1="150" y1="60" x2="220" y2="60" stroke="currentColor" marker-end="url(#arrow2)"/>
+          <text x="185" y="50" text-anchor="middle" font-size="9" class="dim">ACK</text>
+          <rect x="220" y="40" width="120" height="40" rx="20" fill="none" stroke="var(--accent)" stroke-width="2"/>
+          <text x="280" y="64" text-anchor="middle">ACTIVE</text>
+          <text x="280" y="97" text-anchor="middle" font-size="9" class="dim">hold timer starts here</text>
+          <line x1="340" y1="60" x2="410" y2="60" stroke="currentColor" marker-end="url(#arrow2)"/>
+          <rect x="410" y="40" width="110" height="40" rx="20" fill="none" stroke="currentColor"/>
+          <text x="465" y="64" text-anchor="middle">READY</text>
+          <line x1="520" y1="60" x2="590" y2="60" stroke="currentColor" marker-end="url(#arrow2)"/>
+          <rect x="590" y="40" width="140" height="40" rx="20" fill="none" stroke="currentColor"/>
+          <text x="660" y="64" text-anchor="middle">COMPLETED</text>
+          <line x1="80" y1="80" x2="80" y2="115" stroke="currentColor" marker-end="url(#arrow2)"/>
+          <text x="80" y="128" text-anchor="middle" font-size="9">REJECTED / EXPIRED</text>
+          <line x1="280" y1="80" x2="280" y2="115" stroke="currentColor" marker-end="url(#arrow2)"/>
+          <text x="280" y="128" text-anchor="middle" font-size="9">CANCELLED / EXPIRED</text>
+          <line x1="465" y1="80" x2="465" y2="115" stroke="currentColor" marker-end="url(#arrow2)"/>
+          <text x="465" y="128" text-anchor="middle" font-size="9">FAILED / NO_SHOW</text>
+        </g>
+      </svg>
+      <figcaption>The 15-minute hold begins only at the PENDING_ACK→ACTIVE transition (pharmacy acknowledgement) — never at patient selection. Full diagrams for Request and Offer machines, plus the parallel Blueprint v3 machine set, in 05-state-machines.md.</figcaption>
+    </figure>
+  </div>
+  <div class="card">
+    <h2>All machines</h2>
+    <ul class="compact">
+      <li><strong>Request</strong> (live) — DRAFT→ACTIVE→HOLD_PENDING→RESERVED→READY→COMPLETED, with NO_MATCH→ACTIVE only via explicit patient expand</li>
+      <li><strong>Offer</strong> (live) — ACTIVE→HOLD_PENDING→HELD→FULFILLED, or WITHDRAWN/SUPERSEDED/EXPIRED/FAILED</li>
+      <li><strong>Reservation</strong> (live) — see diagram above</li>
+      <li><strong>Pharmacy verification</strong> (live) — PENDING→UNDER_REVIEW→VERIFIED/REJECTED, VERIFIED↔SUSPENDED</li>
+      <li><strong>Request / Offer / Reservation / Subject / Grant / Verification / Branch-eligibility / Outbox</strong> (spec, v3) — generic <code>defineMachine()</code>-backed tables in <code>@dawai/domain</code>, each edge Blueprint-referenced</li>
+    </ul>
+  </div>
+</section>
+
+<!-- SCREENS -->
+<section class="panel" id="screens">
+  <div class="card">
+    <h2>Screens</h2>
+    <div class="grid2">
+      <div>
+        <h3 style="font-size:.9rem">dawai-platform (live, 1 bundle, role-gated by route)</h3>
+        <ul class="compact">
+          <li>Public: Welcome, Auth, PasswordReset, Legal</li>
+          <li>Patient: Home, MedicineSearch, NearbyPharmacies, NewRequest, RequestDetail, RequestHistory, Reservation, SavedPharmacies, Notifications, Profile</li>
+          <li>Pharmacy: Gate, Onboarding, Dashboard, Inbox, RequestDetail, Reservations, Inventory, Settings</li>
+          <li>Admin: Dashboard, VerificationQueue/Detail, Users, Pharmacies, Requests/Trace, Reports</li>
+        </ul>
+      </div>
+      <div>
+        <h3 style="font-size:.9rem">Blueprint v3 (spec, 133 screens named)</h3>
+        <ul class="compact">
+          <li>22 have an engineering contract · 17 rendered/photographed · <strong>111 not implemented</strong></li>
+          <li>Groups: E (Entry), S (Subjects), F (Find), R (Request), V (Reservation), M (Account) — Patient</li>
+          <li>PA (Apply), P (Pharmacy ops) — Pharmacy · O (Operator) — Owner Console</li>
+          <li>Built in code so far: Find, Draft, Offers, OfferDetail, Confirm, Reservation, Prescription, Onboarding (<code>platform/apps/patient/src/screens</code>)</li>
+        </ul>
+      </div>
+    </div>
+    <p class="mdlink">Full per-screen contracts: 07-screen-catalog.md · docs/design/SCREEN_INVENTORY.md (v3 only)</p>
+  </div>
+</section>
+
+<!-- NAVIGATION -->
+<section class="panel" id="navigation">
+  <div class="card">
+    <h2>Navigation philosophy</h2>
+    <div class="grid2">
+      <div>
+        <h3 style="font-size:.9rem">dawai-platform (live)</h3>
+        <p>One SPA, one router, all three roles in one bundle. Role isolation is enforced server-side (every request re-checked), not by separate builds. No native app yet — Capacitor remote-URL shell recommended for iOS.</p>
+      </div>
+      <div>
+        <h3 style="font-size:.9rem">Blueprint v3 (spec)</h3>
+        <p><strong>Role isolation is structural</strong>: three separate builds (Patient / Pharmacy / Owner Console), verified by an import-check at build time — "a patient build contains no pharmacy route, so the class of leak v1 hit twice is unrepresentable." Guards: <code>requireSession</code>, <code>requireSubjectScope</code>, <code>blockMemorialised</code>, <code>requireStaffSession</code>, <code>requireManager</code>, <code>requirePharmacist</code>, <code>requireVerified</code>, <code>requireOperator</code>.</p>
+      </div>
+    </div>
+    <p class="mdlink">08-navigation.md</p>
+  </div>
+</section>
+
+<!-- SERVICES/API -->
+<section class="panel" id="services">
+  <div class="card">
+    <h2>API surface (live, dawai-platform)</h2>
+    <input class="search-box" placeholder="Filter routes…" oninput="filterList('routes-list', this.value)">
+    <table id="routes-list">
+      <thead><tr><th>Group</th><th>Base path</th><th>Sample endpoints</th></tr></thead>
+      <tbody>
+        <tr><td>Public</td><td><code>/api/v1</code></td><td>medicines/search, availability, pharmacies</td></tr>
+        <tr><td>Auth</td><td><code>/api/v1/auth</code></td><td>register, login, logout(-all), account/delete, password-reset</td></tr>
+        <tr><td>Patient</td><td><code>/api/v1/patient</code></td><td>requests, requests/:id/offers, reservations, saved-pharmacies, notifications</td></tr>
+        <tr><td>Pharmacy</td><td><code>/api/v1/pharmacy</code></td><td>onboarding, inbox, reservations/:id/acknowledge, inventory/movements, settings</td></tr>
+        <tr><td>Admin</td><td><code>/api/v1/admin</code></td><td>verifications, users, pharmacies, requests, reports, audit-events</td></tr>
+        <tr><td>Clinical</td><td><code>/api/v1/clinical</code></td><td>family, schedules, timeline, attention, interaction-check</td></tr>
+        <tr><td>Files</td><td><code>/api/v1/files</code></td><td>upload, get, delete (encrypted)</td></tr>
+        <tr><td>Shared</td><td><code>/api/v1</code></td><td>conversations, notifications, device-tokens, reports</td></tr>
+      </tbody>
+    </table>
+    <p class="mdlink">13-api-contracts.md has the full endpoint list; docs/technical/05-api-contracts.html has the separate, unimplemented v3 spec (67 endpoints).</p>
+  </div>
+</section>
+
+<!-- EVENTS -->
+<section class="panel" id="events">
+  <div class="card">
+    <h2>Events &amp; notifications</h2>
+    <p><strong>Live:</strong> no message broker — events are durable rows (<code>notifications</code>, <code>notification_outbox</code>, <code>attention_events</code>, <code>audit_events</code>) written synchronously, consumed by the 30s worker sweep or client polling. Outbox payload is always minimal: <code>{eventType, resourceId}</code> — never PHI.</p>
+    <p><strong>Spec (v3):</strong> a formal 54-event catalogue, each with a declared producer and ≥1 consumer, at-least-once delivery, and a stated idempotency key — "a duplicate dispense record or reservation would be a clinical defect, not an inconvenience."</p>
+    <p class="mdlink">15-events.md</p>
+  </div>
+</section>
+
+<!-- SAFETY -->
+<section class="panel" id="safety">
+  <div class="card">
+    <h2 style="color:var(--bad)">⚠ Clinical safety — read before editing this code</h2>
+    <ul class="compact">
+      <li><span class="tag safety">rule</span> Interaction checks fail closed to <code>UNAVAILABLE</code> — never a false "clear"</li>
+      <li><span class="tag safety">rule</span> <code>dose_events</code>, <code>stock_movements</code>, <code>audit_events</code> are append-only — corrections are new rows</li>
+      <li><span class="tag safety">rule</span> <code>SEV_ALERT</code> attention events never expire and are never dismissible except by resolving their cause</li>
+      <li><span class="tag safety">rule</span> Only a pharmacy account may set <code>sig_source = PHARMACIST</code></li>
+      <li><span class="tag safety">rule</span> The 15-minute hold starts only on pharmacy acknowledgement</li>
+      <li><span class="tag safety">rule</span> A non-selected pharmacy can never access a prescription image</li>
+      <li><span class="tag safety">rule</span> Low-trust SKUs are excluded from forecasting entirely, never shown with a caveat</li>
+    </ul>
+    <p class="mdlink">Full reasoning + a pre-edit checklist: 10-clinical-safety.md</p>
+  </div>
+</section>
+
+</main>
+</div>
+
+<script>
+const detailData = {
+  "arch-client": ["React 19 RTL SPA","dawai-platform/src — pages per audience (Patient/Pharmacy/Admin/Public/Timeline), session context, typed API client, PillBar attention UI.","02-architecture.md, 07-screen-catalog.md"],
+  "arch-api": ["Hono API","server/app.ts mounts route modules under /api/v1/*. Strict CSP, CORS locked to WEB_ORIGIN, Zod-validated bodies, Idempotency-Key on mutations.","02-architecture.md, 13-api-contracts.md"],
+  "arch-services": ["Services","Business logic: matching (geo dispatch/scoring), clinical (dose schedules, family proxy), interactions (drug-safety), lifecycle (expiry sweeps), notifications, ocr, audit.","04-business-rules.md"],
+  "arch-db": ["PostgreSQL / PGlite","32 tables across 7 migrations. PGlite (embedded Postgres) in dev/test; real Postgres in production.","14-data-model.md"],
+  "arch-worker": ["worker.ts","A separate OS process, not a thread inside the API. Runs the lifecycle sweep every 30 seconds — hold/ack expiry, notification retry.","11-runtime.md"],
+  "arch-app": ["platform/apps/patient","The one app built on the v3 domain layer: Find→Draft→Offers→Confirm→Reservation screens. Not deployed; no server counterpart implementing the v3 API exists in this repo.","07-screen-catalog.md"],
+  "arch-domain": ["@dawai/domain","State machines transcribed from Blueprint v3: identity, marketplace, pharmacy, clinical gates — built on a generic defineMachine() engine.","05-state-machines.md"],
+  "arch-nav": ["@dawai/navigation","v3 navigation graph + route guards (requireSession, requireSubjectScope, blockMemorialised, etc.)","08-navigation.md"],
+  "arch-design": ["@dawai/design","Design-token source of truth for docs/design/DESIGN_TOKENS.md — RTL, Arabic normalization, a11y, the five-state UX contract.","12-design-system.md"],
+  "arch-infra": ["net · session · offline · observability · config · contracts","Infrastructure primitives for the v3 app stack: typed fetch, session state, offline outbox, logging/telemetry, env/flags, shared API types.","11-runtime.md"],
+  "arch-tools": ["platform/tools/*","Architecture-conformance validators for the platform/ tree only: layer-check, deps-check, debt-check, trace-check, ux-check, and more.","18-technical-debt.md"]
+};
+
+document.querySelectorAll('.tab').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById(btn.dataset.tab).classList.add('active');
+  });
+});
+
+document.querySelectorAll('#architecture .node').forEach(node=>{
+  node.addEventListener('click', ()=>{
+    const key = node.getAttribute('data-detail');
+    const d = detailData[key];
+    const box = document.getElementById('architecture-detail');
+    box.style.display = 'block';
+    box.innerHTML = `<h3>${d[0]}</h3><p>${d[1]}</p><p class="mdlink">See: ${d[2]}</p>`;
+  });
+});
+
+function filterList(tableId, query){
+  const q = query.trim().toLowerCase();
+  document.querySelectorAll('#'+tableId+' tbody tr').forEach(row=>{
+    row.style.display = row.textContent.toLowerCase().includes(q) ? '' : 'none';
+  });
+}
+</script>
