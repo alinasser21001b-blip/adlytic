@@ -1,0 +1,283 @@
+/* Dawai Blueprint v3 — Decision Register data.
+ * 53 accepted issues. Every one ends in RESOLVED, REDESIGNED, REMOVED or DEFERRED.
+ * Nothing stays open. Rendered by blueprint-v3.html.
+ */
+window.REGISTER = [
+/* ─── Identity & family ────────────────────────────────────────────────── */
+{id:"D01",issues:["R6","R7","N23"],out:"REDESIGNED",domain:"Identity",title:"Account and Subject are separated; a Subject need not authenticate",
+ decision:"An <b>Account</b> is an authenticated phone number. A <b>Subject</b> is a person whose medication is tracked. Every Account owns exactly one self-Subject. An Account may create a <b>Managed Subject</b> — a person with no account, no phone, no OTP. Authority over a Managed Subject belongs to exactly one <b>Guardian</b> (the creating Account). A Managed Subject may later be <b>claimed</b>: the Guardian sends a claim invite to a phone number; on verification the Subject becomes account-backed, guardianship ends, and the former Guardian holds only a Peer Grant that the new account holder may revoke.",
+ reason:"Um Ali is the product's primary persona and v1 could not represent her. v1 required the subject to own a smartphone, hold an OTP-capable number, and tap Approve on her own device — while her own persona says she uses WhatsApp and nothing else and her daughter installed the app. The failure was not an edge case about minors; it was the median chronic patient.",
+ tradeoffs:"A Guardian holds unilateral authority over another person's health record with no consent step, because there is nobody able to consent. Mitigated by: exactly one Guardian (no conflict resolution), every guardian action attributed and visible on claim, and platform-side dispute reversal. We accept a real coercion risk in exchange for serving the actual user.",
+ domains:"Identity · Family · Clinical record · Permissions",
+ screens:"S08 · S09 · A01–A08 · new: Create managed subject, Claim invite, Claim acceptance, Guardianship transfer",
+ machines:"Subject lifecycle · Grant lifecycle",
+ migration:"v1 had no Subject entity distinct from Account. Every clinical reference re-points from Account to Subject. Prototype users become Account + one self-Subject."},
+
+{id:"D02",issues:["R12"],out:"RESOLVED",domain:"Identity",title:"A family member without an account can be invited",
+ decision:"A Peer Grant may be addressed to a phone number that has no account. The invitation is sent by SMS and creates a <b>pending grant</b> that activates on that number's first successful sign-in, at which point the invitee approves or refuses it. Pending grants expire after 7 days and grant nothing until approved.",
+ reason:"v1's §7.6 assumed the invitee already had an account and had no path if they did not, which is the normal case when one family member installs first.",
+ tradeoffs:"An SMS to a wrong number reveals that someone wanted to share with that number. The message names no medicine and no subject.",
+ domains:"Identity · Family",screens:"A04 · new: Pending invitations",machines:"Grant lifecycle",
+ migration:"None — new capability."},
+
+{id:"D03",issues:[],also:["N23","R6"],out:"RESOLVED",domain:"Identity",title:"One phone, one Account, many Subjects — the Iraqi household is first-class",
+ decision:"A shared household phone is modelled as one Account with several Managed Subjects, not as several accounts. Switching subject is a primary control. One phone number can never back two Accounts.",
+ reason:"v1 said 'one phone number, two people — not supported', which described the Iraqi norm as unsupported rather than modelling it.",
+ tradeoffs:"Everyone on that phone shares one authentication. There is no per-subject privacy inside a household that shares a device — which is already true of the paper prescriptions in that house.",
+ domains:"Identity · Family",screens:"T02 · A01 · A03",machines:"Subject lifecycle",migration:"None."},
+
+{id:"D04",issues:["N14"],out:"RESOLVED",domain:"Identity",title:"Memorialisation is a Subject state with a defined trigger",
+ decision:"<code>Subject.state = MEMORIALISED</code>. Triggered by the Guardian, or by the platform on a reported death. Effects: all reminders and watches stop, no new requests, existing grants retain read access, the record is preserved. Reversible for 30 days. Every grant holder is notified when it is set.",
+ reason:"v1 emphasised memorialisation in bold, provided no account state, no trigger, and no actor — while noting it 'must not be discovered in production'.",
+ tradeoffs:"A Guardian can freeze a living person's record. Reversibility, notification to all grant holders, and platform reversal are the controls.",
+ domains:"Identity · Clinical record",screens:"new: Memorialise subject, Memorialised subject view",machines:"Subject lifecycle",
+ migration:"New state; no existing data affected."},
+
+{id:"D05",issues:["N12"],out:"RESOLVED",domain:"Identity",title:"Deletion is defined exactly, including what survives on the pharmacy side",
+ decision:"Deleted: the Account, its self-Subject and all Managed Subjects it holds, dispense history, prescription images, saved pharmacies, and unmatched-search records. Retained: reservation records held by the pharmacy, <b>pseudonymised</b> — code, item, date, price, with no name, no phone, and no link to the deleted account — for 3 years; and audit entries with the actor replaced by a tombstone identifier. Deleting a Guardian forces an explicit choice per Managed Subject: transfer to another Account, or delete. There is no default.",
+ reason:"v1 promised deletion, retained reservation history for 3 years, kept an immutable 7-year audit log storing before-and-after values, and left the one screen whose entire purpose is to state what is deleted with nothing to state.",
+ tradeoffs:"Pseudonymised records can in principle be re-identified by a pharmacy that remembers the customer. Accepted: the alternative is destroying a pharmacy's own commercial records.",
+ domains:"Identity · Reservations · Audit",screens:"L04 · L05 · L06 · new: Managed subject disposition",machines:"Account lifecycle",
+ migration:"Deletion pipeline must pseudonymise rather than cascade-delete."},
+
+/* ─── Marketplace ──────────────────────────────────────────────────────── */
+{id:"D06",issues:["N1"],out:"REDESIGNED",domain:"Marketplace",title:"A Request carries lines; an Offer answers per line; a Reservation covers one branch",
+ decision:"<b>Request → 1..N RequestLine</b> (one catalogue item, one quantity each). An <b>Offer</b> answers with one <b>OfferLine</b> per RequestLine: <code>AVAILABLE(price)</code>, <code>UNAVAILABLE(reason)</code>, or <code>SUBSTITUTE(item, price, note)</code>. A pharmacy may answer partially and the patient sees coverage plainly (‘عندها ٢ من ٣’). Accepting an Offer creates one <b>Reservation</b> at one branch covering exactly the accepted lines — one code, one countdown, one address. Unaccepted lines automatically form a <b>child Request</b> under the same parent, so the patient never loses them.",
+ reason:"v1's prescription flow produces multi-line requests and its offer model priced a single medicine. A three-line prescription was unanswerable by any pharmacy holding two of the three, which collapsed the flow v1 itself called the hardest in the product.",
+ tradeoffs:"A patient may end up collecting from two pharmacies. That is honest — it is what actually happens today — and the grouped view on Today makes it legible rather than confusing.",
+ domains:"Marketplace · Prescriptions",screens:"F17 · F20 · F21 · F22 · R02 · Y04 · Y05 · T01",machines:"Request · Offer · Reservation",
+ migration:"Offer becomes a composite. Any single-medicine assumption in v1 screens is void."},
+
+{id:"D07",issues:["R5"],also:["N2"],out:"RESOLVED",domain:"Marketplace",title:"The unit of quantity is the pack, defined by the catalogue",
+ decision:"Every catalogue item carries <code>dispenseUnit = PACK</code> and <code>unitsPerPack</code>. All quantities — request, offer, reservation, history — are expressed in packs and never in anything else. Partial fulfilment means fewer packs. Loose and per-strip dispensing is <b>not supported in Phase 0</b> and the request flow says so for items where it is common.",
+ reason:"'Quantity' appeared on six v1 surfaces with no unit. Every implementer would have invented one, and each invention would have contradicted the binding-price rule, partial fulfilment, or supply inference.",
+ tradeoffs:"Iraqi pharmacies do dispense by strip. Phase 0 therefore cannot serve part of the real market, and says so rather than producing an ambiguous number.",
+ domains:"Catalogue · Marketplace",screens:"F14 · F17 · F21 · R02 · Y04 · Y05",machines:"Request · Offer",
+ migration:"Catalogue requires a pack-size field before any request can be created."},
+
+{id:"D08",issues:["R13","R15","N9","Q2"],also:["R5"],out:"REDESIGNED",domain:"Marketplace",title:"The offer price binds for the reservation window; there is no public price anywhere",
+ decision:"An offer's price is <b>binding</b> from acceptance until the reservation expires, and the compose screen says so before sending. A pharmacy may <b>withdraw</b> an unaccepted offer at any time (new state) — this is the correction path for a mistyped price. Once accepted, it binds. <b>No price is ever shown outside an offer made to a specific patient.</b> The public medicine page shows availability, never a price range. Phase 4's 'price transparency' item is <b>REMOVED</b> from the plan permanently.",
+ reason:"v1 banned city-wide price comparison in its feature matrix, published a price range on the public medicine page, and scheduled price transparency in Phase 4 — three positions on one question. A binding price with no correction path was also unworkable for a pharmacy typing in fifteen seconds.",
+ tradeoffs:"Patients cannot shop on price before requesting. That is the intent: the moment pharmacies are compared on price alone they stop answering, and the platform loses the supply side it depends on.",
+ domains:"Marketplace · Catalogue",screens:"F05 · F21 · F22 · Y05 · new: Withdraw offer",machines:"Offer",
+ migration:"Remove the price-range element from the medicine page."},
+
+{id:"D09",issues:["N5","N13"],out:"RESOLVED",domain:"Marketplace",title:"The request window is a defined duration per urgency, and it drives routing",
+ decision:"<code>now = 20 minutes</code> · <code>today = 4 hours</code> · <code>soon = 48 hours</code> (labelled ‘خلال يومين’, not ‘this week’). A branch receives a request if it is open now <b>or opens within that window</b>; if it opens later within the window, the notification is <b>deferred to its opening time</b>. One rule replaces v1's three contradictory statements.",
+ reason:"v1 had a window state, an expiry screen, an ordering rule and a 'this week' option, and never stated a duration. Its routing rule, its notification rule and its worked example each answered the closed-pharmacy case differently, and the losing case was silent request loss at exactly the hour its own example was set in.",
+ tradeoffs:"A 48-hour request occupies inbox space. Mitigated by ordering the inbox on remaining time and collapsing non-urgent requests.",
+ domains:"Marketplace · Discovery · Notifications",screens:"F19 · F20 · Y03 · Y12",machines:"Request",
+ migration:"'This week' is renamed and re-scoped; any v1 copy promising a week is void."},
+
+{id:"D10",issues:["R4"],out:"RESOLVED",domain:"Discovery",title:"The area unit is the curated district; branch location is verified during application",
+ decision:"Areas are <b>districts (أحياء)</b> from a platform-curated list per city — not GPS polygons. A branch declares its district plus a radius in kilometres from a <b>verified point</b>, and that point is set by the operator during application review from the address plus a storefront photo. A patient's area is a district chosen at sign-up; GPS may refine it <b>at request time only</b> and is never stored.",
+ reason:"v1 routed on coverage and drew a coverage map with no defined area unit and no verified pharmacy location, so both were uncomputable.",
+ tradeoffs:"Curating district lists is manual operator work per city. It is also the reason the coverage map works on day one without a geo stack.",
+ domains:"Discovery · Verification · Owner",screens:"S09 · F07 · F08 · B05 · W04 · new: Set verified point",machines:"Verification",
+ migration:"District list must exist before the first pharmacy is verified."},
+
+{id:"D11",issues:["R14"],out:"REDESIGNED",domain:"Marketplace",title:"Reliability is one number, defined, banded, and forgiving of the honest case",
+ decision:"<b>Honoured rate</b> = collected ÷ (collected + failed-after-confirmation), over 60 days, hidden until 10 reservations exist. A failure reported within 5 minutes of confirming does <b>not</b> count — that is the honest 'sold since' case. Patients see a band only: <b>موثوقة · جديدة · تحتاج انتباه</b>. No decimal is ever shown, because a decimal invites an argument about a number rather than about the behaviour.",
+ reason:"v1 penalised a structurally guaranteed event in a patient-visible score it never defined.",
+ tradeoffs:"A branch could confirm and immediately un-confirm to avoid the penalty. That pattern is itself detectable and is surfaced to the operator.",
+ domains:"Marketplace · Owner",screens:"F21 · F22 · B11 · W09",machines:"Reservation",
+ migration:"None — new metric."},
+
+{id:"D12",issues:["N6","Q8"],out:"REMOVED",domain:"Marketplace",title:"No preferential routing, and no paid placement, ever",
+ decision:"Routing is deterministic: every eligible branch receives the request simultaneously. The 'we ask your usual pharmacy first' promise is <b>removed</b>. Saved pharmacies affect display order in browsing only, never routing. <b>Paid placement in routing is prohibited permanently</b> — this closes v1's open question 8.",
+ reason:"v1 promised a first-look window inside a copy string that its routing rules did not contain. A first-look window is materially the same lever as paid placement, and deciding it by accident inside microcopy is exactly how a marketplace's integrity goes.",
+ tradeoffs:"We give up a real retention lever for patients and a real revenue lever for the platform.",
+ domains:"Marketplace · Discovery",screens:"A11 · §22 copy",machines:"Request",migration:"Remove the promise from saved-pharmacy copy."},
+
+{id:"D13",issues:["R17"],out:"RESOLVED",domain:"Marketplace",title:"A branch is told when and why it is not receiving requests",
+ decision:"The branch home shows a live <b>eligibility panel</b>: receiving, or not receiving with the reason — closed, paused, at capacity, outside the requester's district, licence expired. Inactivity is only ever inferred from requests the branch <b>actually received</b> and did not answer.",
+ reason:"v1 filtered branches out of routing silently and then classified them inactive for not answering requests they were never sent.",
+ tradeoffs:"None material.",domains:"Marketplace · Pharmacy",screens:"new: Branch eligibility panel · B06",machines:"Branch",
+ migration:"None."},
+
+{id:"D14",issues:["N3"],out:"RESOLVED",domain:"Marketplace",title:"The code is the collection right; identity is not checked at the counter",
+ decision:"Whoever presents a valid reservation code may collect. This is deliberate — in the target market the son collects for the mother, and an identity check would break the primary use case. The pharmacy sees the <b>subject's name</b> at handover to label the package, not to verify a person. For prescription-required items the control is the prescription, not identity: the pharmacist must open it before completing handover. The app states plainly that sharing the code shares the right to collect.",
+ reason:"v1 showed a 'first name' its identity screen never collected, allowed a proxy to reserve for a subject, and then defined no identity rule at handover at all — guaranteeing a name mismatch in its own flagship flow.",
+ tradeoffs:"A leaked code lets a stranger collect. Bounded by: the reservation window, no payment involved, and the prescription gate on the medicines that matter.",
+ domains:"Marketplace · Clinical safety",screens:"S08 · Z02 · Z05 · Z06",machines:"Reservation",
+ migration:"The name field is a single free-text field; no first/last split is introduced."},
+
+{id:"D15",issues:["R16"],out:"RESOLVED",domain:"Pharmacy",title:"A pharmacy has data rights: an access log, an export, and a way to leave",
+ decision:"The branch gains: an <b>access log</b> of every platform-side read of its record; a <b>data export</b> of its own requests, offers, reservations and settings; and a <b>closure flow</b> that honours live reservations, stops routing, and returns the export before the account closes.",
+ reason:"v1 gave the patient an access log, an export and a deletion path, and gave the pharmacy none of the three while asking it to upload its licence to an unknown startup.",
+ tradeoffs:"Export makes it easier for a competitor to onboard the pharmacy. That is the cost of being trustworthy to the supply side.",
+ domains:"Pharmacy · Owner",screens:"new: Branch access log, Branch export, Close branch",machines:"Branch",
+ migration:"None."},
+
+/* ─── Clinical safety ──────────────────────────────────────────────────── */
+{id:"D16",issues:["R2","R10","N7"],out:"REDESIGNED",domain:"Clinical safety",title:"Phase 0 performs no interaction checking, and says so in the product",
+ decision:"Phase 0 contains <b>no interaction checking</b> — and therefore no severe safety layer, no alert override problem, and no unreachable exit. The product states plainly, on the request confirmation screen and in the medicine page: <b>‘دوائي ما يفحص تعارض الأدوية. اسأل الصيدلي.’</b> Interaction checking enters at Phase 3, and its <b>exit path is designed before its alert</b> — no alert ships without a defined way to clear it.",
+ reason:"v1's severe alert had no dismiss, was unreachable by back navigation, and its only stated exit was a pharmacist override for which no pharmacist screen existed. A patient on a correct, supervised drug combination would have been locked out of her own medication app by a correct alert. Separately, the check only existed on the reorder path, so any newly added medicine bypassed it entirely — a safety layer with a hole in it is worse than none, because it implies coverage.",
+ tradeoffs:"We ship a medication product with no automated interaction safety. This is the honest position: a partial check that a user believes is complete is more dangerous than a stated absence.",
+ domains:"Clinical safety",screens:"T11 and T12 REMOVED from Phase 0 · F17 · F05 gain the disclosure",machines:"Clinical review (Phase 3)",
+ migration:"All v1 alert design is void until Phase 3."},
+
+{id:"D17",issues:["R1"],out:"REMOVED",domain:"Clinical safety",title:"Allergies are removed from Phase 0 entirely, including from the permission matrix",
+ decision:"Phase 0 holds <b>no allergy data</b>. The permission row is struck. In its place, the handover checklist carries a fixed, recorded prompt: <b>‘اسأل عن الحساسية’</b> — a workflow control, not a data claim. Allergy capture enters at Phase 2 as a patient-declared, append-only list attached to the Subject, entered when a medicine is added rather than through a questionnaire. <b>Automated allergy checking is not scheduled in any phase</b> until a governed clinical source exists.",
+ reason:"v1's permission matrix granted six principals the right to read allergies that no screen in 197 could create, and scoped the pharmacist's view to the dispensed product — which defeats cross-reactivity, the only reason to read an allergy list at all.",
+ tradeoffs:"A patient with a documented allergy gets no software protection in Phase 0. The pharmacist prompt is a weaker control, and we state that it is weaker rather than implying a check exists.",
+ domains:"Clinical safety · Permissions",screens:"§17 row struck · Z06 gains the prompt",machines:"—",
+ migration:"None — the data never existed."},
+
+{id:"D18",issues:["N4"],out:"RESOLVED",domain:"Clinical safety",title:"Prescription-required items cannot be requested without a prescription image",
+ decision:"Every catalogue item carries <code>requiresPrescription</code>. A request line for such an item <b>cannot be created</b> without an attached prescription image. The image is not machine-read in Phase 0 — it travels with the request and the pharmacist reads it. It is visible to a branch only while a reservation is live and is revoked when the reservation ends. <b>Controlled substances are refused outright in Phase 0</b>, flagged in the catalogue, with the reason shown.",
+ reason:"v1's catalogue carried a prescription-only flag used solely to block promotions. Its own worked example was a mother reserving a child's antibiotic at 9pm with no prescription, while the entire safety architecture rested on the pharmacist's licence.",
+ tradeoffs:"Requesting a prescription medicine now costs a photograph. This is friction on the highest-value flow, and it is the friction that makes the flow legal.",
+ domains:"Clinical safety · Prescriptions · Catalogue",screens:"F14 · F17 · F12 · Z05 · new: Prescription required",machines:"Request",
+ migration:"Catalogue needs the flag populated before launch."},
+
+{id:"D19",issues:["R3"],also:["R13"],out:"REDESIGNED",domain:"Clinical safety",title:"Confirming a hold is commercial; proposing a substitution is clinical",
+ decision:"<b>Any signed-in staff member may confirm a reservation</b> — setting stock aside is a commercial commitment, not a clinical act. <b>Only a staff member with a verified pharmacist licence may propose a substitution</b>; when none is on shift the substitution control is absent and the branch answers unavailable instead. Every action records the acting person; <b>reliability attaches to the branch</b>, not the individual.",
+ reason:"v1 required a licensed pharmacist for every hold confirmation, which no real Iraqi pharmacy could honour on an evening shift — producing an audit log full of attestations that were routinely false, which is worse than having no control.",
+ tradeoffs:"A commitment can be made by an unlicensed assistant. Accepted: it is a commercial promise about a box, and the clinical act — substitution — remains gated.",
+ domains:"Clinical safety · Pharmacy · Permissions",screens:"Y01 · Y06 · Z02 · Z03 · B09",machines:"Reservation · Staff session",
+ migration:"v1's pharmacist-only rule on confirmation is void."},
+
+{id:"D20",issues:["N19"],out:"RESOLVED",domain:"Governance",title:"Phase 0 has no two-person controls because it has no actions that need them",
+ decision:"Rather than requiring a second approver that does not exist, <b>the actions requiring one are absent from Phase 0</b>: no broadcast notifications, no bulk export, no role granting beyond the founding operator, no clinical claim withdrawal (there are no claims). Verification approval is single-operator, fully logged, and reversible. Two-person control returns when a second operator does.",
+ reason:"v1 specified five two-person controls and one operator, making five of its strongest controls unexecutable at launch.",
+ tradeoffs:"A single operator can verify a pharmacy alone. Reversibility and a complete log are the compensating controls.",
+ domains:"Governance · Owner",screens:"V04–V08 REMOVED from Phase 0",machines:"Verification",migration:"None."},
+
+{id:"D21",issues:["Q4","Q10"],out:"DEFERRED",domain:"Governance",title:"Clinical governance authority and the 2am safety path are Phase 3 prerequisites",
+ decision:"Phase 0 publishes no clinical claims and raises no clinical alerts (D16, D17), so no clinical governance authority is required to operate it. <b>Naming that authority becomes a hard entry gate for Phase 3</b> and Phase 3 cannot begin without it. Phase 0's out-of-hours path is operational only: a single on-call operator number, printed in the pharmacy app.",
+ reason:"v1 assumed a clinical authority existed and left naming it as an open question, while building an incident flow that required one.",
+ tradeoffs:"We cannot ship interaction checking until a named clinician owns it. That is the correct constraint.",
+ domains:"Governance · Clinical safety",screens:"Phase 3",machines:"Clinical review",migration:"None."},
+
+/* ─── Record & the durable-asset assumption ────────────────────────────── */
+{id:"D22",issues:["N2","RISK"],out:"REDESIGNED",domain:"Clinical record",title:"The record is built from completed pickups; Phase 0 predicts nothing",
+ decision:"In Phase 0 the medication record is populated by <b>one automatic source: completed reservations</b>. Every pickup writes a dispense record with item, pack count, date, branch and price. No user effort, no permission conflict, no invented data. Phase 0 therefore ships <b>no supply prediction, no ‘running low’, no blister strip, no dose schedules and no dose reminders</b> — every one of those is deferred to Phase 2. Phase 0's honest claim is: <b>‘سجل ما استلمته’</b>.",
+ reason:"This is the review's riskiest-assumption finding and it is correct. v1 forbade every mechanism that could populate the record — no questionnaire, no pharmacist entry, no typed quantity, no dose amount, no pack size, no free text, no edits — each for a good reason, in a different section, and never summed. The record was expected to fill itself.",
+ tradeoffs:"Phase 0's patient value is thinner: a reservation service with a history rather than a medication companion. That is what we can honestly build first.",
+ domains:"Clinical record · Marketplace",screens:"T07, M04–M08, the blister strip REMOVED from Phase 0 · new: Dispense history",machines:"Reservation → Dispense",
+ migration:"Any v1 supply-inference design is void until Phase 2."},
+
+{id:"D23",issues:[],also:["N2","N8","RISK"],out:"RESOLVED",domain:"Governance",title:"Phase 0's exit criterion tests the strategy's riskiest belief",
+ decision:"Phase 2 may not begin until Phase 0 has produced evidence for the belief Phase 2 rests on. <b>Gate: at least 40% of active subjects have two or more completed reservations of the same catalogue item within 90 days.</b> If the gate fails, the record does not accrete through ordinary use, and the durable-asset thesis is revised before any of Phase 2 is built.",
+ reason:"The critic's central point: the one belief the whole strategy rests on was the one belief the plan deferred longest. Phase 0 proved the fulfilment loop — the part the vision calls secondary — and never tested the part it calls primary.",
+ tradeoffs:"A 90-day gate before Phase 2 slows the roadmap. It is far cheaper than four phases derived from a false premise.",
+ domains:"Governance",screens:"Owner: Cohort repeat rate (in Phase 0)",machines:"—",migration:"None."},
+
+/* ─── Phase 0 closure ──────────────────────────────────────────────────── */
+{id:"D24",issues:["R9","N8"],also:["N7"],out:"REDESIGNED",domain:"Governance",title:"Phase 0 is a closed system: it contains everything it needs and references no later phase",
+ decision:"Phase 0 is rebuilt from zero. It contains the full pharmacy application flow, notifications, every failure screen, the outbox, the guest state, and the four operator screens that measure its own exit criteria. <b>No Phase 0 screen depends on anything scheduled later.</b> Anything that cannot be closed inside Phase 0 was removed from Phase 0 rather than left dangling.",
+ reason:"v1's Phase 0 omitted notifications and every failure screen, put its own success metrics two phases later, left the safety layer and the stock module in no phase at all, and left roughly ninety of 197 screens unscheduled.",
+ tradeoffs:"Phase 0 is larger than v1's. It is also buildable without inventing anything.",
+ domains:"All",screens:"See the Phase 0 inventory",machines:"All",migration:"The v1 release plan is void."},
+
+{id:"D25",issues:["R8"],out:"RESOLVED",domain:"Pharmacy",title:"The pharmacy application flow exists as screens",
+ decision:"Nine screens are added covering: entry, business details, licence upload, named pharmacist, address and map point, submission, queue status, information requested, decision. The supply side can now sign up.",
+ reason:"v1 described this flow twice in prose and gave it zero screens — the supply side literally could not join.",
+ tradeoffs:"None.",domains:"Pharmacy · Verification",screens:"new: PA1–PA9",machines:"Verification",migration:"None."},
+
+{id:"D26",issues:["R11"],out:"RESOLVED",domain:"Navigation",title:"Guest is a first-class state in the navigation model",
+ decision:"The navigation model has three states — <b>guest · authenticated · pharmacy staff</b> — and guest is drawn, reachable, and exit-defined. A guest may search, browse and read; the account is requested at the first action that requires one, and <b>the pending action is preserved across authentication</b>.",
+ reason:"v1 described a guest state in its identity section and drew a navigation map with no guest, making its own guest home unreachable.",
+ tradeoffs:"None.",domains:"Navigation · Identity",screens:"S02–S07 · Guest home",machines:"Session",migration:"None."},
+
+{id:"D27",issues:["N16"],out:"RESOLVED",domain:"Offline",title:"The outbox is a screen",
+ decision:"A queued-actions screen lists every pending write with its age, lets the user cancel one before it sends, and shows queued requests as <b>queued</b> — never as sent. Each queued action carries a client-generated key so a reconnect replays it exactly once.",
+ reason:"v1 required that a queued action be visible and cancellable and provided no surface for it.",
+ tradeoffs:"None.",domains:"Offline",screens:"new: Queued actions",machines:"Outbox",migration:"None."},
+
+{id:"D28",issues:["N10"],out:"RESOLVED",domain:"Offline",title:"One rule for clinical data on the device",
+ decision:"While signed in, the device holds an encrypted cache of the user's subjects, active reservations, dispense history and viewed catalogue items, using an OS-backed key. <b>Sign-out destroys the key and the cache.</b> This is the single rule; v1's three conflicting statements are replaced by it.",
+ reason:"v1 said sign-out leaves nothing clinical on the device, that medicines and history work offline, and that clinical data is held in secure device storage. All three cannot hold, and the answer decides whether a shared household phone retains a record after sign-out — which is the norm in this market.",
+ tradeoffs:"Signing out costs the offline cache and a re-download.",
+ domains:"Offline · Identity",screens:"L03 · Offline banner",machines:"Session",migration:"None."},
+
+{id:"D29",issues:["N11"],out:"REDESIGNED",domain:"Privacy",title:"Two retention promises are narrowed to what is actually true",
+ decision:"Location: <b>we store the district you chose; we never store a GPS coordinate and never a location history.</b> GPS is used in memory to suggest a district and discarded. Search: <b>we store search terms that found nothing</b>, so the catalogue can grow from real demand; everything else stays on the device. Both statements appear in the product, not only in a document.",
+ reason:"v1 promised location is never stored while storing an area, attaching it to every request and analysing fill rate by area; and promised search history is device-only while offering server-side popular searches and writing every unmatched search to a recruitment list. Two false promises, and they were the two the privacy story was sold on.",
+ tradeoffs:"A weaker-sounding promise that is true, instead of a stronger one that is not.",
+ domains:"Privacy · Discovery · Catalogue",screens:"S09 · F03 · Privacy statement",machines:"—",migration:"None."},
+
+{id:"D30",issues:["N15"],out:"RESOLVED",domain:"Notifications",title:"Notify-me is an entity with a lifecycle",
+ decision:"A <b>Watch</b> = subject + catalogue item + district + 14-day expiry. Maximum 5 active per subject. Listed on a screen, individually cancellable, auto-expiring, and it is a notification category users can disable.",
+ reason:"v1 offered notify-me in five places, gave it no notification category, no list, no expiry and no cancellation — so tapping it three times created three permanent invisible subscriptions.",
+ tradeoffs:"A 14-day expiry means a patient may need to re-arm it. Better than an undeletable subscription.",
+ domains:"Notifications · Marketplace",screens:"F24 · new: My watches",machines:"Watch",migration:"None."},
+
+{id:"D31",issues:["N17"],out:"REMOVED",domain:"Marketplace",title:"Post-pickup ratings are removed; the price dispute is the only signal collected",
+ decision:"The rating screen is <b>removed</b>. The single post-pickup signal is a <b>price dispute</b> — 'was the price different from the offer' — which routes to the branch record and to the operator. Nothing else is asked.",
+ reason:"v1 collected three patient judgements about small businesses and defined no destination for any of them, while quietly creating a second unaudited intake for the price dispute that was supposed to route to support.",
+ tradeoffs:"We lose a satisfaction signal. Honoured rate is the metric that matters and it is measured, not reported.",
+ domains:"Marketplace",screens:"R07 REMOVED · new: Report a price difference",machines:"Reservation",migration:"None."},
+
+{id:"D32",issues:["N18"],out:"RESOLVED",domain:"Permissions",title:"One permission model, extended to cover branch settings",
+ decision:"Branch settings are governed by the same model as everything else. <b>assistant</b>: answer requests, confirm reservations, handover, record price disputes. <b>pharmacist</b>: all of the above plus substitution proposals and opening a prescription. <b>manager</b>: all of the above plus hours, coverage, capacity, staff, licence, export and closure. No implied permission exists anywhere.",
+ reason:"v1's permission matrix governed clinical data, reservations, stock and platform, and stopped at the counter — leaving a high-turnover assistant able to edit routing inputs, remove staff and upload licence documents.",
+ tradeoffs:"A one-person pharmacy holds all three roles. Correct, and it is one person.",
+ domains:"Permissions · Pharmacy",screens:"B01–B13 · Y-series · Z-series",machines:"Staff session",migration:"None."},
+
+/* ─── Localisation & platform ──────────────────────────────────────────── */
+{id:"D33",issues:["N20"],out:"RESOLVED",domain:"Localisation",title:"Ramadan is a scheduling model, not an exception list",
+ decision:"A branch may define a <b>Ramadan week</b> as a complete alternative schedule, activated automatically by a platform-shipped Hijri calendar — not entered by hand each year. Because Phase 0 has no dose scheduling (D22), no fasting dose model is needed yet; Phase 2's schedule design carries a <b>fasting mode</b> as a stated entry requirement, so it is not designed without one.",
+ reason:"v1 treated Ramadan as a manual exception list that 'the app respects without being told each year' — impossible, since Ramadan moves about eleven days a year. The larger miss: a fasting chronic patient shifts every dose for a month and 'with food' inverts, and the document never mentioned fasting at all.",
+ tradeoffs:"The platform must ship and maintain a Hijri calendar.",
+ domains:"Localisation · Pharmacy · Clinical record",screens:"B02 · new: Ramadan schedule",machines:"Branch hours",migration:"None."},
+
+{id:"D34",issues:["N22","Q7"],out:"REMOVED",domain:"Localisation",title:"Phase 0 is Arabic only; Kurdish is deferred with the schema reserved",
+ decision:"Phase 0 ships <b>Arabic only</b>. Kurdish and English are removed from the language picker. The catalogue reserves a Kurdish name slot from day one so adding it later is content work, not a migration. Kurdish enters at a named later phase together with its catalogue names and its support model.",
+ reason:"v1 offered Kurdish in a Phase 0 screen while listing Kurdish support as an unanswered question, and its catalogue had no Kurdish name field — so a Kurdish interface would have shown every medicine name in a language the user did not choose.",
+ tradeoffs:"Kurdish-speaking users are not served at launch. Stated openly rather than half-delivered.",
+ domains:"Localisation · Catalogue",screens:"S14",machines:"—",migration:"Catalogue schema reserves the slot now."},
+
+{id:"D35",issues:["N21"],out:"REMOVED",domain:"Platform",title:"Phase 0 depends on no premium OS capability",
+ decision:"Wallet passes, lock-screen live activities, biometrics, widgets and voice shortcuts are <b>removed from Phase 0</b>. The reservation is a screen plus a push notification, and the code is always readable in the app <b>with no notification at all</b>. Phase 2's dose reminders, when they arrive, are specified with a server-push backstop because vendor battery management on the dominant devices in this market kills device-scheduled alarms.",
+ reason:"v1 made the lock-screen countdown a requirement and the Wallet pass a component, on a device base where neither is reliably available.",
+ tradeoffs:"A less impressive reservation experience on high-end devices. It works on every device.",
+ domains:"Platform",screens:"R02 · §26 component list",machines:"—",migration:"None."},
+
+{id:"D36",issues:["R18"],out:"RESOLVED",domain:"Localisation",title:"Arabic copy is gender-neutral by construction",
+ decision:"All product copy is written to avoid gendered second-person address. Where a construction cannot avoid it, the <b>noun form</b> is used rather than the verb ('الاستلام جاهز' rather than a gendered 'استلمْ/استلمي'). No gender is captured anywhere, and none is inferred from a name.",
+ reason:"Every Arabic string specified in v1 was masculine second-person, addressed to a user base whose defining persona is a woman, and the product collects no gender to do better.",
+ tradeoffs:"Slightly more formal copy in a few places.",
+ domains:"Localisation",screens:"All copy",machines:"—",migration:"Every v1 string is rewritten."},
+
+{id:"D37",issues:["R19"],out:"RESOLVED",domain:"Localisation",title:"The two highest-stakes strings are rewritten to be unambiguous and blameless",
+ decision:"The unreadable-photo message names the fixable condition and never the person: <b>‘ما نكدر نقرأ الوصفة من هذي الصورة. جرّب بضوء أكثر وبلا ظل.’</b> The check-failed message states the consequence: <b>‘ما كدرنا نفحص التعارض. لا يعني ما بيه تعارض — راجع الصيدلي قبل الاستعمال.’</b>",
+ reason:"The two strings carrying the most consequence were ambiguous, and one implied the user had taken a bad photograph.",
+ tradeoffs:"None.",domains:"Localisation · Clinical safety",screens:"F12 · Phase 3 alerts",machines:"—",migration:"None."},
+
+{id:"D38",issues:["R20"],out:"RESOLVED",domain:"Pharmacy",title:"The pharmacy support channel exists as screens",
+ decision:"The branch gains a help screen, a contact screen that attaches the branch, staff member and current context automatically, and a visible on-call number for out-of-hours operational problems.",
+ reason:"v1's feature matrix granted pharmacies a support channel that appeared on none of its 46 pharmacy screens.",
+ tradeoffs:"None.",domains:"Pharmacy",screens:"new: Branch help, Contact support",machines:"—",migration:"None."},
+
+/* ─── Open questions from v1 §29 ───────────────────────────────────────── */
+{id:"D39",issues:["Q1"],out:"RESOLVED",domain:"Marketplace",title:"What a pharmacy owes when it confirms and cannot deliver",
+ decision:"The reservation re-opens as a new request automatically, the patient is told plainly with an apology naming the branch, and the failure counts against the branch's honoured rate unless reported within 5 minutes (D11). <b>There is no financial remedy because there is no payment.</b> Both sides see this rule at confirmation time.",
+ reason:"The review named this the trust-destroying moment, and v1 had nothing to say at it.",
+ tradeoffs:"A patient who travelled receives only an apology. Honest, given no money changed hands.",
+ domains:"Marketplace",screens:"R04 · Z04 · Z03",machines:"Reservation",migration:"None."},
+
+{id:"D40",issues:["Q3"],out:"RESOLVED",domain:"Governance",title:"The launch district is a configuration value, fixed before Phase 0 opens",
+ decision:"The launch district is named in the release configuration <b>before the first pharmacy is verified</b>, and the product refuses requests outside it with an honest out-of-coverage message and a waitlist. Which district it is remains a business decision; that it must be exactly one, and named in advance, is now an architectural constraint.",
+ reason:"Phase 0's entire definition of done depends on density in one district, and nothing enforced there being one.",
+ tradeoffs:"Deliberately refusing users outside the district.",
+ domains:"Governance · Discovery",screens:"Out of coverage",machines:"—",migration:"None."},
+
+{id:"D41",issues:["Q5"],out:"RESOLVED",domain:"Governance",title:"Phase 0 is scoped so that it does not depend on the regulatory answer",
+ decision:"Phase 0 <b>does not dispense, does not take payment, does not deliver, does not give clinical advice, does not machine-read a prescription, and does not check interactions.</b> It tells a patient which nearby pharmacy has an item and asks that pharmacy to set it aside. It is designed to be an availability-and-reservation service and nothing more. Legal review is a hard entry gate for Phase 1; <b>Phase 0 is deliberately built so that its answer does not invalidate the work.</b>",
+ reason:"v1 left regulatory status open while its prescription and 9pm-antibiotic flows already assumed answers.",
+ tradeoffs:"Phase 0 is smaller than the product we want. It is the part we can build before a lawyer answers.",
+ domains:"Governance · All",screens:"All of Phase 0",machines:"All",migration:"None."},
+
+{id:"D42",issues:["Q6"],out:"REMOVED",domain:"Clinical safety",title:"Controlled substances are refused in Phase 0",
+ decision:"Catalogue items flagged as controlled <b>cannot be requested</b>. The request screen refuses with the reason and directs the patient to a pharmacy in person. This is a decision, not a deferral.",
+ reason:"They will be requested from week one, and v1 deferred only vaguely.",
+ tradeoffs:"A real category of demand is unserved.",
+ domains:"Clinical safety · Catalogue",screens:"F14 · new: Cannot be requested",machines:"Request",migration:"Catalogue flag required before launch."},
+
+{id:"D43",issues:["Q9"],out:"DEFERRED",domain:"Governance",title:"Nobody pays in Phase 0 or Phase 1, and nothing is built that assumes revenue",
+ decision:"There is no payment, no commission, no subscription and no paid placement through Phase 1. The decision recorded now is the <b>negative</b> one: no component may be designed on the assumption that money will flow through it. Monetisation is revisited only after Phase 1's exit criteria are met.",
+ reason:"v1 listed this as open, which invited features that assumed an answer.",
+ tradeoffs:"No revenue for two phases.",domains:"Governance",screens:"—",machines:"—",migration:"None."},
+];

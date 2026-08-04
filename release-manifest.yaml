@@ -1,0 +1,277 @@
+# ═══════════════════════════════════════════════════════════════════════════
+# Dawai — Release Manifest
+#
+# THIS FILE IS THE SOLE OPERATIONAL SOURCE OF TRUTH FOR A RELEASE.
+#
+# Every version number, compatibility range, verification status, approved
+# runtime configuration, and artifact path that appears anywhere — in the
+# changelog, the release notes, the compatibility report, the governance
+# dashboard, or the deployment metadata — is READ FROM HERE by CI.
+#
+# Do not write a version number in two places. A number written twice is a
+# number that will drift, and a governance framework whose inputs drift is
+# theatre.
+#
+#   Validate:  node tools/release/validate.mjs
+#   Generate:  node tools/release/generate.mjs
+#
+# Generated outputs are never hand-edited. If a generated file is wrong,
+# the manifest is wrong.
+# ═══════════════════════════════════════════════════════════════════════════
+
+schemaVersion: 1
+releaseId: "platform-1.5.0"
+
+# draft | candidate | released | superseded | withdrawn
+# CI refuses to set `released` until every condition in
+# docs/governance/RELEASE_POLICY.md § Release Rule is satisfied.
+status: candidate
+releasedAt: null
+
+governance:
+  # The policy the release was JUDGED BY, not the policy that exists today.
+  # Platform 1.5.0 stays bound to Policy 1.0.0 forever, even after the policy
+  # becomes 2.0.0. Never rewrite history to make an old release look as though
+  # it passed rules that did not exist when it shipped.
+  policyVersion: "1.0.0"
+  policyUpdatedAt: "2026-07-20"
+  # ADRs carry their title, date, and status here rather than in the dashboard
+  # markup. A decision record referenced by bare id in the UI forces a reader
+  # to go looking; and a title kept in a second file is a title that will
+  # eventually describe a different decision than the one it is next to.
+  adrs:
+    - id: "ADR-014"
+      title: "Evidence Traceability"
+      decidedAt: "2026-07-28"
+      status: accepted
+    - id: "ADR-015"
+      title: "Safety Alert Contract"
+      decidedAt: "2026-07-30"
+      status: accepted
+    - id: "ADR-016"
+      title: "Release Manifest as SSOT"
+      decidedAt: "2026-08-01"
+      status: accepted
+  approvals:
+    ux: pending
+    accessibility: pending
+    rtl: pending
+    clinical: pending
+    engineering: pending
+    evidence: pending
+
+release:
+  platform: "1.5.0"
+  ui:
+    supported: "1.5.x"
+    minimum: "1.5.0"
+  api:
+    supported: "1.3.x"
+    minimum: "1.3.0"
+  clinical:
+    interaction: "2.1.x"
+    safetyAlert: "3.0.x"
+    dispense: "1.2.x"
+    adherence: "1.1.x"
+  knowledge:
+    activeRelease: "2026.08.1"
+    evidenceSchema: "1.0.0"
+    nextScheduledReview: "2026-08-14"
+
+runtimeConfiguration:
+  environment: "production-candidate"
+  region: "baghdad-1"
+  featureFlags:
+    registryVersion: "1.0.0"
+    approvedSnapshot: "flags-2026-08-02-01"
+    values:
+      reservation_live_eta_v2: false
+      pharmacist_inbox_density_v2: true
+      safety_alert_new_copy: false
+      interaction_priority_rules_v3: false
+  configurationHash: "sha256:REPLACE_AT_BUILD"
+
+verification:
+  # status: pass | fail | pending | not-applicable
+  # A bare `pass` is worthless twelve months from now. Every gate carries who
+  # verified it, when, against what, with a hash of the evidence so the report
+  # cannot be swapped after the fact.
+  accessibility:
+    status: pass
+    verifiedAt: "2026-08-02T00:02:00+03:00"
+    verifiedBy: "ci:ui-kit-verify@workflow-v1"
+    toolVersion: "playwright-chromium@1194"
+    evidence: "releases/1.5.0/accessibility.md"
+    evidenceHash: "sha256:93a86d6dff945a275d4806ecb2f29fdaa9cf911193b3ed4d582053cb821a00f4"
+    scope:
+      viewport: ["320px", "390px"]
+      textZoom: "200%"
+      flagsSnapshot: "flags-2026-08-02-01"
+  rtl:
+    status: pass
+    verifiedAt: "2026-08-02T00:03:00+03:00"
+    verifiedBy: "ci:ui-kit-verify@workflow-v1"
+    toolVersion: "playwright-chromium@1194"
+    evidence: "releases/1.5.0/rtl.md"
+    evidenceHash: "sha256:af8830100519951b899820327165e71ec7bda895abe0191bbf4ac53d0cb74be4"
+    scope:
+      screens: 23
+      mixedScript: "Arabic UI + Latin drug names + Arabic-Indic numerals"
+  keyboard:
+    status: pending
+    verifiedAt: null
+    verifiedBy: null
+    evidence: "releases/1.5.0/keyboard.md"
+    scope:
+      screens: 23
+      focusTrap: "sheet overlay"
+  clinical:
+    status: pending
+    verifiedAt: null
+    verifiedBy: null
+    evidence: "releases/1.5.0/clinical.md"
+    scope:
+      clinicalContracts:
+        - "interaction-check@2.1.0"
+        - "safety-alert@3.0.0"
+      knowledgeRelease: "2026.08.1"
+  security:
+    status: pending
+    verifiedAt: null
+    verifiedBy: null
+    evidence: "releases/1.5.0/security.md"
+  performance:
+    status: pending
+    verifiedAt: null
+    verifiedBy: null
+    evidence: "releases/1.5.0/performance.md"
+  adversarialReview:
+    status: pending
+    verifiedAt: null
+    verifiedBy: null
+    evidence: "releases/1.5.0/self-review.md"
+
+# ── Clinical contracts ─────────────────────────────────────────────────────
+# Behaviour and clinical meaning, versioned independently of the knowledge
+# CONTENT they operate on. A contract change is a code change; a knowledge
+# change is a content change. Conflating them is how a copy edit silently
+# becomes a clinical behaviour change.
+clinicalContracts:
+  - name: "interaction-check"
+    version: "2.1.0"
+    supported: "2.1.x"
+    breakingChange: false
+  - name: "safety-alert"
+    version: "3.0.0"
+    supported: "3.0.x"
+    breakingChange: true
+  - name: "dispense"
+    version: "1.2.0"
+    supported: "1.2.x"
+    breakingChange: false
+  - name: "medication-timeline"
+    version: "1.0.0"
+    supported: "1.0.x"
+    breakingChange: false
+  - name: "adherence"
+    version: "1.1.0"
+    supported: "1.1.x"
+    breakingChange: false
+  - name: "inventory-observation"
+    version: "1.0.0"
+    supported: "1.0.x"
+    breakingChange: false
+
+# ── Feature flags ──────────────────────────────────────────────────────────
+# Every flag has an owner, a declared clinical impact, and a removal version.
+# A flag with no removal version is permanent complexity pretending to be
+# temporary. `removeBy` at or below release.platform is a blocking defect.
+featureFlags:
+  - name: "reservation_live_eta_v2"
+    category: "operational"
+    owner: "Product + Engineering"
+    clinicalImpact: "none"
+    default: false
+    removeBy: "2.0.0"
+  - name: "pharmacist_inbox_density_v2"
+    category: "presentation"
+    owner: "Design System"
+    clinicalImpact: "none"
+    default: false
+    removeBy: "1.6.0"
+  - name: "safety_alert_new_copy"
+    category: "clinical-adjacent"
+    owner: "Clinical + Product"
+    clinicalImpact: "review-required"
+    default: false
+    removeBy: "1.6.0"
+  - name: "interaction_priority_rules_v3"
+    category: "clinical-safety"
+    owner: "Clinical Governance"
+    clinicalImpact: "high"
+    default: false
+    removeBy: "3.0.0"
+
+# ── UI claim bindings ──────────────────────────────────────────────────────
+# Every UI element that renders a clinical output declares which claim it is
+# rendering. The UI does NOT decide whether a claim is valid — it displays an
+# output produced by a verified contract and knowledge layer. It carries the
+# reference so an auditor can walk from a screen back to the claim, its
+# source, its reviewer, and its release without guessing.
+uiClaimBindings:
+  - selector: "[data-clinical-claim]"
+    file: "dawai-site/dawai-ui-kit.html"
+    requiredAttributes:
+      - "data-clinical-claim"
+      - "data-clinical-contract"
+      - "data-knowledge-release"
+
+claims:
+  - id: "CLM-INT-IBU-WARF-001"
+    title: "تداخل ibuprofen و warfarin"
+    state: published
+    evidenceQuality: high
+    contract: "interaction-check@2.1.0"
+    knowledgeRelease: "2026.08.1"
+    source: "BNF 2026.08"
+    reviewedAt: "2026-08-02"
+    reviewedBy: "clinical-reviewer:role-id"
+    nextReviewAt: "2027-02-02"
+    limitations: "لا يغني عن مراجعة الصيدلي أو التاريخ الدوائي الكامل."
+  - id: "CLM-ALERT-INS-002"
+    title: "تنبيه حفظ insulin glargine"
+    state: review-due
+    evidenceQuality: high
+    contract: "safety-alert@3.0.0"
+    knowledgeRelease: "2026.08.1"
+    source: "Local MOH 2026.07"
+    reviewedAt: "2026-07-16"
+    reviewedBy: "clinical-reviewer:role-id"
+    nextReviewAt: "2026-07-16"
+    limitations: "قد تختلف تعليمات المنتج المحدد؛ يُراجع الملصق الدوائي."
+  - id: "CLM-OTC-ASA-003"
+    title: "تصنيف aspirin منخفض الجرعة"
+    state: withdrawn
+    evidenceQuality: moderate
+    contract: "medication-timeline@1.0.0"
+    knowledgeRelease: "2026.06.1"
+    source: "BNF 2026.06"
+    reviewedAt: "2026-06-21"
+    reviewedBy: "clinical-reviewer:role-id"
+    nextReviewAt: "2026-12-21"
+    limitations: "سُحب بعد تحديث التصنيف المحلي."
+
+artifacts:
+  changelog: "CHANGELOG.md"
+  compatibility: "releases/1.5.0/compatibility.md"
+  releaseNotes: "releases/1.5.0/RELEASE_NOTES.md"
+  migration: "docs/migrations/1.5.0.md"
+  verificationIndex: "releases/1.5.0/VERIFICATION.md"
+  evidenceReview: "releases/1.5.0/EVIDENCE_REVIEW.md"
+
+# Files CI writes. Listed so `validate-artifacts` can prove a human did not
+# hand-edit one, and so nobody mistakes a generated file for a source file.
+generated:
+  - "VERSION"
+  - "releases/1.5.0/compatibility.md"
+  - "dawai-site/release-data.js"

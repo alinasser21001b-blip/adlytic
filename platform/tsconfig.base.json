@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "sourceMap": true,
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "useUnknownInCatchVariables": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "baseUrl": ".",
+    "paths": {
+      "@dawai/design": ["packages/design/src/index.ts"],
+      "@dawai/domain": ["packages/domain/src/index.ts"],
+      "@dawai/navigation": ["packages/navigation/src/index.ts"],
+      "@dawai/session": ["packages/session/src/index.ts"],
+      "@dawai/offline": ["packages/offline/src/index.ts"],
+      "@dawai/net": ["packages/net/src/index.ts"],
+      "@dawai/contracts": ["packages/contracts/src/index.ts"]
+    },
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  }
+}

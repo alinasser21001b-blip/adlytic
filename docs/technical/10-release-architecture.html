@@ -1,0 +1,187 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Release Architecture</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Release Architecture</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html" class="on">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  <nav id="toc"><div class="grp">On this page</div><a href="#pipeline">Pipeline</a><a href="#artifacts">Artifacts</a><a href="#gates">Gates</a><a href="#rollback">Rollback</a></nav>
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Release Architecture</h1>
+<p class="lede">The release process is not new. It already exists in this
+repository and is reused: <code>release-manifest.yaml</code> is the sole
+operational source of truth, with ten validators and a generator that can prove
+no output was hand-edited.</p>
+
+<div class="rule"><b>Single source of truth</b>release-manifest.yaml — release identity, compatibility, governance policy, approved runtime configuration, verification status and artifact paths. Every number that appears in a changelog, release note, compatibility report or dashboard is read from it. Nothing is written twice.</div>
+
+<section id="pipeline"><h2>Pipeline</h2>
+<div class="tw"><table><thead><tr><th>Stage</th><th>Does</th><th>Gate</th></tr></thead><tbody>
+<tr><td><b>1 Commit</b></td><td>Lint, typecheck, unit and state-machine tests</td><td>Any failure stops here</td></tr><tr><td><b>2 Contract</b></td><td>Contract tests against the model in this folder</td><td>An undeclared response field fails the build</td></tr><tr><td><b>3 Architecture</b></td><td>node docs/technical/validate.mjs</td><td>All 11 checks must pass</td></tr><tr><td><b>4 Product</b></td><td>Blueprint v3 self-checks: issue ownership, decision completeness, screen completeness</td><td>Any open item fails</td></tr><tr><td><b>5 Integration</b></td><td>Integration and permission suites against ephemeral infrastructure</td><td>Every permission-matrix cell exercised, positive and negative</td></tr><tr><td><b>6 Release gate</b></td><td>node tools/release/validate.mjs</td><td>Ten validators; the report lists every registered validator even with no findings</td></tr><tr><td><b>7 Negative gate</b></td><td>Known-bad manifests must be REJECTED</td><td>A gate that has never failed is untested</td></tr><tr><td><b>8 Generate</b></td><td>node tools/release/generate.mjs</td><td>--check proves no generated file was hand-edited</td></tr><tr><td><b>9 E2E</b></td><td>Device matrix end-to-end on the twelve journeys</td><td>Every journey closes</td></tr><tr><td><b>10 Publish</b></td><td>Build artifacts, stamp the configuration hash, tag</td><td>status may become released only when every gate above passed</td></tr>
+</tbody></table></div>
+<pre class="mermaid">flowchart LR
+  S0["1 Commit"]
+  S1["2 Contract"]
+  S2["3 Architecture"]
+  S3["4 Product"]
+  S4["5 Integration"]
+  S5["6 Release gate"]
+  S6["7 Negative gate"]
+  S7["8 Generate"]
+  S8["9 E2E"]
+  S9["10 Publish"]
+  S0 --> S1
+  S1 --> S2
+  S2 --> S3
+  S3 --> S4
+  S4 --> S5
+  S5 --> S6
+  S6 --> S7
+  S7 --> S8
+  S8 --> S9
+  S9 --> REL["status: released"]</pre>
+<p class="cap">Stage 7 is the one most projects omit: known-bad manifests must be
+<em>rejected</em>. A release gate that has never failed is untested.</p>
+</section>
+
+<section id="artifacts"><h2>Artifacts</h2>
+<div class="tw"><table><thead><tr><th>Artifact</th><th>Produced by</th><th>Note</th></tr></thead><tbody>
+<tr><td><code>Patient app bundle</code></td><td>Build stage</td><td>Contains no pharmacy or operator route — role isolation is verified by an import check</td></tr><tr><td><code>Pharmacy app bundle</code></td><td>Build stage</td><td>Same check, inverted</td></tr><tr><td><code>Owner console bundle</code></td><td>Build stage</td><td>Web only</td></tr><tr><td><code>Service images</code></td><td>Build stage</td><td>One per service in this model</td></tr><tr><td><code>VERSION</code></td><td>generate.mjs</td><td>Generated — never hand-edited</td></tr><tr><td><code>compatibility.md</code></td><td>generate.mjs</td><td>Never says Compatible over an unverified release</td></tr><tr><td><code>release-data.js</code></td><td>generate.mjs</td><td>The governance dashboard renders from it and holds no numbers of its own</td></tr><tr><td><code>Evidence files</code></td><td>Verification runs</td><td>Hashed; a changed report must be re-verified by a person, never re-stamped by a script</td></tr>
+</tbody></table></div></section>
+
+<section id="gates"><h2>Validation gates for <code>status: released</code></h2>
+<ol><li>Manifest schema valid</li><li>Policy version supported</li><li>All declared contracts compatible</li><li>Architecture validation: 11/11</li><li>Every permission-matrix cell exercised</li><li>Runtime configuration hash matches the approved snapshot</li><li>Every required verification has a signed, hashed evidence file</li><li>All generated artifacts match the manifest</li><li>All release-gate approvals completed</li></ol></section>
+
+<section id="rollback"><h2>Rollback</h2>
+<div class="tw"><table><thead><tr><th style="width:180px">Layer</th><th>Strategy</th></tr></thead><tbody>
+<tr><td><b>Client</b></td><td>Store rollout is staged; a halt stops the rollout, and the previous build remains installable. Clients never assume the newest server contract — a version below the manifest's minimum is told to update rather than failing obscurely.</td></tr><tr><td><b>Service</b></td><td>Deploy is blue/green per service. Rollback is repointing traffic; no data migration is reversed by a rollback.</td></tr><tr><td><b>Schema</b></td><td>Expand-migrate-contract. A release never contracts in the same deploy that expands, so the previous service version always runs against the new schema.</td></tr><tr><td><b>Append-only tables</b></td><td>dispense_records and audit_entries are never rolled back. A rollback that could erase a clinical record or an audit entry is not a rollback; corrections are new records.</td></tr><tr><td><b>Feature configuration</b></td><td>Toggling is instant and does not require a deploy. Every toggle has an owner and a removal version, and one past its removal version blocks the release.</td></tr>
+</tbody></table></div>
+<div class="rule"><b>What a rollback can never do</b>
+Erase a dispense record or an audit entry. Those tables are append-only in both
+directions of time — a rollback that could remove a clinical record is not a
+rollback, it is data loss with a friendly name. Corrections are new records.</div>
+</section>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

@@ -1,0 +1,47 @@
+{
+  "name": "dawai-platform",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Dawai — a time-bounded medicine request and pharmacy offer network for Iraq",
+  "type": "module",
+  "scripts": {
+    "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
+    "dev:api": "tsx watch server/index.ts",
+    "dev:web": "vite",
+    "build": "npm run check && vite build && esbuild server/index.ts server/worker.ts server/db/migrate.ts --bundle --platform=node --target=node24 --format=esm --outdir=dist-server --outbase=server --entry-names=[dir]/[name] --sourcemap --packages=external",
+    "start": "NODE_ENV=production node dist-server/index.js",
+    "start:worker": "NODE_ENV=production node dist-server/worker.js",
+    "preview": "vite preview",
+    "check": "tsc -b --pretty false && tsc -p tsconfig.server.json --pretty false",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:migrate": "tsx server/db/migrate.ts"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@hono/node-server": "^2.0.12",
+    "argon2": "^0.45.1",
+    "hono": "^4.12.32",
+    "postgres": "^3.4.9",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "sharp": "^0.35.3",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.62.1",
+    "@testing-library/jest-dom": "^7.0.0",
+    "@testing-library/react": "^16.3.2",
+    "@types/node": "^26.1.2",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.0.5",
+    "concurrently": "^10.0.4",
+    "esbuild": "^0.28.1",
+    "jsdom": "^30.0.1",
+    "tsx": "^4.23.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.2.0",
+    "vitest": "^4.1.10"
+  }
+}

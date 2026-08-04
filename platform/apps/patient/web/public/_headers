@@ -1,0 +1,19 @@
+# Headers, carried inside the build output for the same reason as _redirects:
+# they must not depend on which netlify.toml the base directory resolves to.
+
+# The bundle carries a content hash and can be cached for a year; the document
+# names that bundle and must never be.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable
+
+/*.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: SAMEORIGIN
+  # R2 asks the patient to photograph a prescription, and camera=() would
+  # refuse it in a way no error message could explain. Geolocation stays
+  # denied: the product asks for a district rather than reading where anyone is.
+  Permissions-Policy: camera=(self), geolocation=(), microphone=()

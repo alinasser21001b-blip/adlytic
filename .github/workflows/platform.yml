@@ -1,0 +1,129 @@
+# Stage 1 + Stage 4 gates. Every rule in the build directive that can be
+# machine-checked is checked here, including the negative tests that prove the
+# checkers reject what they must.
+name: Platform
+
+on:
+  pull_request:
+    paths: ["platform/**", "docs/product/v3/**", "docs/technical/**"]
+  push:
+    branches: ["**"]
+    paths: ["platform/**", "docs/product/v3/**", "docs/technical/**"]
+  workflow_dispatch:
+
+defaults:
+  run:
+    working-directory: platform
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci || npm install
+
+      # ONE step, deliberately. This job used to hand-enumerate the gates —
+      # trace, layers, ux, types, test — and `npm run check` grew a sixth
+      # (test-reach) that nobody added here, so a gate that passes locally
+      # never ran on a pull request. A list maintained in two places drifts;
+      # this one cannot, because there is only one list now and package.json
+      # owns it. Each tool still prints its own header, so a failure names
+      # itself in the log.
+      - name: Gates — npm run check
+        run: npm run check
+
+      # A guard that has never rejected anything is untested.
+      - name: Negative tests — the guards must reject known violations
+        run: |
+          set -u
+          mkdir -p packages/domain/src/_probe
+          cleanup() { rm -rf packages/domain/src/_probe; }
+          trap cleanup EXIT
+          expect_fail() {
+            if npm run "$2" --silent > /dev/null 2>&1; then
+              echo "::error::guard ACCEPTED a violation it must reject: $1"; exit 1
+            fi
+            echo "  rejected as expected: $1"
+          }
+          printf 'export const x = 1;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "a module with no docblock (Rule 1)" trace
+          printf '/**\n * @blueprint §99 nonsense\n * @owner nobody-service\n * @why probe\n */\nexport const x = 1;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "an unresolvable Blueprint reference (Rule 1)" trace
+          printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n * @implements marketplace/rules\n */\nexport const x = 1;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "duplicated ownership of a concept (Rule 2)" trace
+          printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n */\nexport const t = Date.now();\n' > packages/domain/src/_probe/p.ts
+          expect_fail "the domain reading the system clock (Rule 3, determinism)" layers
+          printf '/**\n * @blueprint §6\n * @owner marketplace-engine\n * @why probe\n */\nimport { readFileSync } from "node:fs";\nexport const t = readFileSync;\n' > packages/domain/src/_probe/p.ts
+          expect_fail "the domain importing a Node built-in (Rule 3)" layers
+          rm -rf packages/domain/src/_probe
+
+          cp apps/patient/src/screens/core-loop.contract.ts /tmp/c.bak
+          restore_ux() { cp /tmp/c.bak apps/patient/src/screens/core-loop.contract.ts; }
+          expect_ux_fail() {
+            if npm run ux --silent > /dev/null 2>&1; then
+              echo "::error::UX check ACCEPTED a violation it must reject: $1"; restore_ux; exit 1
+            fi
+            echo "  rejected as expected: $1"; restore_ux
+          }
+          python3 -c "p='apps/patient/src/screens/core-loop.contract.ts';s=open(p).read();open(p,'w').write(s.replace('id: \"S1\",','id: \"S999\",',1))"
+          expect_ux_fail "a contract for a screen the Blueprint does not contain"
+          python3 -c "p='apps/patient/src/screens/core-loop.contract.ts';s=open(p).read();open(p,'w').write(s.replace('exits: [\"V2\", \"V4\", \"R8\"]','exits: [\"NOWHERE\"]',1))"
+          expect_ux_fail "an exit to a screen that does not exist"
+
+          # Build output beside a source resolves FIRST in the test runner, so
+          # every test would silently run against the previous build.
+          touch apps/patient/src/screens/core-loop.contract.js
+          if npm run layers --silent > /dev/null 2>&1; then
+            echo "::error::layer check ACCEPTED build output beside a source"; rm -f apps/patient/src/screens/core-loop.contract.js; exit 1
+          fi
+          echo "  rejected as expected: build output beside a source file"
+          rm -f apps/patient/src/screens/core-loop.contract.js
+          echo "All negative tests passed: the guards reject what they must."
+
+  # The review pipeline, which `npm run check` does not cover. Its gates were
+  # local-only: a change that altered every screen could be pushed with CI
+  # green, because nothing on a runner ever rendered a screen.
+  review:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+      - run: npm ci || npm install
+      - run: npx playwright install --with-deps chromium
+
+      # Render every screen and photograph it. shoot.mjs fails on horizontal
+      # overflow at a phone viewport, which is a real defect and one that does
+      # not depend on which machine drew the pixels.
+      #
+      # It deliberately does NOT compare the resulting PNGs against the
+      # committed ones. That was the first version of this job and CI rejected
+      # it: all 44 files differed on the runner, every one smaller by 5-10%
+      # with "0 insertions, 0 deletions" — identical content, different bytes.
+      # PNG output is reproducible within ONE environment, not across Chromium
+      # builds and font sets. Byte equality is the right comparison for
+      # regress.mjs, which runs on a developer's machine against that same
+      # machine's previous output; it is the wrong comparison for a runner.
+      - name: Screens render at a phone viewport
+        run: |
+          npm run review:render
+          node tools/review/shoot.mjs
+
+      # What CI *can* honestly check about the screens themselves. The HTML the
+      # renderer produces before any pixel exists is text — generated by React
+      # from source, no rasterisation, no font metrics, nothing machine-specific
+      # in it — so its hash IS comparable across environments, which the PNGs
+      # are not. This catches a component tree, a copy string, an inline style
+      # or an accessibility attribute changing without the change being
+      # recorded. It cannot see a font that failed to load; regress.mjs remains
+      # the only witness for that, on a developer's machine.
+      - name: Screens render what this commit recorded
+        run: node tools/review/manifest.mjs --check
+
+      # 320/360/390/430pt across every screen state, with the ten detectors
+      # proving themselves before they are trusted.
+      - name: Responsive validation
+        run: node tools/review/responsive.mjs
+

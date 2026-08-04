@@ -1,0 +1,64 @@
+# The technical architecture is derived from Blueprint v3 and must stay derived.
+name: Technical Architecture
+
+on:
+  pull_request:
+    paths: ["docs/technical/**", "docs/product/v3/**"]
+  push:
+    branches: ["**"]
+    paths: ["docs/technical/**", "docs/product/v3/**"]
+  workflow_dispatch:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: "22" }
+
+      # Eleven checks, all computed from the model. V10 is the one that matters
+      # most: every element must trace to Blueprint v3, so nothing can be
+      # invented into the architecture without failing the build.
+      - name: Validate the architecture
+        run: node docs/technical/validate.mjs
+
+      # The documents are generated. A hand-edited one is a second source of
+      # truth in disguise, and this is the only check that catches it.
+      - name: Assert the documents are still derived
+        run: |
+          node docs/technical/build.mjs
+          if ! git diff --quiet -- docs/technical/*.html; then
+            echo "::error::A generated document differs from the model. Edit model.js, not the HTML."
+            git diff --stat -- docs/technical/*.html
+            exit 1
+          fi
+          echo "All documents match the model."
+
+      # A validator that has never rejected anything is untested.
+      - name: Negative tests — the validator must reject known-bad models
+        run: |
+          set -u
+          cp docs/technical/model.js /tmp/m.bak
+          restore() { cp /tmp/m.bak docs/technical/model.js; }
+          expect_fail() {
+            if node docs/technical/validate.mjs > /dev/null 2>&1; then
+              echo "::error::validator ACCEPTED a model it must reject: $1"; restore; exit 1
+            fi
+            echo "  rejected as expected: $1"; restore
+          }
+          python3 -c "p='docs/technical/model.js';s=open(p).read();open(p,'w').write(s.replace('bp:\"§4 M1\"','bp:\"\"',1))"
+          expect_fail "an element with no Blueprint reference"
+          python3 - <<'PY'
+          p='docs/technical/model.js'; s=open(p).read()
+          s=s.replace('deps:["audit-service"],\n  forbidden:["Store any clinical content"','deps:["notification-service"],\n  forbidden:["Store any clinical content"',1)
+          open(p,'w').write(s)
+          PY
+          expect_fail "a circular service dependency"
+          python3 - <<'PY'
+          p='docs/technical/model.js'; s=open(p).read()
+          s=s.replace('c:["audit-service"], bp:"§6 Session"','c:[], bp:"§6 Session"',1)
+          open(p,'w').write(s)
+          PY
+          expect_fail "an event with no consumer"
+          echo "All negative tests passed: the validator rejects what it must."

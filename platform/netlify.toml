@@ -1,0 +1,67 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# The patient app, as the existing preview site builds it.
+#
+# THIS is the file Netlify reads. Setting `base = "platform"` in the root
+# netlify.toml tells Netlify to look for a netlify.toml in that base directory
+# and use it instead — so when this file was emptied, the redirects went with
+# it and the deployed site answered 404 at its own front door. Found by opening
+# the deployed URL, which is the only way it could have been found.
+#
+# The routing and headers are ALSO carried inside the build output, as
+# apps/patient/web/public/_redirects and _headers, so a future change to which
+# config wins cannot take the front door down again.
+# ─────────────────────────────────────────────────────────────────────────────
+
+[build]
+  publish = "dist-web"
+  # Build the app, then assemble the rest of the preview beside it: the design
+  # prototype at /design/ and the screen gallery at /review/. One URL carries
+  # everything this project has built — the app alone at the root looked like
+  # a single feature to the person reviewing it, and the rest of the work was
+  # invisible.
+  command = "npm ci && npm run build:web && node tools/assemble-preview.mjs"
+  # The review build carries the mock API. Product asked for this directly: a
+  # missing backend must not stop the workflow being reviewed. Unset it and the
+  # module is never imported, so it never reaches the bundle.
+  environment = { VITE_MOCK_API = "1", NODE_VERSION = "22" }
+
+# ── routing ──────────────────────────────────────────────────────────────────
+# Vite's root is the platform directory, so the entry is emitted at the path it
+# occupies in the source tree. The dev server answers the front door with a
+# middleware; a static host cannot run middleware, so it does the same with a
+# rewrite. 200, not 301: the address stays the one the visitor typed.
+[[redirects]]
+  from   = "/"
+  to     = "/apps/patient/web/index.html"
+  status = 200
+
+# One page, one entry. The app owns its own navigation and reads nothing from
+# the URL; the mock answers /v1/ inside the page, so nothing needs to escape.
+[[redirects]]
+  from   = "/*"
+  to     = "/apps/patient/web/index.html"
+  status = 200
+
+# ── caching ──────────────────────────────────────────────────────────────────
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+[[headers]]
+  for = "/*.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
+
+# ── security ─────────────────────────────────────────────────────────────────
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy        = "strict-origin-when-cross-origin"
+    X-Frame-Options        = "SAMEORIGIN"
+    # R2 asks the patient to photograph a prescription, and camera=() would
+    # refuse it in a way no error message could explain. Geolocation stays
+    # denied: the product asks for a district rather than reading where anyone
+    # is.
+    Permissions-Policy     = "camera=(self), geolocation=(), microphone=()"

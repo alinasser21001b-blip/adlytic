@@ -1,0 +1,83 @@
+{
+ "generatedFrom": "docs/technical/model.js + docs/product/v3/{register,phase0}.js",
+ "counts": {
+  "services": 12,
+  "entities": 21,
+  "events": 54,
+  "endpoints": 67,
+  "tables": 22,
+  "tests": 47,
+  "gaps": 11,
+  "blueprintDecisions": 43,
+  "blueprintScreens": 133
+ },
+ "checks": [
+  {
+   "id": "V1",
+   "name": "Every entity has exactly one owning service",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V2",
+   "name": "Every entity state declares its implementation path",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V3",
+   "name": "Every event has a producer and at least one consumer",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V4",
+   "name": "Each permission is enforced in exactly one layer",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V5",
+   "name": "No orphan APIs",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V6",
+   "name": "No orphan tables",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V7",
+   "name": "No unreachable entity states",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V8",
+   "name": "No duplicated responsibilities",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V9",
+   "name": "No circular service dependencies",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V10",
+   "name": "Nothing is invented: every element traces to Blueprint v3",
+   "pass": true,
+   "failures": []
+  },
+  {
+   "id": "V11",
+   "name": "Every gap names what it blocks",
+   "pass": true,
+   "failures": []
+  }
+ ],
+ "pass": true
+}

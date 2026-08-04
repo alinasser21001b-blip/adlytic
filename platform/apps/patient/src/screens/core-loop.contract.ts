@@ -1,0 +1,455 @@
+/**
+ * UX contracts for the patient core loop.
+ *
+ * @blueprint S1 · S2 · F1 · F2 · F3 · F4 · R1 · R2 · R3 · R4 · R5 · R6 · R7 · R8 · R9 · R11 · R13 · V1 · V2 · V4 · V5 · V7 · V8
+ * @owner patient-app
+ * @why Stage 6 builds screens; this declares what each one owes the user
+ *      BEFORE any of them is built, so a screen cannot be called finished
+ *      while it leaves someone wondering where they are or what to do next.
+ *      Every purpose, entry, exit and state below is transcribed from
+ *      Blueprint v3 §4 — tools/ux-check.mjs fails the build if a contract
+ *      names a screen the Blueprint does not contain, drops a state the
+ *      Blueprint declares, or exits nowhere.
+ */
+import type { ScreenContract } from "@dawai/design";
+
+export const CORE_LOOP = [
+  {
+    id: "S1",
+    location: { title: "اليوم", destination: "today" },
+    purpose: "What is happening right now",
+    // Root of a tab: the OS back gesture leaves the app, which is correct and
+    // must be stated rather than silently true.
+    back: { kind: "none", why: "root of the Today tab — the OS gesture exits the app" },
+    primary: { label: "أطلب دواء", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [
+      { label: "لمن؟", leadsTo: "S2" },
+      { label: "سجل الاستلام", leadsTo: "V8" },
+    ],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      // §22 names two DIFFERENT states here and the Blueprint declares both.
+      // "empty" is a brand-new account with nothing yet, and it must teach:
+      // it is the highest-attention moment in the product.
+      { kind: "empty", explains: "هنا راح تشوف حجوزاتك وأدويتك اللي استلمتها",
+        action: { label: "أطلب أول دواء", leadsTo: "R1" }, isSuccess: false },
+      // "quiet" is a well-managed patient on an ordinary day. It is
+      // reassurance, not absence, and offering an action here would invent
+      // urgency the user does not have.
+      { kind: "empty", explains: "كل شي تمام — ما عندك شي يحتاج انتباهك هسه",
+        action: null, isSuccess: true },
+      { kind: "offline", readOnly: true, showsAge: true },
+      { kind: "error", whatFailed: "ما كدرنا نحدّث الصفحة", workPreserved: true,
+        action: { label: "أعد المحاولة", leadsTo: "S1" } },
+    ],
+    exits: ["R1", "S2", "V2", "V8"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    // The one hard ask in the whole product, and the only screen a guard can
+    // send a guest to. §3.1: the account is requested at the first action that
+    // needs one, with the reason stated — never as a wall on launch.
+    id: "E4",
+    location: { title: "ليش نحتاج رقمك", destination: "entry" },
+    purpose: "Explain before the one hard ask",
+    // Dismiss, not pop: the action the patient was taking is preserved (D26),
+    // so leaving returns them to it rather than unwinding a stack.
+    back: { kind: "dismiss", returnsTo: "S1" },
+    primary: { label: "أدخل رقمي", leadsTo: "E5", tapsToOutcome: 1 },
+    secondary: [],
+    states: [],
+    exits: ["E5"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E5 — the number itself. Its own screen because E4 explains and this
+    // takes: merging them would put the ask above the reason.
+    id: "E5",
+    location: { title: "رقم موبايلك", destination: "entry" },
+    purpose: "Take a number",
+    back: { kind: "pop" },
+    primary: { label: "أرسل الرمز", leadsTo: "E6", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      // "Malformed number · unsupported country → inline, no blame". Two
+      // different sentences, because a number we cannot serve is our limit and
+      // a number typed wrong is a typo, and telling someone their correct
+      // number is invalid is the app blaming them for our coverage.
+      { kind: "error", whatFailed: "الرقم مو مكتمل", workPreserved: true,
+        action: { label: "صحّح الرقم", leadsTo: "E5" } },
+      // "Blocked with a clear reason" — a verification cannot be queued, and
+      // pretending otherwise would strand the patient waiting for an SMS that
+      // was never requested.
+      { kind: "offline", blocked: true,
+        because: "ما نكدر نرسل الرمز بدون نت — الرسالة تنرسل هسه أو ما تنرسل" },
+    ],
+    exits: ["E6"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E6 — four declared failures, four different recoveries.
+    id: "E6",
+    location: { title: "الرمز", destination: "entry" },
+    purpose: "Verify the number",
+    back: { kind: "pop" },
+    primary: { label: "تأكيد", leadsTo: "E7", tapsToOutcome: 1 },
+    secondary: [{ label: "غيّر الرقم", leadsTo: "E5" }],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      { kind: "error", whatFailed: "الرمز مو صحيح", workPreserved: true,
+        action: { label: "جرّب مرة ثانية", leadsTo: "E6" } },
+      { kind: "offline", blocked: true,
+        because: "التحقق يحتاج اتصال — ما نكدر نتأكد من الرمز بدون نت" },
+    ],
+    exits: ["E5", "E7"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E7 — "Minimum identity for a pickup counter". The word minimum is the
+    // whole specification: nothing beyond what a pharmacist needs to hand a
+    // bag to the right person.
+    id: "E7",
+    location: { title: "اسمك", destination: "entry" },
+    purpose: "Minimum identity for a pickup counter",
+    back: { kind: "pop" },
+    primary: { label: "كمّل", leadsTo: "E8", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      { kind: "error", whatFailed: "محتاجين اسمك", workPreserved: true,
+        action: { label: "اكتب اسمك", leadsTo: "E7" } },
+    ],
+    exits: ["E8"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    // E8 — "Location refused → district list, never a wall". The list is the
+    // primary route rather than the consolation prize.
+    id: "E8",
+    location: { title: "منطقتك", destination: "entry" },
+    purpose: "Where to search from",
+    back: { kind: "pop" },
+    primary: { label: "خلص", leadsTo: "S1", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      { kind: "error", whatFailed: "ما اخترت منطقة", workPreserved: true,
+        action: { label: "اختر منطقتك", leadsTo: "E8" } },
+      // Never a wall: refusing location leaves the list, which was always the
+      // way through anyway.
+      { kind: "permissionRefused", stillUsable: true,
+        alternative: "اختر منطقتك من القائمة — ما نحتاج موقعك" },
+    ],
+    exits: ["S1"],
+    telemetry: [],
+    persona: "entry",
+  },
+  {
+    id: "F1",
+    location: { title: "ابحث", destination: "find" },
+    purpose: "Start anything new",
+    back: { kind: "none", why: "root of the Find tab" },
+    primary: { label: "دوّر على دواء", leadsTo: "F2", tapsToOutcome: 1 },
+    secondary: [
+      { label: "صيدليات قريبة", leadsTo: "F5" },
+      { label: "صوّر وصفة", leadsTo: "R2" },
+    ],
+    states: [
+      { kind: "empty", explains: "دوّر باسم الدواء، أو صوّر الوصفة",
+        action: { label: "صوّر وصفة", leadsTo: "R2" }, isSuccess: false },
+      { kind: "offline", readOnly: true, showsAge: true },
+    ],
+    exits: ["F2", "F5", "R2"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "F2",
+    location: { title: "نتائج البحث", destination: "find" },
+    purpose: "Find a catalogue item the way people actually type",
+    back: { kind: "pop" },
+    primary: { label: "أطلب هذا الدواء", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [{ label: "شوف التفاصيل", leadsTo: "F3" }],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      // §13.1 — the catalogue is incomplete, not the patient wrong. A bare "no
+      // results" is what this replaces, and the miss feeds catalogue growth.
+      { kind: "empty", explains: "ما لكيناه بقائمتنا — ممكن يكون موجود بالصيدليات",
+        action: { label: "أطلبه بالاسم مع صورة", leadsTo: "R1" }, isSuccess: false },
+      { kind: "error", whatFailed: "ما كدرنا نوصل للبحث", workPreserved: true,
+        action: { label: "أعد المحاولة", leadsTo: "F2" } },
+      { kind: "offline", readOnly: true, showsAge: true },
+    ],
+    exits: ["F3", "R1"],
+    telemetry: ["search.unmatched"],
+    persona: "patient",
+  },
+  {
+    id: "R1",
+    location: { title: "طلب جديد", destination: "modal" },
+    purpose: "Assemble the lines to ask for",
+    back: { kind: "dismiss", returnsTo: "S1" },
+    primary: { label: "كمّل", leadsTo: "R6", tapsToOutcome: 1 },
+    secondary: [
+      { label: "ضيف دواء ثاني", leadsTo: "F2" },
+      { label: "صوّر الوصفة", leadsTo: "R2" },
+      { label: "لمن؟", leadsTo: "R4" },
+    ],
+    states: [
+      { kind: "empty", explains: "ضيف الدواء اللي تحتاجه — تكدر تضيف لحد ٨",
+        action: { label: "دوّر على دواء", leadsTo: "F2" }, isSuccess: false },
+      // The refusal is inline and immediate: a controlled item is refused with
+      // its reason (D42), and a prescription line cannot proceed (D18).
+      { kind: "error", whatFailed: "هذا الدواء ما ينطلب من التطبيق", workPreserved: true,
+        action: { label: "شوف السبب", leadsTo: "F4" } },
+    ],
+    exits: ["F2", "R2", "R4", "R6"],
+    telemetry: ["clinical.gate.refused"],
+    persona: "patient",
+  },
+  {
+    id: "R6",
+    location: { title: "تأكيد الطلب", destination: "modal" },
+    purpose: "Final check before it goes",
+    back: { kind: "pop" },
+    primary: { label: "أرسل الطلب", leadsTo: "R7", tapsToOutcome: 1 },
+    secondary: [{ label: "غيّر الاستعجال", leadsTo: "R5" }],
+    states: [
+      { kind: "error", whatFailed: "ما وصل الطلب", workPreserved: true,
+        action: { label: "أعد الإرسال", leadsTo: "R6" } },
+      // D27 — a queued request is never presented as sent.
+      { kind: "offline", readOnly: false, showsAge: true },
+    ],
+    exits: ["R5", "R7", "R13"],
+    telemetry: ["request.broadcast"],
+    persona: "patient",
+  },
+  {
+    id: "R7",
+    location: { title: "ننتظر الردود", destination: "modal" },
+    purpose: "Make the wait legible",
+    // The request is live. Leaving is possible but it is not a back — it drops
+    // to Today with the request still running, which the screen says.
+    back: { kind: "dismiss", returnsTo: "S1" },
+    primary: { label: "شوف العرض الواصل", leadsTo: "R8", tapsToOutcome: 1 },
+    // D27 — a queued request has reached nobody, so «شوف العرض الواصل» would
+    // lead to an empty list and imply replies that cannot exist. The delivery
+    // gives this state its own answer: acknowledge, leave, be told.
+    primaryWhen: {
+      offline: { label: "تمام — خبروني", leadsTo: "S1", tapsToOutcome: 1 },
+      // Nothing has answered yet. «شوف العرض الواصل» over zero offers promises
+      // an offer that does not exist and leads to an empty list; the empty
+      // treatment already declares `action: null` for the same reason. The
+      // patient's only real option is to keep waiting, which needs no button.
+      empty: null,
+    },
+    secondary: [{ label: "ألغِ الطلب", leadsTo: "S1" }],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      // Waiting with nothing yet is not an absence — the screen's whole content
+      // IS the wait, so this state carries no separate message. The old
+      // «سألنا الصيدليات القريبة — ننتظر أول رد» was printed twice, once as the
+      // state treatment filling the screen and once inside the countdown card.
+      { kind: "empty", explains: "ننتظر أول رد", action: null, isSuccess: true },
+      { kind: "error", whatFailed: "انقطع الاتصال", workPreserved: true,
+        action: { label: "أعد الاتصال", leadsTo: "R7" } },
+      { kind: "offline", readOnly: true, showsAge: true },
+    ],
+    exits: ["R8", "R11", "S1"],
+    telemetry: ["request.answered", "request.unanswered"],
+    persona: "patient",
+  },
+  {
+    id: "R8",
+    location: { title: "قارن العروض", destination: "modal" },
+    purpose: "Choose, with the reasons visible",
+    back: { kind: "pop" },
+    // No screen-level primary: there are three offers and a single dominant
+    // button would have to pick one for the patient. Each row IS the action,
+    // labelled with its own pharmacy — which is also why the delivery draws no
+    // button here.
+    primary: null,
+    noPrimaryBecause: "Every offer is its own action; a screen-level primary would choose a pharmacy on the patient's behalf, which D12 forbids.",
+    secondary: [{ label: "شوف تفاصيل العرض", leadsTo: "R9" }],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      { kind: "empty", explains: "ما وصل عرض بعد",
+        action: { label: "ارجع للانتظار", leadsTo: "R7" }, isSuccess: false },
+      // A withdrawn offer between render and tap is told plainly, then the
+      // list returns — never a silent failure on the most consequential tap.
+      { kind: "error", whatFailed: "هذا العرض انسحب قبل ثواني", workPreserved: true,
+        action: { label: "شوف العروض الباقية", leadsTo: "R8" } },
+    ],
+    exits: ["R9", "V1", "R7"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R2",
+    location: { title: "صوّر الوصفة", destination: "modal" },
+    purpose: "Photograph the paper",
+    back: { kind: "pop" },
+    primary: { label: "صوّر", leadsTo: "R3", tapsToOutcome: 1 },
+    // Refusing the camera is never a wall — the patient types the name instead.
+    secondary: [{ label: "اكتب الاسم بدال الصورة", leadsTo: "R1" }],
+    states: [
+      { kind: "permissionRefused", stillUsable: true,
+        alternative: "تكدر تكتب اسم الدواء بدل الصورة" },
+      // The failure names the fixable condition, never the person (D37).
+      { kind: "error", whatFailed: "ما نكدر نقرأ الوصفة من هذي الصورة", workPreserved: true,
+        action: { label: "صوّر مرة ثانية بضوء أكثر", leadsTo: "R2" } },
+    ],
+    exits: ["R3", "R1"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R3",
+    location: { title: "شوف الصورة", destination: "modal" },
+    purpose: "Confirm the image is readable before it travels",
+    back: { kind: "pop" },
+    // The patient judges legibility, not an algorithm — Phase 0 does not read
+    // the prescription (D18), and pretending otherwise would be a false claim.
+    primary: { label: "واضحة — كمّل", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [{ label: "صوّر مرة ثانية", leadsTo: "R2" }],
+    states: [],
+    exits: ["R1", "R2"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R4",
+    location: { title: "لمن الدواء؟", destination: "modal" },
+    purpose: "Choose the subject",
+    back: { kind: "dismiss", returnsTo: "R1" },
+    primary: { label: "اختر", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [{ label: "ضيف شخص", leadsTo: "S3" }],
+    states: [],
+    exits: ["R1", "S3"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R5",
+    location: { title: "شكد مستعجل؟", destination: "modal" },
+    purpose: "Set the window honestly",
+    back: { kind: "dismiss", returnsTo: "R1" },
+    primary: { label: "اختر", leadsTo: "R1", tapsToOutcome: 1 },
+    secondary: [],
+    states: [],
+    exits: ["R1"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R9",
+    location: { title: "تفاصيل العرض", destination: "modal" },
+    purpose: "One offer in full, line by line",
+    back: { kind: "pop" },
+    primary: { label: "احجز من هنا", leadsTo: "V1", tapsToOutcome: 1 },
+    secondary: [],
+    states: [
+      { kind: "error", whatFailed: "هذا العرض انسحب", workPreserved: true,
+        action: { label: "ارجع للعروض", leadsTo: "R8" } },
+    ],
+    exits: ["V1", "R8", "R10"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "R11",
+    location: { title: "ما رد أحد", destination: "modal" },
+    purpose: "The honest empty case",
+    back: { kind: "dismiss", returnsTo: "S1" },
+    primary: { label: "وسّع البحث", leadsTo: "R7", tapsToOutcome: 1 },
+    secondary: [
+      { label: "خبّرني إذا توفّر", leadsTo: "R12" },
+      { label: "جرّب بعدين", leadsTo: "S1" },
+    ],
+    states: [],
+    exits: ["R7", "R12", "S1"],
+    telemetry: ["request.unanswered"],
+    persona: "patient",
+  },
+  {
+    id: "R13",
+    location: { title: "بانتظار الإرسال", destination: "me" },
+    purpose: "Everything waiting to send",
+    back: { kind: "pop" },
+    primary: null,
+    noPrimaryBecause: "a list of pending work — the only action is per-item cancellation",
+    secondary: [{ label: "ألغِ", leadsTo: "R13" }],
+    states: [
+      { kind: "empty", explains: "ما في شي بانتظار الإرسال", action: null, isSuccess: true },
+      { kind: "error", whatFailed: "ما كدرنا نرسل هذا الطلب", workPreserved: true,
+        action: { label: "أعد المحاولة", leadsTo: "R13" } },
+    ],
+    exits: ["S1"],
+    telemetry: [],
+    persona: "patient",
+  },
+  {
+    id: "V1",
+    location: { title: "نحجز لك", destination: "modal" },
+    purpose: "The moment between choosing and confirmation",
+    // Deliberately un-poppable: a request to set stock aside is in flight and
+    // going back would leave the patient unsure whether it happened.
+    back: { kind: "none", why: "a hold request is in flight; the screen resolves to V2 or V4 on its own" },
+    primary: null,
+    noPrimaryBecause: "the pharmacy is being asked to set stock aside; the patient waits",
+    secondary: [],
+    states: [{ kind: "loading", skeletonMatchesContent: true }],
+    exits: ["V2", "V4", "R8"],
+    telemetry: ["reservation.confirmed", "reservation.refused"],
+    persona: "patient",
+  },
+  {
+    id: "V2",
+    location: { title: "محجوز لك", destination: "today" },
+    purpose: "The code, the clock, the address",
+    back: { kind: "replace", with: "S1", why: "the reservation lives on Today; there is no stack behind a notification" },
+    primary: { label: "الاتجاهات", leadsTo: "V2", tapsToOutcome: 1 },
+    secondary: [
+      { label: "اتصال بالصيدلية", leadsTo: "V2" },
+      { label: "ألغِ الحجز", leadsTo: "V5" },
+    ],
+    states: [
+      { kind: "loading", skeletonMatchesContent: true },
+      { kind: "error", whatFailed: "ما كدرنا نحدّث الوقت المتبقي", workPreserved: true,
+        action: { label: "أعد المحاولة", leadsTo: "V2" } },
+      // §4 V2: this is the screen that must never fail. The code stays readable
+      // from cache and the countdown is labelled as last known.
+      { kind: "offline", readOnly: true, showsAge: true },
+    ],
+    exits: ["V5", "V7", "S1"],
+    telemetry: ["reservation.collected"],
+    persona: "patient",
+  },
+  {
+    id: "V4",
+    location: { title: "ما كدرت الصيدلية تحجز", destination: "today" },
+    purpose: "They confirmed and then could not",
+    back: { kind: "replace", with: "S1", why: "arrives by notification; there is no stack behind it" },
+    // D39 — the request re-opens automatically, so the primary action moves
+    // the patient forward rather than asking them to start again.
+    primary: { label: "شوف العروض الجديدة", leadsTo: "R8", tapsToOutcome: 1 },
+    secondary: [{ label: "أوقف الطلب", leadsTo: "S1" }],
+    states: [],
+    exits: ["R8", "S1"],
+    telemetry: ["reservation.refused"],
+    persona: "patient",
+  },
+] as const satisfies readonly ScreenContract[];
+
+/**
+ * Every screen this build contracts, as a type.
+ *
+ * Derived from the contracts rather than written beside them, so it cannot
+ * drift: adding a contract adds a member, and there is no second list to
+ * update. `navigate` takes this, which turns a mistyped destination from a
+ * blank screen at runtime into a compile error.
+ */
+export type ScreenId = (typeof CORE_LOOP)[number]["id"];

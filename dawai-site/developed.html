@@ -1,0 +1,1588 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="color-scheme" content="light" />
+  <meta name="theme-color" content="#0f2a28" />
+  <meta name="description" content="دوائي — تجربة HTML إبداعية: اختَر مسارك، قارن عروضًا موثوقة، احجز للاستلام." />
+  <title>دوائي — تجربة اختيارية إبداعية</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@500;700;800;900&family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --dusk: #0f2a28;
+      --river: #1a4540;
+      --leaf: #3d8f7c;
+      --mist: #d7ebe4;
+      --sand: #f3f0e7;
+      --ink: #14221f;
+      --mute: #5a6a66;
+      --lantern: #e8a54b;
+      --lantern-soft: #fff1d6;
+      --ember: #d4553a;
+      --ember-soft: #ffe4dc;
+      --sky: #6b8cae;
+      --sky-soft: #e5eef6;
+      --ok: #1a6b4f;
+      --ok-soft: #dff3ea;
+      --danger: #a33a2c;
+      --rx: #6a4d7a;
+      --rx-soft: #f3ebf7;
+      --line: rgb(20 34 31 / 12%);
+      --glass: rgb(243 240 231 / 82%);
+      --shadow: 0 24px 60px rgb(15 42 40 / 18%);
+      --nav-h: 70px;
+      --focus: 3px solid var(--ember);
+    }
+
+    body[data-mood="rush"] {
+      --sand: #efe6d6;
+      --lantern: #f0b35a;
+      --mist: #cfe5dc;
+    }
+
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+    }
+
+    body {
+      margin: 0;
+      min-height: 100dvh;
+      font-family: "IBM Plex Sans Arabic", Tahoma, sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(ellipse 70% 55% at 0% 0%, rgb(232 165 75 / 18%), transparent 50%),
+        radial-gradient(ellipse 60% 45% at 100% 10%, rgb(61 143 124 / 22%), transparent 55%),
+        linear-gradient(165deg, #e8f2ee 0%, var(--sand) 42%, #e7e2d4 100%);
+      line-height: 1.65;
+    }
+
+    h1, h2, h3, .display {
+      font-family: "Cairo", "IBM Plex Sans Arabic", Tahoma, sans-serif;
+      line-height: 1.25;
+      margin: 0 0 0.35rem;
+      letter-spacing: -0.02em;
+    }
+    h1 { font-size: clamp(1.7rem, 4.5vw, 2.4rem); font-weight: 900; color: var(--dusk); }
+    h2 { font-size: 1.05rem; font-weight: 800; color: var(--dusk); }
+    p { margin: 0 0 0.7rem; color: var(--mute); }
+    a { color: inherit; text-decoration: none; }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; border: 0; background: none; color: inherit; }
+    :focus-visible { outline: var(--focus); outline-offset: 3px; }
+    :focus:not(:focus-visible) { outline: none; }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+    .skip-link {
+      position: fixed; z-index: 300; inset-block-start: 0.75rem; inset-inline-start: 0.75rem;
+      padding: 0.65rem 1rem; border-radius: 999px; background: var(--dusk); color: #fff;
+      transform: translateY(-160%);
+    }
+    .skip-link:focus { transform: none; }
+
+    /* —— Immersive stage (not a dashboard) —— */
+    .world {
+      min-height: 100dvh;
+      display: grid;
+      place-items: center;
+      padding: 1rem 1rem 1.5rem;
+      position: relative;
+      overflow: hidden;
+    }
+    .world::before {
+      content: "";
+      position: absolute;
+      inset: -20% -10% auto;
+      height: 55%;
+      background:
+        radial-gradient(circle at 20% 40%, rgb(232 165 75 / 25%), transparent 28%),
+        radial-gradient(circle at 70% 30%, rgb(61 143 124 / 20%), transparent 32%);
+      filter: blur(2px);
+      pointer-events: none;
+    }
+
+    .float-bar {
+      position: fixed;
+      z-index: 40;
+      inset-block-start: 0.75rem;
+      inset-inline: 0.75rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.4rem;
+      align-items: center;
+      justify-content: space-between;
+      pointer-events: none;
+    }
+    .float-bar > * { pointer-events: auto; }
+    .chip-row { display: flex; flex-wrap: wrap; gap: 0.35rem; }
+    .mood-chip, .opt-chip {
+      min-height: 36px;
+      padding: 0.35rem 0.75rem;
+      border-radius: 999px;
+      border: 1px solid rgb(15 42 40 / 14%);
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: var(--dusk);
+      box-shadow: 0 8px 24px rgb(15 42 40 / 8%);
+    }
+    .mood-chip[aria-pressed="true"], .opt-chip[aria-pressed="true"] {
+      background: var(--dusk);
+      color: #f3f0e7;
+      border-color: var(--dusk);
+    }
+
+    .path-menu {
+      position: relative;
+    }
+    .path-menu summary {
+      list-style: none;
+      min-height: 36px;
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      border: 1px solid rgb(15 42 40 / 14%);
+      background: var(--glass);
+      backdrop-filter: blur(12px);
+      font-size: 0.72rem;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .path-menu summary::-webkit-details-marker { display: none; }
+    .path-menu[open] summary { background: var(--dusk); color: #f3f0e7; }
+    .path-menu .sheet {
+      position: absolute;
+      inset-inline-end: 0;
+      inset-block-start: calc(100% + 0.4rem);
+      width: min(280px, 86vw);
+      padding: 0.55rem;
+      border-radius: 16px;
+      background: rgb(255 255 255 / 94%);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      display: grid;
+      gap: 0.3rem;
+    }
+    .path-menu .sheet button {
+      text-align: start;
+      padding: 0.55rem 0.7rem;
+      border-radius: 10px;
+      font-size: 0.78rem;
+      font-weight: 700;
+    }
+    .path-menu .sheet button:hover { background: var(--mist); }
+    .path-menu .sheet small {
+      display: block;
+      color: var(--mute);
+      font-size: 0.65rem;
+      font-weight: 500;
+      margin-block-start: 0.1rem;
+    }
+
+    /* —— Device —— */
+    .device {
+      width: min(100%, 400px);
+      position: relative;
+      z-index: 1;
+      border-radius: 42px;
+      padding: 11px;
+      background:
+        linear-gradient(145deg, #1c3d38, #0c1f1d 55%, #163532);
+      box-shadow:
+        0 40px 90px rgb(15 42 40 / 35%),
+        inset 0 1px 0 rgb(255 255 255 / 12%);
+    }
+    .device-inner {
+      position: relative;
+      overflow: hidden;
+      border-radius: 32px;
+      background: var(--sand);
+      min-height: 740px;
+      max-height: min(88vh, 860px);
+      display: flex;
+      flex-direction: column;
+    }
+    .island {
+      position: absolute; z-index: 8;
+      inset-block-start: 10px; inset-inline-start: 50%;
+      width: 104px; height: 24px; border-radius: 99px;
+      background: #081716; transform: translateX(-50%);
+    }
+
+    .offline-banner {
+      display: none; gap: 0.5rem; align-items: flex-start;
+      padding: 0.65rem 0.9rem;
+      background: var(--lantern-soft);
+      border-block-end: 1px solid rgb(232 165 75 / 35%);
+      color: #7a4f12; font-size: 0.72rem; font-weight: 700;
+    }
+    .offline-banner.visible { display: flex; }
+    .offline-banner span { font-weight: 500; color: var(--mute); }
+
+    .screen { display: none; flex: 1; flex-direction: column; min-height: 0; }
+    .screen.active { display: flex; animation: enter 360ms cubic-bezier(.2,.8,.2,1) both; }
+    @keyframes enter {
+      from { opacity: 0; transform: translateY(14px) scale(0.985); }
+      to { opacity: 1; transform: none; }
+    }
+
+    .top {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; min-height: 54px; padding: 0.7rem 0.95rem;
+      background: rgb(243 240 231 / 88%);
+      backdrop-filter: blur(14px);
+      border-block-end: 1px solid var(--line);
+    }
+    .brand-lock {
+      display: flex; align-items: center; gap: 0.45rem;
+      font-family: Cairo, sans-serif; font-weight: 900; font-size: 1.15rem; color: var(--dusk);
+    }
+    .mark {
+      width: 30px; height: 30px; border-radius: 10px 10px 10px 3px;
+      background: var(--dusk); position: relative;
+      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 15%);
+    }
+    .mark::before, .mark::after {
+      content: ""; position: absolute; inset: 12px 6px auto; height: 5px;
+      border-radius: 99px; background: var(--lantern);
+    }
+    .mark::before { transform: rotate(-40deg); }
+    .mark::after { transform: rotate(50deg); }
+
+    .scroll {
+      flex: 1; overflow: auto; padding: 1rem 0.95rem calc(var(--nav-h) + 1.1rem);
+      -webkit-overflow-scrolling: touch;
+    }
+    .screen.welcome-screen .scroll { padding-bottom: 1.2rem; }
+
+    .status {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      min-height: 26px; padding: 0.15rem 0.55rem; border-radius: 999px;
+      font-size: 0.62rem; font-weight: 800; border: 1px solid transparent;
+    }
+    .status.ok { background: var(--ok-soft); color: var(--ok); border-color: #a8d4c0; }
+    .status.warn { background: var(--lantern-soft); color: #7a4f12; border-color: #efd09a; }
+    .status.info { background: var(--sky-soft); color: #355676; border-color: #b7c9da; }
+    .status.danger { background: #f8e4e0; color: var(--danger); border-color: #e4b3ab; }
+    .status.rx { background: var(--rx-soft); color: var(--rx); border-color: #d2bde0; }
+    .status.soft { background: rgb(255 255 255 / 55%); color: var(--mute); border-color: var(--line); }
+
+    .eyebrow {
+      margin: 0 0 0.3rem; font-size: 0.7rem; font-weight: 800;
+      color: var(--leaf); letter-spacing: 0.02em;
+    }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 0.4rem;
+      min-height: 48px; padding: 0.65rem 1.1rem; border-radius: 14px;
+      font-weight: 800; transition: transform 140ms ease, background 140ms ease, box-shadow 140ms ease;
+    }
+    .btn:active { transform: translateY(1px); }
+    .btn-primary {
+      background: var(--dusk); color: #f7f3ea;
+      box-shadow: 0 12px 28px rgb(15 42 40 / 22%);
+    }
+    .btn-primary:hover { background: var(--river); }
+    .btn-lantern {
+      background: linear-gradient(135deg, #f0b35a, #e08a2e); color: #2a1a08;
+      box-shadow: 0 12px 28px rgb(232 165 75 / 35%);
+    }
+    .btn-ghost {
+      background: transparent; color: var(--mute); min-height: 42px; font-weight: 700;
+    }
+    .btn-line {
+      background: rgb(255 255 255 / 70%); color: var(--dusk);
+      border: 1px solid var(--line);
+    }
+    .btn-block { width: 100%; }
+    .btn-row { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; }
+    .btn-stack { display: grid; gap: 0.45rem; }
+
+    /* Signature: neighborhood dusk map */
+    .night-map {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 1.05;
+      margin: 0.4rem 0 1rem;
+      border-radius: 28px;
+      overflow: hidden;
+      background:
+        linear-gradient(180deg, #173833 0%, #0f2a28 48%, #1a342c 100%);
+      box-shadow: inset 0 0 0 1px rgb(255 255 255 / 8%), var(--shadow);
+    }
+    .night-map .river {
+      position: absolute; inset-inline: -10%; inset-block-end: 18%;
+      height: 22%;
+      background: linear-gradient(90deg, transparent, rgb(107 140 174 / 35%), transparent);
+      transform: skewY(-4deg); filter: blur(1px);
+    }
+    .night-map .grid {
+      position: absolute; inset: 0;
+      background:
+        repeating-linear-gradient(90deg, rgb(255 255 255 / 4%) 0 1px, transparent 1px 46px),
+        repeating-linear-gradient(0deg, rgb(255 255 255 / 3%) 0 1px, transparent 1px 46px);
+      mask: radial-gradient(circle at 50% 48%, black 20%, transparent 72%);
+    }
+    .night-map .you {
+      position: absolute; inset: 48% auto auto 50%;
+      transform: translate(-50%, -50%);
+      width: 58px; height: 58px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: rgb(243 240 231 / 12%);
+      border: 1px solid rgb(243 240 231 / 25%);
+      color: #f3f0e7; font-size: 0.62rem; font-weight: 800; text-align: center;
+      animation: breathe 3.2s ease-in-out infinite;
+    }
+    .night-map .you strong { display: block; font-size: 0.78rem; }
+    @keyframes breathe {
+      0%, 100% { box-shadow: 0 0 0 0 rgb(232 165 75 / 35%); }
+      50% { box-shadow: 0 0 0 16px transparent; }
+    }
+    .lantern {
+      position: absolute;
+      width: 12px; height: 12px; border-radius: 50%;
+      background: var(--lantern);
+      box-shadow: 0 0 0 4px rgb(232 165 75 / 22%), 0 0 22px rgb(232 165 75 / 55%);
+      animation: flicker 2.8s ease-in-out infinite;
+      border: 0; padding: 0;
+    }
+    .lantern:focus-visible { outline-offset: 4px; }
+    .lantern::after {
+      content: attr(data-label);
+      position: absolute;
+      inset-block-start: calc(100% + 6px);
+      inset-inline-start: 50%;
+      transform: translateX(-50%);
+      white-space: nowrap;
+      font-size: 0.58rem; font-weight: 800;
+      color: #f3f0e7; opacity: 0.85;
+      pointer-events: none;
+    }
+    .l1 { inset-block-start: 26%; inset-inline-start: 28%; animation-delay: 0s; }
+    .l2 { inset-block-start: 38%; inset-inline-start: 68%; animation-delay: .4s; }
+    .l3 { inset-block-start: 62%; inset-inline-start: 42%; animation-delay: .9s; }
+    .l4 { inset-block-start: 30%; inset-inline-start: 52%; animation-delay: 1.3s; width: 9px; height: 9px; opacity: .7; }
+    @keyframes flicker {
+      0%, 100% { filter: brightness(1); }
+      40% { filter: brightness(1.25); }
+      70% { filter: brightness(0.9); }
+    }
+
+    .brand-hero {
+      font-family: Cairo, sans-serif;
+      font-size: clamp(2.6rem, 11vw, 3.4rem);
+      font-weight: 900;
+      color: var(--dusk);
+      line-height: 1.05;
+      margin: 0.15rem 0 0.45rem;
+    }
+    .brand-hero em {
+      font-style: normal;
+      background: linear-gradient(120deg, var(--leaf), var(--lantern));
+      -webkit-background-clip: text;
+      background-clip: text;
+      color: transparent;
+    }
+
+    .doors {
+      display: grid; gap: 0.55rem; margin: 0.2rem 0 0.9rem;
+    }
+    .door {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 0.35rem 0.75rem;
+      align-items: center;
+      padding: 0.95rem 1rem;
+      border-radius: 18px;
+      text-align: start;
+      border: 1px solid var(--line);
+      background: rgb(255 255 255 / 55%);
+      backdrop-filter: blur(8px);
+      transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
+    }
+    .door:hover {
+      transform: translateY(-2px);
+      border-color: rgb(61 143 124 / 45%);
+      background: rgb(255 255 255 / 82%);
+    }
+    .door strong {
+      display: block; font-family: Cairo, sans-serif; font-size: 1rem; color: var(--dusk);
+    }
+    .door span { font-size: 0.72rem; color: var(--mute); }
+    .door .tag {
+      grid-row: 1 / 3;
+      align-self: center;
+      padding: 0.25rem 0.5rem;
+      border-radius: 999px;
+      font-size: 0.6rem; font-weight: 800;
+      background: var(--mist); color: var(--river);
+    }
+    .door.optional .tag { background: var(--lantern-soft); color: #7a4f12; }
+    .door.alt { background: linear-gradient(120deg, rgb(15 42 40 / 92%), rgb(26 69 64 / 92%)); color: #f3f0e7; border: 0; }
+    .door.alt strong, .door.alt span { color: inherit; }
+    .door.alt span { opacity: 0.78; }
+    .door.alt .tag { background: rgb(232 165 75 / 25%); color: #ffe7b8; }
+
+    .whisper {
+      font-size: 0.72rem; color: var(--mute); text-align: center; margin: 0.4rem 0 0;
+    }
+
+    .search {
+      display: grid; grid-template-columns: auto minmax(0,1fr) auto;
+      gap: 0.4rem; align-items: center;
+      padding: 0.4rem;
+      border-radius: 18px;
+      background: rgb(255 255 255 / 75%);
+      border: 1px solid var(--line);
+      box-shadow: 0 14px 36px rgb(15 42 40 / 8%);
+    }
+    .search input {
+      min-width: 0; min-height: 46px; border: 0; outline: 0; background: transparent;
+    }
+    .search button {
+      min-height: 44px; padding: 0.45rem 0.95rem; border-radius: 12px;
+      background: var(--dusk); color: #f7f3ea; font-weight: 800;
+    }
+
+    .optional-paths {
+      display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.85rem 0 1rem;
+    }
+    .optional-paths button {
+      min-height: 38px; padding: 0.35rem 0.75rem; border-radius: 999px;
+      border: 1px dashed rgb(15 42 40 / 22%);
+      background: rgb(255 255 255 / 40%);
+      font-size: 0.72rem; font-weight: 700; color: var(--river);
+    }
+    .optional-paths button:hover { background: var(--mist); border-style: solid; }
+
+    .surface {
+      padding: 0.95rem;
+      border-radius: 20px;
+      background: rgb(255 255 255 / 62%);
+      border: 1px solid var(--line);
+      backdrop-filter: blur(8px);
+    }
+    .surface.glow {
+      background:
+        radial-gradient(circle at 100% 0%, rgb(232 165 75 / 18%), transparent 45%),
+        rgb(255 255 255 / 70%);
+    }
+
+    .live {
+      display: grid; grid-template-columns: auto 1fr; gap: 0.75rem; align-items: center;
+      margin-block-end: 0.9rem;
+    }
+    .orb {
+      width: 46px; height: 46px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: var(--dusk); color: #f3f0e7; font-size: 1rem;
+      box-shadow: 0 0 0 0 rgb(61 143 124 / 40%);
+      animation: breathe 2.4s ease-in-out infinite;
+    }
+
+    .facts {
+      display: grid; grid-template-columns: repeat(3, minmax(0,1fr));
+      gap: 1px; margin: 0.65rem 0; overflow: hidden;
+      border-radius: 12px; background: var(--line);
+    }
+    .facts > div { padding: 0.55rem; background: rgb(255 255 255 / 80%); min-width: 0; }
+    .facts small { display: block; font-size: 0.58rem; color: var(--mute); }
+    .facts strong { font-size: 0.74rem; color: var(--ink); }
+
+    .trust-row { display: flex; flex-wrap: wrap; gap: 0.35rem; margin: 0.5rem 0; }
+    .trust-chip {
+      display: inline-flex; align-items: center; gap: 0.25rem;
+      padding: 0.28rem 0.5rem; border-radius: 999px;
+      background: var(--mist); color: var(--river);
+      font-size: 0.62rem; font-weight: 700;
+    }
+
+    .fresh { margin: 0.4rem 0 0.65rem; font-size: 0.66rem; font-weight: 700; color: var(--ok); }
+    .note { margin: 0 0 0.65rem; font-size: 0.65rem; color: var(--mute); }
+
+    details.more {
+      margin: 0.4rem 0 0.7rem;
+      border-radius: 12px;
+      background: rgb(255 255 255 / 45%);
+      border: 1px dashed rgb(15 42 40 / 16%);
+      padding: 0.45rem 0.65rem;
+    }
+    details.more summary {
+      cursor: pointer; font-size: 0.72rem; font-weight: 800; color: var(--river);
+    }
+    details.more .body { margin-block-start: 0.45rem; font-size: 0.7rem; color: var(--mute); }
+
+    .sort-row {
+      display: flex; align-items: end; justify-content: space-between;
+      gap: 0.6rem; margin-block-end: 0.75rem;
+    }
+    .sort-row label { display: grid; gap: 0.2rem; font-size: 0.65rem; font-weight: 700; color: var(--mute); }
+    .sort-row select {
+      min-height: 40px; border-radius: 10px; border: 1px solid var(--line);
+      background: rgb(255 255 255 / 80%); padding: 0.3rem 0.5rem;
+    }
+
+    .compare-toggle {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.5rem; margin-block-end: 0.7rem; padding: 0.55rem 0.7rem;
+      border-radius: 14px; background: var(--sky-soft); font-size: 0.72rem; font-weight: 700;
+    }
+    .compare-toggle input { width: 1.05rem; height: 1.05rem; accent-color: var(--dusk); }
+    #offer-list.compare-mode {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem;
+    }
+    #offer-list.compare-mode .surface { padding: 0.7rem; }
+    #offer-list.compare-mode .btn { min-height: 40px; font-size: 0.7rem; }
+    #offer-list.compare-mode .facts { grid-template-columns: 1fr; }
+
+    .ladder { list-style: none; margin: 0.7rem 0 1rem; padding: 0; display: grid; gap: 0.4rem; }
+    .ladder li {
+      display: grid; grid-template-columns: 28px 1fr; gap: 0.5rem; align-items: center;
+      padding: 0.55rem; border-radius: 12px; border: 1px solid var(--line);
+      background: rgb(255 255 255 / 55%); font-size: 0.72rem; color: var(--mute);
+    }
+    .ladder li[aria-current="step"] {
+      border-color: rgb(232 165 75 / 55%); background: var(--lantern-soft); color: #7a4f12; font-weight: 700;
+    }
+    .ladder li.done { opacity: 0.65; }
+    .ladder .n {
+      display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%;
+      background: var(--dusk); color: #f3f0e7; font-size: 0.7rem; font-weight: 800;
+    }
+    .ladder li:not([aria-current="step"]):not(.done) .n {
+      background: transparent; color: var(--mute); border: 1px solid var(--line);
+    }
+
+    .countdown {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 0.75rem; padding: 0.9rem 1rem; margin-block-end: 0.85rem;
+      border-radius: 16px; background: var(--lantern-soft); color: #7a4f12;
+    }
+    .countdown.pending { background: var(--sky-soft); color: #355676; }
+    .countdown.expired { background: #f8e4e0; color: var(--danger); }
+    .countdown strong {
+      font-family: ui-monospace, Menlo, monospace; font-size: 1.4rem; letter-spacing: 0.04em;
+    }
+
+    .res-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-block-end: 0.85rem; }
+    .res-grid > div {
+      padding: 0.55rem 0.65rem; border-radius: 12px;
+      background: rgb(255 255 255 / 55%); border: 1px solid var(--line);
+    }
+    .res-grid span { display: block; font-size: 0.6rem; color: var(--mute); }
+    .res-grid strong { font-size: 0.78rem; }
+
+    .field { display: grid; gap: 0.35rem; margin-block-end: 0.8rem; }
+    .field > span { font-size: 0.72rem; font-weight: 800; color: var(--mute); }
+    .field input, .field select, .field textarea {
+      min-height: 46px; padding: 0.55rem 0.7rem; border-radius: 12px;
+      border: 1px solid var(--line); background: rgb(255 255 255 / 70%);
+    }
+    .field textarea { min-height: 88px; resize: vertical; }
+
+    .inbox-card { margin-block-end: 0.65rem; }
+    .inbox-card header {
+      display: flex; justify-content: space-between; gap: 0.5rem; align-items: start;
+    }
+    .meta { margin: 0; font-size: 0.68rem; color: var(--mute); }
+    .quick-reply { display: grid; grid-template-columns: 1fr 1fr; gap: 0.45rem; margin-block-start: 0.7rem; }
+    .quick-reply .ok {
+      min-height: 42px; border-radius: 12px; background: var(--dusk); color: #f7f3ea; font-weight: 800;
+    }
+    .quick-reply .no {
+      min-height: 42px; border-radius: 12px; border: 1px solid var(--line);
+      background: rgb(255 255 255 / 70%); font-weight: 700;
+    }
+    .reason-chips { display: flex; flex-wrap: wrap; gap: 0.35rem; margin-block-start: 0.5rem; }
+    .reason-chips button {
+      min-height: 34px; padding: 0.3rem 0.65rem; border-radius: 999px;
+      border: 1px solid var(--line); background: var(--sand); font-size: 0.7rem; font-weight: 700;
+    }
+
+    .nav {
+      position: absolute; inset-inline: 0; inset-block-end: 0;
+      display: grid; grid-template-columns: repeat(4, 1fr);
+      min-height: var(--nav-h);
+      padding: 0.35rem 0.2rem calc(0.35rem + env(safe-area-inset-bottom, 0px));
+      background: rgb(243 240 231 / 92%);
+      backdrop-filter: blur(14px);
+      border-block-start: 1px solid var(--line);
+    }
+    .nav a {
+      display: grid; justify-items: center; gap: 0.1rem;
+      padding: 0.35rem; font-size: 0.62rem; font-weight: 700; color: var(--mute);
+    }
+    .nav a[aria-current="page"] { color: var(--dusk); }
+    .nav .ico { font-size: 1.05rem; }
+
+    .toast {
+      position: absolute; z-index: 20;
+      inset-inline: 0.75rem; inset-block-end: calc(var(--nav-h) + 0.55rem);
+      padding: 0.75rem 0.9rem; border-radius: 14px;
+      background: var(--dusk); color: #f3f0e7; font-size: 0.75rem; font-weight: 700;
+      box-shadow: var(--shadow); display: none;
+    }
+    .toast.show { display: block; animation: enter 220ms ease both; }
+
+    .stale-hint { margin: 0.35rem 0 0; font-size: 0.65rem; color: #7a4f12; font-weight: 700; }
+
+    .matching-orbit {
+      width: min(100%, 230px); aspect-ratio: 1; margin: 0.5rem auto 1rem;
+      border-radius: 50%;
+      position: relative;
+      background:
+        radial-gradient(circle at 50% 50%, rgb(232 165 75 / 18%), transparent 40%),
+        radial-gradient(circle at 50% 50%, var(--mist), transparent 68%);
+      border: 1px dashed rgb(61 143 124 / 40%);
+    }
+    .matching-orbit .core {
+      position: absolute; inset: 50% auto auto 50%; transform: translate(-50%,-50%);
+      width: 64px; height: 64px; border-radius: 50%;
+      display: grid; place-items: center;
+      background: var(--dusk); color: #f3f0e7; font-size: 0.7rem; font-weight: 800;
+    }
+    .matching-orbit .spark {
+      position: absolute; width: 10px; height: 10px; border-radius: 50%; background: var(--lantern);
+      animation: orbit 4s linear infinite;
+    }
+    .matching-orbit .s1 { offset-path: path('M115,20 A95,95 0 1,1 114.9,20'); animation-delay: 0s; }
+    .matching-orbit .s2 { offset-path: path('M115,20 A95,95 0 1,1 114.9,20'); animation-delay: -1.3s; background: var(--leaf); }
+    .matching-orbit .s3 { offset-path: path('M115,20 A95,95 0 1,1 114.9,20'); animation-delay: -2.6s; background: var(--ember); }
+    @keyframes orbit { to { offset-distance: 100%; } }
+    /* fallback positions if offset-path unsupported */
+    .matching-orbit .s1 { inset-block-start: 12%; inset-inline-start: 48%; }
+    .matching-orbit .s2 { inset-block-start: 55%; inset-inline-start: 78%; }
+    .matching-orbit .s3 { inset-block-start: 70%; inset-inline-start: 22%; }
+
+    .best-tag {
+      display: inline-flex; margin-block-end: 0.4rem; padding: 0.2rem 0.5rem;
+      border-radius: 999px; background: linear-gradient(120deg, #dceab8, #f0b35a);
+      color: var(--dusk); font-size: 0.6rem; font-weight: 800;
+    }
+
+    .caption {
+      margin: 0.75rem auto 0; max-width: 26rem;
+      text-align: center; font-size: 0.72rem; color: rgb(20 34 31 / 55%);
+    }
+  </style>
+</head>
+<body>
+  <a class="skip-link" href="#app">تخطّ إلى التطبيق</a>
+
+  <div class="float-bar">
+    <div class="chip-row">
+      <button type="button" class="mood-chip" id="mood-calm" aria-pressed="true">مزاج هادئ</button>
+      <button type="button" class="mood-chip" id="mood-rush" aria-pressed="false">مساء مستعجل</button>
+      <button type="button" class="opt-chip" id="toggle-offline" aria-pressed="false">بدون نت (اختياري)</button>
+      <button type="button" class="opt-chip" id="toggle-stale" aria-pressed="false">بيانات قديمة</button>
+    </div>
+    <details class="path-menu">
+      <summary>مسارات اختيارية ▾</summary>
+      <div class="sheet" role="menu">
+        <button type="button" data-goto="welcome"><strong>ابدأ من الخريطة</strong><small>الهوية أولًا</small></button>
+        <button type="button" data-goto="patient"><strong>بحث سريع</strong><small>اختياري — بدون تسجيل فوري</small></button>
+        <button type="button" data-goto="browse"><strong>تصفّح صيدليات قريبة</strong><small>استكشاف بلا طلب</small></button>
+        <button type="button" data-goto="matching"><strong>طلب حي</strong><small>رادار المطابقة</small></button>
+        <button type="button" data-goto="offers"><strong>مقارنة عروض</strong><small>ثقة + سعر</small></button>
+        <button type="button" data-goto="zero"><strong>صفر عروض</strong><small>توسيع 2→5→10 اختياري</small></button>
+        <button type="button" data-goto="hold-pending"><strong>حجز بانتظار ACK</strong><small>المهلة قبل الحفظ</small></button>
+        <button type="button" data-goto="hold"><strong>حجز نشط</strong><small>عدّاد بعد التأكيد</small></button>
+        <button type="button" data-goto="pharmacy"><strong>عالم الصيدلية</strong><small>خصوصية أولًا</small></button>
+        <button type="button" data-goto="compose"><strong>تركيب عرض</strong><small>سعر IQD صحيح</small></button>
+        <button type="button" data-goto="reservations"><strong>دورة الحجز</strong><small>ACK → جاهز → استلام</small></button>
+      </div>
+    </details>
+  </div>
+
+  <div class="world">
+    <div>
+      <div class="device">
+        <div class="device-inner" id="app">
+          <div class="island" aria-hidden="true"></div>
+
+          <div class="offline-banner" id="offline-banner" role="status">
+            <span aria-hidden="true">◌</span>
+            <div>
+              <strong>أنت غير متصل</strong>
+              <span>آخر حالة مؤكدة <bdi dir="ltr">10:24</bdi>. التصفّح متاح؛ الإرسال ينتظر الشبكة.</span>
+            </div>
+          </div>
+
+          <!-- WELCOME: brand + optional doors -->
+          <section class="screen welcome-screen active" id="welcome" aria-labelledby="welcome-title">
+            <div class="scroll">
+              <p class="eyebrow">بغداد · صيدليات قريبة تُضيء عند التوفّر</p>
+              <p class="brand-hero" id="welcome-title">دوائي<em>.</em></p>
+              <p>لست مضطرًا لطريق واحد. ابحث، تصفّح، أو أرسل طلبًا — الحجز للاستلام فقط بعد تأكيد الصيدلية.</p>
+
+              <div class="night-map" aria-label="خريطة حيّ تفاعلية — اضغط على فوانيس الصيدليات">
+                <div class="grid" aria-hidden="true"></div>
+                <div class="river" aria-hidden="true"></div>
+                <div class="you" aria-hidden="true"><strong>أنت</strong>هنا</div>
+                <button type="button" class="lantern l1" data-label="الروابي" data-goto="browse" aria-label="صيدلية الروابي — تصفّح"></button>
+                <button type="button" class="lantern l2" data-label="النور" data-goto="browse" aria-label="صيدلية النور — تصفّح"></button>
+                <button type="button" class="lantern l3" data-label="السلام" data-goto="offers" aria-label="صيدلية لديها عرض — انتقل للعروض"></button>
+                <button type="button" class="lantern l4" data-label="" data-goto="matching" aria-label="بدء بحث قريب"></button>
+              </div>
+
+              <div class="doors">
+                <button class="door" type="button" data-goto="patient">
+                  <strong>أبحث عن دواء الآن</strong>
+                  <span>المسار الأشيع — اسم أو جزء من الاسم</span>
+                  <span class="tag">أساسي</span>
+                </button>
+                <button class="door optional" type="button" data-goto="matching" data-mode="photo">
+                  <strong>أرفع صورة علبة (اختياري)</strong>
+                  <span>يساعد الصيدلي على التعرّف — لا تشخيص</span>
+                  <span class="tag">اختياري</span>
+                </button>
+                <button class="door optional" type="button" data-goto="browse">
+                  <strong>أتصفّح فقط — بلا طلب</strong>
+                  <span>استكشف صيدليات الحيّ المفتوحة</span>
+                  <span class="tag">حر</span>
+                </button>
+                <button class="door alt" type="button" data-goto="pharmacy">
+                  <strong>أنا صيدلية</strong>
+                  <span>صندوق وارد قريب · خصوصية قبل الحجز</span>
+                  <span class="tag">دور آخر</span>
+                </button>
+              </div>
+              <p class="whisper">دوائي لا يشخّص ولا يستبدل الدواء. القرار للصيدلي عند الاستلام.</p>
+            </div>
+          </section>
+
+          <!-- PATIENT -->
+          <section class="screen" id="patient" aria-labelledby="patient-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status soft">مسار اختياري</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">المنصور · يمكنك تغيير المنطقة لاحقًا</p>
+              <h1 id="patient-title">ما الذي تحتاجه؟</h1>
+              <p>ابدأ بالبحث، أو اختر بابًا اختياريًا بالأسفل — لا شيء إجباري قبل الطلب.</p>
+              <form class="search" id="search-form">
+                <span aria-hidden="true">⌕</span>
+                <label class="sr-only" for="q">اسم الدواء</label>
+                <input id="q" name="q" dir="ltr" placeholder="Augmentin 625…" autocomplete="off" />
+                <button type="submit">ابحث</button>
+              </form>
+              <div class="optional-paths">
+                <button type="button" data-goto="matching" data-mode="photo">صورة علبة</button>
+                <button type="button" data-goto="matching" data-mode="rx">وصفة (اختياري)</button>
+                <button type="button" data-goto="matching" data-mode="type">اكتب طلبك</button>
+                <button type="button" data-goto="browse">تصفّح بلا طلب</button>
+                <button type="button" data-goto="zero">جرّب حالة «لا عروض»</button>
+              </div>
+              <article class="surface glow live">
+                <div class="orb" aria-hidden="true">◉</div>
+                <div>
+                  <strong style="display:block;color:var(--dusk)">طلب نشط يمكنك تجاهله أو متابعته</strong>
+                  <p style="margin:.2rem 0 0;font-size:.72rem"><bdi dir="ltr">Augmentin 625 mg</bdi> · 3 صيدليات · 2 كم</p>
+                  <div class="btn-row" style="margin-top:.55rem">
+                    <button class="btn btn-primary" type="button" data-goto="offers" style="min-height:40px;font-size:.78rem">تابع</button>
+                    <button class="btn btn-line" type="button" id="dismiss-active" style="min-height:40px;font-size:.78rem">أخفِه</button>
+                  </div>
+                </div>
+              </article>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient" aria-current="page"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#browse"><span class="ico" aria-hidden="true">◎</span>استكشف</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">◇</span>طلباتي</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>الخريطة</a>
+            </nav>
+          </section>
+
+          <!-- BROWSE (optional, no request) -->
+          <section class="screen" id="browse" aria-labelledby="browse-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status info">بلا طلب</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">استكشاف حر</p>
+              <h1 id="browse-title">صيدليات تُضيء الآن</h1>
+              <p>تصفّح بدون التزام. التحويل إلى طلب توفّر يبقى اختياريًا.</p>
+              <article class="surface" style="margin-bottom:.55rem">
+                <div style="display:flex;justify-content:space-between;gap:.5rem">
+                  <div>
+                    <h2>صيدلية الروابي</h2>
+                    <p class="meta">المنصور · <bdi dir="ltr">0.8</bdi> كم · مفتوحة حتى <bdi dir="ltr">22:00</bdi></p>
+                  </div>
+                  <span class="status ok">مرخّصة</span>
+                </div>
+                <div class="trust-row">
+                  <span class="trust-chip">ترخيص <bdi dir="ltr">IQ-THR-1842</bdi></span>
+                  <span class="trust-chip">خريطة</span>
+                </div>
+                <button class="btn btn-lantern btn-block" type="button" data-goto="matching">اطلب توفّرًا هنا (اختياري)</button>
+              </article>
+              <article class="surface" style="margin-bottom:.55rem">
+                <div style="display:flex;justify-content:space-between;gap:.5rem">
+                  <div>
+                    <h2>صيدلية النور</h2>
+                    <p class="meta">المنصور · <bdi dir="ltr">1.4</bdi> كم · حتى <bdi dir="ltr">21:00</bdi></p>
+                  </div>
+                  <span class="status ok">مرخّصة</span>
+                </div>
+                <button class="btn btn-line btn-block" type="button" data-goto="matching" style="margin-top:.55rem">اطلب توفّرًا هنا</button>
+              </article>
+              <button class="btn btn-ghost btn-block" type="button" data-goto="welcome">عودة للخريطة</button>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#browse" aria-current="page"><span class="ico" aria-hidden="true">◎</span>استكشف</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">◇</span>طلباتي</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>الخريطة</a>
+            </nav>
+          </section>
+
+          <!-- MATCHING -->
+          <section class="screen" id="matching" aria-labelledby="matching-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status info">اختياري أن تنتظر أو توسّع</span>
+            </header>
+            <div class="scroll" style="text-align:center">
+              <div class="matching-orbit" aria-hidden="true">
+                <span class="spark s1"></span>
+                <span class="spark s2"></span>
+                <span class="spark s3"></span>
+                <span class="core">بحث</span>
+              </div>
+              <h1 id="matching-title">نُضيء صيدليات قريبة</h1>
+              <p><bdi dir="ltr" id="matching-med">Augmentin 625 mg</bdi></p>
+              <p id="matching-mode-note" style="font-size:.78rem">أُرسل ضمن 2 كم. يمكنك الانتظار أو اختيار مسار آخر.</p>
+              <div class="btn-stack" style="margin-top:1rem;text-align:stretch">
+                <button class="btn btn-primary btn-block" type="button" data-goto="offers">محاكاة: وصلت عروض</button>
+                <button class="btn btn-line btn-block" type="button" data-goto="zero">محاكاة: لا عروض بعد</button>
+                <button class="btn btn-ghost btn-block" type="button" data-goto="browse">اترك الطلب وتصفّح</button>
+              </div>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#browse"><span class="ico" aria-hidden="true">◎</span>استكشف</a>
+              <a href="#matching" aria-current="page"><span class="ico" aria-hidden="true">◇</span>طلباتي</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>الخريطة</a>
+            </nav>
+          </section>
+
+          <!-- OFFERS -->
+          <section class="screen" id="offers" aria-labelledby="offers-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status ok">عروض للاختيار</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">طلب <bdi dir="ltr">DW-4821</bdi> · يمكنك عدم الحجز</p>
+              <div style="display:flex;flex-wrap:wrap;gap:.4rem;align-items:center">
+                <h1 id="offers-title" style="margin:0"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
+                <span class="status rx">وصفة</span>
+              </div>
+              <p>أقراص · الكمية 1 · المنصور</p>
+
+              <div class="surface live">
+                <div class="orb" aria-hidden="true">✦</div>
+                <div>
+                  <strong id="offers-live-title" style="color:var(--dusk)">وصل عرضان — اختر أو انتظر</strong>
+                  <p style="margin:.15rem 0 0;font-size:.68rem">النطاق 2 كم · ينتهي <bdi dir="ltr">11:40</bdi></p>
+                  <p class="stale-hint" id="stale-hint" hidden>آخر مزامنة قديمة — حدّث قبل الحجز.</p>
+                </div>
+              </div>
+
+              <label class="compare-toggle">
+                <span>مقارنة جنبًا إلى جنب (اختياري)</span>
+                <input type="checkbox" id="compare-mode" />
+              </label>
+
+              <div class="sort-row">
+                <div>
+                  <p class="eyebrow" style="margin:0">العروض</p>
+                  <h2 id="offer-count" style="margin:0">عرضان</h2>
+                </div>
+                <label>
+                  رتّب كما تريد
+                  <select id="offer-sort">
+                    <option value="best">الأنسب</option>
+                    <option value="distance">الأقرب</option>
+                    <option value="price">الأرخص</option>
+                  </select>
+                </label>
+              </div>
+              <div id="offer-list"></div>
+              <button class="btn btn-ghost btn-block" type="button" data-goto="zero">ما لقيت المناسب — وسّع النطاق</button>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#browse"><span class="ico" aria-hidden="true">◎</span>استكشف</a>
+              <a href="#offers" aria-current="page"><span class="ico" aria-hidden="true">◇</span>طلباتي</a>
+              <a href="#hold"><span class="ico" aria-hidden="true">▣</span>الحجز</a>
+            </nav>
+          </section>
+
+          <!-- ZERO -->
+          <section class="screen" id="zero" aria-labelledby="zero-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status warn">التوسيع اختياري</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">طلب <bdi dir="ltr">DW-4821</bdi></p>
+              <h1 id="zero-title"><bdi dir="ltr">Augmentin 625 mg</bdi></h1>
+              <p id="zero-meta">النطاق 2 كم · 3 صيدليات — لا عرض صالح بعد</p>
+              <div class="surface" style="text-align:center">
+                <div class="matching-orbit" style="margin-bottom:.5rem" aria-hidden="true">
+                  <span class="spark s2"></span>
+                  <span class="core" style="font-size:.65rem">صمت</span>
+                </div>
+                <h2>الفوانيس لم تُضَأ بعد</h2>
+                <p>عدم الرد ≠ نفاد الدواء. انتظر، أو وسّع بموافقتك، أو أنهِ بهدوء.</p>
+                <ol class="ladder" id="radius-ladder">
+                  <li class="done"><span class="n">1</span><span>انتظار أول (حتى 5 د) — مجاني</span></li>
+                  <li aria-current="step"><span class="n">2</span><span>توسيع اختياري إلى 5 كم</span></li>
+                  <li><span class="n">3</span><span>توسيع نادر 10 كم — موافقة صريحة</span></li>
+                  <li><span class="n">4</span><span>إنهاء والعودة لاحقًا</span></li>
+                </ol>
+                <button class="btn btn-lantern btn-block" type="button" id="expand-radius">وسّع إلى 5 كم</button>
+                <button class="btn btn-line btn-block" type="button" data-goto="patient" style="margin-top:.45rem">سأنتظر هنا</button>
+                <button class="btn btn-ghost btn-block" type="button" id="end-request">أنهِ الطلب</button>
+              </div>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#browse"><span class="ico" aria-hidden="true">◎</span>استكشف</a>
+              <a href="#zero" aria-current="page"><span class="ico" aria-hidden="true">◇</span>طلباتي</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>الخريطة</a>
+            </nav>
+          </section>
+
+          <!-- HOLD PENDING -->
+          <section class="screen" id="hold-pending" aria-labelledby="hold-pending-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status warn">قبل الحفظ</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">حجز <bdi dir="ltr">RSV-1190</bdi></p>
+              <h1 id="hold-pending-title">طلب الحفظ في الطريق</h1>
+              <p>العدّ التنازلي للحجز <strong>اختياري أن تنتظره</strong> — يبدأ فقط بعد ACK الصيدلية.</p>
+              <div class="surface">
+                <div class="countdown pending" role="status">
+                  <span>مهلة تأكيد الصيدلية</span>
+                  <strong><bdi dir="ltr" id="ack-timer">01:48</bdi></strong>
+                </div>
+                <div class="res-grid">
+                  <div><span>الدواء</span><strong><bdi dir="ltr">Augmentin 625 mg</bdi></strong></div>
+                  <div><span>السعر</span><strong id="pending-price">—</strong></div>
+                  <div><span>الصيدلية</span><strong>الروابي</strong></div>
+                  <div><span>التنفيذ</span><strong>استلام فقط</strong></div>
+                </div>
+                <p class="note">الهاتف والعنوان اختياري إظهارهما بعد التأكيد فقط.</p>
+                <button class="btn btn-primary btn-block" type="button" data-goto="hold">محاكاة: تم ACK</button>
+                <button class="btn btn-ghost btn-block" type="button" data-goto="offers">إلغاء — عودة للعروض</button>
+              </div>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">◇</span>العروض</a>
+              <a href="#hold-pending" aria-current="page"><span class="ico" aria-hidden="true">▣</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>الخريطة</a>
+            </nav>
+          </section>
+
+          <!-- HOLD ACTIVE -->
+          <section class="screen" id="hold" aria-labelledby="hold-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status ok">محفوظ</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">بعد تأكيد الصيدلية</p>
+              <h1 id="hold-title">فانوسي أُضيء لأجلك</h1>
+              <p>الدواء محفوظ مؤقتًا. الاتجاهات والاتصال اختياريان — أنت تقرّر متى تذهب.</p>
+              <div class="surface glow">
+                <div class="countdown" id="hold-countdown" role="timer" aria-atomic="true">
+                  <span id="countdown-label">متبقي للحجز</span>
+                  <strong><bdi dir="ltr" id="countdown-value">14:32</bdi></strong>
+                </div>
+                <p class="sr-only" aria-live="polite" id="countdown-announce"></p>
+                <div class="res-grid">
+                  <div><span>الدواء</span><strong><bdi dir="ltr">Augmentin 625 mg</bdi></strong></div>
+                  <div><span>السعر</span><strong id="hold-price">—</strong></div>
+                  <div><span>الصيدلية</span><strong>الروابي</strong></div>
+                  <div><span>التنفيذ</span><strong>استلام</strong></div>
+                  <div style="grid-column:1/-1"><span>العنوان</span><strong>شارع 14 رمضان، المنصور</strong></div>
+                </div>
+                <div class="trust-row">
+                  <span class="trust-chip">مرخّصة <bdi dir="ltr">IQ-THR-1842</bdi></span>
+                  <span class="trust-chip">حتى <bdi dir="ltr">22:00</bdi></span>
+                </div>
+                <div class="btn-row" id="hold-contact">
+                  <a class="btn btn-lantern" href="https://maps.google.com/?q=المنصور+بغداد" target="_blank" rel="noreferrer">اتجاهات</a>
+                  <a class="btn btn-line" href="tel:07701112222">اتصال</a>
+                </div>
+                <div id="hold-expired" hidden style="margin-top:.85rem">
+                  <p style="color:var(--danger);font-weight:800">انتهت المهلة — لم يعد محفوظًا.</p>
+                  <button class="btn btn-primary btn-block" type="button" data-goto="zero">أعد المحاولة</button>
+                  <button class="btn btn-ghost btn-block" type="button" data-goto="browse">تصفّح بدلًا من ذلك</button>
+                </div>
+              </div>
+            </div>
+            <nav class="nav" aria-label="تنقل">
+              <a href="#patient"><span class="ico" aria-hidden="true">⌂</span>الرئيسية</a>
+              <a href="#offers"><span class="ico" aria-hidden="true">◇</span>العروض</a>
+              <a href="#hold" aria-current="page"><span class="ico" aria-hidden="true">▣</span>الحجز</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>الخريطة</a>
+            </nav>
+          </section>
+
+          <!-- PHARMACY -->
+          <section class="screen" id="pharmacy" aria-labelledby="pharmacy-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status ok">● تستقبل</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">ليل الحيّ · طلبات قريبة</p>
+              <h1 id="pharmacy-title">فوانيس تنتظر ردّك</h1>
+              <p>قبل الحجز: المنطقة والدواء فقط. الاسم والهاتف اختياري إظهارهما بعد ACK.</p>
+              <p class="status ok" id="offer-sent" hidden style="margin-bottom:.7rem;display:none">أُرسل عرضك — الإشعار عند الاختيار.</p>
+              <article class="surface inbox-card" id="inbox-augmentin">
+                <header>
+                  <div>
+                    <h2><bdi dir="ltr">Augmentin 625 mg</bdi> <span class="status rx">وصفة</span></h2>
+                    <p class="meta">المنصور · <bdi dir="ltr">0.8</bdi> كم · عاجل</p>
+                  </div>
+                  <span class="status warn">جديد</span>
+                </header>
+                <div class="quick-reply">
+                  <button class="ok" type="button" data-goto="compose">متوفر</button>
+                  <button class="no" type="button">غير متوفر</button>
+                </div>
+              </article>
+              <article class="surface inbox-card">
+                <header>
+                  <div>
+                    <h2><bdi dir="ltr">Metformin 500 mg</bdi></h2>
+                    <p class="meta">اليرموك · <bdi dir="ltr">1.9</bdi> كم</p>
+                  </div>
+                  <span class="status soft">شُوهد</span>
+                </header>
+                <div class="quick-reply">
+                  <button class="ok" type="button" data-goto="compose">متوفر</button>
+                  <button class="no" type="button">غير متوفر</button>
+                </div>
+              </article>
+            </div>
+            <nav class="nav" aria-label="تنقل صيدلية">
+              <a href="#pharmacy" aria-current="page"><span class="ico" aria-hidden="true">◇</span>وارد</a>
+              <a href="#compose"><span class="ico" aria-hidden="true">✎</span>عرض</a>
+              <a href="#reservations"><span class="ico" aria-hidden="true">▣</span>حجوزات</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>خروج</a>
+            </nav>
+          </section>
+
+          <!-- COMPOSE -->
+          <section class="screen" id="compose" aria-labelledby="compose-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status info">رد مرن</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">المنصور · <bdi dir="ltr">0.8</bdi> كم</p>
+              <h1 id="compose-title">ركّب عرضك</h1>
+              <p>كل الحقول التالية اختيارية ما عدا النوع والسعر. الإرسال ≠ حجز مخزون.</p>
+              <form class="surface" id="compose-form">
+                <label class="field">
+                  <span>نوع الرد</span>
+                  <select name="type" required>
+                    <option value="EXACT">مطابق</option>
+                    <option value="PARTIAL">جزئي</option>
+                    <option value="ORDERABLE">قابل للطلب لاحقًا</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>السعر عند الاستلام (د.ع)</span>
+                  <input name="price" type="number" inputmode="numeric" min="0" step="250" value="12000" required dir="ltr" />
+                </label>
+                <label class="field">
+                  <span>التجهيز (اختياري)</span>
+                  <select name="ready">
+                    <option value="0">جاهز الآن</option>
+                    <option value="15">15 دقيقة</option>
+                    <option value="30">30 دقيقة</option>
+                  </select>
+                </label>
+                <label class="field">
+                  <span>ملاحظة للمريض (اختياري)</span>
+                  <textarea name="note" maxlength="120" placeholder="مثال: عبوة متوفرة على الرف"></textarea>
+                </label>
+                <button class="btn btn-lantern btn-block" type="submit">أرسل العرض</button>
+                <button class="btn btn-ghost btn-block" type="button" data-goto="pharmacy">تخطّ — رجوع</button>
+              </form>
+            </div>
+            <nav class="nav" aria-label="تنقل صيدلية">
+              <a href="#pharmacy"><span class="ico" aria-hidden="true">◇</span>وارد</a>
+              <a href="#compose" aria-current="page"><span class="ico" aria-hidden="true">✎</span>عرض</a>
+              <a href="#reservations"><span class="ico" aria-hidden="true">▣</span>حجوزات</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>خروج</a>
+            </nav>
+          </section>
+
+          <!-- RESERVATIONS -->
+          <section class="screen" id="reservations" aria-labelledby="resv-title" hidden>
+            <header class="top">
+              <span class="brand-lock"><span class="mark" aria-hidden="true"></span>دوائي</span>
+              <span class="status warn">ACK</span>
+            </header>
+            <div class="scroll">
+              <p class="eyebrow">دورة حياة الحجز</p>
+              <h1 id="resv-title">أنت تُشعل الفانوس</h1>
+              <p>ACK اختياري رفضه إن تعذّر الحفظ — الصدق لا يعاقَب.</p>
+              <article class="surface" id="resv-card">
+                <div style="display:flex;justify-content:space-between;gap:.5rem">
+                  <div>
+                    <h2><bdi dir="ltr">Augmentin 625 mg</bdi></h2>
+                    <p class="meta">محجوز · <span id="resv-price-label">—</span></p>
+                  </div>
+                  <span class="status warn" id="resv-badge">بانتظارك</span>
+                </div>
+                <p class="fresh" id="resv-line">مهلة التأكيد: <strong id="resv-timer">2:00</strong></p>
+                <div class="quick-reply" id="resv-actions">
+                  <button class="ok" type="button" data-resv="ack">ACK — احفظ</button>
+                  <button class="no" type="button" data-resv="fail">تعذّر</button>
+                </div>
+              </article>
+            </div>
+            <nav class="nav" aria-label="تنقل صيدلية">
+              <a href="#pharmacy"><span class="ico" aria-hidden="true">◇</span>وارد</a>
+              <a href="#compose"><span class="ico" aria-hidden="true">✎</span>عرض</a>
+              <a href="#reservations" aria-current="page"><span class="ico" aria-hidden="true">▣</span>حجوزات</a>
+              <a href="#welcome"><span class="ico" aria-hidden="true">✶</span>خروج</a>
+            </nav>
+          </section>
+
+          <div class="toast" id="toast" role="status"></div>
+        </div>
+      </div>
+      <p class="caption">توقيع بصري: فوانيس الحيّ ليلًا — كل فانوس صيدلية اختيار، لا مسار إجباري واحد.</p>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const OFFERS = [
+        { id: "r", name: "الروابي", area: "المنصور", price: 12000, distance: 0.8, best: 1, match: "مطابق", matchTone: "ok", ready: "الآن", freshMin: 4, until: "10:42", license: "IQ-THR-1842", openUntil: "22:00", featured: true },
+        { id: "n", name: "النور", area: "المنصور", price: 11500, distance: 1.4, best: 2, match: "جزئي", matchTone: "warn", ready: "15 د", freshMin: 9, until: "10:50", license: "IQ-THR-2201", openUntil: "21:00", featured: false },
+      ];
+
+      const screens = [...document.querySelectorAll(".screen")];
+      const toastEl = document.getElementById("toast");
+      let toastTimer, holdTimer, ackTimer, resvTimer;
+      let radiusStep = 5;
+
+      function formatIQD(n) {
+        if (!Number.isSafeInteger(n) || n < 0) throw new TypeError("IQD");
+        return new Intl.NumberFormat("ar-IQ", { style: "currency", currency: "IQD", maximumFractionDigits: 0 }).format(n);
+      }
+      function arabicOfferCount(n) {
+        const cat = new Intl.PluralRules("ar").select(n);
+        if (cat === "zero") return "لا عروض";
+        if (cat === "one") return "عرض واحد";
+        if (cat === "two") return "عرضان";
+        if (cat === "few") return n + " عروض";
+        if (cat === "many") return n + " عرضًا";
+        return n + " عرض";
+      }
+      function toast(msg) {
+        toastEl.textContent = msg;
+        toastEl.classList.add("show");
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => toastEl.classList.remove("show"), 2600);
+      }
+
+      function showScreen(id) {
+        screens.forEach((el) => {
+          const on = el.id === id;
+          el.classList.toggle("active", on);
+          if (on) el.removeAttribute("hidden");
+          else el.setAttribute("hidden", "");
+        });
+        const menu = document.querySelector(".path-menu");
+        if (menu) menu.open = false;
+        const scroller = document.querySelector("#" + id + " .scroll");
+        if (scroller) scroller.scrollTop = 0;
+        history.replaceState(null, "", "#" + id);
+        if (id === "hold") startHoldCountdown();
+        if (id === "hold-pending") startAckCountdown();
+        if (id === "reservations") startResvAck();
+        if (id === "offers") renderOffers(document.getElementById("offer-sort").value);
+      }
+
+      function renderOffers(sortKey) {
+        const list = document.getElementById("offer-list");
+        const sorted = [...OFFERS].sort((a, b) => a[sortKey] - b[sortKey]);
+        document.getElementById("offer-count").textContent = arabicOfferCount(sorted.length);
+        document.getElementById("offers-live-title").textContent =
+          sorted.length === 2 ? "وصل عرضان — اختر أو انتظر" : "وصلت " + arabicOfferCount(sorted.length);
+
+        list.innerHTML = sorted.map((o) => {
+          const price = formatIQD(o.price);
+          return `<article class="surface" style="margin-bottom:.65rem" data-price="${o.price}" data-distance="${o.distance}" data-best="${o.best}">
+            ${o.featured ? '<div class="best-tag">إضاءة أوضح لك</div>' : ""}
+            <div style="display:flex;justify-content:space-between;gap:.4rem;align-items:start">
+              <div><h2 style="margin:0">${o.name}</h2><p class="meta">${o.area} · <bdi dir="ltr">${o.distance}</bdi> كم</p></div>
+              <span class="status ${o.matchTone}">${o.match}</span>
+            </div>
+            <div class="trust-row">
+              <span class="trust-chip">مرخّصة <bdi dir="ltr">${o.license}</bdi></span>
+              <span class="trust-chip">حتى <bdi dir="ltr">${o.openUntil}</bdi></span>
+            </div>
+            <div class="facts">
+              <div><small>السعر</small><strong>${price}</strong></div>
+              <div><small>تجهيز</small><strong>${o.ready}</strong></div>
+              <div><small>تأكيد</small><strong>قبل ${o.freshMin} د</strong></div>
+            </div>
+            <p class="fresh">صالح حتى <bdi dir="ltr">${o.until}</bdi></p>
+            <details class="more">
+              <summary>تفاصيل ثقة إضافية (اختياري)</summary>
+              <div class="body">السعر عند الاستلام كما أكّدته الصيدلية — ليس تخمين كتالوج. يمكنك تخطّي الحجز والعودة للتصفّح.</div>
+            </details>
+            <button class="btn btn-primary btn-block" type="button" data-hold="${o.price}">احجز للاستلام</button>
+            <button class="btn btn-ghost btn-block" type="button" data-goto="browse">تخطّ — تصفّح</button>
+          </article>`;
+        }).join("");
+
+        list.querySelectorAll("[data-hold]").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const label = formatIQD(Number(btn.dataset.hold));
+            document.getElementById("pending-price").textContent = label;
+            document.getElementById("hold-price").textContent = label;
+            document.getElementById("resv-price-label").textContent = label;
+            showScreen("hold-pending");
+          });
+        });
+        list.querySelectorAll("[data-goto]").forEach((btn) => {
+          btn.addEventListener("click", () => showScreen(btn.dataset.goto));
+        });
+      }
+
+      document.querySelectorAll("[data-goto]").forEach((el) => {
+        el.addEventListener("click", (e) => {
+          if (el.closest("form") && el.type === "submit") return;
+          const id = el.dataset.goto;
+          if (!id || !document.getElementById(id)?.classList.contains("screen")) return;
+          e.preventDefault();
+          if (el.dataset.mode) {
+            const note = document.getElementById("matching-mode-note");
+            const map = {
+              photo: "بدأت بصورة علبة (اختياري) — بلا تشخيص آلي.",
+              rx: "بدأت برفع وصفة (اختياري) — تُشفَّر ولا تُعرض قبل الحجز.",
+              type: "بدأت بكتابة حرّة — يمكنك تعديلها لاحقًا.",
+            };
+            if (note && map[el.dataset.mode]) note.textContent = map[el.dataset.mode];
+          }
+          showScreen(id);
+        });
+      });
+
+      document.querySelectorAll('a[href^="#"]').forEach((a) => {
+        a.addEventListener("click", (e) => {
+          const id = a.getAttribute("href").slice(1);
+          if (document.getElementById(id)?.classList.contains("screen")) {
+            e.preventDefault();
+            showScreen(id);
+          }
+        });
+      });
+
+      document.getElementById("search-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const v = document.getElementById("q").value.trim() || "Augmentin 625 mg";
+        document.getElementById("matching-med").textContent = v;
+        ["offers-title", "zero-title"].forEach((id) => {
+          const el = document.getElementById(id);
+          el.innerHTML = '<bdi dir="ltr"></bdi>';
+          el.querySelector("bdi").textContent = v;
+        });
+        showScreen("matching");
+      });
+
+      document.getElementById("offer-sort").addEventListener("change", () => {
+        renderOffers(document.getElementById("offer-sort").value);
+      });
+
+      document.getElementById("compare-mode").addEventListener("change", (e) => {
+        document.getElementById("offer-list").classList.toggle("compare-mode", e.target.checked);
+      });
+
+      document.getElementById("dismiss-active")?.addEventListener("click", (e) => {
+        e.target.closest("article")?.remove();
+        toast("أُخفي الطلب النشط — يمكنك إنشاء آخر متى شئت");
+      });
+
+      /* Mood */
+      document.getElementById("mood-calm").addEventListener("click", () => {
+        document.body.removeAttribute("data-mood");
+        document.getElementById("mood-calm").setAttribute("aria-pressed", "true");
+        document.getElementById("mood-rush").setAttribute("aria-pressed", "false");
+      });
+      document.getElementById("mood-rush").addEventListener("click", () => {
+        document.body.setAttribute("data-mood", "rush");
+        document.getElementById("mood-rush").setAttribute("aria-pressed", "true");
+        document.getElementById("mood-calm").setAttribute("aria-pressed", "false");
+        toast("مزاج المساء المستعجل — فوانيس أدفأ");
+      });
+
+      /* Offline / stale as optional chips */
+      const offlineBanner = document.getElementById("offline-banner");
+      document.getElementById("toggle-offline").addEventListener("click", (e) => {
+        const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+        e.currentTarget.setAttribute("aria-pressed", on ? "true" : "false");
+        offlineBanner.classList.toggle("visible", on);
+        if (on) toast("وضع عدم الاتصال — اختياري للتجربة");
+      });
+      document.getElementById("toggle-stale").addEventListener("click", (e) => {
+        const on = e.currentTarget.getAttribute("aria-pressed") !== "true";
+        e.currentTarget.setAttribute("aria-pressed", on ? "true" : "false");
+        document.getElementById("stale-hint").hidden = !on;
+      });
+
+      /* Radius ladder */
+      const expandBtn = document.getElementById("expand-radius");
+      expandBtn.addEventListener("click", () => {
+        const steps = [...document.querySelectorAll("#radius-ladder li")];
+        if (radiusStep === 5) {
+          document.getElementById("zero-meta").textContent = "النطاق 5 كم · 8 صيدليات";
+          steps.forEach((li) => { li.removeAttribute("aria-current"); li.classList.remove("done"); });
+          steps[0].classList.add("done");
+          steps[1].classList.add("done");
+          steps[2].setAttribute("aria-current", "step");
+          expandBtn.textContent = "وسّع نادرًا إلى 10 كم";
+          radiusStep = 10;
+          toast("وُسّع إلى 5 كم بموافقتك");
+        } else if (radiusStep === 10) {
+          if (!confirm("توسيع نادر إلى 10 كم؟")) return;
+          document.getElementById("zero-meta").textContent = "النطاق 10 كم · 14 صيدلية";
+          steps.forEach((li) => { li.removeAttribute("aria-current"); li.classList.add("done"); });
+          steps[3].setAttribute("aria-current", "step");
+          expandBtn.hidden = true;
+          radiusStep = 0;
+          toast("وُسّع إلى 10 كم");
+        }
+      });
+      document.getElementById("end-request").addEventListener("click", () => {
+        toast("أُنهي الطلب بهدوء");
+        showScreen("welcome");
+        radiusStep = 5;
+        expandBtn.hidden = false;
+        expandBtn.textContent = "وسّع إلى 5 كم";
+      });
+
+      /* Unavailable reasons */
+      document.querySelectorAll(".quick-reply .no").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const reply = btn.closest(".quick-reply");
+          if (reply.nextElementSibling?.classList.contains("reason-chips")) return;
+          const chips = document.createElement("div");
+          chips.className = "reason-chips";
+          chips.setAttribute("role", "group");
+          [["OUT_OF_STOCK", "نفد"], ["NOT_CARRIED", "لا نتعامل"], ["CLOSED_NOW", "مغلق"]].forEach(([code, label]) => {
+            const b = document.createElement("button");
+            b.type = "button";
+            b.textContent = label;
+            b.addEventListener("click", () => {
+              const done = document.createElement("p");
+              done.className = "fresh";
+              done.setAttribute("role", "status");
+              done.textContent = "سُجّل السبب — شكرًا لصدقك.";
+              reply.replaceWith(done);
+              chips.remove();
+            });
+            chips.appendChild(b);
+          });
+          reply.after(chips);
+        });
+      });
+
+      document.getElementById("compose-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        if (!e.target.reportValidity()) return;
+        const price = Number(new FormData(e.target).get("price"));
+        try {
+          const label = formatIQD(price);
+          document.getElementById("pending-price").textContent = label;
+          document.getElementById("hold-price").textContent = label;
+          document.getElementById("resv-price-label").textContent = label;
+        } catch {
+          toast("السعر يجب أن يكون عددًا صحيحًا");
+          return;
+        }
+        const sent = document.getElementById("offer-sent");
+        sent.hidden = false;
+        sent.style.display = "inline-flex";
+        const card = document.getElementById("inbox-augmentin");
+        card.querySelector(".quick-reply")?.remove();
+        const badge = card.querySelector("header .status:not(.rx)");
+        if (badge) { badge.textContent = "عُرض"; badge.className = "status ok"; }
+        toast("أُرسل العرض");
+        showScreen("pharmacy");
+      });
+
+      function startHoldCountdown() {
+        clearInterval(holdTimer);
+        const box = document.getElementById("hold-countdown");
+        const value = document.getElementById("countdown-value");
+        const announce = document.getElementById("countdown-announce");
+        const expired = document.getElementById("hold-expired");
+        const contact = document.getElementById("hold-contact");
+        box.classList.remove("expired");
+        expired.hidden = true;
+        contact.style.display = "grid";
+        document.getElementById("countdown-label").textContent = "متبقي للحجز";
+        const expiresAt = Date.now() + (14 * 60 + 32) * 1000;
+        const tick = () => {
+          const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+          const m = Math.floor(left / 60);
+          const s = left % 60;
+          value.textContent = String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+          if (left === 0) {
+            clearInterval(holdTimer);
+            box.classList.add("expired");
+            document.getElementById("countdown-label").textContent = "انتهت المهلة";
+            contact.style.display = "none";
+            expired.hidden = false;
+            announce.textContent = "انتهت مهلة الحجز.";
+          }
+        };
+        holdTimer = setInterval(tick, 1000);
+        tick();
+      }
+
+      function startAckCountdown() {
+        clearInterval(ackTimer);
+        const el = document.getElementById("ack-timer");
+        const expiresAt = Date.now() + (1 * 60 + 48) * 1000;
+        const tick = () => {
+          const left = Math.max(0, Math.round((expiresAt - Date.now()) / 1000));
+          el.textContent = String(Math.floor(left / 60)).padStart(2, "0") + ":" + String(left % 60).padStart(2, "0");
+          if (left === 0) clearInterval(ackTimer);
+        };
+        ackTimer = setInterval(tick, 1000);
+        tick();
+      }
+
+      function startResvAck() {
+        clearInterval(resvTimer);
+        const badge = document.getElementById("resv-badge");
+        const line = document.getElementById("resv-line");
+        let actions = document.getElementById("resv-actions");
+        if (!actions) {
+          const card = document.getElementById("resv-card");
+          actions = document.createElement("div");
+          actions.className = "quick-reply";
+          actions.id = "resv-actions";
+          card.appendChild(actions);
+        }
+        badge.textContent = "بانتظارك";
+        badge.className = "status warn";
+        line.innerHTML = 'مهلة التأكيد: <strong id="resv-timer">2:00</strong>';
+        actions.innerHTML =
+          '<button class="ok" type="button" data-resv="ack">ACK — احفظ</button>' +
+          '<button class="no" type="button" data-resv="fail">تعذّر</button>';
+
+        const ackExpires = Date.now() + 2 * 60 * 1000;
+        resvTimer = setInterval(() => {
+          const t = document.getElementById("resv-timer");
+          if (!t || badge.textContent !== "بانتظارك") { clearInterval(resvTimer); return; }
+          const left = Math.max(0, Math.round((ackExpires - Date.now()) / 1000));
+          t.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+          if (left === 0) {
+            clearInterval(resvTimer);
+            badge.textContent = "انتهت";
+            badge.className = "status danger";
+            line.textContent = "انتهت مهلة ACK.";
+            actions.remove();
+          }
+        }, 1000);
+
+        actions.onclick = (ev) => {
+          const state = ev.target.closest("[data-resv]")?.dataset.resv;
+          if (!state) return;
+          clearInterval(resvTimer);
+          if (state === "ack") {
+            badge.textContent = "محفوظ";
+            badge.className = "status ok";
+            const holdEnd = Date.now() + 15 * 60 * 1000;
+            line.innerHTML = 'الحفظ ينتهي خلال: <strong id="resv-timer">15:00</strong>';
+            actions.innerHTML =
+              '<button class="ok" type="button" data-resv="ready">جاهز</button>' +
+              '<button class="no" type="button" data-resv="fail">مشكلة</button>';
+            resvTimer = setInterval(() => {
+              const t = document.getElementById("resv-timer");
+              if (!t) { clearInterval(resvTimer); return; }
+              const left = Math.max(0, Math.round((holdEnd - Date.now()) / 1000));
+              t.textContent = Math.floor(left / 60) + ":" + String(left % 60).padStart(2, "0");
+              if (left === 0) {
+                clearInterval(resvTimer);
+                badge.textContent = "انتهت";
+                badge.className = "status danger";
+                line.textContent = "انتهت مهلة الحفظ.";
+                actions.remove();
+              }
+            }, 1000);
+            toast("أُضيء الفانوس — حفظ 15 دقيقة");
+          } else if (state === "ready") {
+            badge.textContent = "جاهز";
+            badge.className = "status ok";
+            line.textContent = "بانتظار حضور المريض.";
+            actions.innerHTML =
+              '<button class="ok" type="button" data-resv="complete">تم الاستلام</button>' +
+              '<button class="no" type="button" data-resv="noshow">لم يحضر</button>';
+          } else if (state === "complete") {
+            badge.textContent = "اكتمل";
+            badge.className = "status ok";
+            line.textContent = "اكتمل الاستلام.";
+            actions.remove();
+            toast("اكتمل");
+          } else {
+            badge.textContent = state === "noshow" ? "لم يحضر" : "تعذّر";
+            badge.className = "status danger";
+            line.textContent = "أُعيد الطلب للمريض.";
+            actions.remove();
+          }
+        };
+      }
+
+      window.addEventListener("hashchange", () => {
+        const id = location.hash.slice(1);
+        if (document.getElementById(id)?.classList.contains("screen")) showScreen(id);
+      });
+
+      try {
+        const seed = formatIQD(12000);
+        document.getElementById("pending-price").textContent = seed;
+        document.getElementById("hold-price").textContent = seed;
+        document.getElementById("resv-price-label").textContent = seed;
+      } catch (_) {}
+
+      renderOffers("best");
+      const initial = (location.hash || "#welcome").slice(1);
+      showScreen(document.getElementById(initial)?.classList.contains("screen") ? initial : "welcome");
+    })();
+  </script>
+</body>
+</html>

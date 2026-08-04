@@ -1,0 +1,18 @@
+# Routing, carried INSIDE the build output.
+#
+# Why this file exists and not only netlify.toml: setting `base` in the root
+# netlify.toml makes Netlify read the netlify.toml in the BASE directory
+# instead, and a config that lost its redirects deployed a site whose front
+# door answered 404 — verified in a browser, not guessed. A _redirects file
+# travels in the publish directory itself, so it applies whichever config file
+# ends up winning.
+#
+# Vite's root is the platform directory, so the entry is emitted at the path it
+# occupies in the source tree. The dev server answers the front door with a
+# middleware; a static host cannot run middleware, so it does the same with a
+# rewrite. 200, not 301: the address stays the one the visitor typed.
+/                 /apps/patient/web/index.html   200
+
+# One page, one entry. The app owns its own navigation and reads nothing from
+# the URL; the mock answers /v1/ inside the page, so nothing needs to escape.
+/*                /apps/patient/web/index.html   200

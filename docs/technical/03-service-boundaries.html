@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Service Boundaries</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Service Boundaries</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html" class="on">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  <nav id="toc"><div class="grp">On this page</div><a href="#patient-app">Patient App</a><a href="#pharmacy-app">Pharmacy App</a><a href="#owner-console">Owner Console</a><a href="#api-gateway">API Gateway</a><a href="#identity-service">Identity Service</a><a href="#marketplace-engine">Marketplace Engine</a><a href="#clinical-engine">Clinical Engine</a><a href="#catalogue-service">Catalogue Service</a><a href="#pharmacy-service">Pharmacy Service</a><a href="#notification-service">Notification Service</a><a href="#media-service">Media Service</a><a href="#audit-service">Audit Service</a></nav>
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Service Boundaries</h1>
+<p class="lede">Ownership, interfaces, events in and out, dependencies, and — the
+part that matters — what each service must never do. A forbidden list is the
+only thing that stops a service growing into its neighbour.</p>
+
+<div class="tw"><table><thead><tr><th>Service</th><th>Kind</th><th>Owns</th><th>Depends on</th></tr></thead><tbody>
+<tr><td><code>patient-app</code></td><td>client</td>
+<td>—</td>
+<td>api-gateway, notification-service</td></tr><tr><td><code>pharmacy-app</code></td><td>client</td>
+<td>—</td>
+<td>api-gateway, notification-service</td></tr><tr><td><code>owner-console</code></td><td>client</td>
+<td>—</td>
+<td>api-gateway</td></tr><tr><td><code>api-gateway</code></td><td>edge</td>
+<td>—</td>
+<td>identity-service, audit-service</td></tr><tr><td><code>identity-service</code></td><td>core</td>
+<td>Account, Subject, Guardianship, PeerGrant</td>
+<td>audit-service</td></tr><tr><td><code>marketplace-engine</code></td><td>core</td>
+<td>Request, RequestLine, Offer, OfferLine, Reservation, ReservationLine</td>
+<td>identity-service, catalogue-service, pharmacy-service, clinical-engine, audit-service</td></tr><tr><td><code>clinical-engine</code></td><td>core</td>
+<td>DispenseRecord</td>
+<td>catalogue-service, pharmacy-service, identity-service, audit-service</td></tr><tr><td><code>catalogue-service</code></td><td>core</td>
+<td>CatalogueItem, District</td>
+<td>audit-service</td></tr><tr><td><code>pharmacy-service</code></td><td>core</td>
+<td>Pharmacy, Branch, BranchHours, Staff, Licence</td>
+<td>identity-service, audit-service</td></tr><tr><td><code>notification-service</code></td><td>delivery</td>
+<td>Watch</td>
+<td>identity-service</td></tr><tr><td><code>media-service</code></td><td>core</td>
+<td>PrescriptionImage</td>
+<td>identity-service, audit-service</td></tr><tr><td><code>audit-service</code></td><td>core</td>
+<td>AuditEntry</td>
+<td>—</td></tr>
+</tbody></table></div>
+
+<section id="patient-app"><h2>Patient App <code>patient-app</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§3 Phase 0 · §4 groups Entry/Subjects/Find/Request/Reservation/Account</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Render patient screens E1–E13, S1–S12, F1–F8, R1–R13, V1–V8, M1–M15</li><li>Hold the encrypted local cache while signed in (D28)</li><li>Own the outbox: queue writes offline, replay exactly once (D27)</li><li>Preserve a pending action across authentication (D26)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>HTTPS to api-gateway</code> · <code>Push receipt from notification-service</code></dd>
+<dt>Events consumed</dt><dd><code>reservation.confirmed</code> <code>reservation.refused</code> <code>reservation.expiring</code> <code>offer.received</code> <code>grant.requested</code> <code>watch.matched</code></dd>
+<dt>Events produced</dt><dd>—</dd>
+<dt>Dependencies</dt><dd><code>api-gateway</code> · <code>notification-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Decide any permission — hidden UI is not a permission (§5 rule 1)</li><li>Show a price outside an offer made to this patient (D08)</li><li>Present a queued request as sent (D27)</li><li>Assert a clinical fact the server has not accepted</li><li>Contain any pharmacy or operator screen (role isolation, §5)</li></ul></dd>
+</dl></div></section><section id="pharmacy-app"><h2>Pharmacy App <code>pharmacy-app</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§4 groups Pharmacy apply/Pharmacy</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Render PA1–PA9 and P1–P31</li><li>Staff session with per-person PIN and 30-minute idle timeout (D19)</li><li>Own its outbox for offline answers (P31)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>HTTPS to api-gateway</code> · <code>Push receipt</code></dd>
+<dt>Events consumed</dt><dd><code>request.broadcast</code> <code>reservation.requested</code> <code>reservation.cancelled</code> <code>licence.expiring</code> <code>branch.eligibility.changed</code></dd>
+<dt>Events produced</dt><dd>—</dd>
+<dt>Dependencies</dt><dd><code>api-gateway</code> · <code>notification-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Read any clinical record (§5 clinical matrix)</li><li>See requester identity before acceptance (§5 marketplace matrix)</li><li>Retain a prescription image after its reservation ends (D18)</li><li>Contain any patient or operator screen</li></ul></dd>
+</dl></div></section><section id="owner-console"><h2>Owner Console <code>owner-console</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§4 group Operator (O1–O24)</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Render O1–O24</li><li>Present the four Phase 0 exit metrics (§3)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>HTTPS to api-gateway</code></dd>
+<dt>Events consumed</dt><dd>—</dd>
+<dt>Events produced</dt><dd>—</dd>
+<dt>Dependencies</dt><dd><code>api-gateway</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Write into a clinical record — no mechanism exists (§5 platform matrix)</li><li>Read identified clinical data outside a consented session (D-support, O19)</li><li>Modify the audit log</li><li>Broadcast, bulk-export or grant roles — absent in Phase 0 (D20)</li></ul></dd>
+</dl></div></section><section id="api-gateway"><h2>API Gateway <code>api-gateway</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§5 enforcement rules 1–4</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Terminate TLS, authenticate the caller, resolve the principal</li><li>Reject a token whose audience does not match the endpoint's persona (role isolation)</li><li>Enforce idempotency keys on every state-changing call (D27)</li><li>Rate limit per account and per branch (§8 abuse table)</li><li>Emit an audit envelope for every request that touches identified data</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>Public HTTPS</code></dd>
+<dt>Events consumed</dt><dd>—</dd>
+<dt>Events produced</dt><dd><code>api.request.received</code></dd>
+<dt>Dependencies</dt><dd><code>identity-service</code> · <code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Contain business logic of any kind</li><li>Perform the authority check itself — authority is checked where the work happens (§5 rule 2)</li><li>Cache a clinical response</li></ul></dd>
+</dl></div></section><section id="identity-service"><h2>Identity Service <code>identity-service</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§9 Family Architecture · §2 Account/Subject/Grant · §6 Subject &amp; Grant machines</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Accounts, phone verification, sessions, device binding</li><li>Subjects: self and managed; the claim transition; memorialisation</li><li>Guardianship: creation, transfer, ending on claim</li><li>Peer grants: invite, pending, approve, narrow, revoke, expire</li><li>Answer the single authority question: may principal P act on subject S at scope X</li><li>Account deletion with per-dependent disposition (D05)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>authority.check(principal, subject, scope)</code> · <code>identity read/write API</code></dd>
+<dt>Events consumed</dt><dd><code>account.deletion.requested</code></dd>
+<dt>Events produced</dt><dd><code>account.created</code> <code>account.deletion.scheduled</code> <code>account.deleted</code> <code>subject.created</code> <code>subject.claimed</code> <code>subject.memorialised</code> <code>subject.memorialisation.reversed</code> <code>guardianship.transferred</code> <code>grant.invited</code> <code>grant.requested</code> <code>grant.activated</code> <code>grant.revoked</code> <code>grant.expired</code></dd>
+<dt>Dependencies</dt><dd><code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Store any clinical content</li><li>Return a boolean for authority — it throws, so a caller cannot forget to handle it (§5 rule 2)</li><li>Distinguish a missing relationship from a forbidden one in its error (§5 rule 3)</li></ul></dd>
+</dl></div></section><section id="marketplace-engine"><h2>Marketplace Engine <code>marketplace-engine</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§8 Marketplace Logic · §6 Request/Offer/Reservation machines</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Requests and their lines; the child-request rule for unfilled lines (D06)</li><li>Routing: the five eligibility rules, evaluated per branch (§8)</li><li>Request windows: 20m / 4h / 48h, and deferred notification to opening time (D09)</li><li>Offers and their lines; withdrawal before acceptance (D08)</li><li>Reservations: confirm, refuse, expire, cancel, collect — server-authoritative clock</li><li>Honoured rate with the 5-minute grace, banded, never a decimal (D11)</li><li>Observed availability from answers, never from stock (§8)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>request API</code> · <code>offer API</code> · <code>reservation API</code> · <code>routing evaluation</code></dd>
+<dt>Events consumed</dt><dd><code>branch.eligibility.changed</code> <code>catalogue.item.withdrawn</code> <code>subject.memorialised</code></dd>
+<dt>Events produced</dt><dd><code>request.created</code> <code>request.broadcast</code> <code>request.unanswered</code> <code>request.child.created</code> <code>offer.sent</code> <code>offer.withdrawn</code> <code>offer.accepted</code> <code>reservation.requested</code> <code>reservation.confirmed</code> <code>reservation.refused</code> <code>reservation.expiring</code> <code>reservation.expired</code> <code>reservation.cancelled</code> <code>reservation.collected</code> <code>price.dispute.raised</code></dd>
+<dt>Dependencies</dt><dd><code>identity-service</code> · <code>catalogue-service</code> · <code>pharmacy-service</code> · <code>clinical-engine</code> · <code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Hold stock quantities — Phase 0 has no stock data (§3)</li><li>Rank or weight branches; every eligible branch is asked simultaneously (D12)</li><li>Expose requester identity in any branch-facing projection (§5)</li><li>Start a reservation clock before the branch confirms (§6 Reservation)</li><li>Decide whether a substitution is clinically acceptable — that is clinical-engine</li></ul></dd>
+</dl></div></section><section id="clinical-engine"><h2>Clinical Engine <code>clinical-engine</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§7 Clinical Safety</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Enforce the prescription gate: a POM line cannot exist without an image (D18)</li><li>Refuse controlled items outright (D42)</li><li>Authorise a substitution proposal — verified pharmacist licence only (D19)</li><li>Define and record the handover checklist (§7 control 2)</li><li>Write the dispense record on collection — the only writer of the medication record (D22)</li><li>Own the refusal list: no diagnosis, no dose, no auto-substitution, no OCR, no allergy data (§7)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>gate.check(requestLine)</code> · <code>substitution.authorise(staff, item)</code> · <code>handover.checklist</code> · <code>dispense.write</code></dd>
+<dt>Events consumed</dt><dd><code>reservation.collected</code></dd>
+<dt>Events produced</dt><dd><code>clinical.gate.refused</code> <code>substitution.authorised</code> <code>substitution.refused</code> <code>dispense.recorded</code> <code>handover.checklist.recorded</code></dd>
+<dt>Dependencies</dt><dd><code>catalogue-service</code> · <code>pharmacy-service</code> · <code>identity-service</code> · <code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Perform any interaction check — Phase 0 has none (D16)</li><li>Hold or read allergy data — it does not exist in Phase 0 (D17)</li><li>Machine-read a prescription (§7 refusals)</li><li>Ever return a clear result; in Phase 0 it returns only ALLOWED or REFUSED, never SAFE</li><li>Edit or delete a dispense record (§2 invariant 2)</li></ul></dd>
+</dl></div></section><section id="catalogue-service"><h2>Catalogue Service <code>catalogue-service</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§2 CATALOGUE_ITEM/DISTRICT · §8 availability · O8–O11</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Catalogue items with pack size, prescription flag, controlled flag (D07/D18/D42)</li><li>Arabic-first search with orthographic normalisation, never silent correction</li><li>The curated district list (D10)</li><li>Unmatched searches — the only search data retained (D29)</li><li>Observed availability windows computed from offer answers</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>search API</code> · <code>item API</code> · <code>district API</code></dd>
+<dt>Events consumed</dt><dd><code>offer.sent</code> <code>request.created</code></dd>
+<dt>Events produced</dt><dd><code>catalogue.item.published</code> <code>catalogue.item.withdrawn</code> <code>search.unmatched</code></dd>
+<dt>Dependencies</dt><dd><code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Hold a price (D08)</li><li>Hold stock</li><li>Autocorrect a medicine name silently (§9 of v1, carried into D-search)</li><li>Publish an item lacking pack size, prescription flag or controlled flag (§3 prerequisite 3)</li></ul></dd>
+</dl></div></section><section id="pharmacy-service"><h2>Pharmacy Service <code>pharmacy-service</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§4 Pharmacy apply/Pharmacy · §6 Verification &amp; Branch eligibility machines</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Pharmacies, branches, verified map points, staff and roles</li><li>Verification lifecycle, licence expiry tracking with 60/30/7-day warnings</li><li>Opening hours, exceptions, the Ramadan alternative week (D33)</li><li>Coverage, capacity, pause; computing branch eligibility and its reason (D13)</li><li>Branch data rights: access log, export, closure (D15)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>branch API</code> · <code>staff API</code> · <code>verification API</code> · <code>eligibility query</code></dd>
+<dt>Events consumed</dt><dd><code>reservation.confirmed</code> <code>reservation.collected</code> <code>reservation.refused</code></dd>
+<dt>Events produced</dt><dd><code>branch.verified</code> <code>branch.suspended</code> <code>branch.closed</code> <code>branch.eligibility.changed</code> <code>licence.expiring</code> <code>licence.lapsed</code> <code>staff.invited</code> <code>staff.role.changed</code></dd>
+<dt>Dependencies</dt><dd><code>identity-service</code> · <code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Decide routing — it answers eligibility, marketplace-engine routes (§8)</li><li>Hold clinical data</li><li>Allow the last manager of a branch to be removed (§10 change 5)</li></ul></dd>
+</dl></div></section><section id="notification-service"><h2>Notification Service <code>notification-service</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§4 E10/M6 · D30 watches · D09 deferred notification</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Device registration, per-category preferences, quiet hours</li><li>Deliver push for the Phase 0 categories only</li><li>Defer a branch notification to its opening time when the request window allows (D09)</li><li>Watch matching and expiry at 14 days, max 5 per subject (D30)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>device registration</code> · <code>preference API</code> · <code>watch API</code></dd>
+<dt>Events consumed</dt><dd><code>request.broadcast</code> <code>offer.sent</code> <code>reservation.confirmed</code> <code>reservation.refused</code> <code>reservation.expiring</code> <code>grant.requested</code> <code>grant.activated</code> <code>licence.expiring</code> <code>subject.memorialised</code> <code>catalogue.item.published</code></dd>
+<dt>Events produced</dt><dd><code>notification.sent</code> <code>notification.suppressed</code> <code>watch.matched</code> <code>watch.expired</code></dd>
+<dt>Dependencies</dt><dd><code>identity-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Compute clinical severity — Phase 0 has none, and it would eventually disagree with clinical-engine (§7)</li><li>Notify a branch outside its opening hours except for a reservation it already confirmed (D09)</li><li>Send anything for engagement</li><li>Contain a category that cannot be disabled — Phase 0 has no safety category (M6)</li></ul></dd>
+</dl></div></section><section id="media-service"><h2>Media Service <code>media-service</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§2 PRESCRIPTION_IMAGE · D18 · P15</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Prescription image storage, encrypted at rest</li><li>Time-bounded access grants: readable by a branch only while its reservation is live</li><li>Revocation when the reservation ends</li><li>Deletion on patient request or account deletion</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>upload</code> · <code>fetch with a scoped, expiring reference</code> · <code>revoke</code></dd>
+<dt>Events consumed</dt><dd><code>reservation.confirmed</code> <code>reservation.collected</code> <code>reservation.expired</code> <code>reservation.cancelled</code> <code>account.deleted</code></dd>
+<dt>Events produced</dt><dd><code>prescription.uploaded</code> <code>prescription.access.granted</code> <code>prescription.access.revoked</code> <code>prescription.deleted</code></dd>
+<dt>Dependencies</dt><dd><code>identity-service</code> · <code>audit-service</code></dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Machine-read an image (§7 refusals)</li><li>Serve an image after its reservation ends (D18)</li><li>Store an image outside the patient's ownership (§9 deletion)</li></ul></dd>
+</dl></div></section><section id="audit-service"><h2>Audit Service <code>audit-service</code></h2>
+<p><span class="bp" title="Blueprint v3 reference">§2 AUDIT_ENTRY · §5 platform matrix · S12/P26/O23</span></p>
+<div class="card"><dl class="kv">
+<dt>Responsibilities</dt><dd><ul><li>Append-only record of every action and every read of identified data</li><li>Project the patient-facing access log (S12) and the branch access log (P26)</li><li>Serve the operator audit log and entry detail (O23/O24)</li><li>Tombstone the actor on account deletion rather than removing the entry (D05)</li></ul></dd>
+<dt>Public interfaces</dt><dd><code>append</code> · <code>query</code></dd>
+<dt>Events consumed</dt><dd><code>*</code></dd>
+<dt>Events produced</dt><dd><code>audit.appended</code></dd>
+<dt>Dependencies</dt><dd>none</dd>
+<dt>Forbidden</dt><dd><ul class="forbid"><li>Offer an update or delete operation to any principal, including the operator (§5)</li><li>Drop an entry under load — it applies backpressure instead</li><li>Store the content of a clinical record; it stores that a read occurred, not what was read</li></ul></dd>
+</dl></div></section>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

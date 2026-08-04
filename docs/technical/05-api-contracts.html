@@ -1,0 +1,759 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — API Contracts</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>API Contracts</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html" class="on">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>API Contracts</h1>
+<p class="lede">67 endpoints. Contracts only — no
+implementation. Every endpoint names the service that owns it and the Blueprint
+reference it serves; an endpoint with no reference fails the validator as an
+invention.</p>
+
+<div class="rule"><b>Three rules that apply to every endpoint</b>
+<b>1.</b> Authority is checked in the owning service, never at the gateway —
+a route-level check is bypassed the first time an internal caller is added.<br>
+<b>2.</b> A missing relationship and a forbidden one return byte-identical
+responses, so no lookup becomes an identity oracle.<br>
+<b>3.</b> Every state-changing call carries an <code>Idempotency-Key</code>;
+replaying it returns the original result, never a duplicate and never an error.</div>
+
+<div class="filters" data-target="eps">
+  <button data-f="all" class="on">All</button>
+  <button data-f="identity-service">identity</button><button data-f="audit-service">audit</button><button data-f="catalogue-service">catalogue</button><button data-f="pharmacy-service">pharmacy</button><button data-f="marketplace-engine">marketplace</button><button data-f="clinical-engine">clinical</button><button data-f="notification-service">notification</button><button data-f="media-service">media</button>
+  <input type="search" placeholder="Search endpoints…" aria-label="Search endpoints">
+  <span class="cnt" style="font-size:.79rem;color:var(--ink3)"></span>
+</div>
+<div id="eps">
+<div class="card" data-k="identity-service" data-s="post /v1/auth/phone identity-service — { phone } 202 { challengeid, resendafter } 400 malformed_phone 429 too_many_attempts (§4 e6 rate-limited)">
+<header><b><code>POST /v1/auth/phone</code></b> <span class="bp" title="Blueprint v3 reference">§4 E5</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>none</dd>
+<dt>Authorization</dt><dd>—</dd>
+<dt>Request</dt><dd><code>{ phone }</code></dd>
+<dt>Response</dt><dd><code>202 { challengeId, resendAfter }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 malformed_phone</code></li><li><code>429 too_many_attempts (§4 E6 rate-limited)</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/auth/verify identity-service — { challengeid, code, deviceid } 200 { session, account, subjects[] } 400 wrong_code { attemptsleft } 410 challenge_expired 429 too_many_attempts 403 account_suspended">
+<header><b><code>POST /v1/auth/verify</code></b> <span class="bp" title="Blueprint v3 reference">§4 E6</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>challengeId</dd>
+<dt>Authorization</dt><dd>—</dd>
+<dt>Request</dt><dd><code>{ challengeId, code, deviceId }</code></dd>
+<dt>Response</dt><dd><code>200 { session, account, subjects[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 wrong_code { attemptsLeft }</code></li><li><code>410 challenge_expired</code></li><li><code>429 too_many_attempts</code></li><li><code>403 account_suspended</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/auth/session/refresh identity-service device binding must match { refreshtoken, deviceid } 200 { session } 401 invalid_refresh 403 device_mismatch">
+<header><b><code>POST /v1/auth/session/refresh</code></b> <span class="bp" title="Blueprint v3 reference">§8 token lifecycle</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>refresh token</dd>
+<dt>Authorization</dt><dd>device binding must match</dd>
+<dt>Request</dt><dd><code>{ refreshToken, deviceId }</code></dd>
+<dt>Response</dt><dd><code>200 { session }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>401 invalid_refresh</code></li><li><code>403 device_mismatch</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="delete /v1/auth/session identity-service self — 204 ">
+<header><b><code>DELETE /v1/auth/session</code></b> <span class="bp" title="Blueprint v3 reference">§4 M9</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>204</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="identity-service" data-s="get /v1/me identity-service self — 200 { account, subjects[], grants[] } ">
+<header><b><code>GET /v1/me</code></b> <span class="bp" title="Blueprint v3 reference">§4 M1</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { account, subjects[], grants[] }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="identity-service" data-s="patch /v1/me identity-service self { name?, districtid? } 200 { account } 400 invalid_district">
+<header><b><code>PATCH /v1/me</code></b> <span class="bp" title="Blueprint v3 reference">§4 M2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self</dd>
+<dt>Request</dt><dd><code>{ name?, districtId? }</code></dd>
+<dt>Response</dt><dd><code>200 { account }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 invalid_district</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/me/phone-change identity-service self, both numbers verified { newphone } 202 { challengeid } 409 number_already_registered">
+<header><b><code>POST /v1/me/phone-change</code></b> <span class="bp" title="Blueprint v3 reference">§4 M3</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self, both numbers verified</dd>
+<dt>Request</dt><dd><code>{ newPhone }</code></dd>
+<dt>Response</dt><dd><code>202 { challengeId }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>409 number_already_registered</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/subjects identity-service self creates a managed subject { name, birthyear? } 201 { subject } 400 name_required 409 managed_subject_limit (6)">
+<header><b><code>POST /v1/subjects</code></b> <span class="bp" title="Blueprint v3 reference">§4 S3 · D01</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self creates a managed subject</dd>
+<dt>Request</dt><dd><code>{ name, birthYear? }</code></dd>
+<dt>Response</dt><dd><code>201 { subject }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 name_required</code></li><li><code>409 managed_subject_limit (6)</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/subjects/{id}/claim-invite identity-service guardian of {id} { phone } 202 { inviteid, expiresat } 404 not_found_or_not_yours 409 already_self 409 number_already_registered">
+<header><b><code>POST /v1/subjects/{id}/claim-invite</code></b> <span class="bp" title="Blueprint v3 reference">§4 S9</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>guardian of {id}</dd>
+<dt>Request</dt><dd><code>{ phone }</code></dd>
+<dt>Response</dt><dd><code>202 { inviteId, expiresAt }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 already_self</code></li><li><code>409 number_already_registered</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/subjects/{id}/transfer identity-service guardian of {id}; receiver must accept { tophone } 202 { transferid } 404 not_found_or_not_yours 409 receiver_refused">
+<header><b><code>POST /v1/subjects/{id}/transfer</code></b> <span class="bp" title="Blueprint v3 reference">§4 S10</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>guardian of {id}; receiver must accept</dd>
+<dt>Request</dt><dd><code>{ toPhone }</code></dd>
+<dt>Response</dt><dd><code>202 { transferId }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 receiver_refused</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/subjects/{id}/memorialise identity-service guardian of {id}, or operator { confirm: true } 200 { subject, reversibleuntil } 404 not_found_or_not_yours 409 already_memorialised">
+<header><b><code>POST /v1/subjects/{id}/memorialise</code></b> <span class="bp" title="Blueprint v3 reference">§4 S11 · D04</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>guardian of {id}, or operator</dd>
+<dt>Request</dt><dd><code>{ confirm: true }</code></dd>
+<dt>Response</dt><dd><code>200 { subject, reversibleUntil }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 already_memorialised</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/subjects/{id}/memorialise/reverse identity-service guardian of {id}, or operator — 200 { subject } 404 not_found_or_not_yours 410 reversal_window_passed">
+<header><b><code>POST /v1/subjects/{id}/memorialise/reverse</code></b> <span class="bp" title="Blueprint v3 reference">D04</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>guardian of {id}, or operator</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { subject }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>410 reversal_window_passed</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="get /v1/grants identity-service self — returns only grants this account is party to — 200 { held[], givenbysubject[] } ">
+<header><b><code>GET /v1/grants</code></b> <span class="bp" title="Blueprint v3 reference">§4 S4</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self — returns only grants this account is party to</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { held[], givenBySubject[] }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/grants identity-service subject or guardian { subjectid, phone, scope: view|order } 201 { grant } 400 own_number 409 grant_exists 404 not_found_or_not_yours">
+<header><b><code>POST /v1/grants</code></b> <span class="bp" title="Blueprint v3 reference">§4 S5 · D02</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>subject or guardian</dd>
+<dt>Request</dt><dd><code>{ subjectId, phone, scope: view|order }</code></dd>
+<dt>Response</dt><dd><code>201 { grant }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 own_number</code></li><li><code>409 grant_exists</code></li><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/grants/{id}/approve identity-service the subject, or its guardian { scope? } 200 { grant } 404 not_found_or_not_yours 410 invite_expired">
+<header><b><code>POST /v1/grants/{id}/approve</code></b> <span class="bp" title="Blueprint v3 reference">§4 S7</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>the subject, or its guardian</dd>
+<dt>Request</dt><dd><code>{ scope? }</code></dd>
+<dt>Response</dt><dd><code>200 { grant }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>410 invite_expired</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/grants/{id}/revoke identity-service the subject, or its guardian — 200 { grant } 404 not_found_or_not_yours">
+<header><b><code>POST /v1/grants/{id}/revoke</code></b> <span class="bp" title="Blueprint v3 reference">§4 S8</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>the subject, or its guardian</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { grant }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/me/delete identity-service self { confirmword, dependents: [{subjectid, action: transfer|delete, tophone?}] } 202 { effectiveat } 400 confirm_word_mismatch 400 dependent_disposition_missing">
+<header><b><code>POST /v1/me/delete</code></b> <span class="bp" title="Blueprint v3 reference">§4 M10–M13 · D05</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self</dd>
+<dt>Request</dt><dd><code>{ confirmWord, dependents: [{subjectId, action: transfer|delete, toPhone?}] }</code></dd>
+<dt>Response</dt><dd><code>202 { effectiveAt }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 confirm_word_mismatch</code></li><li><code>400 dependent_disposition_missing</code></li></ul></dd>
+</dl></div><div class="card" data-k="audit-service" data-s="get /v1/subjects/{id}/access-log audit-service the subject, or its guardian — 200 { reads[] } 404 not_found_or_not_yours">
+<header><b><code>GET /v1/subjects/{id}/access-log</code></b> <span class="bp" title="Blueprint v3 reference">§4 S12</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>audit-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>the subject, or its guardian</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { reads[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/subjects/{id}/export identity-service the subject, or its guardian — 202 { exportid } 404 not_found_or_not_yours 429 export_in_progress">
+<header><b><code>POST /v1/subjects/{id}/export</code></b> <span class="bp" title="Blueprint v3 reference">§4 M8</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>the subject, or its guardian</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>202 { exportId }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>429 export_in_progress</code></li></ul></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="get /v1/catalogue/search catalogue-service public ?q&amp;districtid 200 { items[], unmatched: bool } 400 query_too_short">
+<header><b><code>GET /v1/catalogue/search</code></b> <span class="bp" title="Blueprint v3 reference">§4 F2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>catalogue-service</code></dd>
+<dt>Authentication</dt><dd>optional</dd>
+<dt>Authorization</dt><dd>public</dd>
+<dt>Request</dt><dd><code>?q&amp;districtId</code></dd>
+<dt>Response</dt><dd><code>200 { items[], unmatched: bool }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 query_too_short</code></li></ul></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="get /v1/catalogue/items/{id} catalogue-service public — 200 { item, observedavailability, requiresprescription, iscontrolled } 404 not_found 410 withdrawn">
+<header><b><code>GET /v1/catalogue/items/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 F3</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>catalogue-service</code></dd>
+<dt>Authentication</dt><dd>optional</dd>
+<dt>Authorization</dt><dd>public</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { item, observedAvailability, requiresPrescription, isControlled }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found</code></li><li><code>410 withdrawn</code></li></ul></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="get /v1/districts catalogue-service public — 200 { districts[] } ">
+<header><b><code>GET /v1/districts</code></b> <span class="bp" title="Blueprint v3 reference">§4 E8 · D10</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>catalogue-service</code></dd>
+<dt>Authentication</dt><dd>optional</dd>
+<dt>Authorization</dt><dd>public</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { districts[] }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/branches pharmacy-service public ?districtid&amp;itemid? 200 { branches[] with opennow, distancekm, honouredband } 400 unknown_district">
+<header><b><code>GET /v1/branches</code></b> <span class="bp" title="Blueprint v3 reference">§4 F5/F6</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>optional</dd>
+<dt>Authorization</dt><dd>public</dd>
+<dt>Request</dt><dd><code>?districtId&amp;itemId?</code></dd>
+<dt>Response</dt><dd><code>200 { branches[] with openNow, distanceKm, honouredBand }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 unknown_district</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/branches/{id} pharmacy-service public — 200 { branch, hours, exceptions, ramadanweek, verified } 404 not_found">
+<header><b><code>GET /v1/branches/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 F7/F8</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>optional</dd>
+<dt>Authorization</dt><dd>public</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { branch, hours, exceptions, ramadanWeek, verified }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/requests marketplace-engine self, guardian, or grant:order on the subject { subjectid, lines:[{itemid, packs}], urgency, districtid, prescriptionimageids[] } 201 { request, windowendsat, branchesasked } 400 too_many_lines (max 8) 403 clinical_gate_refused { itemid, reason } 404 subject_not_found_or_not_yours 409 outside_coverage 429 rate_limited">
+<header><b><code>POST /v1/requests</code></b> <span class="bp" title="Blueprint v3 reference">§4 R6 · §6 Request</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>self, guardian, or grant:order on the subject</dd>
+<dt>Request</dt><dd><code>{ subjectId, lines:[{itemId, packs}], urgency, districtId, prescriptionImageIds[] }</code></dd>
+<dt>Response</dt><dd><code>201 { request, windowEndsAt, branchesAsked }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 too_many_lines (max 8)</code></li><li><code>403 clinical_gate_refused { itemId, reason }</code></li><li><code>404 subject_not_found_or_not_yours</code></li><li><code>409 outside_coverage</code></li><li><code>429 rate_limited</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="get /v1/requests/{id} marketplace-engine requester or subject grant holder — 200 { request, responders:{asked,replied,thinking}, offers[] } 404 not_found_or_not_yours">
+<header><b><code>GET /v1/requests/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 R7</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester or subject grant holder</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { request, responders:{asked,replied,thinking}, offers[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/requests/{id}/cancel marketplace-engine requester — 200 { request } 404 not_found_or_not_yours 409 already_accepted">
+<header><b><code>POST /v1/requests/{id}/cancel</code></b> <span class="bp" title="Blueprint v3 reference">§4 R7</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { request }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 already_accepted</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/requests/{id}/widen marketplace-engine requester — 200 { request, branchesasked } 404 not_found_or_not_yours">
+<header><b><code>POST /v1/requests/{id}/widen</code></b> <span class="bp" title="Blueprint v3 reference">§4 R11</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { request, branchesAsked }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/offers/{id}/accept marketplace-engine requester { acceptedlineids[], substitutionacknowledged: bool } 201 { reservation, childrequestid? } 404 not_found_or_not_yours 409 offer_withdrawn 409 offer_expired 400 substitution_not_acknowledged">
+<header><b><code>POST /v1/offers/{id}/accept</code></b> <span class="bp" title="Blueprint v3 reference">§4 R8/R9 · D06</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester</dd>
+<dt>Request</dt><dd><code>{ acceptedLineIds[], substitutionAcknowledged: bool }</code></dd>
+<dt>Response</dt><dd><code>201 { reservation, childRequestId? }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 offer_withdrawn</code></li><li><code>409 offer_expired</code></li><li><code>400 substitution_not_acknowledged</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="get /v1/reservations/{id} marketplace-engine requester or subject grant holder — 200 { reservation, code, servertime, expiresat, branch, lines[] } 404 not_found_or_not_yours">
+<header><b><code>GET /v1/reservations/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 V2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester or subject grant holder</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { reservation, code, serverTime, expiresAt, branch, lines[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/reservations/{id}/cancel marketplace-engine requester { reason? } 200 { reservation } 404 not_found_or_not_yours 409 already_collected 409 already_expired">
+<header><b><code>POST /v1/reservations/{id}/cancel</code></b> <span class="bp" title="Blueprint v3 reference">§4 V5</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester</dd>
+<dt>Request</dt><dd><code>{ reason? }</code></dd>
+<dt>Response</dt><dd><code>200 { reservation }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 already_collected</code></li><li><code>409 already_expired</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/reservations/{id}/price-dispute marketplace-engine requester { chargedprice } 201 { dispute } 404 not_found_or_not_yours 409 already_reported">
+<header><b><code>POST /v1/reservations/{id}/price-dispute</code></b> <span class="bp" title="Blueprint v3 reference">§4 V7 · D31</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>requester</dd>
+<dt>Request</dt><dd><code>{ chargedPrice }</code></dd>
+<dt>Response</dt><dd><code>201 { dispute }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 already_reported</code></li></ul></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="get /v1/subjects/{id}/dispense-history clinical-engine subject grant holder — 200 { records[] } 404 not_found_or_not_yours">
+<header><b><code>GET /v1/subjects/{id}/dispense-history</code></b> <span class="bp" title="Blueprint v3 reference">§4 V8 · D22</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>clinical-engine</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>subject grant holder</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { records[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="post /v1/watches notification-service subject grant holder { subjectid, itemid, districtid } 201 { watch, expiresat } 409 watch_limit (5) 404 subject_not_found_or_not_yours">
+<header><b><code>POST /v1/watches</code></b> <span class="bp" title="Blueprint v3 reference">§4 R12 · D30</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>notification-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>subject grant holder</dd>
+<dt>Request</dt><dd><code>{ subjectId, itemId, districtId }</code></dd>
+<dt>Response</dt><dd><code>201 { watch, expiresAt }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>409 watch_limit (5)</code></li><li><code>404 subject_not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="delete /v1/watches/{id} notification-service owner — 204 404 not_found_or_not_yours">
+<header><b><code>DELETE /v1/watches/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 R12</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>notification-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>owner</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>204</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="media-service" data-s="post /v1/prescriptions media-service subject grant holder with order scope multipart image + { subjectid } 201 { imageid } 413 too_large 415 unsupported_type">
+<header><b><code>POST /v1/prescriptions</code></b> <span class="bp" title="Blueprint v3 reference">§4 R2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>media-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>subject grant holder with order scope</dd>
+<dt>Request</dt><dd><code>multipart image + { subjectId }</code></dd>
+<dt>Response</dt><dd><code>201 { imageId }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>413 too_large</code></li><li><code>415 unsupported_type</code></li></ul></dd>
+</dl></div><div class="card" data-k="media-service" data-s="delete /v1/prescriptions/{id} media-service the subject, or its guardian — 204 404 not_found_or_not_yours 409 access_currently_granted">
+<header><b><code>DELETE /v1/prescriptions/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 M5</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>media-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>the subject, or its guardian</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>204</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li><li><code>409 access_currently_granted</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/pharmacy/applications pharmacy-service any authenticated account { business, address, districtid, storefrontimageid, licenceimageid, namedpharmacist } 201 { applicationid, queueposition } 400 missing_field 409 application_exists">
+<header><b><code>POST /v1/pharmacy/applications</code></b> <span class="bp" title="Blueprint v3 reference">§4 PA1–PA7</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>any authenticated account</dd>
+<dt>Request</dt><dd><code>{ business, address, districtId, storefrontImageId, licenceImageId, namedPharmacist }</code></dd>
+<dt>Response</dt><dd><code>201 { applicationId, queuePosition }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 missing_field</code></li><li><code>409 application_exists</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/pharmacy/applications/{id} pharmacy-service the applicant — 200 { status, queueposition, inforequested? } 404 not_found_or_not_yours">
+<header><b><code>GET /v1/pharmacy/applications/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 PA8</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>the applicant</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { status, queuePosition, infoRequested? }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/pharmacy/staff/sign-in identity-service staff of the branch { branchid, pin } 200 { staffsession, role, licenceverified } 401 wrong_pin 403 staff_removed">
+<header><b><code>POST /v1/pharmacy/staff/sign-in</code></b> <span class="bp" title="Blueprint v3 reference">§4 P1 · D19</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>session</dd>
+<dt>Authorization</dt><dd>staff of the branch</dd>
+<dt>Request</dt><dd><code>{ branchId, pin }</code></dd>
+<dt>Response</dt><dd><code>200 { staffSession, role, licenceVerified }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>401 wrong_pin</code></li><li><code>403 staff_removed</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="get /v1/pharmacy/branches/{id}/inbox marketplace-engine staff:assistant+ of {id} — 200 { requests[] with item, packs, districtname, urgency, expiresat — no identity } 403 not_your_branch">
+<header><b><code>GET /v1/pharmacy/branches/{id}/inbox</code></b> <span class="bp" title="Blueprint v3 reference">§4 P3/P5</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+ of {id}</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { requests[] with item, packs, districtName, urgency, expiresAt — NO identity }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 not_your_branch</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/pharmacy/branches/{id}/eligibility pharmacy-service staff:assistant+ — 200 { state, reason } 403 not_your_branch">
+<header><b><code>GET /v1/pharmacy/branches/{id}/eligibility</code></b> <span class="bp" title="Blueprint v3 reference">§4 P4 · D13</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { state, reason }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 not_your_branch</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/pharmacy/requests/{id}/offer marketplace-engine staff:assistant+; substitute lines require staff:pharmacist with a verified licence { lines:[{requestlineid, answer: available|unavailable|substitute, price?, substituteitemid?, note?, reason?}], readiness } 201 { offer } 403 substitution_requires_pharmacist 409 request_expired 409 already_answered 400 price_required">
+<header><b><code>POST /v1/pharmacy/requests/{id}/offer</code></b> <span class="bp" title="Blueprint v3 reference">§4 P6 · D08</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+; substitute lines require staff:pharmacist with a verified licence</dd>
+<dt>Request</dt><dd><code>{ lines:[{requestLineId, answer: available|unavailable|substitute, price?, substituteItemId?, note?, reason?}], readiness }</code></dd>
+<dt>Response</dt><dd><code>201 { offer }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 substitution_requires_pharmacist</code></li><li><code>409 request_expired</code></li><li><code>409 already_answered</code></li><li><code>400 price_required</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/pharmacy/offers/{id}/withdraw marketplace-engine staff:assistant+ of the offering branch — 200 { offer } 409 already_accepted — the price binds 404 not_found_or_not_yours">
+<header><b><code>POST /v1/pharmacy/offers/{id}/withdraw</code></b> <span class="bp" title="Blueprint v3 reference">§4 P9 · D08</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+ of the offering branch</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { offer }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>409 already_accepted — the price binds</code></li><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="get /v1/pharmacy/branches/{id}/reservations marketplace-engine staff:assistant+ — 200 { reservations[] ordered by deadline } 403 not_your_branch">
+<header><b><code>GET /v1/pharmacy/branches/{id}/reservations</code></b> <span class="bp" title="Blueprint v3 reference">§4 P10</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { reservations[] ordered by deadline }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 not_your_branch</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/pharmacy/reservations/{id}/confirm marketplace-engine staff:assistant+ — a commercial act, not a clinical one — 200 { reservation, code, expiresat } 409 already_confirmed 409 cancelled_by_patient 404 not_found_or_not_yours">
+<header><b><code>POST /v1/pharmacy/reservations/{id}/confirm</code></b> <span class="bp" title="Blueprint v3 reference">§4 P12 · D19</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+ — a commercial act, not a clinical one</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { reservation, code, expiresAt }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>409 already_confirmed</code></li><li><code>409 cancelled_by_patient</code></li><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="post /v1/pharmacy/reservations/{id}/cannot-hold marketplace-engine staff:assistant+ { reason: sold_since|not_found|wrong_strength|damaged } 200 { reservation, countsagainsthonouredrate: bool } 404 not_found_or_not_yours">
+<header><b><code>POST /v1/pharmacy/reservations/{id}/cannot-hold</code></b> <span class="bp" title="Blueprint v3 reference">§4 P13 · D11</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>marketplace-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+</dd>
+<dt>Request</dt><dd><code>{ reason: sold_since|not_found|wrong_strength|damaged }</code></dd>
+<dt>Response</dt><dd><code>200 { reservation, countsAgainstHonouredRate: bool }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="post /v1/pharmacy/reservations/{id}/handover clinical-engine staff:assistant+; prescriptionseen requires staff:pharmacist when the line is pom { code, checklist:{ prescriptionseen, allergyasked, packsconfirmed } } 200 { reservation, dispenserecorded: true } 400 code_mismatch 403 prescription_requires_pharmacist 409 expired 400 checklist_incomplete">
+<header><b><code>POST /v1/pharmacy/reservations/{id}/handover</code></b> <span class="bp" title="Blueprint v3 reference">§4 P14 · §7 control 2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>clinical-engine</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+; prescriptionSeen requires staff:pharmacist when the line is POM</dd>
+<dt>Request</dt><dd><code>{ code, checklist:{ prescriptionSeen, allergyAsked, packsConfirmed } }</code></dd>
+<dt>Response</dt><dd><code>200 { reservation, dispenseRecorded: true }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 code_mismatch</code></li><li><code>403 prescription_requires_pharmacist</code></li><li><code>409 expired</code></li><li><code>400 checklist_incomplete</code></li></ul></dd>
+</dl></div><div class="card" data-k="media-service" data-s="get /v1/pharmacy/reservations/{id}/prescription media-service staff:pharmacist of the branch, only while the reservation is live — 200 image stream 403 requires_pharmacist 410 access_revoked 404 not_found_or_not_yours">
+<header><b><code>GET /v1/pharmacy/reservations/{id}/prescription</code></b> <span class="bp" title="Blueprint v3 reference">§4 P15 · D18</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>media-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:pharmacist of the branch, only while the reservation is live</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 image stream</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_pharmacist</code></li><li><code>410 access_revoked</code></li><li><code>404 not_found_or_not_yours</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="put /v1/pharmacy/branches/{id}/hours pharmacy-service staff:manager { week[], exceptions[], ramadanweek? } 200 { hours } 403 requires_manager">
+<header><b><code>PUT /v1/pharmacy/branches/{id}/hours</code></b> <span class="bp" title="Blueprint v3 reference">§4 P18–P20 · D33</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>{ week[], exceptions[], ramadanWeek? }</code></dd>
+<dt>Response</dt><dd><code>200 { hours }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="put /v1/pharmacy/branches/{id}/coverage pharmacy-service staff:manager { radiuskm, capacityopenreservations } 200 { branch } 403 requires_manager">
+<header><b><code>PUT /v1/pharmacy/branches/{id}/coverage</code></b> <span class="bp" title="Blueprint v3 reference">§4 P21</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>{ radiusKm, capacityOpenReservations }</code></dd>
+<dt>Response</dt><dd><code>200 { branch }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/pharmacy/branches/{id}/pause pharmacy-service staff:assistant+ for a same-day pause; manager for capacity { untiltodayend: true } 200 { branch } ">
+<header><b><code>POST /v1/pharmacy/branches/{id}/pause</code></b> <span class="bp" title="Blueprint v3 reference">§4 P21 · §10 change 2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:assistant+ for a same-day pause; manager for capacity</dd>
+<dt>Request</dt><dd><code>{ untilTodayEnd: true }</code></dd>
+<dt>Response</dt><dd><code>200 { branch }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/pharmacy/branches/{id}/staff pharmacy-service staff:manager { phone, role } 201 { invite } 403 requires_manager 409 already_staff">
+<header><b><code>POST /v1/pharmacy/branches/{id}/staff</code></b> <span class="bp" title="Blueprint v3 reference">§4 P23</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>{ phone, role }</code></dd>
+<dt>Response</dt><dd><code>201 { invite }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li><li><code>409 already_staff</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="delete /v1/pharmacy/branches/{id}/staff/{staffid} pharmacy-service staff:manager — 204 403 requires_manager 409 last_manager_cannot_be_removed">
+<header><b><code>DELETE /v1/pharmacy/branches/{id}/staff/{staffId}</code></b> <span class="bp" title="Blueprint v3 reference">§10 change 5</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>204</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li><li><code>409 last_manager_cannot_be_removed</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/pharmacy/branches/{id}/performance pharmacy-service staff:manager — 200 { fillrate, answertime, honouredband, mostrequestednotcarried[] } 403 requires_manager">
+<header><b><code>GET /v1/pharmacy/branches/{id}/performance</code></b> <span class="bp" title="Blueprint v3 reference">§4 P25</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { fillRate, answerTime, honouredBand, mostRequestedNotCarried[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li></ul></dd>
+</dl></div><div class="card" data-k="audit-service" data-s="get /v1/pharmacy/branches/{id}/access-log audit-service staff:manager — 200 { reads[] } 403 requires_manager">
+<header><b><code>GET /v1/pharmacy/branches/{id}/access-log</code></b> <span class="bp" title="Blueprint v3 reference">§4 P26 · D15</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>audit-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { reads[] }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/pharmacy/branches/{id}/export pharmacy-service staff:manager — 202 { exportid } 403 requires_manager">
+<header><b><code>POST /v1/pharmacy/branches/{id}/export</code></b> <span class="bp" title="Blueprint v3 reference">§4 P27 · D15</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>202 { exportId }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/pharmacy/branches/{id}/close pharmacy-service staff:manager { confirm: true } 202 { branch } 403 requires_manager 409 live_reservations_must_resolve">
+<header><b><code>POST /v1/pharmacy/branches/{id}/close</code></b> <span class="bp" title="Blueprint v3 reference">§4 P28 · D15</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>staff session</dd>
+<dt>Authorization</dt><dd>staff:manager</dd>
+<dt>Request</dt><dd><code>{ confirm: true }</code></dd>
+<dt>Response</dt><dd><code>202 { branch }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>403 requires_manager</code></li><li><code>409 live_reservations_must_resolve</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/ops/overview pharmacy-service operator — 200 { incidents[], queues{}, trends{} } ">
+<header><b><code>GET /v1/ops/overview</code></b> <span class="bp" title="Blueprint v3 reference">§4 O1</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { incidents[], queues{}, trends{} }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/ops/verification-queue pharmacy-service operator — 200 { applications[] } ">
+<header><b><code>GET /v1/ops/verification-queue</code></b> <span class="bp" title="Blueprint v3 reference">§4 O2</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { applications[] }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/ops/applications/{id}/decide pharmacy-service operator — single-operator, logged and reversible { decision: approve|request_info|reject, reason?, verifiedpoint? } 200 { application } 400 verified_point_required_on_approve 409 already_decided">
+<header><b><code>POST /v1/ops/applications/{id}/decide</code></b> <span class="bp" title="Blueprint v3 reference">§4 O3/O4 · D20</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator — single-operator, logged and reversible</dd>
+<dt>Request</dt><dd><code>{ decision: approve|request_info|reject, reason?, verifiedPoint? }</code></dd>
+<dt>Response</dt><dd><code>200 { application }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 verified_point_required_on_approve</code></li><li><code>409 already_decided</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="post /v1/ops/branches/{id}/suspend pharmacy-service operator { reason } 200 { branch } 409 live_reservations_must_resolve">
+<header><b><code>POST /v1/ops/branches/{id}/suspend</code></b> <span class="bp" title="Blueprint v3 reference">§4 O6</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator</dd>
+<dt>Request</dt><dd><code>{ reason }</code></dd>
+<dt>Response</dt><dd><code>200 { branch }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>409 live_reservations_must_resolve</code></li></ul></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="get /v1/ops/catalogue/unmatched catalogue-service operator — 200 { terms[] by district } ">
+<header><b><code>GET /v1/ops/catalogue/unmatched</code></b> <span class="bp" title="Blueprint v3 reference">§4 O10</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>catalogue-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator</dd>
+<dt>Request</dt><dd><code>—</code></dd>
+<dt>Response</dt><dd><code>200 { terms[] by district }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="put /v1/ops/catalogue/items/{id} catalogue-service operator { namesar, nameslatin, packsize, requiresprescription, iscontrolled, state } 200 { item } 400 cannot_publish_without_flags">
+<header><b><code>PUT /v1/ops/catalogue/items/{id}</code></b> <span class="bp" title="Blueprint v3 reference">§4 O9</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>catalogue-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator</dd>
+<dt>Request</dt><dd><code>{ namesAr, namesLatin, packSize, requiresPrescription, isControlled, state }</code></dd>
+<dt>Response</dt><dd><code>200 { item }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>400 cannot_publish_without_flags</code></li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="get /v1/ops/metrics/{name} pharmacy-service operator name ∈ fill-rate|honoured-rate|answer-time|repeat-rate|coverage 200 { series[], threshold, meets: bool } 404 unknown_metric">
+<header><b><code>GET /v1/ops/metrics/{name}</code></b> <span class="bp" title="Blueprint v3 reference">§3 exit criteria · §4 O12–O16</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>pharmacy-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator</dd>
+<dt>Request</dt><dd><code>name ∈ fill-rate|honoured-rate|answer-time|repeat-rate|coverage</code></dd>
+<dt>Response</dt><dd><code>200 { series[], threshold, meets: bool }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 unknown_metric</code></li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="post /v1/ops/support-sessions identity-service operator — requires the user's in-app consent before any read { accountid, reason } 202 { sessionid, awaitingconsent: true } 404 not_found">
+<header><b><code>POST /v1/ops/support-sessions</code></b> <span class="bp" title="Blueprint v3 reference">§4 O19</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>identity-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator — requires the user's in-app consent before any read</dd>
+<dt>Request</dt><dd><code>{ accountId, reason }</code></dd>
+<dt>Response</dt><dd><code>202 { sessionId, awaitingConsent: true }</code></dd>
+<dt>Errors</dt><dd><ul><li><code>404 not_found</code></li></ul></dd>
+</dl></div><div class="card" data-k="audit-service" data-s="get /v1/ops/audit audit-service operator, read-only — no write path exists ?actor&amp;subject&amp;from&amp;to 200 { entries[] } ">
+<header><b><code>GET /v1/ops/audit</code></b> <span class="bp" title="Blueprint v3 reference">§4 O23/O24</span></header>
+<dl class="kv">
+<dt>Service</dt><dd><code>audit-service</code></dd>
+<dt>Authentication</dt><dd>operator session</dd>
+<dt>Authorization</dt><dd>operator, read-only — no write path exists</dd>
+<dt>Request</dt><dd><code>?actor&amp;subject&amp;from&amp;to</code></dd>
+<dt>Response</dt><dd><code>200 { entries[] }</code></dd>
+<dt>Errors</dt><dd>—</dd>
+</dl></div>
+</div>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

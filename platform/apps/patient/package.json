@@ -1,0 +1,7 @@
+{
+  "name": "@dawai/patient-app",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": { "@dawai/design": "*", "@dawai/domain": "*" }
+}

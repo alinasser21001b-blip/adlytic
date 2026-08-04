@@ -29,3 +29,16 @@ playwright-report/
 
 # netlify CLI link state (contains a site id, not a secret — still local-only)
 hub/.netlify/
+
+# Visual review — index.html and screenshots are the deliverable; the
+# intermediate render output is not.
+review/screens/
+
+# Type-check output for the review tooling. `tools/` is compiled so its five
+# .tsx files are checked like everything else; nothing consumes the emit —
+# vite-node runs the sources directly.
+platform/dist-tools/
+
+# Build output — Netlify builds this itself; committing it makes the repo
+# disagree with the deploy.
+platform/dist-web/

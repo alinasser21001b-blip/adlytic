@@ -1,0 +1,1810 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Dawai — Visual Review</title><style>
+:root {
+  --bg:#0E1210; --panel:#151B19; --panel2:#1B2321; --line:#26312E;
+  --ink:#EAF1EE; --muted:#9FB1AA; --subtle:#75868008;
+  --ok:#7BD6AC; --warn:#F0BE72; --bad:#FF9C8A; --accent:#7BD6AC;
+  --mono: ui-monospace, "SF Mono", Menlo, monospace;
+}
+@media (prefers-color-scheme: light) {
+  :root { --bg:#F7F8F7; --panel:#FFFFFF; --panel2:#F0F2F1; --line:#DEE4E1;
+          --ink:#101614; --muted:#4A5B55; --ok:#186047; --warn:#7A4E0A; --bad:#8C2F1F; --accent:#186047; }
+}
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink);
+  font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif; }
+.wrap { max-width:1180px; margin:0 auto; padding:32px 20px 96px; }
+h1 { font-size:30px; margin:0 0 6px; letter-spacing:-.02em; }
+h2 { font-size:19px; margin:48px 0 14px; letter-spacing:-.01em; }
+h3 { font-size:15px; margin:0 0 8px; }
+.sub { color:var(--muted); margin:0 0 24px; }
+.panel { background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; }
+.grid { display:grid; gap:14px; }
+.g2 { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)); }
+.g3 { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); }
+.g4 { grid-template-columns:repeat(auto-fit,minmax(165px,1fr)); }
+.kpi { font-size:32px; font-weight:700; letter-spacing:-.02em; }
+.kpi small { display:block; font-size:12px; font-weight:500; color:var(--muted); letter-spacing:0; margin-top:2px; }
+.bar { height:8px; border-radius:999px; background:var(--panel2); overflow:hidden; margin-top:10px; }
+.bar > i { display:block; height:100%; background:var(--accent); }
+.tag { display:inline-block; font-size:11px; padding:3px 8px; border-radius:999px;
+  background:var(--panel2); color:var(--muted); margin:0 4px 4px 0; font-family:var(--mono); }
+.tag.ok { color:var(--ok); } .tag.bad { color:var(--bad); } .tag.warn { color:var(--warn); }
+.shot { border:1px solid var(--line); border-radius:14px; overflow:hidden; background:var(--panel); }
+.shot img { display:block; width:100%; background:#fff; }
+.shot .cap { padding:12px 14px; border-top:1px solid var(--line); }
+.mono { font-family:var(--mono); font-size:12px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { color:var(--muted); font-weight:600; font-size:11px; text-transform:uppercase; letter-spacing:.05em; }
+.scroll { overflow-x:auto; }
+.chk { display:flex; align-items:center; gap:10px; padding:9px 0; border-bottom:1px solid var(--line); }
+.dot { width:9px; height:9px; border-radius:999px; flex:none; }
+.dot.ok { background:var(--ok); } .dot.bad { background:var(--bad); }
+.swatch { height:52px; border-radius:9px; border:1px solid var(--line); }
+.flowline { display:flex; align-items:center; gap:8px; flex-wrap:wrap; font-family:var(--mono); font-size:12px; }
+.node { padding:6px 11px; border-radius:8px; border:1px solid var(--line); background:var(--panel2); }
+.node.built { border-color:var(--ok); color:var(--ok); }
+.node.pending { border-style:dashed; color:var(--muted); }
+.arrow { color:var(--muted); }
+ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
+.note { color:var(--muted); font-size:13px; }
+.banner { border-radius:12px; padding:14px 16px; margin:18px 0 0; font-weight:600; }
+.banner.ok { background:color-mix(in srgb, var(--ok) 14%, transparent); color:var(--ok); }
+.banner.bad { background:color-mix(in srgb, var(--bad) 14%, transparent); color:var(--bad); }
+</style></head>
+<body><div class="wrap">
+
+<h1>Dawai — Visual Review</h1>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 21:04 UTC</p>
+
+<div class="banner ok">
+  All quality gates pass — this build may be pushed.
+</div>
+
+<h2>Current progress</h2>
+<div class="grid g4">
+  <div class="panel"><div class="kpi">16.5%<small>of Blueprint screens contracted</small></div>
+    <div class="bar"><i style="width:16.5%"></i></div></div>
+  <div class="panel"><div class="kpi">22<small>screens contracted</small></div></div>
+  <div class="panel"><div class="kpi">17<small>screens rendered &amp; photographed</small></div></div>
+  <div class="panel"><div class="kpi">111<small>screens remaining</small></div></div>
+</div>
+<div class="panel" style="margin-top:14px">
+  <h3>Vertical slice status</h3>
+  <p class="note"><b>Prescription capture (R2–R3) + explicit substitution consent (R9–R10)</b> — complete. Milestone: The consent journey, end to end — the safety-critical path.</p>
+  <p class="note" style="margin-top:6px">Next workflow: Nobody-answered → widen or watch (R11, R12), then the outbox screen (R13). The onboarding chain E5–E8 remains the gap that keeps a guest from completing any journey.</p>
+</div>
+
+<h2>Active workflow</h2>
+<div class="panel">
+  <h3>request-medicine</h3>
+  <p class="note">تطلب دواء وتحجزه من صيدلية قريبة</p>
+  <div class="flowline" style="margin-top:12px">
+    <span class="node built">R1</span><span class="arrow">→</span><span class="node built">R2 ?</span><span class="arrow">→</span><span class="node built">R6</span><span class="arrow">→</span><span class="node built">R7</span><span class="arrow">→</span><span class="node built">R8</span><span class="arrow">→</span><span class="node built">V1</span>
+    <span class="arrow">⇒</span>
+    <span class="node built">V2</span>
+  </div>
+  <p class="note" style="margin-top:10px">Abandoning lands on S1. A dashed node is a Blueprint screen a later slice builds.</p>
+</div>
+
+<h2>Navigation graph</h2>
+<div class="panel scroll">
+  <p class="note">Built screens are solid; dashed screens are declared exits a later slice owns. Every edge comes from a screen contract — the graph is derived, never hand-wired.</p>
+  <table style="margin-top:12px"><thead><tr><th>From</th><th>Exits to</th></tr></thead><tbody>
+  <tr><td class="mono">S1</td><td><span class="node built" style="margin:2px">R1</span><span class="node pending" style="margin:2px">S2</span><span class="node built" style="margin:2px">V2</span><span class="node pending" style="margin:2px">V8</span></td></tr><tr><td class="mono">E4</td><td><span class="node built" style="margin:2px">E5</span></td></tr><tr><td class="mono">E5</td><td><span class="node built" style="margin:2px">E6</span></td></tr><tr><td class="mono">E6</td><td><span class="node built" style="margin:2px">E5</span><span class="node built" style="margin:2px">E7</span></td></tr><tr><td class="mono">E7</td><td><span class="node built" style="margin:2px">E8</span></td></tr><tr><td class="mono">E8</td><td><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">F1</td><td><span class="node built" style="margin:2px">F2</span><span class="node pending" style="margin:2px">F5</span><span class="node built" style="margin:2px">R2</span></td></tr><tr><td class="mono">F2</td><td><span class="node pending" style="margin:2px">F3</span><span class="node built" style="margin:2px">R1</span></td></tr><tr><td class="mono">R1</td><td><span class="node built" style="margin:2px">F2</span><span class="node built" style="margin:2px">R2</span><span class="node pending" style="margin:2px">R4</span><span class="node built" style="margin:2px">R6</span></td></tr><tr><td class="mono">R6</td><td><span class="node pending" style="margin:2px">R5</span><span class="node built" style="margin:2px">R7</span><span class="node pending" style="margin:2px">R13</span></td></tr><tr><td class="mono">R7</td><td><span class="node built" style="margin:2px">R8</span><span class="node pending" style="margin:2px">R11</span><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">R8</td><td><span class="node built" style="margin:2px">R9</span><span class="node built" style="margin:2px">V1</span><span class="node built" style="margin:2px">R7</span></td></tr><tr><td class="mono">R2</td><td><span class="node built" style="margin:2px">R3</span><span class="node built" style="margin:2px">R1</span></td></tr><tr><td class="mono">R3</td><td><span class="node built" style="margin:2px">R1</span><span class="node built" style="margin:2px">R2</span></td></tr><tr><td class="mono">R4</td><td><span class="node built" style="margin:2px">R1</span><span class="node pending" style="margin:2px">S3</span></td></tr><tr><td class="mono">R5</td><td><span class="node built" style="margin:2px">R1</span></td></tr><tr><td class="mono">R9</td><td><span class="node built" style="margin:2px">V1</span><span class="node built" style="margin:2px">R8</span><span class="node pending" style="margin:2px">R10</span></td></tr><tr><td class="mono">R11</td><td><span class="node built" style="margin:2px">R7</span><span class="node pending" style="margin:2px">R12</span><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">R13</td><td><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">V1</td><td><span class="node built" style="margin:2px">V2</span><span class="node built" style="margin:2px">V4</span><span class="node built" style="margin:2px">R8</span></td></tr><tr><td class="mono">V2</td><td><span class="node pending" style="margin:2px">V5</span><span class="node pending" style="margin:2px">V7</span><span class="node built" style="margin:2px">S1</span></td></tr><tr><td class="mono">V4</td><td><span class="node built" style="margin:2px">R8</span><span class="node built" style="margin:2px">S1</span></td></tr>
+  </tbody></table>
+  <div style="margin-top:14px">
+    <span class="tag ok">unreachable: 0</span>
+    <span class="tag ok">traps: 0</span>
+    <span class="tag ok">flow gaps: 0</span>
+    <span class="tag warn">exits awaiting a later slice: 9</span>
+  </div>
+</div>
+
+<h2>Screen gallery</h2>
+<p class="note" style="margin-bottom:14px">Every state below is the REAL component tree — the same screens, tokens and props the app ships — rendered through a DOM adapter and photographed at 390×844. It proves layout, hierarchy, typography, colour, spacing and tap-target size. It does not prove native gestures, platform chrome or animation.</p>
+<div class="grid g3"><div class="shot">
+  <img src="screenshots/F1-empty.png" alt="F1-empty">
+  <div class="cap">
+    <h3>F1 — empty · teaching</h3>
+    <p class="note">The first thing a new patient sees. It teaches what to do rather than reporting that there is no data.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-loading.png" alt="F2-loading">
+  <div class="cap">
+    <h3>F2 — loading</h3>
+    <p class="note">A skeleton shaped like the rows that are coming, so the page does not jump when they arrive.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-results.png" alt="F2-results">
+  <div class="cap">
+    <h3>F2 — results</h3>
+    <p class="note">Three rows covering all three clinical answers: ordinary, prescription-required (D18), and controlled (D42) — refused on the row, before the tap.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-empty.png" alt="F2-empty">
+  <div class="cap">
+    <h3>F2 — empty · miss</h3>
+    <p class="note">§13.1 — the catalogue is incomplete, not the patient wrong. The miss feeds catalogue growth.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-offline.png" alt="F2-offline">
+  <div class="cap">
+    <h3>F2 — offline</h3>
+    <p class="note">Cached rows, labelled with their age. Never presented as live.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/F2-error.png" alt="F2-error">
+  <div class="cap">
+    <h3>F2 — error</h3>
+    <p class="note">§23 — what failed, that the work survived, and one thing to press.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R1-empty.png" alt="R1-empty">
+  <div class="cap">
+    <h3>R1 — empty · teaching</h3>
+    <p class="note">An empty draft states the line limit as a fact rather than waiting to enforce it as a wall.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R1-lines.png" alt="R1-lines">
+  <div class="cap">
+    <h3>R1 — ready</h3>
+    <p class="note">The pack stepper (D07), the remaining-line count, and a prescription line naming what it still needs.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R1-refused.png" alt="R1-refused">
+  <div class="cap">
+    <h3>R1 — error · refusal</h3>
+    <p class="note">D42 refused in place. The draft the patient already built stays on screen behind it.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R6-online.png" alt="R6-online">
+  <div class="cap">
+    <h3>R6 — ready</h3>
+    <p class="note">D09's three windows, each stating its real duration so the choice is informed.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R6-offline.png" alt="R6-offline">
+  <div class="cap">
+    <h3>R6 — offline</h3>
+    <p class="note">D27 — the button promises only what the app can do without a connection.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R7-waiting.png" alt="R7-waiting">
+  <div class="cap">
+    <h3>R7 — empty · waiting</h3>
+    <p class="note">A bar with a value rather than a spinner: the patient learns how much longer, not merely that something is happening.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R2-camera.png" alt="R2-camera">
+  <div class="cap">
+    <h3>R2 — ready</h3>
+    <p class="note">Says what a PHARMACIST will need to read, because Phase 0 reads nothing itself (D18). The alternative to the camera is offered before it is needed.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R2-refused.png" alt="R2-refused">
+  <div class="cap">
+    <h3>R2 — permission refused</h3>
+    <p class="note">Never a wall: the alternative IS the primary action. Offering a disabled camera button would be offering a bolted door.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R3-review.png" alt="R3-review">
+  <div class="cap">
+    <h3>R3 — ready</h3>
+    <p class="note">The patient judges legibility because nothing else does — so the screen states what 'clear' means instead of asking them to guess.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R3-failed.png" alt="R3-failed">
+  <div class="cap">
+    <h3>R3 — error</h3>
+    <p class="note">The upload failed; the photo survived. D37 — the failure names the fixable condition, never the person.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R9-undecided.png" alt="R9-undecided">
+  <div class="cap">
+    <h3>R9 — ready · consent outstanding</h3>
+    <p class="note">§4 R10 — neither answer is pre-selected and both carry identical visual weight. The offer cannot be reserved until the question is answered.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R9-agreed.png" alt="R9-agreed">
+  <div class="cap">
+    <h3>R9 — ready · consent given</h3>
+    <p class="note">Once answered, the offer can proceed. The decision can still be changed until the offer is accepted.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R9-refused.png" alt="R9-refused">
+  <div class="cap">
+    <h3>R9 — ready · substitution refused</h3>
+    <p class="note">Refusing costs nothing: D06 sends the refused line to a child request, and the screen says so — a patient who thinks 'no' loses the order will say yes to a brand they did not want.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R8-offers.png" alt="R8-offers">
+  <div class="cap">
+    <h3>R8 — ready · three answers</h3>
+    <p class="note">Coverage before price, order stated as not-a-ranking (D12), reliability as a band (D11), a substitution flagged as needing consent, and the missing medicine named rather than counted.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R8-empty.png" alt="R8-empty">
+  <div class="cap">
+    <h3>R8 — empty</h3>
+    <p class="note">No offer has arrived yet. The way back to waiting is the action, in thumb reach.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R8-withdrawn.png" alt="R8-withdrawn">
+  <div class="cap">
+    <h3>R8 — ready · one withdrawn</h3>
+    <p class="note">An offer withdrawn between render and tap is shown as unavailable rather than as a control that will fail.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/V1-requesting.png" alt="V1-requesting">
+  <div class="cap">
+    <h3>V1 — loading</h3>
+    <p class="note">The clock starts at held and nowhere earlier — no countdown here, because nothing has been set aside yet.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/V2-held.png" alt="V2-held">
+  <div class="cap">
+    <h3>V2 — ready</h3>
+    <p class="note">The screen that must never fail. The code is the largest thing on it, grouped so it can be read aloud at a counter.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/V2-last.png" alt="V2-last">
+  <div class="cap">
+    <h3>V2 — ready · nearly expired</h3>
+    <p class="note">The countdown turns urgent near the end rather than staying calm to the last minute.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/V2-cached.png" alt="V2-cached">
+  <div class="cap">
+    <h3>V2 — offline</h3>
+    <p class="note">The code still renders from cache; the countdown says it is the last thing we heard. Presenting it as live would send someone to a lapsed hold.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/V4-refused.png" alt="V4-refused">
+  <div class="cap">
+    <h3>V4 — ready</h3>
+    <p class="note">D39 — they confirmed and then could not. It names the situation rather than the pharmacist, and the request has already re-opened.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E4-guarded.png" alt="E4-guarded">
+  <div class="cap">
+    <h3>E4 — ready</h3>
+    <p class="note">§3.1 — the one hard ask, explained before it is made. The reason shown is the guard's own sentence, so the screen cannot state a different one than the redirect did, and D26's preserved request is named rather than merely promised.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E4-direct.png" alt="E4-direct">
+  <div class="cap">
+    <h3>E4 — ready · no preserved action</h3>
+    <p class="note">Reached deliberately rather than by a guard, so there is no work to name — the strip is absent instead of reassuring about nothing.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E5-empty.png" alt="E5-empty">
+  <div class="cap">
+    <h3>E5 — ready</h3>
+    <p class="note">The one hard ask, made. Nothing is marked wrong until enough has been typed for it to be wrong — a field that turns red on the first keystroke is the app arguing mid-sentence.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E5-malformed.png" alt="E5-malformed">
+  <div class="cap">
+    <h3>E5 — error · malformed</h3>
+    <p class="note">E5's declared failure, worded as a typo rather than an accusation, and stating the rule the number has to satisfy instead of only that it does not.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E5-country.png" alt="E5-country">
+  <div class="cap">
+    <h3>E5 — error · unsupported country</h3>
+    <p class="note">The other declared failure, and deliberately a different sentence: a number we cannot serve is our limit, not the patient's mistake.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E5-offline.png" alt="E5-offline">
+  <div class="cap">
+    <h3>E5 — offline</h3>
+    <p class="note">A verification cannot be queued — the SMS leaves now or not at all — so this says so plainly rather than accepting a tap that would go nowhere.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E6-waiting.png" alt="E6-waiting">
+  <div class="cap">
+    <h3>E6 — ready</h3>
+    <p class="note">The number is shown back, so a patient who mistyped one digit can see it here rather than discovering it by failing five times.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E6-wrong.png" alt="E6-wrong">
+  <div class="cap">
+    <h3>E6 — error · wrong code</h3>
+    <p class="note">Attempts remaining are stated. A patient who does not know how many tries are left will guess, and guessing is how the attempts get spent.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E6-exhausted.png" alt="E6-exhausted">
+  <div class="cap">
+    <h3>E6 — error · attempts exhausted</h3>
+    <p class="note">Exhausted attempts, told without blame and with the way out attached: «ما صار شي — نرسللك رمز جديد».</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E6-expired.png" alt="E6-expired">
+  <div class="cap">
+    <h3>E6 — error · expired</h3>
+    <p class="note">An expired code is not a wrong answer, and does not cost an attempt — the app does not charge a patient for its own clock.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E6-checking.png" alt="E6-checking">
+  <div class="cap">
+    <h3>E6 — loading</h3>
+    <p class="note">The one moment in onboarding that talks to a server, shown as busy on the control itself rather than as a screen-wide spinner.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E7-empty.png" alt="E7-empty">
+  <div class="cap">
+    <h3>E7 — ready</h3>
+    <p class="note">Why before what: the name exists so a pharmacist can hand a bag to the right person, and the screen says so before asking.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E7-typed.png" alt="E7-typed">
+  <div class="cap">
+    <h3>E7 — ready · with a name</h3>
+    <p class="note">E4 promised a pharmacy sees only the first name. Here that promise is SHOWN, before submission, rather than kept somewhere the patient cannot check.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E8-list.png" alt="E8-list">
+  <div class="cap">
+    <h3>E8 — ready</h3>
+    <p class="note">Location refused is not a failure path here because location is never asked for: the bundled list IS the route, and the screen says «ما نحتاج موقعك».</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E8-chosen.png" alt="E8-chosen">
+  <div class="cap">
+    <h3>E8 — ready · chosen</h3>
+    <p class="note">A choice made, and an uncovered district still visible and still honest about why it cannot be picked (E12).</p>
+  </div></div><div class="shot">
+  <img src="screenshots/E8-nomatch.png" alt="E8-nomatch">
+  <div class="cap">
+    <h3>E8 — empty · no match</h3>
+    <p class="note">A search with no result, which says what happened and nothing more — there is no action to offer that the patient is not already taking.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/R7-queued.png" alt="R7-queued">
+  <div class="cap">
+    <h3>R7 — offline · queued</h3>
+    <p class="note">D27 at its most important: no countdown, no progress bar, and the words come from the outbox.</p>
+  </div></div></div>
+
+<h2>Screen contracts</h2><div class="grid g3"><div class="shot">
+    <img src="screenshots/E4-guarded.png" alt="ليش نحتاج رقمك">
+    <div class="cap">
+      <h3>E4 · ليش نحتاج رقمك</h3>
+      <p class="note">Explain before the one hard ask</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: dismiss</div>
+        <div class="tag ok">primary: أدخل رقمي → E5</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ E5</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/E5-empty.png" alt="رقم موبايلك">
+    <div class="cap">
+      <h3>E5 · رقم موبايلك</h3>
+      <p class="note">Take a number</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: أرسل الرمز → E6</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ E6</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/E6-waiting.png" alt="الرمز">
+    <div class="cap">
+      <h3>E6 · الرمز</h3>
+      <p class="note">Verify the number</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: تأكيد → E7</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ E5</span><span class="tag ok">→ E7</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/E7-empty.png" alt="اسمك">
+    <div class="cap">
+      <h3>E7 · اسمك</h3>
+      <p class="note">Minimum identity for a pickup counter</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: كمّل → E8</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ E8</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/E8-list.png" alt="منطقتك">
+    <div class="cap">
+      <h3>E8 · منطقتك</h3>
+      <p class="note">Where to search from</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: خلص → S1</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">error</span><span class="tag">permissionRefused</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ S1</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/F1-empty.png" alt="ابحث">
+    <div class="cap">
+      <h3>F1 · ابحث</h3>
+      <p class="note">Start anything new</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: none</div>
+        <div class="tag ok">primary: دوّر على دواء → F2</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">empty</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ F2</span><span class="tag bad">→ F5 (not built)</span><span class="tag ok">→ R2</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/F2-loading.png" alt="نتائج البحث">
+    <div class="cap">
+      <h3>F2 · نتائج البحث</h3>
+      <p class="note">Find a catalogue item the way people actually type</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: أطلب هذا الدواء → R1</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag bad">→ F3 (not built)</span><span class="tag ok">→ R1</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">search.unmatched</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R1-empty.png" alt="طلب جديد">
+    <div class="cap">
+      <h3>R1 · طلب جديد</h3>
+      <p class="note">Assemble the lines to ask for</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: dismiss</div>
+        <div class="tag ok">primary: كمّل → R6</div>
+        <div class="tag">guard: requireSession</div><div class="tag">guard: requireOrderScope</div><div class="tag">guard: blockMemorialised</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">empty</span><span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ F2</span><span class="tag ok">→ R2</span><span class="tag bad">→ R4 (not built)</span><span class="tag ok">→ R6</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">clinical.gate.refused</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R6-online.png" alt="تأكيد الطلب">
+    <div class="cap">
+      <h3>R6 · تأكيد الطلب</h3>
+      <p class="note">Final check before it goes</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: أرسل الطلب → R7</div>
+        <div class="tag">guard: requireSession</div><div class="tag">guard: requireOrderScope</div><div class="tag">guard: blockMemorialised</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag bad">→ R5 (not built)</span><span class="tag ok">→ R7</span><span class="tag bad">→ R13 (not built)</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">request.broadcast</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R7-waiting.png" alt="ننتظر الردود">
+    <div class="cap">
+      <h3>R7 · ننتظر الردود</h3>
+      <p class="note">Make the wait legible</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: dismiss</div>
+        <div class="tag ok">primary: شوف العرض الواصل → R8</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R8</span><span class="tag bad">→ R11 (not built)</span><span class="tag ok">→ S1</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">request.answered</span><span class="tag">request.unanswered</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R8-offers.png" alt="قارن العروض">
+    <div class="cap">
+      <h3>R8 · قارن العروض</h3>
+      <p class="note">Choose, with the reasons visible</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag warn">no primary: Every offer is its own action; a screen-level primary would choose a pharmacy on the patient's behalf, which D12 forbids.</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R9</span><span class="tag ok">→ V1</span><span class="tag ok">→ R7</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R2-camera.png" alt="صوّر الوصفة">
+    <div class="cap">
+      <h3>R2 · صوّر الوصفة</h3>
+      <p class="note">Photograph the paper</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: صوّر → R3</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">permissionRefused</span><span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R3</span><span class="tag ok">→ R1</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R3-review.png" alt="شوف الصورة">
+    <div class="cap">
+      <h3>R3 · شوف الصورة</h3>
+      <p class="note">Confirm the image is readable before it travels</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: واضحة — كمّل → R1</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R1</span><span class="tag ok">→ R2</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/R9-undecided.png" alt="تفاصيل العرض">
+    <div class="cap">
+      <h3>R9 · تفاصيل العرض</h3>
+      <p class="note">One offer in full, line by line</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: pop</div>
+        <div class="tag ok">primary: احجز من هنا → V1</div>
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ V1</span><span class="tag ok">→ R8</span><span class="tag bad">→ R10 (not built)</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/V1-requesting.png" alt="نحجز لك">
+    <div class="cap">
+      <h3>V1 · نحجز لك</h3>
+      <p class="note">The moment between choosing and confirmation</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: none</div>
+        <div class="tag warn">no primary: the pharmacy is being asked to set stock aside; the patient waits</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ V2</span><span class="tag ok">→ V4</span><span class="tag ok">→ R8</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">reservation.confirmed</span><span class="tag">reservation.refused</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/V2-held.png" alt="محجوز لك">
+    <div class="cap">
+      <h3>V2 · محجوز لك</h3>
+      <p class="note">The code, the clock, the address</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: replace</div>
+        <div class="tag ok">primary: الاتجاهات → V2</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">error</span><span class="tag">offline</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag bad">→ V5 (not built)</span><span class="tag bad">→ V7 (not built)</span><span class="tag ok">→ S1</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">reservation.collected</span></div>
+    </div>
+  </div><div class="shot">
+    <img src="screenshots/V4-refused.png" alt="ما كدرت الصيدلية تحجز">
+    <div class="cap">
+      <h3>V4 · ما كدرت الصيدلية تحجز</h3>
+      <p class="note">They confirmed and then could not</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: replace</div>
+        <div class="tag ok">primary: شوف العروض الجديدة → R8</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R8</span><span class="tag ok">→ S1</span>
+      </div>
+      <div style="margin-top:8px"><span class="tag">reservation.refused</span></div>
+    </div>
+  </div></div>
+<div class="panel scroll" style="margin-top:14px">
+  <h3>Contracted screens with no rendered state yet</h3>
+  <p class="note">Declared, checked by ux-check, and part of a later slice's rendering work.</p>
+  <table style="margin-top:10px"><thead><tr><th>Screen</th><th>Title</th><th>Purpose</th><th>States</th></tr></thead><tbody>
+  <tr><td class="mono">S1</td><td>اليوم</td><td class="note">What is happening right now</td><td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span></td></tr><tr><td class="mono">R4</td><td>لمن الدواء؟</td><td class="note">Choose the subject</td><td>—</td></tr><tr><td class="mono">R5</td><td>شكد مستعجل؟</td><td class="note">Set the window honestly</td><td>—</td></tr><tr><td class="mono">R11</td><td>ما رد أحد</td><td class="note">The honest empty case</td><td>—</td></tr><tr><td class="mono">R13</td><td>بانتظار الإرسال</td><td class="note">Everything waiting to send</td><td><span class="tag">empty</span><span class="tag">error</span></td></tr>
+  </tbody></table></div>
+
+<h2>Component library</h2>
+<p class="note" style="margin-bottom:14px">Derived, not listed: every component the kit exports, with the number of places in the app that render it, counted from the source in this run. The purpose line is the one hand-authored sentence per component — everything else on this page about it is measured. A component with a usage count of 0 is either brand new or dead, and both are worth seeing.</p>
+<table class="tbl"><thead><tr><th>Component</th><th>Uses</th><th>Screens</th><th>Purpose</th></tr></thead><tbody>
+  <tr>
+    <td class="mono">Label</td>
+    <td class="mono">78</td>
+    <td class="note">ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">All text. 5 type roles × 7 colour roles.</td>
+  </tr><tr>
+    <td class="mono">Row</td>
+    <td class="mono">19</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">Things side by side. The single place `flexDirection` is written in the patient app.</td>
+  </tr><tr>
+    <td class="mono">InfoCard</td>
+    <td class="mono">12</td>
+    <td class="note">FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen</td>
+    <td class="note">Information, not an action. A refused item renders as information rather than a control that would reject the tap.</td>
+  </tr><tr>
+    <td class="mono">Primary</td>
+    <td class="mono">11</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">The one dominant action. At most one per screen, counted from the rendered tree every build.</td>
+  </tr><tr>
+    <td class="mono">Secondary</td>
+    <td class="mono">10</td>
+    <td class="note">DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">Never competes with the primary: no fill, no accent background.</td>
+  </tr><tr>
+    <td class="mono">Banner</td>
+    <td class="mono">9</td>
+    <td class="note">(every screen, via the frame, when offline)</td>
+    <td class="note">A full-bleed strip under the header carrying a statement about the WHOLE screen — today, that the content came from the device rather than from a pharmacy.</td>
+  </tr><tr>
+    <td class="mono">Card</td>
+    <td class="mono">9</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen</td>
+    <td class="note">A rectangle of content raised off the ground. The one card primitive.</td>
+  </tr><tr>
+    <td class="mono">Screen</td>
+    <td class="mono">9</td>
+    <td class="note">(every screen, via the frame)</td>
+    <td class="note">The frame every screen renders through. It is the reason no screen can ship without answering 'where am I' and 'how do I go back'.</td>
+  </tr><tr>
+    <td class="mono">StateBlock</td>
+    <td class="mono">9</td>
+    <td class="note">(every screen, via the frame)</td>
+    <td class="note">Renders whichever treatment the screen's contract declared. It cannot fall through to a generic message.</td>
+  </tr><tr>
+    <td class="mono">Section</td>
+    <td class="mono">7</td>
+    <td class="note">ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">A heading and the things it governs, as one unit.</td>
+  </tr><tr>
+    <td class="mono">Spacer</td>
+    <td class="mono">6</td>
+    <td class="note">DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen</td>
+    <td class="note">Pushes what follows to the far edge of a Row.</td>
+  </tr><tr>
+    <td class="mono">Bidi</td>
+    <td class="mono">5</td>
+    <td class="note">DraftScreen, FindScreen, OfferDetailScreen</td>
+    <td class="note">Isolates a Latin run inside Arabic — drug names, codes, prices — so it does not reorder.</td>
+  </tr><tr>
+    <td class="mono">Grow</td>
+    <td class="mono">4</td>
+    <td class="note">ConfirmScreen, OfferDetailScreen, WaitingScreen</td>
+    <td class="note">Takes whatever width is left in a Row, and carries content while doing it.</td>
+  </tr><tr>
+    <td class="mono">Actions</td>
+    <td class="mono">4</td>
+    <td class="note">DraftScreen, FindScreen, PrescriptionScreen</td>
+    <td class="note">A cluster of secondary actions under the content.</td>
+  </tr><tr>
+    <td class="mono">Digits</td>
+    <td class="mono">4</td>
+    <td class="note">ConfirmScreen, DraftScreen, ReservationScreen</td>
+    <td class="note">Countdowns, prices, quantities, the reservation code.</td>
+  </tr><tr>
+    <td class="mono">FactRow</td>
+    <td class="mono">3</td>
+    <td class="note">ReservationScreen</td>
+    <td class="note">A labelled fact — muted label on one edge, value on the other — so the eye scans one column of labels instead of parsing sentences.</td>
+  </tr><tr>
+    <td class="mono">Note</td>
+    <td class="mono">3</td>
+    <td class="note">ConfirmScreen, DraftScreen</td>
+    <td class="note">A short statement about the content beside it — a missing prescription, a guard's reason for sending you here, work waiting for a signal.</td>
+  </tr><tr>
+    <td class="mono">ActionCard</td>
+    <td class="mono">2</td>
+    <td class="note">FindScreen, OffersScreen</td>
+    <td class="note">A whole card that is itself the action. Replaced a filled button per row, which put three competing primaries on one screen.</td>
+  </tr><tr>
+    <td class="mono">Choice</td>
+    <td class="mono">2</td>
+    <td class="note">OfferDetailScreen</td>
+    <td class="note">One answer among two, where the choice itself is the point. Used only for substitution consent.</td>
+  </tr><tr>
+    <td class="mono">RedirectNote</td>
+    <td class="mono">2</td>
+    <td class="note">ConfirmScreen, DraftScreen</td>
+    <td class="note">Says why a guard sent the user here, so a screen never appears for no reason.</td>
+  </tr><tr>
+    <td class="mono">CodePanel</td>
+    <td class="mono">1</td>
+    <td class="note">ReservationScreen</td>
+    <td class="note">The reservation code, on the one light surface in the patient app. It reads as something printed and handed over rather than as another card in an app.</td>
+  </tr><tr>
+    <td class="mono">Chip</td>
+    <td class="mono">1</td>
+    <td class="note">ConfirmScreen</td>
+    <td class="note">One option in a set where the options are worded rather than numbered — D09's three urgency windows.</td>
+  </tr><tr>
+    <td class="mono">StepButton</td>
+    <td class="mono">1</td>
+    <td class="note">DraftScreen</td>
+    <td class="note">One step of a quantity, up or down.</td>
+  </tr><tr>
+    <td class="mono">Dial</td>
+    <td class="mono">1</td>
+    <td class="note">WaitingScreen</td>
+    <td class="note">A window of time, drawn as a ring with the remaining figure inside it.</td>
+  </tr><tr>
+    <td class="mono">PhotoFrame</td>
+    <td class="mono">1</td>
+    <td class="note">PrescriptionScreen</td>
+    <td class="note">Where a captured photograph goes.</td>
+  </tr><tr>
+    <td class="mono">SearchField</td>
+    <td class="mono">1</td>
+    <td class="note">FindScreen</td>
+    <td class="note">The one text input in the patient app.</td>
+  </tr><tr>
+    <td class="mono">Field</td>
+    <td class="mono">0</td>
+    <td class="note">—</td>
+    <td class="note">A quiet label above the value it names — the vertical sibling of FactRow.</td>
+  </tr><tr>
+    <td class="mono">ProgressBar</td>
+    <td class="mono">0</td>
+    <td class="note">—</td>
+    <td class="note">How far along something is, as a bar rather than a spinner.</td>
+  </tr>
+</tbody></table>
+<p class="note" style="margin-top:12px">28 components · 214 render sites across 9 screens · 9 specified components not built.</p>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Raw layout in screens</h3>
+  <p class="note">A screen composes; it does not draw. The <span class="mono">screens</span> layer may not import from <span class="mono">react-native</span> at all, which is checked every build — so a screen cannot type a flex direction, invent a gap outside the 4pt scale, or hand-roll a card. Measured now: <strong>0</strong> screen file(s) importing the rendering platform directly.</p>
+</div>
+
+<h2>Responsive health</h2>
+<p class="note" style="margin-bottom:14px">Every screen state rendered at 320pt · 360pt · 390pt · 430pt and measured — 176 renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>10 detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
+
+<div class="grid g4" style="margin-bottom:14px">
+  <div class="panel"><h3>44</h3><p class="note">✓ pass</p></div>
+  <div class="panel"><h3>0</h3><p class="note">⚠ minor</p></div>
+  <div class="panel"><h3>0</h3><p class="note">✗ fail</p></div>
+  <div class="panel"><h3>4</h3><p class="note">widths measured</p></div>
+</div>
+
+<table class="tbl"><thead><tr><th>Screen state</th><th>Verdict</th><th>Findings</th><th>320pt</th><th>360pt</th><th>390pt</th><th>430pt</th></tr></thead><tbody>
+  <tr>
+      <td class="mono">E4-direct</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E4-direct@320.png">320</a></td><td><a href="responsive/E4-direct@360.png">360</a></td><td><a href="responsive/E4-direct@390.png">390</a></td><td><a href="responsive/E4-direct@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E4-guarded</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E4-guarded@320.png">320</a></td><td><a href="responsive/E4-guarded@360.png">360</a></td><td><a href="responsive/E4-guarded@390.png">390</a></td><td><a href="responsive/E4-guarded@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E5-country</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E5-country@320.png">320</a></td><td><a href="responsive/E5-country@360.png">360</a></td><td><a href="responsive/E5-country@390.png">390</a></td><td><a href="responsive/E5-country@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E5-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E5-empty@320.png">320</a></td><td><a href="responsive/E5-empty@360.png">360</a></td><td><a href="responsive/E5-empty@390.png">390</a></td><td><a href="responsive/E5-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E5-malformed</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E5-malformed@320.png">320</a></td><td><a href="responsive/E5-malformed@360.png">360</a></td><td><a href="responsive/E5-malformed@390.png">390</a></td><td><a href="responsive/E5-malformed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E5-offline</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E5-offline@320.png">320</a></td><td><a href="responsive/E5-offline@360.png">360</a></td><td><a href="responsive/E5-offline@390.png">390</a></td><td><a href="responsive/E5-offline@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E6-checking</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E6-checking@320.png">320</a></td><td><a href="responsive/E6-checking@360.png">360</a></td><td><a href="responsive/E6-checking@390.png">390</a></td><td><a href="responsive/E6-checking@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E6-exhausted</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E6-exhausted@320.png">320</a></td><td><a href="responsive/E6-exhausted@360.png">360</a></td><td><a href="responsive/E6-exhausted@390.png">390</a></td><td><a href="responsive/E6-exhausted@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E6-expired</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E6-expired@320.png">320</a></td><td><a href="responsive/E6-expired@360.png">360</a></td><td><a href="responsive/E6-expired@390.png">390</a></td><td><a href="responsive/E6-expired@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E6-waiting</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E6-waiting@320.png">320</a></td><td><a href="responsive/E6-waiting@360.png">360</a></td><td><a href="responsive/E6-waiting@390.png">390</a></td><td><a href="responsive/E6-waiting@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E6-wrong</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E6-wrong@320.png">320</a></td><td><a href="responsive/E6-wrong@360.png">360</a></td><td><a href="responsive/E6-wrong@390.png">390</a></td><td><a href="responsive/E6-wrong@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E7-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E7-empty@320.png">320</a></td><td><a href="responsive/E7-empty@360.png">360</a></td><td><a href="responsive/E7-empty@390.png">390</a></td><td><a href="responsive/E7-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E7-typed</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E7-typed@320.png">320</a></td><td><a href="responsive/E7-typed@360.png">360</a></td><td><a href="responsive/E7-typed@390.png">390</a></td><td><a href="responsive/E7-typed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E8-chosen</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E8-chosen@320.png">320</a></td><td><a href="responsive/E8-chosen@360.png">360</a></td><td><a href="responsive/E8-chosen@390.png">390</a></td><td><a href="responsive/E8-chosen@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E8-list</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E8-list@320.png">320</a></td><td><a href="responsive/E8-list@360.png">360</a></td><td><a href="responsive/E8-list@390.png">390</a></td><td><a href="responsive/E8-list@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">E8-nomatch</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/E8-nomatch@320.png">320</a></td><td><a href="responsive/E8-nomatch@360.png">360</a></td><td><a href="responsive/E8-nomatch@390.png">390</a></td><td><a href="responsive/E8-nomatch@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F1-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F1-empty@320.png">320</a></td><td><a href="responsive/F1-empty@360.png">360</a></td><td><a href="responsive/F1-empty@390.png">390</a></td><td><a href="responsive/F1-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-empty@320.png">320</a></td><td><a href="responsive/F2-empty@360.png">360</a></td><td><a href="responsive/F2-empty@390.png">390</a></td><td><a href="responsive/F2-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-error</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-error@320.png">320</a></td><td><a href="responsive/F2-error@360.png">360</a></td><td><a href="responsive/F2-error@390.png">390</a></td><td><a href="responsive/F2-error@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-loading</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-loading@320.png">320</a></td><td><a href="responsive/F2-loading@360.png">360</a></td><td><a href="responsive/F2-loading@390.png">390</a></td><td><a href="responsive/F2-loading@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-offline</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-offline@320.png">320</a></td><td><a href="responsive/F2-offline@360.png">360</a></td><td><a href="responsive/F2-offline@390.png">390</a></td><td><a href="responsive/F2-offline@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">F2-results</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/F2-results@320.png">320</a></td><td><a href="responsive/F2-results@360.png">360</a></td><td><a href="responsive/F2-results@390.png">390</a></td><td><a href="responsive/F2-results@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R1-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R1-empty@320.png">320</a></td><td><a href="responsive/R1-empty@360.png">360</a></td><td><a href="responsive/R1-empty@390.png">390</a></td><td><a href="responsive/R1-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R1-lines</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R1-lines@320.png">320</a></td><td><a href="responsive/R1-lines@360.png">360</a></td><td><a href="responsive/R1-lines@390.png">390</a></td><td><a href="responsive/R1-lines@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R1-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R1-refused@320.png">320</a></td><td><a href="responsive/R1-refused@360.png">360</a></td><td><a href="responsive/R1-refused@390.png">390</a></td><td><a href="responsive/R1-refused@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R2-camera</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R2-camera@320.png">320</a></td><td><a href="responsive/R2-camera@360.png">360</a></td><td><a href="responsive/R2-camera@390.png">390</a></td><td><a href="responsive/R2-camera@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R2-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R2-refused@320.png">320</a></td><td><a href="responsive/R2-refused@360.png">360</a></td><td><a href="responsive/R2-refused@390.png">390</a></td><td><a href="responsive/R2-refused@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R3-failed</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R3-failed@320.png">320</a></td><td><a href="responsive/R3-failed@360.png">360</a></td><td><a href="responsive/R3-failed@390.png">390</a></td><td><a href="responsive/R3-failed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R3-review</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R3-review@320.png">320</a></td><td><a href="responsive/R3-review@360.png">360</a></td><td><a href="responsive/R3-review@390.png">390</a></td><td><a href="responsive/R3-review@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R6-offline</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R6-offline@320.png">320</a></td><td><a href="responsive/R6-offline@360.png">360</a></td><td><a href="responsive/R6-offline@390.png">390</a></td><td><a href="responsive/R6-offline@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R6-online</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R6-online@320.png">320</a></td><td><a href="responsive/R6-online@360.png">360</a></td><td><a href="responsive/R6-online@390.png">390</a></td><td><a href="responsive/R6-online@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R7-queued</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R7-queued@320.png">320</a></td><td><a href="responsive/R7-queued@360.png">360</a></td><td><a href="responsive/R7-queued@390.png">390</a></td><td><a href="responsive/R7-queued@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R7-waiting</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R7-waiting@320.png">320</a></td><td><a href="responsive/R7-waiting@360.png">360</a></td><td><a href="responsive/R7-waiting@390.png">390</a></td><td><a href="responsive/R7-waiting@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R8-empty</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R8-empty@320.png">320</a></td><td><a href="responsive/R8-empty@360.png">360</a></td><td><a href="responsive/R8-empty@390.png">390</a></td><td><a href="responsive/R8-empty@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R8-offers</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R8-offers@320.png">320</a></td><td><a href="responsive/R8-offers@360.png">360</a></td><td><a href="responsive/R8-offers@390.png">390</a></td><td><a href="responsive/R8-offers@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R8-withdrawn</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R8-withdrawn@320.png">320</a></td><td><a href="responsive/R8-withdrawn@360.png">360</a></td><td><a href="responsive/R8-withdrawn@390.png">390</a></td><td><a href="responsive/R8-withdrawn@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R9-agreed</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R9-agreed@320.png">320</a></td><td><a href="responsive/R9-agreed@360.png">360</a></td><td><a href="responsive/R9-agreed@390.png">390</a></td><td><a href="responsive/R9-agreed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R9-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R9-refused@320.png">320</a></td><td><a href="responsive/R9-refused@360.png">360</a></td><td><a href="responsive/R9-refused@390.png">390</a></td><td><a href="responsive/R9-refused@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">R9-undecided</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/R9-undecided@320.png">320</a></td><td><a href="responsive/R9-undecided@360.png">360</a></td><td><a href="responsive/R9-undecided@390.png">390</a></td><td><a href="responsive/R9-undecided@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V1-requesting</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V1-requesting@320.png">320</a></td><td><a href="responsive/V1-requesting@360.png">360</a></td><td><a href="responsive/V1-requesting@390.png">390</a></td><td><a href="responsive/V1-requesting@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V2-cached</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V2-cached@320.png">320</a></td><td><a href="responsive/V2-cached@360.png">360</a></td><td><a href="responsive/V2-cached@390.png">390</a></td><td><a href="responsive/V2-cached@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V2-held</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V2-held@320.png">320</a></td><td><a href="responsive/V2-held@360.png">360</a></td><td><a href="responsive/V2-held@390.png">390</a></td><td><a href="responsive/V2-held@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V2-last</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V2-last@320.png">320</a></td><td><a href="responsive/V2-last@360.png">360</a></td><td><a href="responsive/V2-last@390.png">390</a></td><td><a href="responsive/V2-last@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">V4-refused</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/V4-refused@320.png">320</a></td><td><a href="responsive/V4-refused@360.png">360</a></td><td><a href="responsive/V4-refused@390.png">390</a></td><td><a href="responsive/V4-refused@430.png">430</a></td>
+    </tr>
+</tbody></table>
+
+
+
+<div class="panel" style="margin-top:14px">
+  <h3>Declared unmeasured</h3>
+  <p class="note">A tick above covers what was checked. These were not, and none of them is implied by a green row.</p>
+  <ul class="note"><li><strong>Dynamic type / 200% text</strong> — No text-scaling pass runs. The brief requires legibility at 200%; nothing here resizes the root font, so a layout that breaks under it would report green.</li><li><strong>Real device fonts</strong> — Screenshots use the CI's fallback family, not the delivered Arabic face, which is not bundled. Line-breaking and therefore wrapping WILL differ on a device.</li><li><strong>Landscape</strong> — Every width is measured at 844pt tall. No rotated layout has ever been rendered.</li><li><strong>Safe-area insets</strong> — frame.safeTop/safeBottom are fixed values, not real device insets. A notch or a home indicator is approximated, not measured.</li><li><strong>Scroll-dependent behaviour</strong> — Sticky slots are photographed at scroll position 0 only.</li></ul>
+</div>
+
+<h2>Design system</h2>
+<div class="panel">
+  <h3>Colour — patient palette</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div>
+      <div class="swatch" style="background:#0D1A15"></div>
+      <div class="mono" style="margin-top:6px">surface</div>
+      <div class="mono note">#0D1A15 · #0D1A15</div>
+    </div><div>
+      <div class="swatch" style="background:#142720"></div>
+      <div class="mono" style="margin-top:6px">surfaceRaised</div>
+      <div class="mono note">#142720 · #142720</div>
+    </div><div>
+      <div class="swatch" style="background:#1B2B22"></div>
+      <div class="mono" style="margin-top:6px">surfaceSunken</div>
+      <div class="mono note">#1B2B22 · #1B2B22</div>
+    </div><div>
+      <div class="swatch" style="background:#1E3A2D"></div>
+      <div class="mono" style="margin-top:6px">line</div>
+      <div class="mono note">#1E3A2D · #1E3A2D</div>
+    </div><div>
+      <div class="swatch" style="background:#F3F7F2"></div>
+      <div class="mono" style="margin-top:6px">ink</div>
+      <div class="mono note">#F3F7F2 · #F3F7F2</div>
+    </div><div>
+      <div class="swatch" style="background:#9FC6B6"></div>
+      <div class="mono" style="margin-top:6px">inkMuted</div>
+      <div class="mono note">#9FC6B6 · #9FC6B6</div>
+    </div><div>
+      <div class="swatch" style="background:#8FA89C"></div>
+      <div class="mono" style="margin-top:6px">inkSubtle</div>
+      <div class="mono note">#8FA89C · #8FA89C</div>
+    </div><div>
+      <div class="swatch" style="background:#2ECF9A"></div>
+      <div class="mono" style="margin-top:6px">accent</div>
+      <div class="mono note">#2ECF9A · #2ECF9A</div>
+    </div><div>
+      <div class="swatch" style="background:#0B241B"></div>
+      <div class="mono" style="margin-top:6px">onAccent</div>
+      <div class="mono note">#0B241B · #0B241B</div>
+    </div><div>
+      <div class="swatch" style="background:#2ECF9A"></div>
+      <div class="mono" style="margin-top:6px">success</div>
+      <div class="mono note">#2ECF9A · #2ECF9A</div>
+    </div><div>
+      <div class="swatch" style="background:#0B241B"></div>
+      <div class="mono" style="margin-top:6px">onSuccess</div>
+      <div class="mono note">#0B241B · #0B241B</div>
+    </div><div>
+      <div class="swatch" style="background:#E8B34B"></div>
+      <div class="mono" style="margin-top:6px">warning</div>
+      <div class="mono note">#E8B34B · #E8B34B</div>
+    </div><div>
+      <div class="swatch" style="background:#2A2314"></div>
+      <div class="mono" style="margin-top:6px">onWarning</div>
+      <div class="mono note">#2A2314 · #2A2314</div>
+    </div><div>
+      <div class="swatch" style="background:#FF9C8A"></div>
+      <div class="mono" style="margin-top:6px">alert</div>
+      <div class="mono note">#FF9C8A · #FF9C8A</div>
+    </div><div>
+      <div class="swatch" style="background:#7A150F"></div>
+      <div class="mono" style="margin-top:6px">onAlert</div>
+      <div class="mono note">#7A150F · #7A150F</div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Contrast — measured, not asserted</h3>
+  <p class="note">Every pair a component may place together, run through the WCAG relative-luminance formula in both schemes. Floor: 4.5:1 body, 3:1 boundaries.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>Pair</th><th>Light</th><th>Dark</th><th></th></tr></thead><tbody>
+  <tr><td class="mono">ink on surface</td><td class="mono">16.5</td><td class="mono">16.5</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceRaised</td><td class="mono">14.47</td><td class="mono">14.47</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceSunken</td><td class="mono">13.71</td><td class="mono">13.71</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surface</td><td class="mono">9.55</td><td class="mono">9.55</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surfaceRaised</td><td class="mono">8.37</td><td class="mono">8.37</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surface</td><td class="mono">7.02</td><td class="mono">7.02</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surfaceRaised</td><td class="mono">6.15</td><td class="mono">6.15</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAccent on accent</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onSuccess on success</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onWarning on warning</td><td class="mono">8.14</td><td class="mono">8.14</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAlert on alert</td><td class="mono">5.34</td><td class="mono">5.34</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">accent on surface</td><td class="mono">8.94</td><td class="mono">8.94</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">alert on surface</td><td class="mono">8.82</td><td class="mono">8.82</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on surface</td><td class="mono">9.34</td><td class="mono">9.34</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on line</td><td class="mono">6.61</td><td class="mono">6.61</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on line</td><td class="mono">6.47</td><td class="mono">6.47</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on line</td><td class="mono">11.42</td><td class="mono">11.42</td><td><span class="tag ok">pass</span></td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="grid g3" style="margin-top:14px">
+  <div class="panel"><h3>Typography</h3>
+    <table><tbody><tr><td class="mono">code</td><td class="mono">76/1.15 · 600</td><td class="note">clinical ok</td></tr><tr><td class="mono">display</td><td class="mono">34/1.25 · 700</td><td class="note">not clinical</td></tr><tr><td class="mono">poster</td><td class="mono">28/1.45 · 800</td><td class="note">not clinical</td></tr><tr><td class="mono">title</td><td class="mono">24/1.4 · 800</td><td class="note">clinical ok</td></tr><tr><td class="mono">headline</td><td class="mono">17/1.5 · 600</td><td class="note">clinical ok</td></tr><tr><td class="mono">body</td><td class="mono">16/1.65 · 400</td><td class="note">clinical ok</td></tr><tr><td class="mono">caption</td><td class="mono">13/1.6 · 500</td><td class="note">not clinical</td></tr></tbody></table>
+    <p class="note" style="margin-top:8px">Letter-spacing is always 0 — Arabic is connected and tracking breaks the joins.</p>
+  </div>
+  <div class="panel"><h3>Spacing &amp; radius</h3>
+    <p class="mono">0:0  1:4  2:8  3:12  4:16  5:20  6:24  7:32  8:40  9:48  10:64</p>
+    <p class="mono" style="margin-top:8px">radius sm:8  md:12  lg:16  xl:22  pill:999</p>
+    <p class="note" style="margin-top:8px">A 4pt rhythm. No value outside the scale exists.</p>
+  </div>
+  <div class="panel"><h3>Touch targets</h3>
+    <p class="mono">min 44 · patient primary 48 · pharmacy primary 56</p>
+    <p class="note" style="margin-top:8px">Checked by walking the rendered tree of every screen, not by inspection.</p>
+  </div>
+</div>
+
+<div class="panel" style="margin-top:14px"><h3>Motion</h3>
+  <div class="scroll"><table><thead><tr><th>Token</th><th>Duration</th><th>Purpose</th></tr></thead><tbody>
+  <tr><td class="mono">screenPush</td><td class="mono">350ms</td><td class="note"></td></tr><tr><td class="mono">sheetPresent</td><td class="mono">300ms</td><td class="note"></td></tr><tr><td class="mono">sheetDrag</td><td class="mono">0ms</td><td class="note"></td></tr><tr><td class="mono">doseConfirmed</td><td class="mono">250ms</td><td class="note"></td></tr><tr><td class="mono">skeletonToReal</td><td class="mono">150ms</td><td class="note"></td></tr><tr><td class="mono">responderArrive</td><td class="mono">200ms</td><td class="note"></td></tr><tr><td class="mono">undoDwell</td><td class="mono">4000ms</td><td class="note"></td></tr><tr><td class="mono">errorShake</td><td class="mono">200ms</td><td class="note"></td></tr><tr><td class="mono">dwPulse</td><td class="mono">1800ms</td><td class="note"></td></tr><tr><td class="mono">dwTick</td><td class="mono">1600ms</td><td class="note"></td></tr><tr><td class="mono">dwSweep</td><td class="mono">4500ms</td><td class="note"></td></tr><tr><td class="mono">dwFloat</td><td class="mono">3000ms</td><td class="note"></td></tr><tr><td class="mono">offerArrival</td><td class="mono">200ms</td><td class="note"></td></tr>
+  </tbody></table></div>
+  <p class="note" style="margin-top:8px">Declared, not yet applied — see Known limitations.</p>
+</div>
+
+<h2>Architecture</h2>
+<div class="panel">
+  <p class="note">Read off the filesystem, so it cannot go stale. Every module below exists in this build.</p>
+  
+    <div style="margin-top:14px">
+      <h3>UI <span class="note" style="font-weight:400">— renders a resolved view; decides nothing</span></h3>
+      <div style="margin-top:6px"><span class="tag">App.tsx</span><span class="tag">screens/ConfirmScreen.tsx</span><span class="tag">screens/DraftScreen.tsx</span><span class="tag">screens/FindScreen.tsx</span><span class="tag">screens/OfferDetailScreen.tsx</span><span class="tag">screens/OffersScreen.tsx</span><span class="tag">screens/OnboardingScreens.tsx</span><span class="tag">screens/PrescriptionScreen.tsx</span><span class="tag">screens/ReservationScreen.tsx</span><span class="tag">screens/WaitingScreen.tsx</span><span class="tag">screens/WhyNumberScreen.tsx</span><span class="tag">screens/gallery.tsx</span><span class="tag">ui/kit.tsx</span><span class="tag">ui/layout.tsx</span><span class="tag">ui/motion.tsx</span></div>
+      <div class="note" style="margin-top:8px">↓</div>
+    </div>
+    <div style="margin-top:18px">
+      <h3>STATE <span class="note" style="font-weight:400">— pure reducer and view models; asks the domain, never computes a rule</span></h3>
+      <div style="margin-top:6px"><span class="tag">app/store.ts</span><span class="tag">model/consent.ts</span><span class="tag">model/draft.ts</span><span class="tag">model/offers.ts</span><span class="tag">model/onboarding.ts</span><span class="tag">model/prescription.ts</span><span class="tag">model/reservation.ts</span><span class="tag">model/search.ts</span><span class="tag">model/send.ts</span><span class="tag">model/view.ts</span></div>
+      <div class="note" style="margin-top:8px">↓</div>
+    </div>
+    <div style="margin-top:18px">
+      <h3>DOMAIN <span class="note" style="font-weight:400">— pure: no clock, no randomness, no I/O — enforced by layer-check</span></h3>
+      <div style="margin-top:6px"><span class="tag">contracts/src/index.ts</span><span class="tag">design/src/a11y.ts</span><span class="tag">design/src/arabic.ts</span><span class="tag">design/src/index.ts</span><span class="tag">design/src/rtl.ts</span><span class="tag">design/src/tokens/color.ts</span><span class="tag">design/src/tokens/motion.ts</span><span class="tag">design/src/tokens/space.ts</span><span class="tag">design/src/tokens/type.ts</span><span class="tag">design/src/ux/contract.ts</span><span class="tag">domain/src/clinical/gates.ts</span><span class="tag">domain/src/identity/authority.ts</span><span class="tag">domain/src/identity/family.ts</span><span class="tag">domain/src/identity/machines.ts</span><span class="tag">domain/src/identity/verification.ts</span><span class="tag">domain/src/index.ts</span><span class="tag">domain/src/marketplace/machines.ts</span><span class="tag">domain/src/marketplace/rules.ts</span><span class="tag">domain/src/pharmacy/machines.ts</span><span class="tag">domain/src/shared/ids.ts</span><span class="tag">domain/src/shared/index.ts</span><span class="tag">domain/src/shared/instant.ts</span><span class="tag">domain/src/shared/machine.ts</span><span class="tag">domain/src/shared/refusal.ts</span><span class="tag">domain/src/shared/result.ts</span><span class="tag">navigation/src/flow.ts</span><span class="tag">navigation/src/graph.ts</span><span class="tag">navigation/src/guards.ts</span><span class="tag">navigation/src/index.ts</span><span class="tag">net/src/index.ts</span><span class="tag">offline/src/index.ts</span><span class="tag">session/src/index.ts</span></div>
+      <div class="note" style="margin-top:8px">↓</div>
+    </div>
+    <div style="margin-top:18px">
+      <h3>PORTS <span class="note" style="font-weight:400">— types only; no transport</span></h3>
+      <div style="margin-top:6px"><span class="tag">ports.ts</span></div>
+      
+    </div>
+  <div style="margin-top:18px">
+    <h3>INFRASTRUCTURE <span class="tag bad">NOT BUILT</span></h3>
+    <p class="note">Stage 5. Repositories, storage, synchronisation, queues, the notification engine and audit logging do not exist.</p>
+  </div>
+  <p class="note" style="margin-top:14px">Enforced by tools/layer-check.mjs: the domain may not import Node built-ins, the network, storage, timers, randomness or the clock, and the app layer may import nothing but the workspace packages, react and react-native.</p>
+</div>
+
+<h2>Offline flow</h2>
+<div class="grid g2">
+  <div class="panel"><h3>Online</h3>
+    <div class="flowline"><span class="node built">tap send</span><span class="arrow">→</span><span class="node built">outbox</span><span class="arrow">→</span><span class="node built">POST /v1/requests</span><span class="arrow">→</span><span class="node built">broadcast</span><span class="arrow">→</span><span class="node built">R7 countdown</span></div>
+    <p class="note" style="margin-top:10px"><code>request.broadcast</code> is emitted here and only here.</p>
+  </div>
+  <div class="panel"><h3>Offline</h3>
+    <div class="flowline"><span class="node built">tap send</span><span class="arrow">→</span><span class="node built">outbox: queued</span><span class="arrow">→</span><span class="node pending">retry · full jitter</span><span class="arrow">→</span><span class="node built">delivered</span><span class="arrow">→</span><span class="node built">broadcast</span></div>
+    <p class="note" style="margin-top:10px">Both paths go through the outbox, so there is one delivery route and not two. A queued request shows no countdown and its wording comes from the outbox, so no screen can invent a friendlier phrase for “not yet sent”. Retries carry a stable idempotency key; a 409 resolves to accepted, never an error.</p>
+  </div>
+</div>
+
+<h2>Analytics</h2>
+<div class="panel scroll">
+<table><thead><tr><th>Event</th><th>Emitted by</th><th>Trigger</th></tr></thead><tbody>
+<tr><td class="mono">request.broadcast</td><td><span class="tag ok">R6</span></td><td class="note">send succeeds AND the request reached broadcast — never when queued</td></tr><tr><td class="mono">offer.sent</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">request.answered</td><td><span class="tag ok">R7</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">request.unanswered</td><td><span class="tag ok">R7</span><span class="tag ok">R11</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.confirmed</td><td><span class="tag ok">V1</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.refused</td><td><span class="tag ok">V1</span><span class="tag ok">V4</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.collected</td><td><span class="tag ok">V2</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">reservation.expired</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">dispense.recorded</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">branch.excluded</td><td><span class="tag">not yet emitted</span></td><td class="note">declared in the closed set; emitted by a later slice</td></tr><tr><td class="mono">clinical.gate.refused</td><td><span class="tag ok">R1</span></td><td class="note">the clinical gate refuses a line at the moment it is added</td></tr><tr><td class="mono">search.unmatched</td><td><span class="tag ok">F2</span></td><td class="note">a search returns zero rows — never on a transport failure</td></tr>
+</tbody></table>
+<p class="note" style="margin-top:10px">The set is closed: adding an event is a deliberate act with a Blueprint reference, so no metric can be computed from an ad-hoc counter.</p>
+</div>
+
+<h2>Tests</h2>
+<div class="grid g2">
+<div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Traceability &amp; ownership</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">40 source file(s) scanned</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">147 file(s) scanned across 11 layer(s)</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">22 with a declared UX contract</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>TypeScript</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">no errors, strict mode</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Tests</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">1111 passed (1111)</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Test reach</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">44 test file(s) on disk · 44 reported by the runner</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Generated documents</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">6 document(s) scanned</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Responsive layout</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">44 screen state(s) photographed at 390×844</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Responsive validation</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">44 pass · 0 minor · 0 fail across 320/360/390/430pt — 176 renders, 10 detectors proved</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Navigation — no unreachable screen</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">22 screens reachable from 7 entry points</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Navigation — no trap</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every screen can be left</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Navigation — no gap in any flow</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">1 flow(s) fully renderable</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Accessibility — contrast</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">17 pairs measured in both schemes, floor 4.5:1</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Empty states</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every declared empty state has a treatment</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Loading states</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every declared loading state has a treatment</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Error handling</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">every declared error state names what failed and one action</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Offline behaviour</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">cached content is age-labelled; queued work is never worded as sent</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Analytics</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">12 events in the closed set</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Known gaps documented</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">111 Blueprint screens listed as NOT IMPLEMENTED</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Visual regression reviewed</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">44 unchanged · 0 changed · 0 new · 0 removed — all listed below</div></div>
+</div></div><div class="panel"><div class="chk" style="border:none;padding:0">
+  <span class="dot ok"></span>
+  <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
+  <div class="note mono">19 open · 1 critical · 9 resolved</div></div>
+</div></div>
+</div>
+
+<h2>Quality checklist</h2>
+<div class="panel">
+<div class="chk"><span class="dot ok"></span><div style="flex:1">Traceability &amp; ownership</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Layer boundaries</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Screen contracts</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">TypeScript</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Tests</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Test reach</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Generated documents</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Responsive layout</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Responsive validation</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no unreachable screen</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no trap</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Navigation — no gap in any flow</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Accessibility — contrast</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Empty states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Loading states</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Error handling</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Offline behaviour</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Analytics</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Known gaps documented</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Visual regression reviewed</div><span class="tag ok">verified</span></div><div class="chk"><span class="dot ok"></span><div style="flex:1">Technical debt registered</div><span class="tag ok">verified</span></div>
+<div class="chk"><span class="dot bad"></span><div style="flex:1">Performance</div><span class="tag warn">not measured — no runtime exists to measure yet</span></div>
+</div>
+<p class="note" style="margin-top:10px">Nothing above is green unless it was measured in this run. Performance is deliberately red rather than assumed: there is no device build to profile.</p>
+
+
+<h2>Release readiness</h2>
+<div class="panel">
+  <h3>Can this build ship today?</h3>
+  <p style="margin-top:6px"><span class="tag bad" style="font-size:14px;padding:6px 12px">NO</span></p>
+  <p class="note" style="margin-top:12px">Every quality gate is green and the patient consent journey is complete, but the build cannot be submitted. The blockers below are derived from the debt register — an item leaves this list by being fixed.</p>
+
+  <h3 style="margin-top:20px">What blocks release</h3>
+  <table style="margin-top:8px"><thead><tr><th>Blocker</th><th>Why it blocks</th><th>Owner</th></tr></thead><tbody>
+  <tr><td class="mono">TD-1</td><td>The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td><td class="mono">platform-foundation</td></tr>
+  </tbody></table>
+
+  <h3 style="margin-top:20px">What is ready</h3>
+  <ul>
+    <li class="note">The patient core loop, end to end: search → request → wait → compare → consent → reserve → collect.</li>
+    <li class="note">22 screens contracted, 17 rendered, 44 states photographed and audited.</li>
+    <li class="note">Every product rule enforced on every registered state — one primary, 44pt floor, readable labels, no repeated action, one numeral system, explained disabled states.</li>
+    <li class="note">Contrast measured in both schemes; navigation proven free of traps and unreachable screens.</li>
+  </ul>
+
+  <h3 style="margin-top:20px">What remains before a submission is even possible</h3>
+  <ul>
+    <li class="note">A device build. Nothing here has run on a phone, so no App Store artefact exists.</li>
+    <li class="note">Infrastructure (Stage 5) — the app has never exchanged a byte with a server.</li>
+    <li class="note">The onboarding chain E5–E8: a guest cannot complete any journey today.</li>
+    <li class="note">111 Blueprint screens, listed individually under Known gaps.</li>
+  </ul>
+</div>
+
+<h2>Screen health</h2>
+<div class="panel scroll">
+<p class="note">Derived per screen: which states the Blueprint declares, which have a treatment, whether the screen is photographed, and what changed since the last push.</p>
+<table style="margin-top:12px"><thead><tr>
+  <th>Screen</th><th>Purpose</th><th>States implemented</th><th>Offline</th><th>Loading</th><th>Error</th><th>Analytics</th><th>Shots</th><th>Regression</th>
+</tr></thead><tbody>
+<tr>
+    <td class="mono">S1</td>
+    <td class="note">What is happening right now</td>
+    <td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">0</td>
+    <td><span class="tag">not rendered</span></td>
+  </tr><tr>
+    <td class="mono">E4</td>
+    <td class="note">Explain before the one hard ask</td>
+    <td>—</td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">E5</td>
+    <td class="note">Take a number</td>
+    <td><span class="tag">error</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">4</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">E6</td>
+    <td class="note">Verify the number</td>
+    <td><span class="tag">loading</span><span class="tag">error</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">5</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">E7</td>
+    <td class="note">Minimum identity for a pickup counter</td>
+    <td><span class="tag">error</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">E8</td>
+    <td class="note">Where to search from</td>
+    <td><span class="tag">error</span><span class="tag">permissionRefused</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">3</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">F1</td>
+    <td class="note">Start anything new</td>
+    <td><span class="tag">empty</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">1</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">F2</td>
+    <td class="note">Find a catalogue item the way people actually type</td>
+    <td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">search.unmatched</span></td>
+    <td class="mono">5</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R1</td>
+    <td class="note">Assemble the lines to ask for</td>
+    <td><span class="tag">empty</span><span class="tag">error</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">clinical.gate.refused</span></td>
+    <td class="mono">3</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R6</td>
+    <td class="note">Final check before it goes</td>
+    <td><span class="tag">error</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">request.broadcast</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R7</td>
+    <td class="note">Make the wait legible</td>
+    <td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">request.answered</span><span class="tag ok">request.unanswered</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R8</td>
+    <td class="note">Choose, with the reasons visible</td>
+    <td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">error</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">3</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R2</td>
+    <td class="note">Photograph the paper</td>
+    <td><span class="tag">permissionRefused</span><span class="tag">error</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R3</td>
+    <td class="note">Confirm the image is readable before it travels</td>
+    <td>—</td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">2</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R4</td>
+    <td class="note">Choose the subject</td>
+    <td>—</td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">0</td>
+    <td><span class="tag">not rendered</span></td>
+  </tr><tr>
+    <td class="mono">R5</td>
+    <td class="note">Set the window honestly</td>
+    <td>—</td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">0</td>
+    <td><span class="tag">not rendered</span></td>
+  </tr><tr>
+    <td class="mono">R9</td>
+    <td class="note">One offer in full, line by line</td>
+    <td><span class="tag">error</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">3</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">R11</td>
+    <td class="note">The honest empty case</td>
+    <td>—</td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">request.unanswered</span></td>
+    <td class="mono">0</td>
+    <td><span class="tag">not rendered</span></td>
+  </tr><tr>
+    <td class="mono">R13</td>
+    <td class="note">Everything waiting to send</td>
+    <td><span class="tag">empty</span><span class="tag">error</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td class="mono">0</td>
+    <td><span class="tag">not rendered</span></td>
+  </tr><tr>
+    <td class="mono">V1</td>
+    <td class="note">The moment between choosing and confirmation</td>
+    <td><span class="tag">loading</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">reservation.confirmed</span><span class="tag ok">reservation.refused</span></td>
+    <td class="mono">1</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">V2</td>
+    <td class="note">The code, the clock, the address</td>
+    <td><span class="tag">loading</span><span class="tag">error</span><span class="tag">offline</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">yes</span></td>
+    <td><span class="tag ok">reservation.collected</span></td>
+    <td class="mono">3</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr><tr>
+    <td class="mono">V4</td>
+    <td class="note">They confirmed and then could not</td>
+    <td>—</td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag">—</span></td>
+    <td><span class="tag ok">reservation.refused</span></td>
+    <td class="mono">1</td>
+    <td><span class="tag">unchanged</span></td>
+  </tr>
+</tbody></table></div>
+
+<h2>Visual regression — against the last pushed build</h2>
+<div class="panel">
+  <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
+  
+  <div style="margin-top:12px">
+    <span class="tag ok">44 unchanged</span>
+    <span class="tag warn">0 changed</span>
+    <span class="tag">0 new</span>
+    <span class="tag ">0 removed</span>
+  </div>
+  
+  
+  
+  
+</div>
+
+<h2>Performance</h2>
+<div class="panel">
+  <h3>Measured</h3>
+  <div class="grid g4" style="margin-top:12px">
+    <div><div class="kpi">86<small>source files</small></div></div>
+    <div><div class="kpi">12,693<small>source lines</small></div></div>
+    <div><div class="kpi">0.57×<small>test lines per source line</small></div></div>
+    <div><div class="kpi">5.66s<small>full suite wall-clock</small></div></div>
+  </div>
+  <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>Rendered weight per screen state</h3>
+  <p class="note">View nodes each state produces, counted from the review renders. A screen that produces several hundred nodes is a screen that will scroll badly on a low-end Android — this is a real proxy, measured, not a runtime frame time.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>State</th><th>View nodes</th><th>Markup bytes</th></tr></thead><tbody>
+  <tr><td class="mono">R8-offers</td><td class="mono">61</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">56</td><td class="mono">11.6 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">53</td><td class="mono">10.9 KB</td></tr><tr><td class="mono">E8-chosen</td><td class="mono">44</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">E8-list</td><td class="mono">44</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">43</td><td class="mono">8.1 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.9 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">39</td><td class="mono">8.0 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">V2-last</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr>
+  </tbody></table></div>
+</div>
+
+<div class="panel" style="margin-top:14px">
+  <h3>NOT VERIFIED</h3>
+  <p class="note">Reported, never estimated, and never green without evidence.</p>
+  <div class="scroll"><table style="margin-top:10px"><thead><tr><th>Metric</th><th>Status</th><th>Why it cannot be measured here</th></tr></thead><tbody>
+  <tr><td>Startup time (cold / warm)</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">Requires a device build. No React Native binary has been produced.</td></tr><tr><td>Render time per screen</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">Requires the RN renderer on a device; the review renders through a DOM adapter, which measures nothing about native layout cost.</td></tr><tr><td>Navigation latency</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">Navigation is a pure state transition today; the perceived cost is animation and view mounting, neither of which exists yet.</td></tr><tr><td>JS bundle size</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">No Metro bundle has been produced. Source size is measured above and is NOT a bundle size.</td></tr><tr><td>Memory usage</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">Requires a device profiler.</td></tr><tr><td>Unnecessary re-renders</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">Requires the React profiler against a running app.</td></tr><tr><td>Image sizes</td><td><span class="tag bad">NOT VERIFIED</span></td><td class="note">The app ships no raster assets yet.</td></tr>
+  </tbody></table></div>
+</div>
+
+<h2>Technical debt register</h2>
+<div class="panel scroll">
+<p class="note">Debt is only real if it is visible and owned. An item leaves this register by being fixed, never by being deleted.</p>
+<table style="margin-top:12px"><thead><tr><th>ID</th><th>Description</th><th>Impact</th><th>Priority</th><th>Owner</th><th>Planned slice</th></tr></thead><tbody>
+<tr>
+  <td class="mono">TD-1</td>
+  <td>The patient app has no DEVICE build and no BACKEND. A host now exists: `apps/patient/web` implements the `Host` interface against browser globals — a clock, crypto ids, navigator.onLine, localStorage, setTimeout — and mounts the composition root through react-native-web, so the application has been started and used in a page for the first time. A dev server (`tools/devserver`) answers the declared v1 contracts beside it. Neither is production: react-native-web is not React Native, so no phone has run this, and the dev server invents DATA (nine catalogue rows, three branches) to exercise BEHAVIOUR the contracts already declare — it is not a backend. No session token is stored or refreshed, and deviceId/baseUrl still have no production source.</td>
+  <td class="note">The loop can now be walked by a person rather than only by a test suite, which is how the E4 navigation defect was found. What remains unexercised is everything a device and a server bring: native gestures, platform chrome, safe-area insets and keyboard avoidance are untested because no React Native project exists, and real latency, pagination, token refresh, TLS and server-side authorization are untested because nothing behind the port is real.</td>
+  <td><span class="tag bad">critical</span></td>
+  <td class="mono">platform-foundation</td>
+  <td class="note">Stage 5 — Infrastructure</td>
+</tr><tr>
+  <td class="mono">TD-2</td>
+  <td>Screenshots are DOM renders of the real component tree, not device captures.</td>
+  <td class="note">Layout, hierarchy, typography, colour, spacing and tap targets are verified. Native gestures, platform chrome, safe-area insets, keyboard avoidance and animation are NOT.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Whenever a device build first runs</td>
+</tr><tr>
+  <td class="mono">TD-3</td>
+  <td>SCREEN transitions are not implemented; element-level motion is. This item used to say no transition existed at all, which was wrong and understated the code while overstating the gap: `Enter`, `Pulse` and `Shake` are real Animated components with native-driver and reduced-motion support, and they are used on eight call sites. What has no consumer is navigation. Measured: 13 motion tokens are declared and 2 are spent — `errorShake` and `offerArrival`. The other 11 include every one that describes moving between screens — screenPush, sheetPresent, sheetDrag — so the app root swaps a component per `state.screen` with nothing in between.</td>
+  <td class="note">Going from a request to the sign-in ask, or from the wait to the offers, is a cut rather than a movement, and §27 says each of those tokens TEACHES something — screenPush teaches where you are in the hierarchy, sheetPresent teaches that a thing is temporary and layered above. Losing that is losing the one cue that tells a patient whether they went deeper or sideways. Within a screen the product already moves: a field shakes when it is wrong, content enters, a countdown pulses.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Next polish pass</td>
+</tr><tr>
+  <td class="mono">TD-21</td>
+  <td>Offers reach the patient by POLLING, not by being told. §8 says the patient is notified when pharmacies reply; a notification needs push, which a browser build cannot receive and a device build does not exist to (TD-1, TD-2). The composition root therefore re-reads GET /v1/requests/{id} every three seconds while any branch is still thinking, and stops when none is.</td>
+  <td class="note">Behaviourally equivalent above the port — the same intents arrive from the same contract, so no screen and no reducer can tell the difference — and materially different below it. The app must be OPEN and on screen for an offer to arrive, so a patient who locks their phone during a four-hour window learns nothing until they look; and a twenty-minute window costs hundreds of requests and the battery to make them, on the phones and networks this product is for. It is a stand-in for the notification channel, not the design.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">notification-service</td>
+  <td class="note">Device build — push notifications</td>
+</tr><tr>
+  <td class="mono">TD-20</td>
+  <td>R7's «ألغِ الطلب» does not cancel anything: the screen contract declares it as a secondary leading to S1, so pressing it dispatches `open S1` and nothing else — no intent, no call, no transition. The request stays broadcast to every pharmacy that was asked. TWO CORRECTIONS to this item, both recorded rather than overwritten. It first said the behaviour was unstated and therefore blocked; that read only the screen contract and was wrong — `POST /v1/requests/{id}/cancel` is declared in the API model (§4 R7 — 200 { request }, 404 not_found_or_not_yours, 409 already_accepted). It then said the client half was buildable; that was wrong too, and this is the real finding: the API contract and the §6 state machine DISAGREE. A patient on R7 is in `broadcast` or `answered`, and the Request machine has no outgoing edge for a cancellation from either. Its only two are `cancelFromOutbox` (queued → draft, D27 — a request that never left the device) and `abandon` (unanswered or partially_filled → closed). The domain model agrees with the machine and not the endpoint: it lists eight Request states and the producer of each, and no state is produced by that route.</td>
+  <td class="note">A control that states an outcome and produces none, on a live request other people are working on — a patient who wants to stop a request believes they have. It cannot be built: calling the endpoint would return a request in a state the client has no edge to reach, and adding that edge is inventing a state transition, which Rule 5 and the forbidden list both refuse. This is not a gap in the Blueprint but a contradiction between two frozen documents, and it needs one of them to move: either §6 gains the transition, or §4 R7 loses the control.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">marketplace-engine</td>
+  <td class="note">Blocked — the API contract and the §6 machine disagree</td>
+</tr><tr>
+  <td class="mono">TD-22</td>
+  <td>The Arabic plural forms are engineering's reading of the grammar, not a native speaker's or the copywriter's. `plural`/`counted` encode the four CLDR categories and every counted string in the app now selects through them, which fixes what was unambiguously wrong — «١ دقائق», «٢ محاولات», «٥ دقيقة». What is NOT verified is the dialect: this product is written in Iraqi Arabic, and some inflections have a colloquial form that differs from Modern Standard — the dual «دوائين», the non-human plural agreement in «٣ أدوية تحتاج وصفة», and «اثنين غيرهم» on the outbox label are the three worth a second pair of eyes.</td>
+  <td class="note">Strictly better than what shipped, and not yet confirmed. Nothing here changes what a screen SAYS, only how the number agrees with it, so the risk is a phrase that reads as slightly formal rather than one that misinforms. It needs a native Iraqi reader — ideally the person who wrote the original copy — to confirm the four forms for each noun. Until then the register carries this rather than the tests implying it was reviewed.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Next copy review</td>
+</tr><tr>
+  <td class="mono">TD-23</td>
+  <td>R7 does not end. Its dial now counts down for real — before the clock ticked, nobody would have watched it reach zero — and at zero it shows «٠» beside «الوقت الباقي على نافذة الردود» and goes on saying «انرسل — ننتظر الردود» indefinitely. The screen's own copy promises the opposite: «إذا خلصت بدون رد، نكلّك الصدك ونقترح شنو تسوي». Nothing fires `windowElapsed`, so the request stays `broadcast` in state forever.</td>
+  <td class="note">The promise R7 makes about what happens when nobody answers is not kept, on the screen whose entire job is making a wait legible. The store half is declared and buildable — §6 has `broadcast --windowElapsed--&gt; unanswered` and `request.unanswered` is a registered event — but the screen it leads to is R11, whose design package entry reads «OPEN to the designer: Everything. Not rendered.» Moving the request with nowhere to land would change the state and nothing a patient can see, so the state is left honest rather than moved into a screen that does not exist. The polling itself now stops at the window (it did not before), so this costs a patient a broken promise rather than a battery.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — R11 is undesigned</td>
+</tr><tr>
+  <td class="mono">TD-24</td>
+  <td>R1's declared guards and §3.1 contradict each other, and the implementation resolves it by walking around the guard. The Blueprint gives R1 the permission &quot;authenticated, subject with Order scope or self or guardian&quot; and the guard set `requireSession · requireOrderScope · blockMemorialised`. §3.1 forbids a sign-in wall and requests the account at the first action that NEEDS one, and D26 preserves the interrupted work — E4 is drawn showing «طلبك محفوظ: أموكسيسيلين + باراسيتامول», a draft that only a GUEST could have built. Both cannot hold: if R1 needs a session, no guest can assemble the request E4 promises to keep. Today `addItem` calls `navigate` rather than `open`, so it never asks the guards, and that bypass is the only reason the product works end to end.</td>
+  <td class="note">A guard that one path enforces and another does not is not a guard (§5 rule 1), and the same screen answers differently depending on how you arrive. It is visible: R2's «اكتب الاسم بدال الصورة» goes through the declared exit `leadsTo: R1`, `open` runs the guards, and a guest is sent to sign in by a control that offered to let them type instead — walked in a browser. Fixing the symptom would mean routing that control around the guard as well, which is weakening a rule to make code pass rather than resolving the contradiction. It needs one of the two documents to move: either R1 loses `requireSession`, or §3.1 and D26 say where a guest assembles a draft instead.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — R1's guards and §3.1 disagree</td>
+</tr><tr>
+  <td class="mono">TD-25</td>
+  <td>E8 has no declared treatment for a save that could not be MADE. Its Blueprint row declares `error` («ما اخترت منطقة») and `permissionRefused`, and its offline rule is that the district list is bundled — which is true of the list and not of the submit: finishing onboarding is a PATCH /v1/me, and that call can fail on a network rather than be refused by a server.</td>
+  <td class="note">Today the control returns from busy and says nothing, so a patient on a bad connection presses «خلص» and watches it do nothing twice. The alternative available without a decision is worse: the first version of this code answered a dropped connection with DISTRICT_REQUIRED, which words as «ما اخترت منطقة» — telling a patient who DID choose a district that they had not. Blaming someone for a network is the one thing this screen must not do, so it asserts nothing instead. Needs a sentence for «ما كدرنا نحفظ — جرّب مرة ثانية», which is copy and not engineering's to write.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a failure sentence for E8</td>
+</tr><tr>
+  <td class="mono">TD-17</td>
+  <td>The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.</td>
+  <td class="note">Nothing in the app hard-codes an id from the list and the real one replaces the file wholesale, so this cannot leak into logic. It does mean a patient in a district Dawai actually serves may not find it, and the coverage claim on each row is not yet a claim product has made. Needs the coverage list as a product input.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs the coverage list</td>
+</tr><tr>
+  <td class="mono">TD-10</td>
+  <td>The Night Mint delivery is dark-only. Its daylight sibling palette is not designed, so the patient app forces dark and ignores the device's light preference.</td>
+  <td class="note">Users who run their phone in light mode get a dark app. `patientLight` is currently an alias of `patientDark` so nothing renders half-designed, which means the contrast gate cannot catch a light-scheme regression either.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">design</td>
+  <td class="note">When the daylight palette is delivered</td>
+</tr><tr>
+  <td class="mono">TD-11</td>
+  <td>V2's code-panel caption ships at #63726B, not the delivered #6B7A74, because the designer's value measures 4.10:1 on #F7F4EE — below the 4.5 body floor.</td>
+  <td class="note">A one-value deviation from the delivery, on the screen Blueprint v3 says must never fail. Reverts the moment Design confirms a replacement.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">design</td>
+  <td class="note">Next design round</td>
+</tr><tr>
+  <td class="mono">TD-6</td>
+  <td>V2's freshness is hard-coded live because nothing is cached yet.</td>
+  <td class="note">The cached-countdown path is implemented and photographed but never exercised against real cache eviction.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Stage 5 — Infrastructure</td>
+</tr><tr>
+  <td class="mono">TD-7</td>
+  <td>Performance is entirely unmeasured — startup, render, navigation latency, memory and bundle size.</td>
+  <td class="note">No regression can be detected. The dashboard reports these as NOT VERIFIED rather than green.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">platform-foundation</td>
+  <td class="note">Once a device build exists — Module count and source size are now measured; runtime metrics remain unverifiable without a device build.</td>
+</tr><tr>
+  <td class="mono">TD-8</td>
+  <td>The store held a `requested` variable computed from the submission and then discarded it, because request line ids are minted by the server and the client has none yet.</td>
+  <td class="note">Acceptance is computed against the offer's own line ids rather than the request's. Correct today because they are the same fixture, and wrong the moment a real server assigns ids.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">marketplace-engine</td>
+  <td class="note">Stage 5 — Infrastructure</td>
+</tr><tr>
+  <td class="mono">TD-12</td>
+  <td>ActionCard sets accessibilityLabel on the Pressable, which makes the card ONE accessibility element on both platforms: the label is announced and the children are not. On R8 an offer card therefore reads as «افتح عرض صيدلية الرشيد» alone — the price, the coverage («يغطي ٢ من ٢»), the substitution flag, the distance and the honoured band are all rendered and none of them is spoken. On F2 a result reads as «أضف بانادول للطلب», dropping the strength, the form, the Latin name and the price.</td>
+  <td class="note">A patient using TalkBack or VoiceOver makes the most consequential decision in the product — which pharmacy to reserve from — without hearing anything the decision is based on. The visible card and the spoken card are different products. The engineering defect is clear; the fix is not, because what an offer card should announce, in which order, in Iraqi Arabic, is a content decision. §25 and the Blueprint state no spoken-content rule for a composite card, so implementation must not invent one. Blocked on a product/design answer, not on code.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a spoken-content decision for composite cards</td>
+</tr><tr>
+  <td class="mono">TD-13</td>
+  <td>Offline.cancel refuses silently while an item is in flight. It returns the outbox object unchanged (identical by reference) when state is &quot;sending&quot;, so the reducer stores the same value, the screen re-renders identically, and the patient's cancel produces no signal of any kind. With DEFAULT_POLICY the retry loop holds an item in &quot;sending&quot; for roughly 30 seconds of backoff across six attempts, and flush only re-reads the live outbox BETWEEN items, never between retries.</td>
+  <td class="note">For up to half a minute after pressing send, R13's cancel does nothing and says nothing. The comment in flush.ts names this exact failure — 'the user's cancel does nothing but move a label' — and guards against it at the item boundary, which is not where the waiting happens. Whether a request already on the wire SHOULD be cancellable is a product decision (§21 · D27 · R13): a POST that may already have been accepted cannot simply be dropped, and the honest options — refuse visibly, or cancel and reconcile against the idempotency key — differ in what the patient is promised. The engineering half is unambiguous and unblocked: a function that can refuse must say so rather than returning its input.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">platform-foundation</td>
+  <td class="note">Blocked — needs a product answer on cancelling in-flight writes</td>
+</tr><tr>
+  <td class="mono">TD-14</td>
+  <td>V2 renders two controls that do nothing. The contract declares a primary «الاتجاهات» and a secondary «اتصال بالصيدلية», ReservationScreen draws both, and App.tsx wires both to `noop` — there is no maps handoff and no dialer. The rendered review page V2-held.html contains both labels. A third declared secondary, «ألغِ الحجز» → V5, is not rendered at all: `onCancel` is passed from App.tsx as `() =&gt; onAction(&quot;V5&quot;)`, which `isBuilt` silently drops because V5 is not in this build, and ReservationScreen never uses the prop.</td>
+  <td class="note">§4 calls V2 the screen that must never fail, and it is the screen a patient stands in front of a pharmacy holding. Two of its three actions are inert: tapping «الاتجاهات» or «اتصال بالصيدلية» does nothing at all, with no message and no fallback — the exact defect the isBuilt filter exists to prevent, in the one category isBuilt cannot express, because a dialer and a map are device capabilities rather than screens. Whether to wire them, disable them with a stated reason, or drop them until a device build exists is a product and platform decision (§4 V2 · TD-1 · TD-2), so it is registered rather than answered here. The dead `onCancel` prop is separate and smaller: it makes the cancel path look wired when V5 does not exist.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a device build and a decision on inert declared controls</td>
+</tr><tr>
+  <td class="mono">TD-15</td>
+  <td>A screen can be opened without the state it needs. `open` runs the route guards and `isBuilt`, neither of which knows that V2 without a reservation, R9 without an offer, or R3 without a capture has nothing to draw. Dispatching { kind: &quot;open&quot;, screen: &quot;V2&quot; } on a signed-in state with reservation: null navigates there and renders the Placeholder. App.tsx claimed the reducer prevented this; it does not.</td>
+  <td class="note">Not reachable today: nothing rendered dispatches it, and the only declared exit into V2 belongs to S1, which this build does not contain. It becomes reachable the moment S1 lands, and through D26's replay of a pending screen — both of which are ordinary paths, not edge cases. What a patient should see when the reservation behind V2 is gone is a product decision (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect was invented. The Placeholder is honest about the failure but is still a screen nobody designed.</td>
+  <td><span class="tag ">medium</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Blocked — needs a product answer, and lands with S1</td>
+</tr><tr>
+  <td class="mono">TD-16</td>
+  <td>Nothing bounds the pack count on a request line. `Marketplace.packs` refuses zero, negatives and non-integers and accepts everything else — 1,000,000 packs is ACCEPTED, verified by probe. `draft.setPacks` and `draft.add` pass the value straight through, and DraftScreen's stepper increments without a ceiling, so a patient holding the + button sends whatever number they reach to every eligible pharmacy.</td>
+  <td class="note">§2 fixes the maximum LINES per request at 8 and the module's own docstring says the review's central finding was that v1 'left every load-bearing quantity undefined'. The quantity per line is such a quantity and Blueprint v3 does not state it, so there is nothing to implement: any ceiling chosen here would be an invented business rule, which Rule 3 and the forbidden list both refuse. The consequence is real but bounded — a pharmacy receives an absurd request and refuses it, which costs a pharmacist's attention rather than a patient's safety. Needs a number from product, after which it belongs beside MAX_REQUEST_LINES in marketplace/rules.ts.</td>
+  <td><span class="tag ">low</span></td>
+  <td class="mono">marketplace-engine</td>
+  <td class="note">Blocked — needs a Blueprint quantity</td>
+</tr>
+</tbody></table>
+<h3 style="margin-top:20px">Resolved</h3>
+<table style="margin-top:8px"><thead><tr><th>ID</th><th>Was</th><th>Resolved by</th></tr></thead><tbody>
+<tr><td class="mono">TD-26</td><td class="note">A deployed build had no API, so it showed the first screen and stopped: no medicines, no sign-in, no offers, no reservation. The v1 routes were served only by a vite middleware that is not in the production bundle. Worse, the first version of the routing made the failure DISHONEST — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read that as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue. It is. The backend isn't.</td><td class="note">Product decided the review build carries the mock rather than let a missing backend stop the workflow being reviewed, so `apps/patient/web/mock.ts` installs THE SAME `handle` the dev server runs — tools/devserver/api.mjs, one implementation of the contracts, not a second one that would drift. That file imports nothing from node; it speaks req/res, so the only thing missing in a browser was those two objects. It is imported only when VITE_MOCK_API is set, and lands in its own 3.6 kB chunk, so a build without the flag never carries it and a real backend replaces it by absence. Walked on the STATIC BUILD served the way Netlify serves it — search → draft → sign in → name → district → send → offers arriving → compare → substitution consent → reserved with a pickup code, no console errors. Separately: every deploy on this branch had been CANCELLED, and the cause was the root netlify.toml's base of `dawai-site` — Netlify skips a build when nothing in the base directory changed, and that folder had not been touched in months, so the preview URL kept showing an old static site while the app was never built at all. The base now points at `platform`. What remains is TD-1: this is a mock, and the data resets on reload.</td></tr><tr><td class="mono">TD-9</td><td class="note">R2's shutter was SILENTLY inert — pressing «صوّر» left the screen, the controls and the state exactly as they were. No medicine that requires a prescription could be requested at all: D18 refuses the send without an image, the only way to attach one is a photograph, and none could be taken. The register called this a device problem for months, and that was wrong: a browser can take a photograph and `POST /v1/prescriptions` has been declared the entire time. The real obstacle was one line of this repository's own design — `Host.camera` returned an `imageId`, which a platform cannot know, because an id is minted by the media service. The interface was asking the host to do the app's job.</td><td class="note">The host now returns bytes and nothing else: `camera(): Promise&lt;{ localUri } | null&gt;`, implemented in the browser with a hidden `&lt;input type=&quot;file&quot; accept=&quot;image/*&quot; capture=&quot;environment&quot;&gt;` — the rear camera on a phone, a file picker on a laptop, where the paper has usually already been photographed — and a `cancel`/focus fallback so a dismissed picker resolves null instead of leaving «تصوير» pressed for ever. A new `MediaPort` (`infra/media.ts`) reads those bytes through an injectable `ReadImage` and uploads them over the declared route (multipart image + { subjectId } → 201 { imageId }, 413 too_large, 415 unsupported_type), with the content-type deliberately unset so the platform writes the multipart boundary. The two refusals are kept apart because they are different things to fix, a 201 with no id is a failure rather than a success the app cannot use, and an unreadable uri is permanent — R2 keeps the review state and the patient takes another. `Prescription.Capture` gained the moment that was missing between confirmed and attached: `uploading`, then `attached(imageId)` at the one place an id can enter, or `failed(localUri, reason)` which keeps the photograph retryable. Phase 0 still reads nothing (D18) — the dev server counts the bytes and discards them, logging «not stored (D18)». Walked in Chromium: a blocked prescription line, «صوّر», R3's review, «واضحة — كمّل», and R1 reading «الوصفة مرفقة».</td></tr><tr><td class="mono">TD-18</td><td class="note">E7 (name) and E8 (district) could not be reached in the running app. `perform` mapped the declared 200 from POST /v1/auth/verify to the `authenticated` intent, which replayed the action the guard had interrupted (D26), while the path that navigates to E7 needed a `codeJudged` verdict of &quot;correct&quot; that nothing but a test produced. Both behaviours were declared — the Blueprint's screen graph draws E6 → E7 → E8 → S1, and D26 says the preserved action resumes — and the ORDER between them was not. Product answered: the name and the district first.</td><td class="note">Verification authenticates the session and carries on to E7; the replay waits for the end of onboarding. E8's submit sends both answers in ONE call over the declared PATCH /v1/me (§4 M2 — { name?, districtId? } → 200, 400 invalid_district), because an account with a name and no district is one that cannot make a request. `profileSaved` then applies the district to the draft the GUEST built — `newDraft` had been given a guest's authority, so every request left with `districtId: &quot;&quot;` and a real server would have refused it — tells the composition root through a new `onDistrict` port, and only then replays what D26 preserved. A district the server refuses keeps the patient on E8 with E12's sentence, and a dropped connection says nothing at all rather than borrowing «ما اخترت منطقة» and blaming them for a network (TD-25). Proved by a test that fails when the district is not applied, and walked in Chromium: E6 → E7 → E8 → back to the request → sent, with the dev server logging «profile: أم علي in d1».</td></tr><tr><td class="mono">TD-5</td><td class="note">A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.</td><td class="note">R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.</td></tr><tr><td class="mono">TD-4</td><td class="note">The sign-in chain E4 → E8 existed as screens and was wired to nothing: the app root rendered none of them, so a guest who touched an action needing an account was redirected by the guard and drawn the search screen instead. Signing in was then only half done — the store learned who had verified and the RUNTIME did not, so `authority()` still answered from an empty relationship set and the R6 guard refused a patient on the request they had verified in order to send.</td><td class="note">The root renders E4–E8, and a new `onVerified` port tells the composition root who signed in at the moment the server says so. Authority is then answered from §9's invariant — an Account always owns exactly one self Subject, created atomically by POST /v1/auth/verify — supplied to `Authority.authorise`, which still decides: a memorialised subject is refused exactly as before (D04), and a grant over someone else is NOT inferred, because grants[] comes from GET /v1/me and no port reads it yet. Walked in Chromium: search → sign in → «أرسل الطلب» → R7 «انرسل — ننتظر الردود». What remains is separate and registered: E7 and E8 are still unreachable (TD-18), so the request carries no district.</td></tr><tr><td class="mono">TD-19</td><td class="note">`isBuilt` meant &quot;this screen has a CONTRACT&quot;, while its docstring promised what callers assumed: &quot;Nothing renders a control that leads to a screen that is not here.&quot; Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.</td><td class="note">`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means &quot;leave for Today&quot;, and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium.</td></tr><tr><td class="mono">TD-0a</td><td class="note">layer-check scanned only .ts, so the app layer stopped being checked when it became .tsx.</td><td class="note">Extended to .tsx and proven with a rejecting case.</td></tr><tr><td class="mono">TD-0b</td><td class="note">Build output emitted beside sources, so tests ran against a stale build.</td><td class="note">Project references corrected, stray output banned by layer-check, and .gitignore updated.</td></tr><tr><td class="mono">TD-0c</td><td class="note">Prices were rounded to the nearest thousand, displaying 8,500 as '9 ألف'.</td><td class="note">Exact formatting, with a test asserting two different totals never print identically.</td></tr>
+</tbody></table></div>
+
+<h2>Blueprint workflow progress</h2>
+<div class="panel scroll">
+<p class="note">Derived from the contracts and the Blueprint's own screen inventory. A workflow is Complete only when every screen it needs is contracted AND photographed.</p>
+<table style="margin-top:12px"><thead><tr><th>Workflow</th><th>Screens</th><th>Built</th><th>Status</th></tr></thead><tbody>
+<tr>
+    <td><b>Search Medicine → Request → Send</b></td>
+    <td><span class="node built" style="margin:2px">F1</span><span class="node built" style="margin:2px">F2</span><span class="node built" style="margin:2px">R1</span><span class="node built" style="margin:2px">R6</span><span class="node built" style="margin:2px">R7</span></td>
+    <td class="mono">5/5</td>
+    <td><span class="tag ok">Complete</span></td>
+  </tr><tr>
+    <td><b>Receive Offers → Compare → Reserve → Pickup</b></td>
+    <td><span class="node built" style="margin:2px">R8</span><span class="node built" style="margin:2px">V1</span><span class="node built" style="margin:2px">V2</span><span class="node built" style="margin:2px">V4</span></td>
+    <td class="mono">4/4</td>
+    <td><span class="tag ok">Complete</span></td>
+  </tr><tr>
+    <td><b>Prescription capture</b></td>
+    <td><span class="node built" style="margin:2px">R2</span><span class="node built" style="margin:2px">R3</span></td>
+    <td class="mono">2/2</td>
+    <td><span class="tag ok">Complete</span></td>
+  </tr><tr>
+    <td><b>Offer details &amp; substitution consent</b></td>
+    <td><span class="node built" style="margin:2px">R9</span><span class="node pending" style="margin:2px">R10</span></td>
+    <td class="mono">1/2</td>
+    <td><span class="tag warn">In Progress</span></td>
+  </tr><tr>
+    <td><b>Nobody answered → widen or watch</b></td>
+    <td><span class="node built" style="margin:2px">R11</span><span class="node pending" style="margin:2px">R12</span></td>
+    <td class="mono">1/2</td>
+    <td><span class="tag warn">In Progress</span></td>
+  </tr><tr>
+    <td><b>Onboarding &amp; sign-in</b></td>
+    <td><span class="node built" style="margin:2px">E4</span><span class="node built" style="margin:2px">E5</span><span class="node built" style="margin:2px">E6</span><span class="node built" style="margin:2px">E7</span><span class="node built" style="margin:2px">E8</span></td>
+    <td class="mono">5/5</td>
+    <td><span class="tag ok">Complete</span></td>
+  </tr><tr>
+    <td><b>Today &amp; the clinical record</b></td>
+    <td><span class="node built" style="margin:2px">S1</span><span class="node pending" style="margin:2px">S2</span><span class="node pending" style="margin:2px">V8</span></td>
+    <td class="mono">1/3</td>
+    <td><span class="tag warn">In Progress</span></td>
+  </tr><tr>
+    <td><b>Pending work (outbox)</b></td>
+    <td><span class="node built" style="margin:2px">R13</span></td>
+    <td class="mono">1/1</td>
+    <td><span class="tag warn">Review</span></td>
+  </tr>
+</tbody></table></div>
+
+<h2>Honesty labels</h2>
+<div class="panel">
+<p class="note">Nothing unfinished is presented as production-ready. These are the labels in force right now, each derived from the code rather than asserted.</p>
+<table style="margin-top:12px"><thead><tr><th>Thing</th><th>Label</th><th>Meaning</th></tr></thead><tbody>
+  <tr><td>111 Blueprint screens</td><td><span class="tag bad">NOT IMPLEMENTED</span></td><td class="note">No contract, no render. Listed individually in Known gaps.</td></tr>
+  <tr><td>Routes to 9 declared exits</td><td><span class="tag warn">BLOCKED</span></td><td class="note">A contract declares the exit; this build cannot honour it, so no control renders to it.</td></tr>
+  <tr><td>CataloguePort, Environment, flush()</td><td><span class="tag warn">MOCKED</span></td><td class="note">Types with test fakes behind them. No transport exists.</td></tr>
+  <tr><td>Every screen in the gallery</td><td><span class="tag warn">SIMULATED</span></td><td class="note">Rendered from fixtures through a DOM adapter. Real component tree, simulated data, not a device capture.</td></tr>
+  <tr><td>V2 freshness</td><td><span class="tag warn">MOCKED</span></td><td class="note">Hard-coded live because nothing is cached yet. The cached path is implemented and photographed but unexercised.</td></tr>
+</tbody></table></div>
+
+<h2>Known gaps — NOT IMPLEMENTED</h2>
+<div class="panel scroll">
+<p class="note">111 of the 133 Blueprint v3 Phase 0 screens are not in this build. The 9 marked <b>referenced</b> are named by an exit in a contracted screen — no control navigates to them, and a guard whose destination is not built keeps the user where they are with the reason.</p>
+<table style="margin-top:12px"><thead><tr><th>Screen</th><th>Group</th><th>Name</th><th>Purpose</th><th></th></tr></thead><tbody>
+<tr><td class="mono">E1</td><td class="note">Entry</td><td>Launch</td><td class="note">Resolve session before anything renders</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E2</td><td class="note">Entry</td><td>Welcome</td><td class="note">Show worth before asking for anything</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E3</td><td class="note">Entry</td><td>Guest home</td><td class="note">Let a stranger search and browse with no account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E9</td><td class="note">Entry</td><td>Location primer</td><td class="note">Explain before the OS dialog — one chance only</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E10</td><td class="note">Entry</td><td>Notification primer</td><td class="note">Ask when the value is obvious, after the first reservation</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E11</td><td class="note">Entry</td><td>Welcome back</td><td class="note">Returning device</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E12</td><td class="note">Entry</td><td>Out of coverage</td><td class="note">Say honestly that we have not arrived</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">E13</td><td class="note">Entry</td><td>Blocked</td><td class="note">Suspended, or an unsupported version</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S2</td><td class="note">Subjects</td><td>Subject switcher</td><td class="note">Change whose medicine this is</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">S3</td><td class="note">Subjects</td><td>Add a person</td><td class="note">Create a managed subject for someone who cannot use a phone</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">S4</td><td class="note">Subjects</td><td>Family &amp; access</td><td class="note">Who I manage, who sees me, whose record I can see</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S5</td><td class="note">Subjects</td><td>Invite a family member</td><td class="note">Send a peer grant, to a number with or without an account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S6</td><td class="note">Subjects</td><td>Choose scope</td><td class="note">How much access, in plain words</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S7</td><td class="note">Subjects</td><td>Incoming request</td><td class="note">Someone wants access to my record</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S8</td><td class="note">Subjects</td><td>Revoke access</td><td class="note">Withdraw a grant</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S9</td><td class="note">Subjects</td><td>Claim invite</td><td class="note">Hand a managed subject their own account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S10</td><td class="note">Subjects</td><td>Transfer guardianship</td><td class="note">Move a managed subject to another account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S11</td><td class="note">Subjects</td><td>Memorialise subject</td><td class="note">Record that a person has died</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">S12</td><td class="note">Subjects</td><td>Who viewed this record</td><td class="note">Make the privacy promise checkable</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F3</td><td class="note">Find</td><td>Medicine page</td><td class="note">What this item is and whether it is near</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">F4</td><td class="note">Find</td><td>Cannot be requested</td><td class="note">Refuse a controlled substance, with the reason</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F5</td><td class="note">Find</td><td>Nearby pharmacies</td><td class="note">Who is around, open, and close</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">F6</td><td class="note">Find</td><td>Map</td><td class="note">The same, spatially</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F7</td><td class="note">Find</td><td>Pharmacy page</td><td class="note">Should I go here</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">F8</td><td class="note">Find</td><td>Opening hours</td><td class="note">The full week, exceptions and Ramadan</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">R10</td><td class="note">Request</td><td>Accept substitution</td><td class="note">Acknowledge a different brand, explicitly</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">R12</td><td class="note">Request</td><td>My watches</td><td class="note">Notify-me, with a lifecycle</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">V3</td><td class="note">Reservation</td><td>Reservation expired</td><td class="note">The window passed</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">V5</td><td class="note">Reservation</td><td>Cancel reservation</td><td class="note">Withdraw</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">V6</td><td class="note">Reservation</td><td>Collected</td><td class="note">Done, and it enters the record</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">V7</td><td class="note">Reservation</td><td>Report a price difference</td><td class="note">The single post-pickup signal</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">V8</td><td class="note">Reservation</td><td>Dispense history</td><td class="note">What this subject has actually collected</td><td><span class="tag warn">referenced</span></td></tr><tr><td class="mono">M1</td><td class="note">Account</td><td>Me</td><td class="note">Account root</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M2</td><td class="note">Account</td><td>Profile</td><td class="note">Name, number, district</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M3</td><td class="note">Account</td><td>Change my number</td><td class="note">Identity recovery and number churn</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M4</td><td class="note">Account</td><td>Saved pharmacies</td><td class="note">My usual places</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M5</td><td class="note">Account</td><td>My prescriptions</td><td class="note">Images I uploaded</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M6</td><td class="note">Account</td><td>Notification settings</td><td class="note">Per category, with quiet hours</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M7</td><td class="note">Account</td><td>Display</td><td class="note">Numerals and text size</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M8</td><td class="note">Account</td><td>Export my record</td><td class="note">Take it with me</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M9</td><td class="note">Account</td><td>Sign out</td><td class="note">Leave this device</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M10</td><td class="note">Account</td><td>Delete account</td><td class="note">State exactly what goes and what stays</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M11</td><td class="note">Account</td><td>Managed subject disposition</td><td class="note">Transfer or delete each managed subject</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M12</td><td class="note">Account</td><td>Confirm deletion</td><td class="note">Deliberate friction</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M13</td><td class="note">Account</td><td>Deletion scheduled</td><td class="note">It is happening, and how to stop it</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M14</td><td class="note">Account</td><td>Help</td><td class="note">Answer the common questions without a human</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">M15</td><td class="note">Account</td><td>Contact support</td><td class="note">Reach a human with context attached</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA1</td><td class="note">Pharmacy apply</td><td>I am a pharmacy</td><td class="note">Entry for the supply side</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA2</td><td class="note">Pharmacy apply</td><td>Business details</td><td class="note">Name, owner, trade registration</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA3</td><td class="note">Pharmacy apply</td><td>Address and map point</td><td class="note">Where the branch physically is</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA4</td><td class="note">Pharmacy apply</td><td>Storefront photo</td><td class="note">Evidence the branch exists</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA5</td><td class="note">Pharmacy apply</td><td>Licence upload</td><td class="note">The pharmacy licence and its expiry</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA6</td><td class="note">Pharmacy apply</td><td>Named pharmacist</td><td class="note">Who holds the clinical credential</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA7</td><td class="note">Pharmacy apply</td><td>Submit</td><td class="note">Send the application</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA8</td><td class="note">Pharmacy apply</td><td>Application status</td><td class="note">Queue position and what happens next</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">PA9</td><td class="note">Pharmacy apply</td><td>Information requested</td><td class="note">Exactly what the operator needs</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P1</td><td class="note">Pharmacy</td><td>Staff sign-in</td><td class="note">Who is at the counter now</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P2</td><td class="note">Pharmacy</td><td>Branch picker</td><td class="note">Which branch am I working</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P3</td><td class="note">Pharmacy</td><td>Requests</td><td class="note">Is anything waiting for me</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P4</td><td class="note">Pharmacy</td><td>Eligibility panel</td><td class="note">Why I am or am not receiving requests</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P5</td><td class="note">Pharmacy</td><td>Request detail</td><td class="note">Decide in seconds</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P6</td><td class="note">Pharmacy</td><td>Compose offer</td><td class="note">Answer per line in under fifteen seconds</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P7</td><td class="note">Pharmacy</td><td>Unavailable, and why</td><td class="note">One tap, and the best signal we collect</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P8</td><td class="note">Pharmacy</td><td>Offer sent</td><td class="note">Confirm, and be explicit that it is not a reservation</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P9</td><td class="note">Pharmacy</td><td>Withdraw offer</td><td class="note">The correction path for a mistyped price</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P10</td><td class="note">Pharmacy</td><td>Reservations</td><td class="note">What I have physically committed</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P11</td><td class="note">Pharmacy</td><td>Reservation detail</td><td class="note">Confirm, decline, or hand over</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P12</td><td class="note">Pharmacy</td><td>Confirm reservation</td><td class="note">The moment of commitment</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P13</td><td class="note">Pharmacy</td><td>Cannot hold, and why</td><td class="note">Reason capture; this is a trust event</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P14</td><td class="note">Pharmacy</td><td>Handover</td><td class="note">Verify the code and complete</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P15</td><td class="note">Pharmacy</td><td>Prescription viewer</td><td class="note">Read the prescription while the reservation is live</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P16</td><td class="note">Pharmacy</td><td>Completed</td><td class="note">Done</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P17</td><td class="note">Pharmacy</td><td>Branch settings</td><td class="note">Settings root</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P18</td><td class="note">Pharmacy</td><td>Opening hours</td><td class="note">The week</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P19</td><td class="note">Pharmacy</td><td>Exceptions</td><td class="note">Holidays and one-off closures</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P20</td><td class="note">Pharmacy</td><td>Ramadan schedule</td><td class="note">A complete alternative week, activated by date</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P21</td><td class="note">Pharmacy</td><td>Coverage and capacity</td><td class="note">How far, how many at once, and pause</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P22</td><td class="note">Pharmacy</td><td>Staff</td><td class="note">Who works here and what they may do</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P23</td><td class="note">Pharmacy</td><td>Invite staff</td><td class="note">Add a person</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P24</td><td class="note">Pharmacy</td><td>Licence</td><td class="note">Status, expiry, renewal</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P25</td><td class="note">Pharmacy</td><td>Performance</td><td class="note">Fill rate, answer time, honoured rate, and what I should stock</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P26</td><td class="note">Pharmacy</td><td>Branch access log</td><td class="note">Every platform-side read of my record</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P27</td><td class="note">Pharmacy</td><td>Branch export</td><td class="note">Take my own data</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P28</td><td class="note">Pharmacy</td><td>Close branch</td><td class="note">Leave the platform</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P29</td><td class="note">Pharmacy</td><td>Branch help</td><td class="note">Answers, and the on-call number</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P30</td><td class="note">Pharmacy</td><td>Contact support</td><td class="note">Reach a human with the branch and context attached</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">P31</td><td class="note">Pharmacy</td><td>Queued actions</td><td class="note">Everything waiting to send</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O1</td><td class="note">Operator</td><td>Overview</td><td class="note">What needs a human today</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O2</td><td class="note">Operator</td><td>Verification queue</td><td class="note">Applications awaiting a decision</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O3</td><td class="note">Operator</td><td>Application review</td><td class="note">Documents, address, storefront, named pharmacist</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O4</td><td class="note">Operator</td><td>Decision</td><td class="note">Approve, request more, or reject with a reason</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O5</td><td class="note">Operator</td><td>Branch record</td><td class="note">Everything about one branch</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O6</td><td class="note">Operator</td><td>Suspend branch</td><td class="note">Stop a branch, reversibly</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O7</td><td class="note">Operator</td><td>Expiring licences</td><td class="note">Who must renew, and when</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O8</td><td class="note">Operator</td><td>Catalogue</td><td class="note">Curate items</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O9</td><td class="note">Operator</td><td>Item editor</td><td class="note">One item: names, pack size, prescription and controlled flags</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O10</td><td class="note">Operator</td><td>Unmatched searches</td><td class="note">What people asked for and we did not have</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O11</td><td class="note">Operator</td><td>Districts</td><td class="note">The curated area list</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O12</td><td class="note">Operator</td><td>Fill rate</td><td class="note">Phase 0's first exit metric</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O13</td><td class="note">Operator</td><td>Honoured rate</td><td class="note">Phase 0's second exit metric</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O14</td><td class="note">Operator</td><td>Answer time</td><td class="note">How fast branches answer</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O15</td><td class="note">Operator</td><td>Repeat rate</td><td class="note">The gate that tests the strategy's riskiest belief</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O16</td><td class="note">Operator</td><td>Coverage</td><td class="note">Districts by branch count and fill rate</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O17</td><td class="note">Operator</td><td>People</td><td class="note">Find an account</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O18</td><td class="note">Operator</td><td>Account record</td><td class="note">What we may see without consent</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O19</td><td class="note">Operator</td><td>Support session</td><td class="note">Consented, time-boxed, banner-visible</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O20</td><td class="note">Operator</td><td>Support queue</td><td class="note">Tickets from both sides</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O21</td><td class="note">Operator</td><td>Ticket</td><td class="note">One conversation with its context</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O22</td><td class="note">Operator</td><td>Price disputes</td><td class="note">Where the offer price was not honoured</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O23</td><td class="note">Operator</td><td>Audit log</td><td class="note">Every action, immutable and searchable</td><td><span class="tag">later slice</span></td></tr><tr><td class="mono">O24</td><td class="note">Operator</td><td>Audit entry</td><td class="note">One action in full</td><td><span class="tag">later slice</span></td></tr>
+</tbody></table></div>
+
+<h2>Known limitations</h2><div class="panel"><ul><li>The camera is not implemented (TD-9). R2 and R3 are complete in state, navigation, consent and tests, but no photograph can be taken until a device build exists — R2 is labelled MOCKED in the dashboard.</li><li>Acceptance is computed against the offer's own line ids because the client has no server-assigned request line ids yet (TD-8). Correct against fixtures, wrong the moment a real server assigns ids.</li><li>The screenshots are the real component tree rendered through a DOM adapter, not device captures. They prove layout, hierarchy, typography, colour, spacing and tap-target size. They do not prove native gestures, platform chrome or animation.</li><li>No infrastructure exists yet (Stage 5). The catalogue and request ports are types with test fakes behind them; nothing talks to a server.</li><li>115 of the 133 Blueprint screens are not built. Nine are referenced by an exit in this slice and are listed as known gaps; no control navigates to any of them.</li><li>The sign-in chain (E5 → E8) is not built, so a guest who touches an action needing an account reaches E4 and stops there.</li><li>Animation timing tokens exist but no transition is implemented yet — state changes are instant.</li></ul></div>
+
+<h2>Change log — this slice</h2><div class="grid g2">
+<div class="panel"><h3>Added</h3><ul><li class="note">R2 and R3 — photographing the prescription. R3 exists because Phase 0 reads nothing (D18): the patient is the only judge of legibility, so the screen states what a pharmacist will need to see rather than asking 'is it clear?' and leaving them to guess.</li><li class="note">R9 and R10 — explicit substitution consent, closing TD-5. Per line, never pre-ticked, with no constructor that produces agreement; undecided is treated as NOT agreed when computing what gets reserved.</li><li class="note">The consent gate in the reducer: an offer containing a substitution cannot be reserved until every proposal has an answer, and tapping reserve takes the patient to the decision rather than refusing them.</li><li class="note">A camera refusal state that is never a wall — the alternative becomes the primary action rather than sitting behind a disabled camera button.</li><li class="note">Release readiness and screen health in the dashboard, both derived.</li></ul></div><div class="panel"><h3>Improved</h3><ul><li class="note">V2 said «120 دقيقة», which made a patient do arithmetic before knowing whether to walk or hurry. It now reads «ساعتين» — hours are how people hold time.</li><li class="note">The substitution decision moved above the price breakdown. It had been below the fold, so the patient saw a disabled button and a note about a choice they could not see — on the one screen where the choice IS the screen.</li><li class="note">Both consent answers carry identical visual weight and announce their selection to a screen reader. A filled 'agree' beside an outlined 'refuse' is a nudge, and a nudged consent is not consent.</li></ul></div><div class="panel"><h3>Fixed</h3><ul><li class="note">R1's empty-state action rendered mid-screen instead of in thumb reach. A screen passing `null` for its footer read as claiming the slot, which suppressed the state's own action — `null` and `undefined` now mean different things, and only `undefined` means 'I have no footer'.</li><li class="note">Two numeral systems could appear in one glance: a server-supplied address carried Arabic-Indic digits beside Western prices. Normalisation now happens where text is rendered, so no call site has to remember — and the rule is checked on every registered screen state.</li><li class="note">The substitute medicine rendered as an item id rather than a name, hidden by a cast in the test fixture. A patient was being asked to consent to «x1». The fixture is typed now, and the offer line carries the substitute's name.</li></ul></div><div class="panel"><h3>Refactored</h3><ul><li class="note">ONE screen registry, two consumers. The gallery the review photographs and the audit the tests run are the same list, and it lives in the app rather than beside the review tooling. A screen state cannot be photographed without being audited, or audited without appearing in the review.</li><li class="note">The product rules — one primary, the 44pt floor, readable labels, no repeated action, one numeral system, explained disabled states — now run over every registered state automatically. They were previously asserted per screen, in two files, with the helpers copied between them.</li><li class="note">Substitution proposals are derived once in the offers model. The reducer had begun building the same list in two places, which is where two copies drift.</li></ul></div><div class="panel"><h3>Technical debt removed</h3><ul><li class="note">TD-5 (critical) resolved: substitution consent is explicit, per line, and enforced in the reducer as well as the screen.</li><li class="note">The duplicated render-test helpers are gone — 149 rule assertions are now generated from the registry rather than written by hand, and they covered the seven new states the moment those were registered.</li></ul></div>
+</div>
+
+<p class="note" style="margin-top:48px">Generated by <code>npm run review</code>. Every figure is measured at generation time; nothing on this page is asserted by hand.</p>
+</div></body></html>

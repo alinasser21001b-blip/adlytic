@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Testing Strategy</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Testing Strategy</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html" class="on">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Testing Strategy</h1>
+<p class="lede">47 test areas across 7 levels.
+<b>Every test traces to a Blueprint v3 reference</b> — a test with no reference
+is testing an invention, and the validator fails it.</p>
+
+<div class="kpi">
+<div><span>unit</span><strong>7</strong></div><div><span>state-machine</span><strong>8</strong></div><div><span>permission</span><strong>8</strong></div><div><span>contract</span><strong>3</strong></div><div><span>integration</span><strong>6</strong></div><div><span>e2e</span><strong>9</strong></div><div><span>regression</span><strong>6</strong></div>
+</div>
+
+<div class="rule"><b>The two suites that carry the most weight</b>
+<b>Permission tests</b> exercise every cell of the Blueprint's matrices,
+positive and negative — including the row v1 got wrong, where an assistant
+confirming a reservation must <em>succeed</em>. <b>State-machine tests</b>
+assert that no transition outside the diagram is reachable, which is the only
+way a state machine in a document stays true of the code.</div>
+
+<div class="filters" data-target="tests">
+  <button data-f="all" class="on">All</button>
+  <button data-f="unit">unit</button><button data-f="state-machine">state-machine</button><button data-f="permission">permission</button><button data-f="contract">contract</button><button data-f="integration">integration</button><button data-f="e2e">e2e</button><button data-f="regression">regression</button>
+  <input type="search" placeholder="Search tests…" aria-label="Search tests">
+  <span class="cnt" style="font-size:.79rem;color:var(--ink3)"></span>
+</div>
+<div id="tests">
+<div class="card" data-k="unit" data-s="unit request window now→20m, today→4h, soon→48h. no other value is producible. d09">
+<header><b>Request window</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">D09</span></header>
+<p style="margin:.2rem 0 0">now→20m, today→4h, soon→48h. No other value is producible.</p></div><div class="card" data-k="unit" data-s="unit quantity unit every quantity in every payload is a pack count; no other unit can be expressed. d07">
+<header><b>Quantity unit</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">D07</span></header>
+<p style="margin:.2rem 0 0">Every quantity in every payload is a pack count; no other unit can be expressed.</p></div><div class="card" data-k="unit" data-s="unit honoured rate refusal at 4m59s does not count; at 5m01s it does. hidden below 10 reservations. never returns a decimal to a patient. d11">
+<header><b>Honoured rate</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">D11</span></header>
+<p style="margin:.2rem 0 0">Refusal at 4m59s does not count; at 5m01s it does. Hidden below 10 reservations. Never returns a decimal to a patient.</p></div><div class="card" data-k="unit" data-s="unit line limit 9 lines is refused; 8 is accepted; 0 is refused. §2 request">
+<header><b>Line limit</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">§2 Request</span></header>
+<p style="margin:.2rem 0 0">9 lines is refused; 8 is accepted; 0 is refused.</p></div><div class="card" data-k="unit" data-s="unit watch limits 6th active watch is refused; expiry is exactly 14 days. d30">
+<header><b>Watch limits</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">D30</span></header>
+<p style="margin:.2rem 0 0">6th active watch is refused; expiry is exactly 14 days.</p></div><div class="card" data-k="unit" data-s="unit arabic normalisation alef variants, taa marbuta, tatweel, harakat and arabic-indic digits all fold. case folding is a no-op and is not applied. §4 f2">
+<header><b>Arabic normalisation</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">§4 F2</span></header>
+<p style="margin:.2rem 0 0">Alef variants, taa marbuta, tatweel, harakat and Arabic-Indic digits all fold. Case folding is a no-op and is not applied.</p></div><div class="card" data-k="unit" data-s="unit server clock changing the device clock does not change a countdown. §6 reservation">
+<header><b>Server clock</b> <span class="pill ok">unit</span> <span class="bp" title="Blueprint v3 reference">§6 Reservation</span></header>
+<p style="margin:.2rem 0 0">Changing the device clock does not change a countdown.</p></div><div class="card" data-k="state-machine" data-s="state-machine request every state reachable; every state has an exit; no transition outside the diagram. §6 request">
+<header><b>Request</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Request</span></header>
+<p style="margin:.2rem 0 0">Every state reachable; every state has an exit; no transition outside the diagram.</p></div><div class="card" data-k="state-machine" data-s="state-machine offer withdrawal impossible after acceptance; accepted is terminal. §6 offer">
+<header><b>Offer</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Offer</span></header>
+<p style="margin:.2rem 0 0">Withdrawal impossible after acceptance; accepted is terminal.</p></div><div class="card" data-k="state-machine" data-s="state-machine reservation expires_at is unset until held; refused always re-opens the parent; collected writes exactly one dispense record. §6 reservation">
+<header><b>Reservation</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Reservation</span></header>
+<p style="margin:.2rem 0 0">expires_at is unset until held; refused always re-opens the parent; collected writes exactly one dispense record.</p></div><div class="card" data-k="state-machine" data-s="state-machine subject claim ends guardianship; memorialisation reverses within 30 days and not at 30 days plus one second. §6 subject lifecycle">
+<header><b>Subject</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Subject lifecycle</span></header>
+<p style="margin:.2rem 0 0">Claim ends guardianship; memorialisation reverses within 30 days and not at 30 days plus one second.</p></div><div class="card" data-k="state-machine" data-s="state-machine grant invited grants nothing; expiry at 7 days; revoked preserves the row. §6 grant">
+<header><b>Grant</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Grant</span></header>
+<p style="margin:.2rem 0 0">invited grants nothing; expiry at 7 days; revoked preserves the row.</p></div><div class="card" data-k="state-machine" data-s="state-machine verification lapsed stops routing and does not cancel a live reservation. §6 verification">
+<header><b>Verification</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Verification</span></header>
+<p style="margin:.2rem 0 0">lapsed stops routing and does not cancel a live reservation.</p></div><div class="card" data-k="state-machine" data-s="state-machine branch eligibility every non-receiving state exposes a reason. §6 branch eligibility">
+<header><b>Branch eligibility</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Branch eligibility</span></header>
+<p style="margin:.2rem 0 0">Every non-receiving state exposes a reason.</p></div><div class="card" data-k="state-machine" data-s="state-machine outbox duplicate resolves to accepted, never to an error. §6 session &amp; outbox">
+<header><b>Outbox</b> <span class="pill ok">state-machine</span> <span class="bp" title="Blueprint v3 reference">§6 Session &amp; outbox</span></header>
+<p style="margin:.2rem 0 0">Duplicate resolves to Accepted, never to an error.</p></div><div class="card" data-k="permission" data-s="permission clinical read every cell in the matrix is exercised, positive and negative. a pharmacist reading a dispense history fails. §5 clinical matrix">
+<header><b>Clinical read</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">§5 clinical matrix</span></header>
+<p style="margin:.2rem 0 0">Every cell in the matrix is exercised, positive and negative. A pharmacist reading a dispense history fails.</p></div><div class="card" data-k="permission" data-s="permission substitution an assistant proposing a substitute is refused; a pharmacist with an unverified licence is refused. d19">
+<header><b>Substitution</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">D19</span></header>
+<p style="margin:.2rem 0 0">An assistant proposing a substitute is refused; a pharmacist with an unverified licence is refused.</p></div><div class="card" data-k="permission" data-s="permission confirmation an assistant confirming a reservation succeeds — this is the row v1 got wrong. d19">
+<header><b>Confirmation</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">D19</span></header>
+<p style="margin:.2rem 0 0">An assistant confirming a reservation SUCCEEDS — this is the row v1 got wrong.</p></div><div class="card" data-k="permission" data-s="permission identity leak no branch-facing response body contains a patient name or phone, at any endpoint, in any state. §5 marketplace matrix">
+<header><b>Identity leak</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">§5 marketplace matrix</span></header>
+<p style="margin:.2rem 0 0">No branch-facing response body contains a patient name or phone, at any endpoint, in any state.</p></div><div class="card" data-k="permission" data-s="permission oracle a request for another account's subject returns byte-identical output to a request for a non-existent one. §5 rule 3">
+<header><b>Oracle</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">§5 rule 3</span></header>
+<p style="margin:.2rem 0 0">A request for another account's subject returns byte-identical output to a request for a non-existent one.</p></div><div class="card" data-k="permission" data-s="permission branch settings an assistant editing hours is refused; the last manager cannot be removed. §5 branch configuration">
+<header><b>Branch settings</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">§5 branch configuration</span></header>
+<p style="margin:.2rem 0 0">An assistant editing hours is refused; the last manager cannot be removed.</p></div><div class="card" data-k="permission" data-s="permission audit immutability no credential in the system can update or delete an audit entry. §5 platform matrix">
+<header><b>Audit immutability</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">§5 platform matrix</span></header>
+<p style="margin:.2rem 0 0">No credential in the system can update or delete an audit entry.</p></div><div class="card" data-k="permission" data-s="permission prescription window a branch fetching an image after its reservation resolves is refused. d18">
+<header><b>Prescription window</b> <span class="pill ok">permission</span> <span class="bp" title="Blueprint v3 reference">D18</span></header>
+<p style="margin:.2rem 0 0">A branch fetching an image after its reservation resolves is refused.</p></div><div class="card" data-k="contract" data-s="contract every endpoint request and response schemas match this model; an undeclared field in a response fails the build. §5 · §4">
+<header><b>Every endpoint</b> <span class="pill ok">contract</span> <span class="bp" title="Blueprint v3 reference">§5 · §4</span></header>
+<p style="margin:.2rem 0 0">Request and response schemas match this model; an undeclared field in a response fails the build.</p></div><div class="card" data-k="contract" data-s="contract every event payload matches; a consumer receiving an undeclared field fails. event table">
+<header><b>Every event</b> <span class="pill ok">contract</span> <span class="bp" title="Blueprint v3 reference">event table</span></header>
+<p style="margin:.2rem 0 0">Payload matches; a consumer receiving an undeclared field fails.</p></div><div class="card" data-k="contract" data-s="contract idempotency replaying a write with the same key returns the original result, not a duplicate and not an error. d27">
+<header><b>Idempotency</b> <span class="pill ok">contract</span> <span class="bp" title="Blueprint v3 reference">D27</span></header>
+<p style="margin:.2rem 0 0">Replaying a write with the same key returns the original result, not a duplicate and not an error.</p></div><div class="card" data-k="integration" data-s="integration clinical gate a pom line without an image is refused at creation; a controlled item is refused outright. d18 · d42">
+<header><b>Clinical gate</b> <span class="pill ok">integration</span> <span class="bp" title="Blueprint v3 reference">D18 · D42</span></header>
+<p style="margin:.2rem 0 0">A POM line without an image is refused at creation; a controlled item is refused outright.</p></div><div class="card" data-k="integration" data-s="integration child request accepting a 2-of-3 offer creates a child request containing exactly the unfilled line. d06">
+<header><b>Child request</b> <span class="pill ok">integration</span> <span class="bp" title="Blueprint v3 reference">D06</span></header>
+<p style="margin:.2rem 0 0">Accepting a 2-of-3 offer creates a child request containing exactly the unfilled line.</p></div><div class="card" data-k="integration" data-s="integration deferred notification a branch opening in 3 hours is notified at opening, not immediately, for a 4-hour window. d09">
+<header><b>Deferred notification</b> <span class="pill ok">integration</span> <span class="bp" title="Blueprint v3 reference">D09</span></header>
+<p style="margin:.2rem 0 0">A branch opening in 3 hours is notified at opening, not immediately, for a 4-hour window.</p></div><div class="card" data-k="integration" data-s="integration prescription revocation collection, expiry and cancellation each revoke access. d18">
+<header><b>Prescription revocation</b> <span class="pill ok">integration</span> <span class="bp" title="Blueprint v3 reference">D18</span></header>
+<p style="margin:.2rem 0 0">Collection, expiry and cancellation each revoke access.</p></div><div class="card" data-k="integration" data-s="integration deletion reservations are pseudonymised, audit actors tombstoned, images destroyed, dependents disposed as chosen. d05">
+<header><b>Deletion</b> <span class="pill ok">integration</span> <span class="bp" title="Blueprint v3 reference">D05</span></header>
+<p style="margin:.2rem 0 0">Reservations are pseudonymised, audit actors tombstoned, images destroyed, dependents disposed as chosen.</p></div><div class="card" data-k="integration" data-s="integration dispense write exactly one dispense record per collection, and no other code path writes one. d22">
+<header><b>Dispense write</b> <span class="pill ok">integration</span> <span class="bp" title="Blueprint v3 reference">D22</span></header>
+<p style="margin:.2rem 0 0">Exactly one dispense record per collection, and no other code path writes one.</p></div><div class="card" data-k="e2e" data-s="e2e guardian orders for a dependent no otp, no smartphone and no approval is required of the dependent. §10 journey 2">
+<header><b>Guardian orders for a dependent</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 2</span></header>
+<p style="margin:.2rem 0 0">No OTP, no smartphone and no approval is required of the dependent.</p></div><div class="card" data-k="e2e" data-s="e2e three-line prescription two reservations, grouped, with nothing re-entered. §10 journey 3">
+<header><b>Three-line prescription</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 3</span></header>
+<p style="margin:.2rem 0 0">Two reservations, grouped, with nothing re-entered.</p></div><div class="card" data-k="e2e" data-s="e2e confirm then cannot hold request re-opens automatically; the 5-minute grace applies. §10 journey 5">
+<header><b>Confirm then cannot hold</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 5</span></header>
+<p style="margin:.2rem 0 0">Request re-opens automatically; the 5-minute grace applies.</p></div><div class="card" data-k="e2e" data-s="e2e offline throughout queued is never shown as sent; the reservation code stays readable. §10 journey 6">
+<header><b>Offline throughout</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 6</span></header>
+<p style="margin:.2rem 0 0">Queued is never shown as sent; the reservation code stays readable.</p></div><div class="card" data-k="e2e" data-s="e2e pharmacy applies and goes live the path v1 had zero screens for completes. §10 journey 7">
+<header><b>Pharmacy applies and goes live</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 7</span></header>
+<p style="margin:.2rem 0 0">The path v1 had zero screens for completes.</p></div><div class="card" data-k="e2e" data-s="e2e licence lapses mid-operation routing stops, live reservations are honoured, the branch is told why. §10 journey 8">
+<header><b>Licence lapses mid-operation</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 8</span></header>
+<p style="margin:.2rem 0 0">Routing stops, live reservations are honoured, the branch is told why.</p></div><div class="card" data-k="e2e" data-s="e2e dependent claims her record guardianship ends rather than weakening. §10 journey 9">
+<header><b>Dependent claims her record</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 9</span></header>
+<p style="margin:.2rem 0 0">Guardianship ends rather than weakening.</p></div><div class="card" data-k="e2e" data-s="e2e account deleted with two dependents an explicit choice is required per dependent; no default exists. §10 journey 10">
+<header><b>Account deleted with two dependents</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 10</span></header>
+<p style="margin:.2rem 0 0">An explicit choice is required per dependent; no default exists.</p></div><div class="card" data-k="e2e" data-s="e2e consented support session no read occurs before consent; every read lands in the user's own access log. §10 journey 12">
+<header><b>Consented support session</b> <span class="pill ok">e2e</span> <span class="bp" title="Blueprint v3 reference">§10 journey 12</span></header>
+<p style="margin:.2rem 0 0">No read occurs before consent; every read lands in the user's own access log.</p></div><div class="card" data-k="regression" data-s="regression v1 defect: pharmacist-only confirmation an assistant can confirm. locked by test so it cannot regress to the unworkable rule. d19">
+<header><b>v1 defect: pharmacist-only confirmation</b> <span class="pill ok">regression</span> <span class="bp" title="Blueprint v3 reference">D19</span></header>
+<p style="margin:.2rem 0 0">An assistant can confirm. Locked by test so it cannot regress to the unworkable rule.</p></div><div class="card" data-k="regression" data-s="regression v1 defect: single-medicine offer a multi-line request is answerable partially. d06">
+<header><b>v1 defect: single-medicine offer</b> <span class="pill ok">regression</span> <span class="bp" title="Blueprint v3 reference">D06</span></header>
+<p style="margin:.2rem 0 0">A multi-line request is answerable partially.</p></div><div class="card" data-k="regression" data-s="regression v1 defect: clock before confirmation no countdown exists in the requested state. §6 reservation">
+<header><b>v1 defect: clock before confirmation</b> <span class="pill ok">regression</span> <span class="bp" title="Blueprint v3 reference">§6 Reservation</span></header>
+<p style="margin:.2rem 0 0">No countdown exists in the requested state.</p></div><div class="card" data-k="regression" data-s="regression v1 defect: silent routing exclusion every excluded branch can read its own exclusion reason. d13">
+<header><b>v1 defect: silent routing exclusion</b> <span class="pill ok">regression</span> <span class="bp" title="Blueprint v3 reference">D13</span></header>
+<p style="margin:.2rem 0 0">Every excluded branch can read its own exclusion reason.</p></div><div class="card" data-k="regression" data-s="regression v1 defect: identity oracle covered by the permission oracle test; kept as a named regression. §5 rule 3">
+<header><b>v1 defect: identity oracle</b> <span class="pill ok">regression</span> <span class="bp" title="Blueprint v3 reference">§5 rule 3</span></header>
+<p style="margin:.2rem 0 0">Covered by the permission oracle test; kept as a named regression.</p></div><div class="card" data-k="regression" data-s="regression v1 defect: zero-variance rejection no stock endpoint exists to regress. —removed with the stock module (§3)">
+<header><b>v1 defect: zero-variance rejection</b> <span class="pill ok">regression</span> <span class="bp" title="Blueprint v3 reference">—removed with the stock module (§3)</span></header>
+<p style="margin:.2rem 0 0">No stock endpoint exists to regress.</p></div>
+</div>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

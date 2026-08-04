@@ -1,0 +1,363 @@
+<!doctype html>
+<html lang="en" dir="ltr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<title>Dawai Technical — Domain Model</title>
+<style>
+:root{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;
+--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5;
+--mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;--sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;--r:10px}
+@media(prefers-color-scheme:dark){:root{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}}
+:root[data-theme=dark]{--bg:#101614;--panel:#161e1b;--line:#26332e;--line2:#35453f;--ink:#eef3f1;--ink2:#a9bab3;--ink3:#849790;--accent:#5ec89a;--soft:#16302a;--warn:#e2b46b;--warn-bg:#33280f;--bad:#f0917f;--bad-bg:#3a1f19}
+:root[data-theme=light]{--bg:#fbfaf7;--panel:#fff;--line:#e2e0d8;--line2:#cfccc0;--ink:#16211d;--ink2:#4b5b55;--ink3:#6d7d76;--accent:#1f6f52;--soft:#e8f2ed;--warn:#8a5a12;--warn-bg:#fbf1de;--bad:#8c3a2c;--bad-bg:#fbe9e5}
+*{box-sizing:border-box}html{background:var(--bg);scroll-behavior:smooth}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.62 var(--sans);-webkit-text-size-adjust:100%}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important;animation:none!important}}
+h1{font-size:1.85rem;margin:0 0 .3rem;line-height:1.25}h2{font-size:1.32rem;margin:2.4rem 0 .4rem;line-height:1.3}
+h3{font-size:1.02rem;margin:1.5rem 0 .35rem}p{margin:.65rem 0}
+code{font-family:var(--mono);font-size:.87em;background:var(--soft);padding:.06em .34em;border-radius:5px}
+a{color:var(--accent)}
+.wrap{display:grid;grid-template-columns:250px minmax(0,1fr);min-height:100vh}
+aside{position:sticky;top:0;height:100vh;overflow-y:auto;border-inline-end:1px solid var(--line);background:var(--panel);padding:1.1rem .8rem 3rem}
+main{min-width:0;padding:1.6rem clamp(1rem,4vw,3rem) 6rem;max-width:1160px}
+.brand{display:flex;gap:.6rem;align-items:center}.mark{width:32px;height:32px;border-radius:9px;background:var(--accent);color:var(--bg);display:grid;place-items:center;font-weight:800;flex:none}
+.brand small{display:block;color:var(--ink3);font-size:.68rem;font-weight:700;letter-spacing:.04em}.brand b{font-size:.9rem}
+nav{margin-top:1rem}nav a{display:block;padding:.4rem .6rem;border-radius:8px;color:var(--ink2);text-decoration:none;font-size:.84rem;line-height:1.35}
+nav a:hover{background:var(--soft);color:var(--ink)}nav a.on{background:var(--soft);color:var(--ink);font-weight:650}
+nav .grp{font-size:.66rem;text-transform:uppercase;letter-spacing:.07em;color:var(--ink3);margin:1rem .6rem .25rem;font-weight:700}
+.themebtn{margin-top:1rem;width:100%;min-height:36px;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:8px;cursor:pointer;font:inherit;font-size:.8rem}
+.lede{font-size:1.03rem;color:var(--ink2);max-width:72ch}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.95rem 1.05rem;margin:.9rem 0}
+.rule{border-inline-start:3px solid var(--accent);background:var(--soft);padding:.75rem 1rem;border-radius:0 var(--r) var(--r) 0;margin:1rem 0}
+.rule b:first-child{display:block;font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;color:var(--accent);margin-bottom:.2rem}
+/* A Blueprint reference can be long ("§4 PA1–PA9 and P1–P31"). nowrap made it
+   push the page 155px wide on a phone — measured, not guessed. */
+.bp{display:inline;font:700 .66rem var(--mono);background:var(--soft);color:var(--ink2);padding:.06rem .36rem;border-radius:5px;overflow-wrap:anywhere}
+/* Definition values hold long identifiers, paths and payloads. Grid children
+   default to min-width:auto, which refuses to shrink below their content. */
+dl.kv dd,dl.kv dt,.card,.card header,.card header b{min-width:0}
+dl.kv dd code,dl.kv dd,td code,td,li code,p code{overflow-wrap:anywhere}
+/* An endpoint path or a request schema is one unbroken token wider than a
+   320px screen. overflow-wrap alone is not enough inside a flex header. */
+.card header b code,.card header b{overflow-wrap:anywhere;word-break:break-word}
+li{overflow-wrap:anywhere}
+table{width:100%;border-collapse:collapse;margin:.85rem 0;font-size:.88rem}
+th,td{text-align:start;padding:.5rem .55rem;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);white-space:nowrap}
+tbody tr:hover{background:var(--soft)}.tw{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.85rem .95rem;margin:.6rem 0}
+.card header{display:flex;gap:.5rem;align-items:baseline;flex-wrap:wrap;margin-bottom:.35rem}
+.card header b{flex:1 1 220px;min-width:0}
+dl.kv{display:grid;grid-template-columns:132px minmax(0,1fr);gap:.12rem .8rem;margin:.4rem 0 0;font-size:.86rem}
+dl.kv dt{font-size:.66rem;text-transform:uppercase;letter-spacing:.05em;color:var(--ink3);font-weight:700;padding-top:.26rem}
+dl.kv dd{margin:0}
+@media(max-width:640px){dl.kv{grid-template-columns:1fr}dl.kv dt{padding-top:.45rem}}
+ul,ol{padding-inline-start:1.25rem;margin:.5rem 0}li{margin:.25rem 0}
+.forbid li{color:var(--bad)}
+pre.mermaid{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:1rem;overflow-x:auto;font-family:var(--mono);font-size:.79rem;line-height:1.45;color:var(--ink2);white-space:pre;margin:1rem 0}
+pre.mermaid[data-processed]{white-space:normal;text-align:center}
+.cap{font-size:.77rem;color:var(--ink3);margin:-.6rem 0 1.1rem}
+.pill{display:inline-block;padding:.08rem .48rem;border-radius:999px;font:800 .66rem var(--sans);white-space:nowrap}
+.ok{background:var(--soft);color:var(--accent)}.wa{background:var(--warn-bg);color:var(--warn)}.ba{background:var(--bad-bg);color:var(--bad)}
+.kpi{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:.65rem;margin:1rem 0}
+.kpi div{background:var(--panel);border:1px solid var(--line);border-radius:var(--r);padding:.75rem}
+.kpi span{display:block;font-size:.72rem;color:var(--ink3);font-weight:600}
+.kpi strong{display:block;font:700 1.4rem/1.2 var(--mono);margin-top:.1rem}
+.filters{display:flex;gap:.4rem;flex-wrap:wrap;align-items:center;margin:.9rem 0;position:sticky;top:0;background:var(--bg);padding:.55rem 0;z-index:5;border-bottom:1px solid var(--line)}
+.filters button{min-height:34px;padding:.2rem .68rem;border:1px solid var(--line2);background:transparent;color:var(--ink2);border-radius:999px;cursor:pointer;font:inherit;font-size:.79rem;font-weight:600}
+.filters button.on{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.filters input{min-height:34px;flex:1 1 150px;min-width:0;border:1px solid var(--line2);background:var(--panel);color:var(--ink);border-radius:8px;padding:.2rem .6rem;font:inherit;font-size:16px}
+.gen{color:var(--ink3);font-size:.78rem;margin-top:2.5rem;border-top:1px solid var(--line);padding-top:.8rem}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}aside{position:static;height:auto;border-inline-end:0;border-bottom:1px solid var(--line)}
+nav{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:.1rem}nav .grp{grid-column:1/-1}}
+@media print{aside,.filters,.themebtn{display:none!important}.wrap{display:block}main{max-width:none;padding:0}.card,.panel{break-inside:avoid}body{font-size:11px;background:#fff;color:#111}}
+</style>
+</head>
+<body><div class="wrap">
+<aside>
+  <div class="brand"><div class="mark">د</div><div><small>DAWAI · TECHNICAL</small><b>Domain Model</b></div></div>
+  <div style="font-size:.72rem;color:var(--ink3);padding:.4rem .6rem 0">Derived from Blueprint v3 · frozen</div>
+  <nav>
+    <div class="grp">Documents</div>
+    <a href="01-system-architecture.html">1 · System Architecture</a>
+    <a href="02-domain-model.html" class="on">2 · Domain Model</a>
+    <a href="03-service-boundaries.html">3 · Service Boundaries</a>
+    <a href="04-event-architecture.html">4 · Event Architecture</a>
+    <a href="05-api-contracts.html">5 · API Contracts</a>
+    <a href="06-database-architecture.html">6 · Database Architecture</a>
+    <a href="07-mobile-navigation.html">7 · Mobile Navigation</a>
+    <a href="08-security-architecture.html">8 · Security Architecture</a>
+    <a href="09-testing-strategy.html">9 · Testing Strategy</a>
+    <a href="10-release-architecture.html">10 · Release Architecture</a>
+    <a href="11-validation-report.html">11 · Validation Report</a>
+    <div class="grp">Source</div>
+    <a href="../product/v3/blueprint-v3.html">Blueprint v3</a>
+  </nav>
+  
+  <button class="themebtn" id="theme">Toggle theme</button>
+</aside>
+<main>
+
+<h1>Domain Model</h1>
+<p class="lede">21 entities, every one from Blueprint v3 §2.
+No entity was added. Each declares its purpose, owner, states with the exact
+implementation path that produces them, events, relationships and invariants.</p>
+
+<div class="rule"><b>Two invariants that hold across every entity</b>
+<b>1.</b> Every clinical read and write names a <b>subject</b> and an
+<b>acting account</b> separately — they are frequently different people.<br>
+<b>2.</b> Nothing clinical is edited or deleted. Corrections are new records;
+no role holds the permission and no operation performs it.</div>
+
+<div class="filters" data-target="ents">
+  <button data-f="all" class="on">All</button>
+  <button data-f="identity-service">identity</button><button data-f="catalogue-service">catalogue</button><button data-f="pharmacy-service">pharmacy</button><button data-f="marketplace-engine">marketplace</button><button data-f="clinical-engine">clinical</button><button data-f="media-service">media</button><button data-f="notification-service">notification</button><button data-f="audit-service">audit</button>
+  <input type="search" placeholder="Search entities, states, invariants…" aria-label="Search entities">
+  <span class="cnt" style="font-size:.79rem;color:var(--ink3)"></span>
+</div>
+<div id="ents">
+<div class="card" data-k="identity-service" data-s="account an authenticated phone number. the thing that signs in. identity-service guest (no row — the client's pre-account state) pending_verification post /v1/auth/phone active post /v1/auth/verify suspended operator action via ops console deletion_scheduled post /v1/me/delete deleted scheduler: 30-day window → account.deleted a phone number backs at most one account (d03) an account always owns exactly one self subject — created atomically with it deletion_scheduled reverts to active on sign-in within 30 days (§4 m13) deletion requires an explicit disposition for every managed subject; there is no default (d05)">
+<header><b>Account</b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">§2 entity table · §9</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>An authenticated phone number. The thing that signs in.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>guest</code></td><td>(no row — the client's pre-account state)</td></tr><tr><td><code>pending_verification</code></td><td>POST /v1/auth/phone</td></tr><tr><td><code>active</code></td><td>POST /v1/auth/verify</td></tr><tr><td><code>suspended</code></td><td>operator action via ops console</td></tr><tr><td><code>deletion_scheduled</code></td><td>POST /v1/me/delete</td></tr><tr><td><code>deleted</code></td><td>scheduler: 30-day window → account.deleted</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>account.created</code> <code>account.deletion.scheduled</code> <code>account.deleted</code></dd>
+<dt>Relationships</dt><dd>owns exactly 1 self Subject · guards 0..6 managed Subjects · holds 0..n PeerGrants · is 0..n Staff</dd>
+<dt>Invariants</dt><dd><ul><li>A phone number backs at most one Account (D03)</li><li>An Account always owns exactly one self Subject — created atomically with it</li><li>deletion_scheduled reverts to active on sign-in within 30 days (§4 M13)</li><li>Deletion requires an explicit disposition for every managed Subject; there is no default (D05)</li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="subject a person whose medication is tracked. the thing a record belongs to. identity-service self post /v1/auth/verify (atomic with the account) or post /v1/subjects/{id}/claim-invite acceptance managed post /v1/subjects claim_pending post /v1/subjects/{id}/claim-invite memorialised post /v1/subjects/{id}/memorialise deleted account.deleted cascade with the chosen disposition a managed subject has exactly one guardian — never zero, never two (d01) on claim, guardianship ends; it does not weaken to a grant automatically held (§6) memorialised blocks new requests and watches; existing grants keep read access (d04) memorialised reverts within 30 days and not after every clinical read and write names a subject and an acting account separately (§2 invariant 1)">
+<header><b>Subject</b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">§2 · §9 · §6 Subject lifecycle</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>A person whose medication is tracked. The thing a record belongs to.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>self</code></td><td>POST /v1/auth/verify (atomic with the account) or POST /v1/subjects/{id}/claim-invite acceptance</td></tr><tr><td><code>managed</code></td><td>POST /v1/subjects</td></tr><tr><td><code>claim_pending</code></td><td>POST /v1/subjects/{id}/claim-invite</td></tr><tr><td><code>memorialised</code></td><td>POST /v1/subjects/{id}/memorialise</td></tr><tr><td><code>deleted</code></td><td>account.deleted cascade with the chosen disposition</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>subject.created</code> <code>subject.claimed</code> <code>subject.memorialised</code> <code>subject.memorialisation.reversed</code></dd>
+<dt>Relationships</dt><dd>belongs to 1 Account (self) or 1 Guardian Account (managed) · has 0..n Requests, DispenseRecords, PrescriptionImages, Watches</dd>
+<dt>Invariants</dt><dd><ul><li>A managed Subject has exactly one Guardian — never zero, never two (D01)</li><li>On claim, guardianship ENDS; it does not weaken to a grant automatically held (§6)</li><li>memorialised blocks new Requests and Watches; existing grants keep read access (D04)</li><li>memorialised reverts within 30 days and not after</li><li>Every clinical read and write names a Subject and an acting Account separately (§2 invariant 1)</li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="guardianship one account's unilateral authority over one managed subject. identity-service active post /v1/subjects transferred post /v1/subjects/{id}/transfer, on receiver acceptance ended_on_claim subject.claimed unilateral: no consent step exists, because no one is able to consent (d01) transfer requires the receiving account to accept (§9) every guardian action is attributed and becomes visible to the subject on claim">
+<header><b>Guardianship</b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">§2 entity table · §9 authority table</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>One Account's unilateral authority over one managed Subject.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>active</code></td><td>POST /v1/subjects</td></tr><tr><td><code>transferred</code></td><td>POST /v1/subjects/{id}/transfer, on receiver acceptance</td></tr><tr><td><code>ended_on_claim</code></td><td>subject.claimed</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>guardianship.transferred</code></dd>
+<dt>Relationships</dt><dd>1 Account → 1 managed Subject</dd>
+<dt>Invariants</dt><dd><ul><li>Unilateral: no consent step exists, because no one is able to consent (D01)</li><li>Transfer requires the receiving Account to accept (§9)</li><li>Every guardian action is attributed and becomes visible to the Subject on claim</li></ul></dd>
+</dl></div><div class="card" data-k="identity-service" data-s="peergrant account → self-subject permission, requested by one side and approved by the other. identity-service invited post /v1/grants pending invitee's first post /v1/auth/verify → grant.requested active post /v1/grants/{id}/approve refused post /v1/grants/{id}/approve with refusal revoked post /v1/grants/{id}/revoke expired scheduler: 7 days → grant.expired scopes are ordered and additive: view &lt; order. no confirm scope exists in phase 0 (§10 change 1) an invitation to a number with no account is normal, not an error (d02) invited expires at 7 days and grants nothing before approval revocation withdraws the permission and never deletes the record that it existed (§9) only the subject (or its guardian) may approve, narrow or revoke">
+<header><b>PeerGrant</b> <code>identity-service</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Grant lifecycle · §9</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>Account → self-Subject permission, requested by one side and approved by the other.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>invited</code></td><td>POST /v1/grants</td></tr><tr><td><code>pending</code></td><td>invitee's first POST /v1/auth/verify → grant.requested</td></tr><tr><td><code>active</code></td><td>POST /v1/grants/{id}/approve</td></tr><tr><td><code>refused</code></td><td>POST /v1/grants/{id}/approve with refusal</td></tr><tr><td><code>revoked</code></td><td>POST /v1/grants/{id}/revoke</td></tr><tr><td><code>expired</code></td><td>scheduler: 7 days → grant.expired</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>grant.invited</code> <code>grant.requested</code> <code>grant.activated</code> <code>grant.revoked</code> <code>grant.expired</code></dd>
+<dt>Relationships</dt><dd>1 Account → 1 Subject, at scope view|order</dd>
+<dt>Invariants</dt><dd><ul><li>Scopes are ordered and additive: view &lt; order. No confirm scope exists in Phase 0 (§10 change 1)</li><li>An invitation to a number with no Account is normal, not an error (D02)</li><li>invited expires at 7 days and grants nothing before approval</li><li>Revocation withdraws the permission and never deletes the record that it existed (§9)</li><li>Only the Subject (or its Guardian) may approve, narrow or revoke</li></ul></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="catalogueitem what exists in the world, with the pack size and the two flags that gate requests. catalogue-service draft put /v1/ops/catalogue/items/{id} with state=draft requestable put /v1/ops/catalogue/items/{id} — refused without pack size and both flags withdrawn put /v1/ops/catalogue/items/{id} → catalogue.item.withdrawn cannot become requestable without packsize, requiresprescription and iscontrolled (§3 prerequisite 3) dispenseunit is always pack — there is no other unit in phase 0 (d07) carries a reserved kurdish name slot that phase 0 never populates (d34) holds no price and no stock (d08, §3)">
+<header><b>CatalogueItem</b> <code>catalogue-service</code> <span class="bp" title="Blueprint v3 reference">§2 · D07 · D18 · D42</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>What exists in the world, with the pack size and the two flags that gate requests.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>draft</code></td><td>PUT /v1/ops/catalogue/items/{id} with state=draft</td></tr><tr><td><code>requestable</code></td><td>PUT /v1/ops/catalogue/items/{id} — refused without pack size and both flags</td></tr><tr><td><code>withdrawn</code></td><td>PUT /v1/ops/catalogue/items/{id} → catalogue.item.withdrawn</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>catalogue.item.published</code> <code>catalogue.item.withdrawn</code></dd>
+<dt>Relationships</dt><dd>referenced by RequestLine, OfferLine, DispenseRecord</dd>
+<dt>Invariants</dt><dd><ul><li>Cannot become requestable without packSize, requiresPrescription and isControlled (§3 prerequisite 3)</li><li>dispenseUnit is always PACK — there is no other unit in Phase 0 (D07)</li><li>Carries a reserved Kurdish name slot that Phase 0 never populates (D34)</li><li>Holds no price and no stock (D08, §3)</li></ul></dd>
+</dl></div><div class="card" data-k="catalogue-service" data-s="district the unit of area. curated by an operator, never computed from geometry. catalogue-service active seeded before launch; put via ops console must be populated for the launch city before the first branch is verified (§3 prerequisite 2) a gps coordinate may suggest a district and is then discarded — never stored (d29)">
+<header><b>District</b> <code>catalogue-service</code> <span class="bp" title="Blueprint v3 reference">§2 · D10 · O11</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>The unit of area. Curated by an operator, never computed from geometry.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>active</code></td><td>seeded before launch; PUT via ops console</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd>—</dd>
+<dt>Relationships</dt><dd>Branch sits in 1; Subject's area references 1</dd>
+<dt>Invariants</dt><dd><ul><li>Must be populated for the launch city before the first Branch is verified (§3 prerequisite 2)</li><li>A GPS coordinate may suggest a District and is then discarded — never stored (D29)</li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="pharmacy the legal business. persists while staff come and go. pharmacy-service applying post /v1/pharmacy/applications verified post /v1/ops/applications/{id}/decide → branch.verified suspended post /v1/ops/branches/{id}/suspend closed post /v1/pharmacy/branches/{id}/close owner and named pharmacist are recorded separately even when one person holds both (d-identity §3.3)">
+<header><b>Pharmacy</b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Verification</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>The legal business. Persists while staff come and go.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>applying</code></td><td>POST /v1/pharmacy/applications</td></tr><tr><td><code>verified</code></td><td>POST /v1/ops/applications/{id}/decide → branch.verified</td></tr><tr><td><code>suspended</code></td><td>POST /v1/ops/branches/{id}/suspend</td></tr><tr><td><code>closed</code></td><td>POST /v1/pharmacy/branches/{id}/close</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>branch.verified</code> <code>branch.suspended</code> <code>branch.closed</code></dd>
+<dt>Relationships</dt><dd>operates 1..n Branches · holds 1..n Licences</dd>
+<dt>Invariants</dt><dd><ul><li>Owner and named pharmacist are recorded separately even when one person holds both (D-identity §3.3)</li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branch one physical pharmacy with an operator-verified map point. pharmacy-service receiving branch.verified, or eligibility recomputation closed scheduler on branch_hours → branch.eligibility.changed paused post /v1/pharmacy/branches/{id}/pause at_capacity reservation.confirmed raising open count to the declared limit ineligible licence.lapsed or branch.suspended the verified point is set by an operator during review, never self-declared (d10) every non-receiving state names its reason on the branch home (d13) inactivity is inferred only from requests actually received (d13) the last manager cannot be removed (§10 change 5)">
+<header><b>Branch</b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Branch eligibility · D10 · D13</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>One physical pharmacy with an operator-verified map point.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>receiving</code></td><td>branch.verified, or eligibility recomputation</td></tr><tr><td><code>closed</code></td><td>scheduler on branch_hours → branch.eligibility.changed</td></tr><tr><td><code>paused</code></td><td>POST /v1/pharmacy/branches/{id}/pause</td></tr><tr><td><code>at_capacity</code></td><td>reservation.confirmed raising open count to the declared limit</td></tr><tr><td><code>ineligible</code></td><td>licence.lapsed or branch.suspended</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>branch.eligibility.changed</code></dd>
+<dt>Relationships</dt><dd>belongs to 1 Pharmacy · sits in 1 District · employs 1..n Staff · has BranchHours · makes Offers</dd>
+<dt>Invariants</dt><dd><ul><li>The verified point is set by an operator during review, never self-declared (D10)</li><li>Every non-receiving state names its reason on the branch home (D13)</li><li>Inactivity is inferred only from requests actually received (D13)</li><li>The last manager cannot be removed (§10 change 5)</li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="branchhours when a branch is open: a standard week, exceptions, and a ramadan alternative week. pharmacy-service standard put /v1/pharmacy/branches/{id}/hours exception put /v1/pharmacy/branches/{id}/hours ramadan put /v1/pharmacy/branches/{id}/hours, activated by the platform hijri calendar the ramadan week activates from the platform hijri calendar, never entered by hand each year (d33) drives routing eligibility rule 3 (§8)">
+<header><b>BranchHours</b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">§4 P18–P20 · D33</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>When a branch is open: a standard week, exceptions, and a Ramadan alternative week.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>standard</code></td><td>PUT /v1/pharmacy/branches/{id}/hours</td></tr><tr><td><code>exception</code></td><td>PUT /v1/pharmacy/branches/{id}/hours</td></tr><tr><td><code>ramadan</code></td><td>PUT /v1/pharmacy/branches/{id}/hours, activated by the platform Hijri calendar</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd>—</dd>
+<dt>Relationships</dt><dd>1 Branch → n BranchHours</dd>
+<dt>Invariants</dt><dd><ul><li>The Ramadan week activates from the platform Hijri calendar, never entered by hand each year (D33)</li><li>Drives routing eligibility rule 3 (§8)</li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="staff an account working at a branch, with a role. pharmacy-service invited post /v1/pharmacy/branches/{id}/staff active invitee accepts and sets a pin removed delete /v1/pharmacy/branches/{id}/staff/{staffid} the pharmacist role takes effect only when a licence is verified (§4 p23) role is the sole source of branch permission — nothing is implied (§5)">
+<header><b>Staff</b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">§5 branch configuration · §4 P22/P23</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>An Account working at a Branch, with a role.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>invited</code></td><td>POST /v1/pharmacy/branches/{id}/staff</td></tr><tr><td><code>active</code></td><td>invitee accepts and sets a PIN</td></tr><tr><td><code>removed</code></td><td>DELETE /v1/pharmacy/branches/{id}/staff/{staffId}</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>staff.invited</code> <code>staff.role.changed</code></dd>
+<dt>Relationships</dt><dd>1 Account ↔ 1 Branch, with role assistant|pharmacist|manager</dd>
+<dt>Invariants</dt><dd><ul><li>The pharmacist role takes effect only when a Licence is verified (§4 P23)</li><li>Role is the sole source of branch permission — nothing is implied (§5)</li></ul></dd>
+</dl></div><div class="card" data-k="pharmacy-service" data-s="licence a document with an expiry that is actively tracked. pharmacy-service submitted post /v1/pharmacy/applications valid post /v1/ops/applications/{id}/decide expiring scheduler at 60/30/7 days → licence.expiring lapsed scheduler at expiry → licence.lapsed warnings fire at 60, 30 and 7 days (§6 verification) lapsed stops routing but never cancels a live reservation (§6)">
+<header><b>Licence</b> <code>pharmacy-service</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Verification · §4 P24</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>A document with an expiry that is actively tracked.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>submitted</code></td><td>POST /v1/pharmacy/applications</td></tr><tr><td><code>valid</code></td><td>POST /v1/ops/applications/{id}/decide</td></tr><tr><td><code>expiring</code></td><td>scheduler at 60/30/7 days → licence.expiring</td></tr><tr><td><code>lapsed</code></td><td>scheduler at expiry → licence.lapsed</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>licence.expiring</code> <code>licence.lapsed</code></dd>
+<dt>Relationships</dt><dd>1 Pharmacy → n Licences; a personal licence backs a pharmacist Staff role</dd>
+<dt>Invariants</dt><dd><ul><li>Warnings fire at 60, 30 and 7 days (§6 Verification)</li><li>lapsed stops routing but never cancels a live Reservation (§6)</li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="request a need, carrying 1–8 lines, broadcast to every eligible branch simultaneously. marketplace-engine draft client-local; no server row queued client outbox; no server row until it sends broadcast post /v1/requests → request.broadcast answered offer.sent unanswered scheduler at window end → request.unanswered accepted post /v1/offers/{id}/accept partially_filled post /v1/offers/{id}/accept covering a subset → request.child.created closed all lines reserved, or the patient abandons window is exactly 20m (now), 4h (today) or 48h (خلال يومين) — no other value (d09) unfilled lines form a child request automatically; the patient re-enters nothing (d06) never routed by rank, weight or payment (d12) a queued request is never presented as sent (d27)">
+<header><b>Request</b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Request · D06 · D09</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>A need, carrying 1–8 lines, broadcast to every eligible branch simultaneously.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>draft</code></td><td>client-local; no server row</td></tr><tr><td><code>queued</code></td><td>client outbox; no server row until it sends</td></tr><tr><td><code>broadcast</code></td><td>POST /v1/requests → request.broadcast</td></tr><tr><td><code>answered</code></td><td>offer.sent</td></tr><tr><td><code>unanswered</code></td><td>scheduler at window end → request.unanswered</td></tr><tr><td><code>accepted</code></td><td>POST /v1/offers/{id}/accept</td></tr><tr><td><code>partially_filled</code></td><td>POST /v1/offers/{id}/accept covering a subset → request.child.created</td></tr><tr><td><code>closed</code></td><td>all lines reserved, or the patient abandons</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>request.created</code> <code>request.broadcast</code> <code>request.unanswered</code> <code>request.child.created</code></dd>
+<dt>Relationships</dt><dd>1 Subject → n Requests · 1 Request → 1..8 RequestLines · 1 Request → n Offers · 1 Request → 0..1 child Request</dd>
+<dt>Invariants</dt><dd><ul><li>Window is exactly 20m (now), 4h (today) or 48h (خلال يومين) — no other value (D09)</li><li>Unfilled lines form a child Request automatically; the patient re-enters nothing (D06)</li><li>Never routed by rank, weight or payment (D12)</li><li>A queued Request is never presented as sent (D27)</li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="requestline one catalogue item and a pack count. marketplace-engine open post /v1/requests answered offer.sent covering it reserved post /v1/offers/{id}/accept including it collected reservation.collected unfilled post /v1/offers/{id}/accept excluding it → joins the child request quantity is a pack count and nothing else (d07) a line whose item requiresprescription cannot be created without a prescriptionimage (d18) a line whose item iscontrolled cannot be created at all (d42)">
+<header><b>RequestLine</b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · D06 · D07 · D18</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>One catalogue item and a pack count.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>open</code></td><td>POST /v1/requests</td></tr><tr><td><code>answered</code></td><td>offer.sent covering it</td></tr><tr><td><code>reserved</code></td><td>POST /v1/offers/{id}/accept including it</td></tr><tr><td><code>collected</code></td><td>reservation.collected</td></tr><tr><td><code>unfilled</code></td><td>POST /v1/offers/{id}/accept excluding it → joins the child request</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd>—</dd>
+<dt>Relationships</dt><dd>belongs to 1 Request · references 1 CatalogueItem · requires 0..1 PrescriptionImage</dd>
+<dt>Invariants</dt><dd><ul><li>Quantity is a pack count and nothing else (D07)</li><li>A line whose item requiresPrescription cannot be created without a PrescriptionImage (D18)</li><li>A line whose item isControlled cannot be created at all (D42)</li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offer one branch's answer to a request, line by line. marketplace-engine composing client-local on the pharmacy app sent post /v1/pharmacy/requests/{id}/offer withdrawn post /v1/pharmacy/offers/{id}/withdraw expired scheduler at request window end not_chosen another offer accepted for the same request accepted post /v1/offers/{id}/accept commits nothing; it is not a reservation and the ui must say so (§8) withdrawal is possible only before acceptance — that is the correction path for a mistyped price (d08) price binds from acceptance until the reservation ends (d08)">
+<header><b>Offer</b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Offer · D08</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>One branch's answer to a Request, line by line.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>composing</code></td><td>client-local on the pharmacy app</td></tr><tr><td><code>sent</code></td><td>POST /v1/pharmacy/requests/{id}/offer</td></tr><tr><td><code>withdrawn</code></td><td>POST /v1/pharmacy/offers/{id}/withdraw</td></tr><tr><td><code>expired</code></td><td>scheduler at request window end</td></tr><tr><td><code>not_chosen</code></td><td>another offer accepted for the same request</td></tr><tr><td><code>accepted</code></td><td>POST /v1/offers/{id}/accept</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>offer.sent</code> <code>offer.withdrawn</code> <code>offer.accepted</code></dd>
+<dt>Relationships</dt><dd>1 Branch + 1 Request → 1 Offer · 1 Offer → 1 OfferLine per RequestLine</dd>
+<dt>Invariants</dt><dd><ul><li>Commits nothing; it is not a Reservation and the UI must say so (§8)</li><li>Withdrawal is possible only before acceptance — that is the correction path for a mistyped price (D08)</li><li>Price binds from acceptance until the Reservation ends (D08)</li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="offerline the answer to one requestline: available, unavailable, or a substitute. marketplace-engine available post /v1/pharmacy/requests/{id}/offer unavailable post /v1/pharmacy/requests/{id}/offer with a reason substitute post /v1/pharmacy/requests/{id}/offer, requires substitution.authorised a substitute may only be produced when clinical-engine authorised it against a verified pharmacist licence (d19) a substitute is never pre-selected and always requires explicit patient acknowledgement (§4 r10) unavailable always carries one of the four reasons (§4 p7)">
+<header><b>OfferLine</b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · D06 · D19</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>The answer to one RequestLine: available, unavailable, or a substitute.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>available</code></td><td>POST /v1/pharmacy/requests/{id}/offer</td></tr><tr><td><code>unavailable</code></td><td>POST /v1/pharmacy/requests/{id}/offer with a reason</td></tr><tr><td><code>substitute</code></td><td>POST /v1/pharmacy/requests/{id}/offer, requires substitution.authorised</td></tr>
+</tbody></table></div><p class="cap">These are answer kinds, not a lifecycle.</p></dd>
+<dt>Events</dt><dd>—</dd>
+<dt>Relationships</dt><dd>belongs to 1 Offer · answers 1 RequestLine · substitute references 1 CatalogueItem</dd>
+<dt>Invariants</dt><dd><ul><li>A substitute may only be produced when clinical-engine authorised it against a verified pharmacist licence (D19)</li><li>A substitute is never pre-selected and always requires explicit patient acknowledgement (§4 R10)</li><li>unavailable always carries one of the four reasons (§4 P7)</li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservation physically committed stock at one branch, with one code and one clock. marketplace-engine requested post /v1/offers/{id}/accept → reservation.requested held post /v1/pharmacy/reservations/{id}/confirm — the clock starts here refused post /v1/pharmacy/reservations/{id}/cannot-hold collected post /v1/pharmacy/reservations/{id}/handover expired scheduler at expires_at → reservation.expired cancelled post /v1/reservations/{id}/cancel the clock starts on entering held and never earlier (§6) refused re-opens the parent request automatically (§6) a refusal within 5 minutes of confirming does not count against honoured rate (d11) the countdown is computed from server time, never the device's (§6) any signed-in staff member may confirm — it is a commercial act (d19) the code is the collection right; identity is not checked (d14)">
+<header><b>Reservation</b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · §6 Reservation · D11 · D14</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>Physically committed stock at one branch, with one code and one clock.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>requested</code></td><td>POST /v1/offers/{id}/accept → reservation.requested</td></tr><tr><td><code>held</code></td><td>POST /v1/pharmacy/reservations/{id}/confirm — the clock starts here</td></tr><tr><td><code>refused</code></td><td>POST /v1/pharmacy/reservations/{id}/cannot-hold</td></tr><tr><td><code>collected</code></td><td>POST /v1/pharmacy/reservations/{id}/handover</td></tr><tr><td><code>expired</code></td><td>scheduler at expires_at → reservation.expired</td></tr><tr><td><code>cancelled</code></td><td>POST /v1/reservations/{id}/cancel</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>reservation.requested</code> <code>reservation.confirmed</code> <code>reservation.refused</code> <code>reservation.expiring</code> <code>reservation.expired</code> <code>reservation.cancelled</code> <code>reservation.collected</code></dd>
+<dt>Relationships</dt><dd>from 1 accepted Offer · at 1 Branch · covers 1..n ReservationLines · produces 0..1 DispenseRecord</dd>
+<dt>Invariants</dt><dd><ul><li>The clock starts on entering held and never earlier (§6)</li><li>refused re-opens the parent Request automatically (§6)</li><li>A refusal within 5 minutes of confirming does not count against honoured rate (D11)</li><li>The countdown is computed from server time, never the device's (§6)</li><li>Any signed-in staff member may confirm — it is a commercial act (D19)</li><li>The code is the collection right; identity is not checked (D14)</li></ul></dd>
+</dl></div><div class="card" data-k="marketplace-engine" data-s="reservationline one accepted line inside a reservation. marketplace-engine held reservation.confirmed collected reservation.collected released reservation.expired or reservation.cancelled covers only lines the patient accepted; the rest joined the child request (d06)">
+<header><b>ReservationLine</b> <code>marketplace-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · D06</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>One accepted line inside a Reservation.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>held</code></td><td>reservation.confirmed</td></tr><tr><td><code>collected</code></td><td>reservation.collected</td></tr><tr><td><code>released</code></td><td>reservation.expired or reservation.cancelled</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd>—</dd>
+<dt>Relationships</dt><dd>belongs to 1 Reservation · from 1 OfferLine</dd>
+<dt>Invariants</dt><dd><ul><li>Covers only lines the patient accepted; the rest joined the child Request (D06)</li></ul></dd>
+</dl></div><div class="card" data-k="clinical-engine" data-s="dispenserecord a completed pickup. the only writer of the medication record in phase 0. clinical-engine recorded clinical-engine on reservation.collected — the only writer append-only. no role can edit or delete it; no operation exists (§2 invariant 2) written by clinical-engine on reservation.collected and by nothing else (d22) carries item, pack count, date, branch and price — facts only, never a prediction (§4 v8)">
+<header><b>DispenseRecord</b> <code>clinical-engine</code> <span class="bp" title="Blueprint v3 reference">§2 · D22</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>A completed pickup. The only writer of the medication record in Phase 0.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>recorded</code></td><td>clinical-engine on reservation.collected — the only writer</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>dispense.recorded</code></dd>
+<dt>Relationships</dt><dd>1 Subject → n DispenseRecords · from 1 Reservation</dd>
+<dt>Invariants</dt><dd><ul><li>Append-only. No role can edit or delete it; no operation exists (§2 invariant 2)</li><li>Written by clinical-engine on reservation.collected and by nothing else (D22)</li><li>Carries item, pack count, date, branch and price — facts only, never a prediction (§4 V8)</li></ul></dd>
+</dl></div><div class="card" data-k="media-service" data-s="prescriptionimage a photograph of a paper prescription. never machine-read in phase 0. media-service uploaded post /v1/prescriptions access_granted reservation.confirmed → prescription.access.granted access_revoked reservation collected, expired or cancelled → prescription.access.revoked deleted delete /v1/prescriptions/{id}, or account.deleted encrypted at rest (§8 security) readable by a branch only while its reservation is live, then revoked (d18) deletable by the patient at any time (§4 m5) never ocr'd, never parsed, never auto-filled (§7 refusals)">
+<header><b>PrescriptionImage</b> <code>media-service</code> <span class="bp" title="Blueprint v3 reference">§2 · D18 · §4 P15</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>A photograph of a paper prescription. Never machine-read in Phase 0.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>uploaded</code></td><td>POST /v1/prescriptions</td></tr><tr><td><code>access_granted</code></td><td>reservation.confirmed → prescription.access.granted</td></tr><tr><td><code>access_revoked</code></td><td>reservation collected, expired or cancelled → prescription.access.revoked</td></tr><tr><td><code>deleted</code></td><td>DELETE /v1/prescriptions/{id}, or account.deleted</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>prescription.uploaded</code> <code>prescription.access.granted</code> <code>prescription.access.revoked</code> <code>prescription.deleted</code></dd>
+<dt>Relationships</dt><dd>1 Subject → n images · referenced by 0..n RequestLines</dd>
+<dt>Invariants</dt><dd><ul><li>Encrypted at rest (§8 security)</li><li>Readable by a branch only while its Reservation is live, then revoked (D18)</li><li>Deletable by the patient at any time (§4 M5)</li><li>Never OCR'd, never parsed, never auto-filled (§7 refusals)</li></ul></dd>
+</dl></div><div class="card" data-k="notification-service" data-s="watch notify me when this item appears in this district. notification-service active post /v1/watches fired watch.matched cancelled delete /v1/watches/{id} expired scheduler at 14 days → watch.expired expires at 14 days; maximum 5 active per subject (d30) individually cancellable and listed on a screen (d30) stops when its subject is memorialised (d04)">
+<header><b>Watch</b> <code>notification-service</code> <span class="bp" title="Blueprint v3 reference">§2 · D30 · §4 R12</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>Notify me when this item appears in this district.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>active</code></td><td>POST /v1/watches</td></tr><tr><td><code>fired</code></td><td>watch.matched</td></tr><tr><td><code>cancelled</code></td><td>DELETE /v1/watches/{id}</td></tr><tr><td><code>expired</code></td><td>scheduler at 14 days → watch.expired</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>watch.matched</code> <code>watch.expired</code></dd>
+<dt>Relationships</dt><dd>1 Subject + 1 CatalogueItem + 1 District</dd>
+<dt>Invariants</dt><dd><ul><li>Expires at 14 days; maximum 5 active per Subject (D30)</li><li>Individually cancellable and listed on a screen (D30)</li><li>Stops when its Subject is memorialised (D04)</li></ul></dd>
+</dl></div><div class="card" data-k="audit-service" data-s="auditentry an action or a read of identified data, immutably recorded. audit-service appended audit-service append, from any consumed event append-only. no principal, including the operator, may modify it (§5 platform matrix) on account deletion the actor is replaced by a tombstone; the entry survives (d05) every read of identified clinical data appears in that subject's own access log (§5)">
+<header><b>AuditEntry</b> <code>audit-service</code> <span class="bp" title="Blueprint v3 reference">§2 · §5 · D05</span></header>
+<dl class="kv">
+<dt>Purpose</dt><dd>An action or a read of identified data, immutably recorded.</dd>
+<dt>States</dt><dd><div class="tw"><table><thead><tr><th>State</th><th>Produced by</th></tr></thead><tbody>
+<tr><td><code>appended</code></td><td>audit-service append, from any consumed event</td></tr>
+</tbody></table></div></dd>
+<dt>Events</dt><dd><code>audit.appended</code></dd>
+<dt>Relationships</dt><dd>references an actor Account and optionally a Subject or Branch</dd>
+<dt>Invariants</dt><dd><ul><li>Append-only. No principal, including the operator, may modify it (§5 platform matrix)</li><li>On account deletion the actor is replaced by a tombstone; the entry survives (D05)</li><li>Every read of identified clinical data appears in that Subject's own access log (§5)</li></ul></dd>
+</dl></div>
+</div>
+<p class="gen">Generated from <code>docs/technical/model.js</code> by <code>build.mjs</code>. Do not edit this file — edit the model. Architecture validation: 11/11 checks passing.</p>
+</main></div>
+<script>
+const root=document.documentElement;
+const tb=document.getElementById('theme');
+if(tb)tb.onclick=()=>{const c=root.getAttribute('data-theme')||(matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light');root.setAttribute('data-theme',c==='dark'?'light':'dark')};
+document.querySelectorAll('.filters').forEach(bar=>{
+  const target=bar.dataset.target, inp=bar.querySelector('input'), cnt=bar.querySelector('.cnt');
+  let key='all', q='';
+  const apply=()=>{let n=0;
+    document.querySelectorAll('#'+target+' [data-k]').forEach(el=>{
+      const ok=(key==='all'||el.dataset.k===key)&&(!q||el.dataset.s.includes(q));
+      el.hidden=!ok; if(ok)n++;});
+    if(cnt)cnt.textContent=n+' shown';};
+  bar.addEventListener('click',e=>{const b=e.target.closest('button[data-f]');if(!b)return;
+    bar.querySelectorAll('button').forEach(x=>x.classList.toggle('on',x===b));key=b.dataset.f;apply();});
+  if(inp)inp.addEventListener('input',e=>{q=e.target.value.trim().toLowerCase();apply();});
+  apply();
+});
+const links=[...document.querySelectorAll('#toc a')];
+if(links.length){const obs=new IntersectionObserver(es=>{es.forEach(e=>{if(!e.isIntersecting)return;
+  links.forEach(a=>a.classList.toggle('on',a.getAttribute('href')==='#'+e.target.id))})},{rootMargin:'-10% 0px -80% 0px'});
+  document.querySelectorAll('main section[id]').forEach(s=>obs.observe(s));}
+(function(){const s=document.createElement('script');
+ s.src='https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+ s.onload=()=>{const d=root.getAttribute('data-theme')==='dark'||(!root.getAttribute('data-theme')&&matchMedia('(prefers-color-scheme:dark)').matches);
+   mermaid.initialize({startOnLoad:true,theme:d?'dark':'neutral',themeVariables:{fontFamily:'ui-sans-serif,system-ui,sans-serif'}});};
+ s.onerror=()=>document.querySelectorAll('pre.mermaid').forEach(p=>p.insertAdjacentHTML('beforebegin','<p class="cap">Diagram renderer unavailable — the source below is the diagram.</p>'));
+ document.head.appendChild(s);})();
+</script>
+</body></html>

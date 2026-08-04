@@ -1,0 +1,1706 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f2e2a" />
+<meta name="description" content="دوائي — مرجع واجهة المستخدم الكامل" />
+<title>دوائي — UI Kit الكامل</title>
+
+<!--
+═══════════════════════════════════════════════════════════════════════════════
+  دوائي — مرجع واجهة المستخدم الكامل (Complete UI Reference)
+  الإصدار 1.0 · ملف واحد مستقل · لا يحتاج build ولا npm install
+
+  ── للمبرمج الذي سيطوّر هذا الملف ─────────────────────────────────────────────
+
+  ما هذا الملف؟
+    مرجع بصري وتفاعلي كامل لتطبيق دوائي. يحتوي على:
+      • 21 شاشة كاملة (المريض + الصيدلية)
+      • كل الحالات: فارغة، تحميل، خطأ، بلا اتصال، نجاح، منتهية
+      • نظام تصميم موثّق (ألوان، مسافات، خطوط، حركة)
+      • مكوّنات قابلة لإعادة الاستخدام
+      • نقاط ربط الـAPI معلّمة بـ TODO(api)
+
+  كيف تستخدمه؟
+    1. افتحه في المتصفح مباشرة — يعمل فوراً.
+    2. استخدم شريط "المطوّر" في الأسفل للتنقل بين كل الشاشات والحالات.
+    3. عند البناء بإطار عمل (React/Vue): انسخ نظام التصميم كما هو،
+       وحوّل كل قسم <section class="scr"> إلى مكوّن.
+
+  البيانات الآن وهمية (MOCK) — كل مكان يحتاج ربطاً حقيقياً معلّم هكذا:
+       // TODO(api): GET /api/v1/clinical/timeline
+
+  قواعد لا يجوز كسرها (من مواصفة المنتج):
+    ✗ لا تشخيص، لا حساب جرعات، لا اقتراح بديل تلقائي — الصيدلي هو من يقرر.
+    ✗ لا تقل "موثّق حكومياً" — قل "من صيدلية موثّقة في دوائي".
+    ✗ لا تعرض "لا يوجد تعارض" إذا تعذّر الفحص — قل "تعذّر الفحص، راجع الصيدلي".
+    ✗ تنبيه السلامة (SEV_ALERT) لا يُغلق بالنقر — يُغلق بمعالجة سببه.
+    ✗ لا إشعارات متكررة، لا لافتات عروض حمراء، لا إحساس بـ"سوق تسوّق".
+    ✓ العربية أولاً: تباعد الأحرف صفر دائماً، ارتفاع السطر ≥ 1.6.
+    ✓ أهداف اللمس ≥ 44px، والحقول ≥ 16px (تمنع تكبير iOS التلقائي).
+    ✓ الأسماء اللاتينية والأرقام داخل <bdi> لمنع اختلاط الاتجاه.
+
+  ── For the developer (English summary) ──────────────────────────────────────
+    Single-file, dependency-free UI reference for Dawai (Arabic/RTL pharmacy
+    app). 21 screens covering patient + pharmacist, with every state.
+    Design tokens are CSS custom properties; each screen is a <section class="scr">
+    ready to become a component. Mock data everywhere; integration points are
+    marked with TODO(api). RTL-first: use logical properties only.
+═══════════════════════════════════════════════════════════════════════════════
+-->
+
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Arabic:wght@400;500;600;700&family=Noto+Kufi+Arabic:wght@600;700&display=swap" rel="stylesheet" />
+
+<style>
+/*═══════════════════════════════════════════════════════════════════════════
+  1. نظام التصميم — DESIGN TOKENS
+  غيّر هنا فقط. لا تكتب لوناً أو مسافة مباشرة في أي مكان آخر.
+═══════════════════════════════════════════════════════════════════════════*/
+:root{
+  /* ── الألوان: الحبر ── */
+  --ink:#12211f;        /* نص أساسي */
+  --ink-2:#465451;      /* نص ثانوي */
+  --ink-3:#6b7976;      /* نص خافت — الحد الأدنى للتباين AA */
+
+  /* ── الألوان: الأسطح ── */
+  --paper:#f7f6f1;      /* خلفية التطبيق */
+  --card:#ffffff;       /* البطاقات */
+  --line:#e3e6e1;       /* الحدود */
+
+  /* ── الألوان: الهوية ── */
+  --forest:#14453d;     /* اللون الأساسي — الأزرار والتأكيد */
+  --forest-2:#1d6153;   /* نصوص على خلفية فاتحة */
+  --forest-ink:#0f2e2a; /* أغمق درجة */
+  --mint:#e8f4ef;       /* خلفية هادئة */
+  --mint-2:#d3ebe1;     /* خلفية أوضح */
+  --lime:#c9e6a4;       /* لمسة مضيئة — للأزرار على خلفية داكنة */
+
+  /* ── الألوان الدلالية: لا تُستخدم للزينة أبداً ── */
+  --warn:#8a5a10;       /* تحذير: نص (يمر AA على warn-bg) */
+  --warn-bg:#fdf4e3;
+  --alert:#8f3423;      /* خطر/سلامة: نص */
+  --alert-bg:#fbeae6;
+  --ok:#1d6153;
+
+  /* ── الشكل ── */
+  --r-sm:12px; --r:20px; --r-lg:26px;
+  --shadow:0 1px 2px rgb(18 33 31/.04), 0 8px 28px rgb(18 33 31/.06);
+  --shadow-lg:0 18px 44px rgb(20 69 61/.22);
+
+  /* ── القياسات ── */
+  --tap:44px;           /* الحد الأدنى لهدف اللمس */
+  --nav-h:76px;
+  --max-w:460px;        /* عرض عمود المحتوى */
+
+  /* ── الحركة ── */
+  --ease:cubic-bezier(.2,.8,.3,1);
+  --dur:.28s;
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  2. الأساسيات — RESET & BASE
+═══════════════════════════════════════════════════════════════════════════*/
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{
+  margin:0;min-height:100dvh;background:var(--paper);color:var(--ink);
+  font-family:"IBM Plex Sans Arabic",system-ui,-apple-system,sans-serif;
+  /* العربية تحتاج ارتفاع سطر أعلى من اللاتينية */
+  line-height:1.7;
+  /* قاعدة مطلقة: الخط العربي متصل — أي تباعد يكسر الحروف */
+  letter-spacing:0;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3{font-family:"Noto Kufi Arabic",system-ui,sans-serif;line-height:1.5;letter-spacing:0;margin:0}
+p{margin:0;color:var(--ink-2)}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,select,textarea{font:inherit}
+a{color:inherit}
+/* تركيز مرئي دائماً — مستخدم لوحة المفاتيح يجب أن يرى أين هو */
+:focus-visible{outline:3px solid var(--forest-2);outline-offset:3px;border-radius:8px}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap}
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}
+}
+/* وضع التباين العالي — شمس بغداد */
+@media (prefers-contrast:more){
+  :root{--ink-2:#2a3634;--ink-3:#3d4a48;--line:#7d8a86}
+}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  3. الهيكل — APP SHELL
+═══════════════════════════════════════════════════════════════════════════*/
+.app{max-width:var(--max-w);margin:0 auto;min-height:100dvh;
+  padding-bottom:calc(var(--nav-h) + 46px + env(safe-area-inset-bottom));position:relative}
+.scr{display:none;animation:fadeUp var(--dur) var(--ease)}
+.scr.on{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+.top{position:sticky;top:0;z-index:20;
+  padding:calc(env(safe-area-inset-top) + 1rem) 1.15rem .85rem;
+  background:linear-gradient(var(--paper) 72%,transparent)}
+.top-row{display:flex;align-items:center;justify-content:space-between;gap:.75rem}
+.eyebrow{font-size:.82rem;color:var(--ink-3);font-weight:600}
+.title{font-size:1.45rem;margin-top:.1rem}
+.sub{font-size:.88rem;margin-top:.3rem}
+.back{min-height:var(--tap);color:var(--ink-3);font-weight:600;display:inline-flex;align-items:center}
+.pad{padding-inline:1.15rem}
+.sec{padding:1.4rem 1.15rem .5rem;font-size:.76rem;font-weight:700;color:var(--ink-3)}
+.gap{height:2rem}
+
+/*═══════════════════════════════════════════════════════════════════════════
+  4. المكوّنات — COMPONENTS
+═══════════════════════════════════════════════════════════════════════════*/
+
+/* ── 4.1 الأزرار ── */
+.btn{min-height:46px;border-radius:14px;font-weight:700;font-size:.9rem;
+  display:flex;align-items:center;justify-content:center;gap:.4rem;transition:transform .16s var(--ease)}
+.btn:active{transform:scale(.97)}
+.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+.btn-p{background:var(--forest);color:#fff}
+.btn-s{background:var(--card);border:1px solid var(--line);color:var(--forest)}
+.btn-ghost{background:transparent;color:var(--ink-3);font-weight:600}
+.btn-danger{background:transparent;color:var(--alert);font-weight:700}
+.btn-full{width:100%}
+.btn-row{display:grid;grid-template-columns:1fr 1fr;gap:.5rem}
+
+/* ── 4.2 الشارات ── */
+.chip{font-size:.7rem;font-weight:700;padding:.15rem .55rem;border-radius:999px;white-space:nowrap}
+.chip-ok{color:var(--forest-2);background:var(--mint)}
+.chip-warn{color:var(--warn);background:var(--warn-bg)}
+.chip-alert{color:var(--alert);background:var(--alert-bg)}
+.chip-n{color:var(--ink-3);background:var(--paper)}
+
+/* ── 4.3 مبدّل الملفات (وضع العائلة) ── */
+
+/* كتل مطوية للأزرار التي كانت بلا سلوك. الإخفاء بـ [hidden] وحده — أي
+   style مضمّن يتغلّب عليه، وهذا سبق أن جعل تأكيد حذف يظهر دائماً. */
+.fold{display:grid;gap:.45rem;margin-top:.5rem}
+.fold[hidden]{display:none}
+
+/* زر الحساب في الترويسة. المقاس مربوط بـ --tap (٤٤px) لأنه هدف لمس
+   حقيقي — لا تُصغّره لأسباب جمالية. */
+.avatar{width:var(--tap);height:var(--tap);border-radius:14px;
+  background:var(--card);border:1px solid var(--line);font-size:1.05rem}
+
+.who{display:flex;gap:.4rem;margin-top:.9rem;overflow-x:auto;scrollbar-width:none;padding-bottom:2px}
+.who::-webkit-scrollbar{display:none}
+.who button{flex:0 0 auto;display:flex;align-items:center;gap:.45rem;min-height:var(--tap);
+  padding:.3rem .8rem .3rem .35rem;border-radius:999px;background:var(--card);
+  border:1px solid var(--line);font-size:.85rem;font-weight:600;color:var(--ink-2);
+  transition:all .22s var(--ease)}
+.who button .av{width:30px;height:30px;border-radius:50%;display:grid;place-items:center;
+  background:var(--mint-2);font-size:.9rem}
+.who button[aria-pressed="true"]{background:var(--forest);border-color:var(--forest);color:#fff}
+.who button[aria-pressed="true"] .av{background:rgb(255 255 255/.18)}
+
+/* ── 4.4 بطاقة الجرعة (الحلقة اليومية) ── */
+.dose{margin:0 1.15rem 1rem;padding:1rem 1.1rem;border-radius:var(--r);
+  background:var(--forest);color:#eaf5f0;display:grid;grid-template-columns:1fr auto;
+  gap:.9rem;align-items:center;box-shadow:0 10px 30px rgb(20 69 61/.22)}
+.dose small{display:block;font-size:.75rem;opacity:.72;font-weight:600}
+.dose strong{font-size:1.02rem;font-family:"Noto Kufi Arabic",system-ui,sans-serif}
+.dose .take{min-height:var(--tap);padding:0 1.05rem;border-radius:999px;
+  background:var(--lime);color:var(--forest-ink);font-weight:700;font-size:.88rem}
+.dose.done{background:var(--mint);color:var(--forest);box-shadow:none}
+
+/* ── 4.5 بطاقة الدواء + شريط البليستر (العنصر المميّز) ──
+   الشريط يفرغ تدريجياً كما تفرغ العلبة الحقيقية. هذا هو قلب المنتج:
+   يجيب على "هل أنا بخير؟" في نصف ثانية. */
+.cards{display:grid;gap:.8rem;padding:0 1.15rem}
+.med{background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  padding:1.05rem;box-shadow:var(--shadow);display:grid;gap:.85rem;transition:border-color .22s}
+.med.low{border-color:#e6cfa2}
+.med-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.75rem}
+.med-name{font-size:1.02rem}
+.med-sig{font-size:.82rem;color:var(--ink-3);margin-top:.1rem}
+.strip{display:flex;gap:3px}
+.strip i{flex:1;height:22px;border-radius:5px;background:var(--mint-2);
+  transition:background .5s var(--ease)}
+.strip i.gone{background:#eceee9}
+.med.low .strip i:not(.gone){background:#e8c98d}
+.cover{display:flex;justify-content:space-between;align-items:baseline;gap:.5rem}
+.cover b{font-size:.92rem;font-family:"Noto Kufi Arabic",system-ui,sans-serif}
+.cover span{font-size:.76rem;color:var(--ink-3)}
+.med.low .cover b{color:var(--warn)}
+.med-act{display:grid;grid-template-columns:1fr auto;gap:.5rem}
+
+/* ── 4.6 شريط الطلب السفلي ── */
+.ask{position:fixed;inset-inline:0;bottom:calc(var(--nav-h) + 46px + env(safe-area-inset-bottom));
+  z-index:30;max-width:var(--max-w);margin-inline:auto;padding:.6rem 1.15rem;
+  background:linear-gradient(transparent,var(--paper) 40%)}
+.ask button{width:100%;min-height:54px;border-radius:18px;background:var(--card);
+  border:1px solid var(--line);box-shadow:var(--shadow);display:grid;
+  grid-template-columns:auto 1fr auto auto;gap:.7rem;align-items:center;
+  padding:0 .7rem 0 1rem;text-align:start}
+.ask .lbl{font-size:.92rem;color:var(--ink-3);font-weight:600}
+.ask .ic,.ask .mini{width:38px;height:38px;border-radius:12px;display:grid;
+  place-items:center;background:var(--mint);font-size:1.05rem}
+
+/* ── 4.7 التنقل السفلي (3 تبويبات فقط) ── */
+.nav{position:fixed;inset-inline:0;bottom:46px;z-index:40;max-width:var(--max-w);
+  margin-inline:auto;display:grid;grid-template-columns:repeat(3,1fr);
+  padding:.4rem .5rem calc(.4rem + env(safe-area-inset-bottom));
+  background:rgb(255 255 255/.94);backdrop-filter:blur(18px);border-top:1px solid var(--line)}
+.nav button{display:grid;justify-items:center;gap:.15rem;min-height:52px;
+  align-content:center;border-radius:14px;color:var(--ink-3);font-size:.72rem;font-weight:700}
+.nav button .g{font-size:1.15rem;line-height:1}
+.nav button[aria-current]{color:var(--forest);background:var(--mint)}
+
+/* ── 4.8 الورقة المنبثقة (Bottom Sheet) ── */
+.sheet{position:fixed;inset:0;z-index:70;display:none}
+.sheet.on{display:block}
+.sheet .scrim{position:absolute;inset:0;background:rgb(12 26 24/.42);animation:fade .25s}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.sheet .panel{position:absolute;inset-inline:0;bottom:0;max-width:var(--max-w);
+  margin-inline:auto;background:var(--card);border-radius:var(--r-lg) var(--r-lg) 0 0;
+  padding:.7rem 1.15rem calc(1.4rem + env(safe-area-inset-bottom));
+  animation:up .32s var(--ease);max-height:88dvh;overflow-y:auto}
+@keyframes up{from{transform:translateY(100%)}to{transform:none}}
+.grip{width:38px;height:4px;border-radius:99px;background:var(--line);margin:0 auto 1rem}
+
+/* ── 4.9 شريط الانتباه (Pill Bar) ──
+   قاعدة: واحد فقط يظهر. الأعلى أولوية يزيح الأدنى.
+   SEV_ALERT ليس له زر إغلاق إطلاقاً. */
+.pill{position:fixed;inset-inline:0;bottom:calc(var(--nav-h) + 46px + env(safe-area-inset-bottom) + .5rem);
+  z-index:50;max-width:calc(var(--max-w) - 24px);margin-inline:auto;display:none;
+  grid-template-columns:auto 1fr auto auto;gap:.7rem;align-items:center;
+  padding:.7rem .85rem;border-radius:999px;background:var(--forest);color:#f2f8f5;
+  box-shadow:var(--shadow-lg);transition:background .38s var(--ease)}
+.pill.on{display:grid}
+.pill .pi{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;
+  background:rgb(255 255 255/.14)}
+.pill .pc{display:grid;gap:.1rem;min-width:0}
+.pill .pc strong{font-size:.9rem;line-height:1.5}
+.pill .pc span{font-size:.78rem;line-height:1.6;color:rgb(242 248 245/.82);
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.pill button{min-height:var(--tap);min-width:var(--tap);border-radius:999px;
+  font-weight:700;font-size:.82rem;padding-inline:.9rem}
+.pill .pa{background:var(--lime);color:var(--forest-ink)}
+.pill .px{background:rgb(255 255 255/.14);color:inherit;padding-inline:0}
+.pill.sev{background:#7f2418;border-radius:22px}
+.pill.sev .pa{background:#fff;color:#7f2418}
+.pill.sev .pc span{-webkit-line-clamp:4}
+.pill.act{background:var(--warn-bg);color:#5f390b}
+.pill.act .pi{background:rgb(122 74 15/.14)}
+.pill.act .pc span{color:rgb(95 57 11/.82)}
+.pill.act .pa{background:#5f390b;color:#fff}
+.pill.prog{background:var(--forest-2)}
+
+/* ── 4.10 الحالات: تحميل / فارغ / خطأ / بلا اتصال ── */
+.skel{background:linear-gradient(90deg,#eceee9 25%,#f4f5f2 50%,#eceee9 75%);
+  background-size:200% 100%;animation:sh 1.4s infinite;border-radius:var(--r-sm)}
+@keyframes sh{to{background-position:-200% 0}}
+.skel-card{height:150px;border-radius:var(--r);margin-bottom:.8rem}
+.state{margin:0 1.15rem;padding:2.2rem 1.2rem;text-align:center;background:var(--card);
+  border:1px dashed var(--line);border-radius:var(--r)}
+.state .g{font-size:2.2rem;display:block}
+.state b{display:block;margin:.7rem 0 .35rem;font-family:"Noto Kufi Arabic",system-ui,sans-serif;font-size:1.02rem}
+.state p{font-size:.88rem}
+.state .btn{margin-top:1.1rem}
+.state.err{background:var(--alert-bg);border-color:rgb(143 52 35/.3);border-style:solid}
+.state.err b{color:var(--alert)}
+.banner{margin:0 1.15rem 1rem;padding:.8rem 1rem;border-radius:var(--r-sm);
+  font-size:.85rem;font-weight:600;display:flex;gap:.5rem;align-items:flex-start}
+.banner-info{background:var(--mint);color:var(--forest)}
+.banner-warn{background:var(--warn-bg);color:var(--warn)}
+.banner-off{background:var(--ink);color:#fff}
+
+/* ── 4.11 النماذج ── */
+.field{display:grid;gap:.35rem;margin-bottom:.9rem}
+.field>span{font-size:.82rem;font-weight:700;color:var(--ink-2)}
+.field input,.field select,.field textarea{
+  min-height:48px;border-radius:14px;border:1px solid var(--line);
+  padding:.6rem .8rem;background:var(--card);width:100%;min-width:0;
+  /* 16px إلزامي: أقل من ذلك يجعل iOS يكبّر الصفحة عند التركيز */
+  font-size:max(16px,1rem)}
+.field textarea{min-height:92px;resize:vertical}
+.field-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.65rem}
+.check{display:grid;grid-template-columns:auto 1fr;gap:.6rem;align-items:start;
+  min-height:var(--tap);margin-bottom:.9rem}
+.check input{width:22px;height:22px;margin-top:.3rem}
+.check span{font-size:.86rem;color:var(--ink-2)}
+.stepper{display:grid;grid-template-columns:48px minmax(0,1fr) 48px;gap:.5rem}
+.stepper button{min-height:48px;border:1px solid var(--line);border-radius:14px;
+  background:var(--card);font-size:1.3rem;font-weight:800;color:var(--forest)}
+.stepper input{text-align:center;font-variant-numeric:tabular-nums}
+.err-txt{color:var(--alert);font-size:.82rem;font-weight:600;margin-top:.3rem}
+
+/* ── 4.12 مسرح الطلب الحي ── */
+.askers{display:grid;gap:.55rem;padding:0 1.15rem}
+.asker{background:var(--card);border:1px solid var(--line);border-radius:16px;
+  padding:.85rem 1rem;display:grid;grid-template-columns:auto 1fr auto;gap:.75rem;
+  align-items:center;transition:all .4s var(--ease)}
+.asker .dot{width:9px;height:9px;border-radius:50%;background:var(--line)}
+.asker.sent .dot{background:#b9c4c0}
+.asker.open .dot{background:#d8a53c}
+.asker.replied{border-color:var(--mint-2);background:linear-gradient(var(--mint),var(--card))}
+.asker.replied .dot{background:var(--forest-2)}
+.asker.no .dot{background:#c9b1ab}
+.asker b{font-size:.92rem;display:block}
+.asker>span>span{font-size:.76rem;color:var(--ink-3)}
+.asker .st{font-size:.76rem;font-weight:700;color:var(--ink-3)}
+.asker.replied .st{color:var(--forest-2)}
+.pulse{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--forest-2);
+  margin-inline-end:.4rem;box-shadow:0 0 0 0 rgb(29 97 83/.5);animation:pl 1.8s infinite}
+@keyframes pl{70%{box-shadow:0 0 0 9px rgb(29 97 83/0)}100%{box-shadow:0 0 0 0 rgb(29 97 83/0)}}
+
+/* ── 4.13 العروض ── */
+.best{margin:0 1.15rem 1rem;border:1.5px solid var(--forest-2);border-radius:var(--r);
+  overflow:hidden;box-shadow:0 12px 34px rgb(20 69 61/.14)}
+.best .tag{background:var(--forest);color:#eaf5f0;padding:.5rem 1rem;font-size:.78rem;font-weight:700}
+.best .body,.offer{background:var(--card);padding:1.05rem;display:grid;gap:.85rem}
+.offer{margin:0 1.15rem .7rem;border:1px solid var(--line);border-radius:var(--r)}
+.o-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem}
+.o-name{font-size:1rem}
+.o-meta{font-size:.78rem;color:var(--ink-3);margin-top:.1rem}
+.facts{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem}
+.fact{background:var(--paper);border-radius:12px;padding:.6rem .5rem;text-align:center}
+.fact span{display:block;font-size:.68rem;color:var(--ink-3);font-weight:600}
+.fact b{font-size:.95rem;font-family:"Noto Kufi Arabic",system-ui,sans-serif}
+.receipt{display:flex;flex-wrap:wrap;gap:.35rem}
+
+/* ── 4.14 تذكرة الاستلام (Pass) ── */
+.pass{margin:0 1.15rem;border-radius:24px;overflow:hidden;background:var(--forest);
+  color:#eaf5f0;box-shadow:0 18px 44px rgb(20 69 61/.28)}
+.pass .ph{padding:1.2rem 1.2rem .9rem;display:flex;justify-content:space-between;align-items:flex-start}
+.pass .ph small{opacity:.7;font-size:.74rem;font-weight:600;display:block}
+.pass .ph strong{font-size:1.12rem;font-family:"Noto Kufi Arabic",system-ui,sans-serif}
+.pass .code{font-family:ui-monospace,SFMono-Regular,monospace;font-size:1.02rem;
+  letter-spacing:.1em;background:rgb(255 255 255/.14);padding:.35rem .7rem;
+  border-radius:10px;direction:ltr}
+.perf{height:22px;background:radial-gradient(circle at 11px 11px,var(--paper) 10px,transparent 11px) 0 0/22px 22px repeat-x}
+.pass .pb{background:#fff;color:var(--ink);padding:1.1rem 1.2rem 1.2rem;display:grid;gap:.9rem}
+.cd{display:flex;align-items:baseline;gap:.5rem}
+.cd b{font-size:2.1rem;font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;
+  direction:ltr;unicode-bidi:isolate;color:var(--forest)}
+.cd span{font-size:.8rem;color:var(--ink-3)}
+.pass.dead .cd b{color:var(--alert)}
+.rows{display:grid;gap:.5rem}
+.row{display:flex;justify-content:space-between;gap:.75rem;font-size:.88rem}
+.row span{color:var(--ink-3)}
+.row b{font-weight:600}
+
+/* ── 4.15 الالتقاط (كاميرا/صوت) ── */
+.cap{padding:0 1.15rem;display:grid;gap:.7rem}
+.cap button{background:var(--card);border:1px solid var(--line);border-radius:18px;
+  padding:1.1rem;display:grid;grid-template-columns:auto 1fr auto;gap:.9rem;
+  align-items:center;text-align:start;box-shadow:var(--shadow)}
+.cap .ic{width:46px;height:46px;border-radius:14px;display:grid;place-items:center;
+  background:var(--mint);font-size:1.3rem}
+.cap b{display:block;font-size:.98rem;font-family:"Noto Kufi Arabic",system-ui,sans-serif}
+.cap span{font-size:.8rem;color:var(--ink-3)}
+.cap .primary{background:var(--forest);border-color:var(--forest);color:#eaf5f0}
+.cap .primary .ic{background:rgb(255 255 255/.16)}
+.cap .primary span{color:rgb(234 245 240/.78)}
+
+/* ── 4.16 سلّم التصعيد (بلا عروض) ── */
+.ladder{display:grid;gap:.5rem;margin:1rem 0;padding:0;list-style:none;text-align:start}
+.ladder li{display:grid;grid-template-columns:auto 1fr;gap:.65rem;padding:.75rem;
+  border-radius:14px;background:var(--mint);border:1px solid rgb(29 97 83/.15);
+  font-size:.86rem;font-weight:600;color:var(--ink-2)}
+.ladder li[aria-current="step"]{background:var(--warn-bg);border-color:rgb(138 90 16/.3);color:var(--warn)}
+.ladder .n{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;
+  background:rgb(255 255 255/.9);font-weight:800;font-size:.75rem}
+
+/* ── 4.17 واجهة الصيدلية (داكنة — جلسات عمل طويلة) ── */
+/* الخلفية الداكنة تملأ العرض كاملاً. الحشو الجانبي مسؤولية .top و.pad
+   وحدهما — لا تُعِد إضافته هنا وإلا تجاوز المحتوى حدود الشاشة. */
+.rx{background:#0e1a18;color:#dfe9e6;min-height:100dvh;margin:0;padding:0 0 1px}
+.rx .top{background:linear-gradient(#0e1a18 72%,transparent)}
+.rx .title,.rx h2{color:#f0f6f4}
+.rx p,.rx .eyebrow{color:#93a6a2}
+.rx-card{background:#152623;border:1px solid #24403b;border-radius:var(--r);
+  padding:1rem;margin-bottom:.7rem;display:grid;gap:.75rem}
+.rx-card.urgent{border-color:#5c4420}
+.rx-head{display:flex;justify-content:space-between;align-items:flex-start;gap:.6rem}
+.rx-name{font-size:1rem;color:#f0f6f4}
+.rx-meta{font-size:.78rem;color:#93a6a2;margin-top:.15rem}
+.rx-q{display:grid;grid-template-columns:1.4fr 1fr;gap:.5rem}
+.rx-q button{min-height:46px;border-radius:12px;font-weight:700;font-size:.85rem}
+.rx-yes{background:var(--lime);color:var(--forest-ink)}
+.rx-no{background:#2a1f1c;color:#e0b3a8}
+.rx-metrics{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem;padding:0 1.15rem}
+.rx-metric{background:#152623;border:1px solid #24403b;border-radius:var(--r-sm);padding:.9rem}
+.rx-metric span{font-size:.72rem;color:#93a6a2;font-weight:600}
+.rx-metric b{display:block;font-size:1.5rem;font-variant-numeric:tabular-nums;color:#f0f6f4}
+.rx-chips{display:grid;grid-template-columns:repeat(3,1fr);gap:.45rem}
+.rx-chips button{min-height:46px;border-radius:12px;background:#1c302c;
+  border:1px solid #24403b;color:#dfe9e6;font-size:.8rem;font-weight:600}
+.rx-chips button[aria-pressed="true"]{background:var(--lime);color:var(--forest-ink);border-color:var(--lime)}
+.rx .field>span{color:#93a6a2}
+.rx .field input,.rx .field select,.rx .field textarea{
+  background:#1c302c;border-color:#24403b;color:#f0f6f4}
+
+/* ── 4.18 شريط المطوّر (احذفه في الإنتاج) ── */
+.dev{position:fixed;inset-inline:0;bottom:0;z-index:90;background:#0e1a18;
+  color:#9fb3ae;padding:.4rem .6rem calc(.4rem + env(safe-area-inset-bottom));
+  display:flex;gap:.3rem;overflow-x:auto;scrollbar-width:none;font-size:.7rem}
+.dev::-webkit-scrollbar{display:none}
+.dev b{flex:0 0 auto;padding:.35rem .5rem;color:#5f7a74;font-weight:700}
+.dev button{flex:0 0 auto;padding:.35rem .65rem;border-radius:8px;background:#1c302c;
+  color:#cfe0dc;white-space:nowrap;font-size:.7rem;font-weight:600}
+.dev button.on{background:var(--lime);color:var(--forest-ink)}
+</style>
+</head>
+<body>
+
+<div class="app">
+
+<!--═══════════════════════════════════════════════════════════════════════════
+  5. شاشات المريض — PATIENT SCREENS
+═══════════════════════════════════════════════════════════════════════════-->
+
+<!-- ═════ 5.1 التشغيل الأول — ONBOARDING ═════
+     لحظة "التعرّف": المستخدم الجديد يمسح رمز الوصل من الصيدلية،
+     فيفتح التطبيق وأدويته موجودة أصلاً بدل شاشة فارغة. -->
+<section class="scr" id="s-onboard">
+  <header class="top">
+    <div class="eyebrow">أهلاً بك في دوائي</div>
+    <h1 class="title">خلّينا نبدأ بدواء واحد</h1>
+    <p class="sub">إذا صرفت دواء من صيدلية مشتركة معنا، امسح الرمز من الوصل وتظهر أدويتك جاهزة.</p>
+  </header>
+  <div class="cap">
+    <!-- TODO(api): فتح الكاميرا ثم POST /api/v1/onboarding/claim-receipt {code} -->
+    <button class="primary" onclick="go('s-home')">
+      <span class="ic" aria-hidden="true">▣</span>
+      <span><b>امسح رمز الوصل</b><span>أدويتك تظهر جاهزة — بدون كتابة</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('s-capture')">
+      <span class="ic" aria-hidden="true">📷</span>
+      <span><b>صوّر علبة دواء تاخذه</b><span>نبني بطاقتك الأولى منها</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('s-home-empty')">
+      <span class="ic" aria-hidden="true">⏭️</span>
+      <span><b>تخطَّ الآن</b><span>تقدر تضيف أدويتك لاحقاً</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+  </div>
+  <div class="banner banner-info" style="margin-top:1.2rem">
+    <span aria-hidden="true">🛡️</span>
+    <span>دوائي ما يشخّص ولا يوصف ولا يستبدل دواء — الصيدلي هو من يقرر.</span>
+  </div>
+</section>
+
+<!-- ═════ 5.2 الرئيسية — HOME (الحالة الأساسية) ═════ -->
+<section class="scr on" id="s-home">
+  <header class="top">
+    <div class="top-row">
+      <div>
+        <div class="eyebrow" id="greet">مساء الخير</div>
+        <h1 class="title" id="homeTitle">أدويتك</h1>
+      </div>
+      <button class="avatar" aria-label="حسابك" onclick="go('s-account')">👤</button>
+    </div>
+    <!-- وضع العائلة: من يشتري لوالدته هو وحدة السوق الحقيقية -->
+    <div class="who" role="group" aria-label="لمن تتابع">
+      <button aria-pressed="true"  onclick="switchWho(this,'أدويتك','Amlodipine 5mg')"><span class="av">🙂</span>أنا</button>
+      <button aria-pressed="false" onclick="switchWho(this,'أدوية والدتك','Glucophage 850mg')"><span class="av">👩</span>والدتي</button>
+      <button aria-pressed="false" onclick="switchWho(this,'أدوية والدك','Aspirin 81mg')"><span class="av">👨</span>والدي</button>
+    </div>
+  </header>
+
+  <!-- الحلقة اليومية: نقرة واحدة، بلا سلاسل نقاط ولا ضغط -->
+  <div class="dose" id="doseCard">
+    <div><small>جرعة المساء · ٨:٠٠</small><strong id="doseName">Amlodipine 5mg</strong></div>
+    <!-- TODO(api): POST /api/v1/clinical/schedules/:id/events {status:'TAKEN', clientEventId} -->
+    <button class="take" onclick="takeDose()">أخذتها</button>
+  </div>
+
+  <!-- TODO(api): GET /api/v1/clinical/timeline -->
+  <div class="cards">
+    <article class="med low">
+      <div class="med-head">
+        <div>
+          <h2 class="med-name"><bdi dir="ltr">Amlodipine 5mg</bdi></h2>
+          <div class="med-sig">حبة واحدة بعد العشاء</div>
+        </div>
+        <span class="chip chip-ok">مزمن</span>
+      </div>
+      <!-- شريط البليستر: يفرغ بنسبة الأيام المتبقية -->
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i>
+      </div>
+      <div class="cover"><b>تكفيك ٤ أيام</b><span>تخلص الخميس ١٤ آب</span></div>
+      <div class="med-act">
+        <button class="btn btn-p" onclick="openSheet('Amlodipine 5mg')">اطلبها من صيدلية الروابي</button>
+        <!-- "عندي كمية" يجب أن يكون موجوداً دائماً — يمنع التطبيق من الإلحاح -->
+        <button class="btn btn-s" style="padding-inline:.9rem" onclick="snoozeCard(this)">عندي</button>
+      </div>
+    </article>
+
+    <article class="med" onclick="go('s-med')" style="cursor:pointer">
+      <div class="med-head">
+        <div>
+          <h2 class="med-name"><bdi dir="ltr">Metformin 500mg</bdi></h2>
+          <div class="med-sig">حبة بعد الفطور وحبة بعد العشاء</div>
+        </div>
+        <span class="chip chip-ok">مزمن</span>
+      </div>
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="gone"></i>
+      </div>
+      <div class="cover"><b>تكفيك ١٨ يوم</b><span>صُرفت من صيدلية الروابي · ٢٠ تموز</span></div>
+    </article>
+
+    <article class="med">
+      <div class="med-head">
+        <div>
+          <h2 class="med-name"><bdi dir="ltr">Atorvastatin 20mg</bdi></h2>
+          <div class="med-sig">حبة قبل النوم</div>
+        </div>
+      </div>
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="gone"></i>
+      </div>
+      <div class="cover"><b>تكفيك ٢٦ يوم</b><span>لا حاجة لشيء الآن</span></div>
+    </article>
+  </div>
+
+  <div style="height:5.5rem"></div>
+  <div class="ask">
+    <button onclick="go('s-capture')">
+      <span class="ic" aria-hidden="true">🔍</span>
+      <span class="lbl">أحتاج دواء جديد</span>
+      <span class="mini" aria-hidden="true">📷</span>
+      <span class="mini" aria-hidden="true">🎙️</span>
+    </button>
+  </div>
+</section>
+
+<!-- ═════ 5.3 الرئيسية — حالة فارغة ═════ -->
+<section class="scr" id="s-home-empty">
+  <header class="top">
+    <div class="eyebrow">مساء الخير</div>
+    <h1 class="title">أدويتك</h1>
+  </header>
+  <div class="state">
+    <span class="g" aria-hidden="true">💊</span>
+    <b>ما عندك أدوية بعد</b>
+    <p>أول ما تضيف دواء، نحسب متى يخلص ونذكّرك قبلها — بدون ما تحسب أنت.</p>
+    <button class="btn btn-p btn-full" onclick="go('s-capture')">أضف أول دواء</button>
+  </div>
+</section>
+
+<!-- ═════ 5.4 الرئيسية — حالة تحميل ═════ -->
+<section class="scr" id="s-home-loading">
+  <header class="top">
+    <div class="eyebrow">مساء الخير</div>
+    <h1 class="title">أدويتك</h1>
+  </header>
+  <!-- هيكل عظمي بشكل البطاقة الحقيقية — لا دوّارة مبهمة -->
+  <div class="pad">
+    <div class="skel skel-card"></div>
+    <div class="skel skel-card"></div>
+    <div class="skel skel-card"></div>
+  </div>
+</section>
+
+<!-- ═════ 5.5 الرئيسية — حالة خطأ ═════ -->
+<section class="scr" id="s-home-error">
+  <header class="top">
+    <div class="eyebrow">مساء الخير</div>
+    <h1 class="title">أدويتك</h1>
+  </header>
+  <div class="state err">
+    <span class="g" aria-hidden="true">⚠️</span>
+    <b>تعذّر تحميل أدويتك</b>
+    <!-- الخطأ يشرح ماذا حدث وماذا يفعل المستخدم — بلا اعتذار وبلا غموض -->
+    <p>ما وصلنا رد من الخادم. بياناتك محفوظة ولم يتغيّر شيء.</p>
+    <button class="btn btn-p btn-full" onclick="go('s-home')">أعد المحاولة</button>
+  </div>
+</section>
+
+<!-- ═════ 5.6 الرئيسية — بلا اتصال ═════ -->
+<section class="scr" id="s-home-offline">
+  <header class="top">
+    <div class="eyebrow">مساء الخير</div>
+    <h1 class="title">أدويتك</h1>
+  </header>
+  <div class="banner banner-off">
+    <span aria-hidden="true">📴</span>
+    <span>لا يوجد اتصال. نعرض آخر حالة معروفة، وأي إجراء تسوّيه ينتظر ويُرسل تلقائياً.</span>
+  </div>
+  <div class="cards">
+    <article class="med" style="opacity:.72">
+      <div class="med-head">
+        <div><h2 class="med-name"><bdi dir="ltr">Amlodipine 5mg</bdi></h2>
+        <div class="med-sig">آخر تحديث قبل ساعتين</div></div>
+        <span class="chip chip-n">محفوظ محلياً</span>
+      </div>
+      <div class="strip" aria-hidden="true">
+        <i></i><i></i><i></i><i></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i><i class="gone"></i>
+      </div>
+      <div class="cover"><b>تكفيك ٤ أيام</b><span>حسب آخر مزامنة</span></div>
+    </article>
+  </div>
+</section>
+
+<!-- ═════ 5.7 الالتقاط — CAPTURE ═════
+     الكاميرا والصوت قبل الكتابة: كثير من كبار السن لا يكتبون
+     أسماء الأدوية اللاتينية. هذا أكبر مكسب في التحويل. -->
+<section class="scr" id="s-capture">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem">شنو تحتاج؟</h1>
+    <p class="sub">صوّر العلبة أو الوصفة — أسهل من الكتابة.</p>
+  </header>
+  <div class="cap">
+    <!-- TODO(api): رفع الصورة إلى POST /api/v1/files ثم OCR -->
+    <button class="primary" onclick="go('s-live')">
+      <span class="ic" aria-hidden="true">📷</span>
+      <span><b>صوّر العلبة</b><span>نتعرّف على الدواء من الصورة</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('s-live')">
+      <span class="ic" aria-hidden="true">🎙️</span>
+      <span><b>قول اسم الدواء</b><span>بالعربي أو باللهجة العراقية</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('s-live')">
+      <span class="ic" aria-hidden="true">📋</span>
+      <span><b>صوّر الوصفة</b><span>نرتّب أدويتها ويراجعها الصيدلي</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+    <button onclick="go('s-newreq')">
+      <span class="ic" aria-hidden="true">⌨️</span>
+      <span><b>اكتب الاسم</b><span>إذا تعرفه</span></span>
+      <span aria-hidden="true">›</span>
+    </button>
+  </div>
+  <div class="banner banner-info" style="margin-top:1.2rem">
+    <span aria-hidden="true">🛡️</span><span>صورة الوصفة تُشفّر ولا تُكشف لأي صيدلية قبل تأكيد حجزك.</span>
+  </div>
+</section>
+
+<!-- ═════ 5.8 طلب دواء جديد (نموذج) — NEW REQUEST ═════
+     المعالج الكامل يظهر فقط لدواء جديد. إعادة الطلب = نقرتان. -->
+<section class="scr" id="s-newreq">
+  <header class="top">
+    <button class="back" onclick="go('s-capture')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem">دواء جديد</h1>
+    <p class="sub">اكتب ما تعرفه — الصيدلي يكمّل الباقي.</p>
+  </header>
+  <div class="pad">
+    <!-- TODO(api): POST /api/v1/patient/requests -->
+    <label class="field"><span>اسم الدواء</span>
+      <input dir="auto" placeholder="مثلاً: بنادول اكسترا" /></label>
+    <div class="field-row">
+      <label class="field"><span>القوة (اختياري)</span>
+        <input dir="ltr" inputmode="text" placeholder="500 mg" /></label>
+      <label class="field"><span>الشكل</span>
+        <select><option>أقراص</option><option>شراب</option><option>حقن</option><option>مرهم</option></select></label>
+    </div>
+    <label class="field"><span>الكمية</span>
+      <div class="stepper">
+        <button type="button" aria-label="إنقاص" onclick="qty(-1)">−</button>
+        <input id="qtyInput" type="number" dir="ltr" inputmode="numeric" value="1" min="1" max="20" aria-label="الكمية" />
+        <button type="button" aria-label="زيادة" onclick="qty(1)">＋</button>
+      </div>
+    </label>
+    <label class="field"><span>متى تحتاجه؟</span>
+      <select><option>الآن</option><option>اليوم</option><option>غداً</option></select></label>
+    <label class="check">
+      <input type="checkbox" />
+      <span>أرفق صورة وصفة — تُخزّن مشفّرة ولا تُكشف قبل تأكيد الحجز</span></label>
+    <button class="btn btn-p btn-full" onclick="go('s-live')">أرسل للصيدليات القريبة</button>
+    <div style="height:2rem"></div>
+  </div>
+</section>
+
+<!-- ═════ 5.9 مسرح الطلب الحي — LIVE REQUEST ═════
+     أخطر لحظة في المنتج (القلق) كانت دوّارة. الآن: الحقيقة الكاملة —
+     من سُئل، من فتح، من ردّ، وكم يستغرق عادةً. -->
+<section class="scr" id="s-live">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem"><bdi dir="ltr">Amlodipine 5mg</bdi></h1>
+  </header>
+  <div class="pad" style="padding-bottom:1rem">
+    <p style="font-size:.92rem;color:var(--ink)">
+      <span class="pulse" aria-hidden="true"></span><b id="liveMsg">صيدليتك المعتادة عندها أولوية ٣٠ ثانية</b></p>
+    <p style="font-size:.8rem;margin-top:.25rem" id="liveSub">إذا ما ردّت، نسأل الصيدليات القريبة تلقائياً.</p>
+  </div>
+  <!-- TODO(api): SSE /api/v1/patient/requests/:id/stream -->
+  <div class="askers">
+    <div class="asker open" id="ask1">
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>صيدلية الروابي <span class="chip chip-ok">صيدليتك</span></b><span>٠.٨ كم · ترد عادةً خلال ٣ دقائق</span></span>
+      <span class="st">فتحت الطلب</span>
+    </div>
+    <div class="asker sent" id="ask2">
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>صيدلية النور</b><span>١.٤ كم · ترد عادةً خلال ٦ دقائق</span></span>
+      <span class="st">أُرسل</span>
+    </div>
+    <div class="asker sent" id="ask3">
+      <span class="dot" aria-hidden="true"></span>
+      <span><b>صيدلية الرحمة</b><span>١.٩ كم · ترد عادةً خلال ٥ دقائق</span></span>
+      <span class="st">أُرسل</span>
+    </div>
+  </div>
+  <div class="pad" style="padding-top:1.2rem">
+    <button class="btn btn-ghost btn-full" onclick="go('s-home')">أكمل لاحقاً — نعلمك أول ما يوصل رد</button>
+  </div>
+</section>
+
+<!-- ═════ 5.10 العروض — OFFERS ═════
+     توصية واحدة واضحة **مع سببها**، لا قائمة مرتّبة يفكّها المستخدم. -->
+<section class="scr" id="s-offers">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem">وصلك ردّان</h1>
+    <p class="sub">كلها من صيدليات مرخّصة أكّدت التوفر الآن.</p>
+  </header>
+
+  <div class="best">
+    <div class="tag">الأنسب لك — أقرب، وجاهز الآن، وصيدليتك المعتادة</div>
+    <div class="body">
+      <div class="o-head">
+        <div><h2 class="o-name">صيدلية الروابي</h2>
+        <div class="o-meta">المنصور · ٠.٨ كم · د. أحمد الجبوري</div></div>
+        <span class="chip chip-ok">صيدليتك</span>
+      </div>
+      <div class="facts">
+        <div class="fact"><span>السعر</span><b><bdi dir="ltr">12,000</bdi></b></div>
+        <div class="fact"><span>الجاهزية</span><b>الآن</b></div>
+        <div class="fact"><span>أكّدت</span><b>قبل ٤ د</b></div>
+      </div>
+      <!-- إيصالات الثقة: كل ادعاء له مصدر ظاهر -->
+      <div class="receipt">
+        <span class="chip chip-ok">✔ مرخّصة <bdi dir="ltr">IQ-THR-1842</bdi></span>
+        <span class="chip chip-ok">أكملت ٥٧ حجز</span>
+        <span class="chip chip-ok">مفتوحة حتى ٢٢:٠٠</span>
+      </div>
+      <p style="font-size:.8rem">نفس سعرك السابق — <bdi dir="ltr">12,000</bdi> د.ع في تموز.</p>
+      <!-- TODO(api): POST /api/v1/patient/requests/:id/reservations -->
+      <button class="btn btn-p btn-full" onclick="go('s-pass')">احجزها للاستلام</button>
+    </div>
+  </div>
+
+  <div class="offer">
+    <div class="o-head">
+      <div><h2 class="o-name">صيدلية النور</h2><div class="o-meta">المنصور · ١.٤ كم</div></div>
+    </div>
+    <div class="facts">
+      <div class="fact"><span>السعر</span><b><bdi dir="ltr">11,500</bdi></b></div>
+      <div class="fact"><span>الجاهزية</span><b>١٥ د</b></div>
+      <div class="fact"><span>أكّدت</span><b>قبل ٩ د</b></div>
+    </div>
+    <div class="receipt">
+      <span class="chip chip-ok">✔ مرخّصة <bdi dir="ltr">IQ-THR-2201</bdi></span>
+      <span class="chip chip-n">أول تعامل معها</span>
+    </div>
+    <p style="font-size:.8rem;color:var(--ink-3)">أرخص بـ<bdi dir="ltr">500</bdi> د.ع، لكن أبعد وتحتاج ١٥ دقيقة تجهيز.</p>
+    <button class="btn btn-s btn-full" onclick="go('s-pass')">احجزها بدلاً منها</button>
+  </div>
+  <div class="gap"></div>
+</section>
+
+<!-- ═════ 5.11 بلا عروض — NO OFFERS ═════
+     أخطر نقطة لفقدان المستخدمين. سلّم تصعيد صادق بدل طريق مسدود. -->
+<section class="scr" id="s-nooffers">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem">ما وصل رد بعد</h1>
+    <p class="sub">النطاق الحالي: ٢ كم · أُرسل إلى ٣ صيدليات</p>
+  </header>
+  <div class="state">
+    <span class="g" aria-hidden="true">📡</span>
+    <b>عدم الرد لا يعني أن الدواء غير موجود</b>
+    <p>الصيدليات القريبة إما مشغولة أو مغلقة الآن. تقدر تنتظر أو توسّع النطاق.</p>
+    <ol class="ladder">
+      <li><span class="n">١</span><span>انتظار الردود الأولى (حتى ٥ دقائق)</span></li>
+      <li aria-current="step"><span class="n">٢</span><span>توسيع إلى ٥ كم — صيدليات جديدة فقط</span></li>
+      <li><span class="n">٣</span><span>توسيع إلى ١٠ كم — بموافقتك الصريحة</span></li>
+      <li><span class="n">٤</span><span>إنهاء الطلب وإعادة المحاولة لاحقاً</span></li>
+    </ol>
+    <!-- TODO(api): POST /api/v1/patient/requests/:id/expand {radiusKm:5} -->
+    <button class="btn btn-p btn-full" onclick="widenRadius(this)">وسّع إلى ٥ كم</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:.4rem" onclick="go('s-home')">سأنتظر</button>
+  </div>
+</section>
+
+<!-- ═════ 5.12 تذكرة الاستلام — PASS ═════
+     الحجز يصير شيئاً تحمله، لا سجلاً تقرأه. -->
+<section class="scr" id="s-pass">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ أدويتك</button>
+    <h1 class="title" style="margin-top:.5rem">محجوز لك</h1>
+    <p class="sub">وريهم هذا الرمز عند الاستلام.</p>
+  </header>
+  <div class="pass" id="passCard">
+    <div class="ph">
+      <div><small>صيدلية</small><strong>الروابي — المنصور</strong></div>
+      <span class="code">RSV-1190</span>
+    </div>
+    <div class="perf" aria-hidden="true"></div>
+    <div class="pb">
+      <!-- العدّاد يبدأ فقط بعد أن تؤكد الصيدلية أنها حجزت الكمية فعلاً -->
+      <div class="cd"><b id="passCd">14:32</b><span>باقية على انتهاء الحجز</span></div>
+      <div class="rows">
+        <div class="row"><span>الدواء</span><b><bdi dir="ltr">Amlodipine 5mg</bdi> × ١</b></div>
+        <div class="row"><span>السعر عند الاستلام</span><b><bdi dir="ltr">12,000</bdi> د.ع</b></div>
+        <div class="row"><span>العنوان</span><b>شارع ١٤ رمضان</b></div>
+      </div>
+      <div class="btn-row">
+        <!-- TODO(api): استخدم إحداثيات الفرع الحقيقية -->
+        <a class="btn btn-p" href="https://www.google.com/maps/search/?api=1&query=%D8%A7%D9%84%D9%85%D9%86%D8%B5%D9%88%D8%B1" target="_blank" rel="noreferrer">الاتجاهات</a>
+        <a class="btn btn-s" href="tel:+9647700000000">اتصال</a>
+      </div>
+      <button class="btn btn-ghost btn-full" style="min-height:40px" onclick="addToWallet(this)">أضفها إلى Apple Wallet</button>
+    </div>
+  </div>
+  <div class="banner banner-info" style="margin-top:1rem">
+    <span aria-hidden="true">🕐</span><span>الوقت بدأ لأن الصيدلية أكّدت أنها حجزت الكمية فعلاً.</span>
+  </div>
+  <div class="gap"></div>
+</section>
+
+<!-- ═════ 5.13 الحجز منتهي — PASS EXPIRED ═════ -->
+<section class="scr" id="s-pass-dead">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ أدويتك</button>
+    <h1 class="title" style="margin-top:.5rem">انتهت مهلة الحجز</h1>
+  </header>
+  <div class="pass dead" style="opacity:.85">
+    <div class="ph">
+      <div><small>صيدلية</small><strong>الروابي — المنصور</strong></div>
+      <span class="code">RSV-1190</span>
+    </div>
+    <div class="perf" aria-hidden="true"></div>
+    <div class="pb">
+      <div class="cd"><b>00:00</b><span>لم يعد الدواء محجوزاً لك</span></div>
+      <p style="font-size:.86rem">الصيدلية حرّرت الكمية لمريض آخر. تقدر تطلبها مرة ثانية بنقرة.</p>
+      <button class="btn btn-p btn-full" onclick="go('s-live')">اطلبها مرة ثانية</button>
+      <button class="btn btn-ghost btn-full" onclick="go('s-home')">رجوع لأدويتك</button>
+    </div>
+  </div>
+  <div class="gap"></div>
+</section>
+
+<!-- ═════ 5.14 تفاصيل الدواء — MEDICINE DETAIL ═════ -->
+<section class="scr" id="s-med">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ أدويتك</button>
+    <h1 class="title" style="margin-top:.5rem"><bdi dir="ltr">Metformin 500mg</bdi></h1>
+    <p class="sub">أقراص · للسكري</p>
+  </header>
+  <div class="pad">
+    <!-- تعليمات الاستخدام: نص مؤكَّد من صيدلي، لا نص مولَّد -->
+    <div style="background:var(--mint);border-radius:var(--r-sm);padding:.95rem 1.05rem;line-height:1.8;margin-bottom:.9rem">
+      حبة بعد الفطور وحبة بعد العشاء. إذا نسيت جرعة، خذها وقت ما تتذكر — بس لا تاخذ حبتين مع بعض.
+    </div>
+    <p style="font-size:.78rem;color:var(--ink-3);margin-bottom:1.2rem">
+      ✔ أكّدها د. أحمد الجبوري — صيدلية الروابي · ٢٠ تموز</p>
+
+    <div class="facts" style="margin-bottom:1.2rem">
+      <div class="fact"><span>المتبقي</span><b>١٨ يوم</b></div>
+      <div class="fact"><span>الالتزام</span><b>٩٤٪</b></div>
+      <div class="fact"><span>آخر صرف</span><b>٢٠ تموز</b></div>
+    </div>
+
+    <div class="sec" style="padding-inline:0">سجل الصرف</div>
+    <div class="rows" style="background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:1rem">
+      <div class="row"><span>٢٠ تموز</span><b>صيدلية الروابي · <bdi dir="ltr">9,000</bdi> د.ع</b></div>
+      <div class="row"><span>٢١ حزيران</span><b>صيدلية الروابي · <bdi dir="ltr">9,000</bdi> د.ع</b></div>
+      <div class="row"><span>٢٣ أيار</span><b>صيدلية النور · <bdi dir="ltr">9,500</bdi> د.ع</b></div>
+    </div>
+    <div style="margin-top:1.2rem" class="btn-row">
+      <button class="btn btn-p" onclick="openSheet('Metformin 500mg')">اطلبها</button>
+      <button class="btn btn-s" onclick="stopTracking(this)">أوقف التتبع</button>
+    </div>
+    <div class="gap"></div>
+  </div>
+</section>
+
+<!-- ═════ 5.15 العائلة — FAMILY ACCESS ═════
+     موافقة من الطرفين: لا وصول بلا إذن، والإلغاء فوري. -->
+<section class="scr" id="s-family">
+  <header class="top">
+    <button class="back" onclick="go('s-account')">‹ حسابك</button>
+    <h1 class="title" style="margin-top:.5rem">من يشوف أدويتك</h1>
+    <p class="sub">لا يُمنح أي وصول إلا بموافقتك، وتقدر تسحبه في أي لحظة.</p>
+  </header>
+
+  <div class="sec">بانتظار موافقتك</div>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">أحمد الجبوري</h2>
+        <div class="med-sig">ابنك · يطلب: الاطلاع والطلب نيابةً عنك</div></div>
+      </div>
+      <div class="btn-row">
+        <!-- TODO(api): POST /api/v1/clinical/family/:id/grant -->
+        <button class="btn btn-p" onclick="grantAccess(this)">أوافق</button>
+        <button class="btn btn-s" onclick="denyAccess(this)">أرفض</button>
+      </div>
+    </article>
+  </div>
+
+  <div class="sec">لهم وصول حالياً</div>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">سارة الجبوري</h2>
+        <div class="med-sig">بنتك · الاطلاع فقط · منذ ١٢ حزيران</div></div>
+      </div>
+      <!-- TODO(api): POST /api/v1/clinical/family/:id/revoke -->
+      <button class="btn btn-danger btn-full" onclick="armRevoke(this)">اسحب الوصول</button>
+      <div class="fold" hidden>
+        <p style="font-size:.82rem">يتوقف وصولها فوراً. السجل يبقى، والصلاحية وحدها تُسحب.</p>
+        <div class="btn-row">
+          <button class="btn btn-danger" onclick="doRevoke(this)">أكّد السحب</button>
+          <button class="btn btn-s" onclick="cancelRevoke(this)">تراجع</button>
+        </div>
+      </div>
+    </article>
+  </div>
+
+  <div class="sec">أنت تتابعهم</div>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">والدتك</h2>
+        <div class="med-sig">الاطلاع والطلب وتأكيد الجرعات</div></div>
+        <span class="chip chip-ok">نشط</span>
+      </div>
+    </article>
+  </div>
+  <div class="gap"></div>
+</section>
+
+<!-- ═════ 5.16 الإشعارات — NOTIFICATIONS ═════ -->
+<section class="scr" id="s-notif">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem">التحديثات</h1>
+    <p class="sub">ما نحط اسم الدواء في إشعارات شاشة القفل — التفاصيل هنا فقط.</p>
+  </header>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">وصل عرض على طلبك</h2>
+        <div class="med-sig">صيدلية قريبة أكّدت التوفر والسعر · قبل ٤ دقائق</div></div>
+        <span class="chip chip-ok">جديد</span>
+      </div>
+      <button class="btn btn-s btn-full" onclick="go('s-offers')">شوف العرض</button>
+    </article>
+    <article class="med" style="opacity:.65">
+      <div class="med-head">
+        <div><h2 class="med-name">اكتمل استلام طلبك</h2>
+        <div class="med-sig">أمس</div></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ═════ 5.17 الحساب — ACCOUNT ═════ -->
+<section class="scr" id="s-account">
+  <header class="top">
+    <button class="back" onclick="go('s-home')">‹ رجوع</button>
+    <h1 class="title" style="margin-top:.5rem">حسابك</h1>
+  </header>
+
+  <div class="sec">صيدليتك</div>
+  <div class="cards">
+    <article class="med">
+      <div class="med-head">
+        <div><h2 class="med-name">صيدلية الروابي</h2>
+        <div class="med-sig">المنصور · ٠.٨ كم · ٥٧ حجز مكتمل</div></div>
+        <span class="chip chip-ok">المعتادة</span>
+      </div>
+      <p style="font-size:.82rem">تاخذ أولوية ٣٠ ثانية على كل طلب قبل ما نسأل غيرها.</p>
+      <button class="btn btn-s btn-full" onclick="choosePharmacy(this)">غيّر صيدليتك</button>
+      <div class="fold" hidden>
+        <button class="btn btn-ghost btn-full" onclick="setPharmacy(this,'صيدلية النور','اليرموك · ١.٩ كم')">صيدلية النور — اليرموك · ١.٩ كم</button>
+        <button class="btn btn-ghost btn-full" onclick="setPharmacy(this,'صيدلية الرشيد','الكرادة · ٣.٢ كم')">صيدلية الرشيد — الكرادة · ٣.٢ كم</button>
+      </div>
+    </article>
+  </div>
+
+  <div class="sec">الإعدادات</div>
+  <div class="pad">
+    <label class="field"><span>الاسم</span><input value="مستخدم دوائي" /></label>
+    <label class="field"><span>الهاتف</span><input dir="ltr" inputmode="tel" value="0770 000 0000" /></label>
+    <label class="field"><span>المنطقة الافتراضية</span><input value="المنصور، بغداد" /></label>
+    <label class="check"><input type="checkbox" checked />
+      <span>إشعارات عند وصول العروض وتحديثات الحجز</span></label>
+    <button class="btn btn-p btn-full" onclick="saveSettings(this)">احفظ التغييرات</button>
+    <button class="btn btn-s btn-full" style="margin-top:.5rem" onclick="go('s-family')">من يشوف أدويتك</button>
+  </div>
+
+  <div class="sec">سنتك بالأرقام</div>
+  <div class="cards">
+    <article class="med">
+      <p style="font-size:.95rem;color:var(--ink)">حافظت على دواء الضغط <b>٣١٣ يوم</b> من ٣٦٥ هذه السنة.</p>
+      <p style="font-size:.8rem">بلا تقييم وبلا مقارنة — ملخّص لك وحدك.</p>
+    </article>
+  </div>
+
+  <!-- حذف الحساب داخل التطبيق: شرط إلزامي في App Store -->
+  <div class="sec">منطقة الخطر</div>
+  <div class="pad">
+    <div style="background:var(--alert-bg);border:1px solid rgb(143 52 35/.3);border-radius:var(--r);padding:1.1rem">
+      <h2 style="font-size:1rem;color:var(--alert)">حذف الحساب</h2>
+      <p style="font-size:.85rem;margin:.4rem 0 .9rem">يعطّل حسابك ويجدول حذف بياناتك وصور وصفاتك. لا يمكن التراجع.</p>
+      <!-- TODO(api): POST /api/v1/auth/account/delete -->
+      <button class="btn btn-danger btn-full" onclick="armDelete(this)">احذف حسابي</button>
+      <div class="fold" hidden>
+        <label class="field"><span>اكتب <bdi>حذف</bdi> للتأكيد</span>
+          <input id="delWord" autocomplete="off" oninput="checkDelete()" /></label>
+        <button class="btn btn-danger btn-full" id="delGo" disabled onclick="doDelete(this)">احذف الحساب نهائياً</button>
+        <button class="btn btn-ghost btn-full" onclick="cancelDelete(this)">تراجع</button>
+      </div>
+    </div>
+    <button class="btn btn-ghost btn-full" style="margin-top:1rem" onclick="go('s-onboard')">تسجيل الخروج</button>
+  </div>
+  <div class="gap"></div>
+</section>
+
+<!--═══════════════════════════════════════════════════════════════════════════
+  6. شاشات الصيدلية — PHARMACIST SCREENS (داكنة)
+  الصيدلي هو المستخدم الحقيقي. الهدف: رد في أقل من ١٥ ثانية.
+═══════════════════════════════════════════════════════════════════════════-->
+
+<!-- ═════ 6.1 وارد الطلبات — INBOX ═════ -->
+<section class="scr" id="s-rx-inbox">
+  <div class="rx">
+    <header class="top">
+      <div class="top-row">
+        <div><div class="eyebrow">صيدلية الروابي · المنصور</div>
+        <h1 class="title">الطلبات</h1></div>
+        <span class="chip chip-ok">● تستقبل</span>
+      </div>
+      <p class="sub">قبل اختيار المريض: المنطقة التقريبية والدواء فقط — بلا اسم ولا هاتف ولا وصفة.</p>
+    </header>
+    <div class="pad">
+      <!-- TODO(api): GET /api/v1/pharmacy/inbox (polling أو SSE) -->
+      <article class="rx-card urgent">
+        <div class="rx-head">
+          <div><h2 class="rx-name"><bdi dir="ltr">Augmentin 625mg</bdi></h2>
+          <div class="rx-meta">المنصور · ٠.٨ كم · كمية ١ · يحتاجه الآن</div></div>
+          <span class="chip chip-warn">وصفة</span>
+        </div>
+        <div class="rx-q">
+          <button class="rx-yes" onclick="go('s-rx-offer')">متوفر — أرسل عرضاً</button>
+          <button class="rx-no" onclick="showReasons(this)">غير متوفر</button>
+        </div>
+      </article>
+
+      <article class="rx-card">
+        <div class="rx-head">
+          <div><h2 class="rx-name"><bdi dir="ltr">Metformin 500mg</bdi></h2>
+          <div class="rx-meta">اليرموك · ١.٩ كم · كمية ٢ · اليوم</div></div>
+        </div>
+        <div class="rx-q">
+          <button class="rx-yes" onclick="go('s-rx-offer')">متوفر — أرسل عرضاً</button>
+          <button class="rx-no" onclick="showReasons(this)">غير متوفر</button>
+        </div>
+      </article>
+      <div style="height:6rem"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 6.2 وارد فارغ — INBOX EMPTY ═════ -->
+<section class="scr" id="s-rx-empty">
+  <div class="rx">
+    <header class="top">
+      <div class="eyebrow">صيدلية الروابي</div>
+      <h1 class="title">الطلبات</h1>
+    </header>
+    <div class="pad">
+      <div class="rx-card" style="text-align:center;padding:2.2rem 1.2rem">
+        <span style="font-size:2.2rem" aria-hidden="true">🔔</span>
+        <b style="display:block;margin:.7rem 0 .35rem;color:#f0f6f4">ما في طلبات الآن</b>
+        <p style="font-size:.88rem">فرعك متصل. أول ما يوصل طلب قريب يظهر هنا فوراً.</p>
+      </div>
+      <div style="height:6rem"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 6.3 تركيب عرض — COMPOSE OFFER ═════
+     الهدف: أقل من ١٥ ثانية. أرقام فقط، لوحة مفاتيح رقمية، خيارات جاهزة. -->
+<section class="scr" id="s-rx-offer">
+  <div class="rx">
+    <header class="top">
+      <button class="back" style="color:#93a6a2" onclick="go('s-rx-inbox')">‹ الوارد</button>
+      <h1 class="title" style="margin-top:.5rem"><bdi dir="ltr">Augmentin 625mg</bdi></h1>
+      <p class="sub">إرسال العرض لا يحجز المخزون. الحجز يبدأ إذا اختارك المريض وأكّدت.</p>
+    </header>
+    <div class="pad">
+      <!-- TODO(api): POST /api/v1/pharmacy/inbox/:id/offers مع Idempotency-Key -->
+      <div class="field"><span>نوع الرد</span>
+        <div class="rx-chips">
+          <button aria-pressed="true"  onclick="pick(this)">مطابق</button>
+          <button aria-pressed="false" onclick="pick(this)">جزئي</button>
+          <button aria-pressed="false" onclick="pick(this)">قابل للطلب</button>
+        </div>
+      </div>
+      <div class="field-row">
+        <label class="field"><span>السعر (د.ع)</span>
+          <input dir="ltr" inputmode="numeric" placeholder="12000" /></label>
+        <label class="field"><span>الكمية</span>
+          <input dir="ltr" inputmode="numeric" value="1" /></label>
+      </div>
+      <div class="field"><span>الجاهزية</span>
+        <div class="rx-chips">
+          <button aria-pressed="true"  onclick="pick(this)">جاهز الآن</button>
+          <button aria-pressed="false" onclick="pick(this)">١٥ دقيقة</button>
+          <button aria-pressed="false" onclick="pick(this)">٣٠ دقيقة</button>
+        </div>
+      </div>
+      <label class="field"><span>ملاحظة (اختياري)</span>
+        <textarea maxlength="200" placeholder="مثلاً: العبوة الأصلية متوفرة"></textarea></label>
+      <label class="check"><input type="checkbox" />
+        <span>أؤكّد أن السعر والكمية صحيحة الآن، وأفهم أن العرض ليس حجزاً للمخزون.</span></label>
+      <button class="btn btn-p btn-full" onclick="go('s-rx-inbox')">أرسل العرض</button>
+      <div style="height:5rem"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 6.4 الحجوزات — RESERVATIONS ═════
+     دورة الحياة: بانتظار التأكيد ← محفوظ ← جاهز ← اكتمل -->
+<section class="scr" id="s-rx-holds">
+  <div class="rx">
+    <header class="top">
+      <div class="eyebrow">التنفيذ</div>
+      <h1 class="title">الحجوزات</h1>
+      <p class="sub">الحجز ما يبدأ حتى تؤكد حفظ الكمية. الوصفة تنفتح فقط أثناء الحفظ النشط.</p>
+    </header>
+    <div class="pad">
+      <article class="rx-card urgent" id="holdCard">
+        <div class="rx-head">
+          <div><h2 class="rx-name"><bdi dir="ltr">Augmentin 625mg</bdi></h2>
+          <div class="rx-meta">حجز <bdi dir="ltr">RSV-1190</bdi> · كمية ١ · <bdi dir="ltr">12,000</bdi> د.ع</div></div>
+          <span class="chip chip-warn" id="holdBadge">بانتظار تأكيدك</span>
+        </div>
+        <p style="font-size:.85rem;color:#d8b878" id="holdLine">
+          ⏱ مهلة التأكيد: <b style="font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate" id="holdCd">2:00</b></p>
+        <div class="rx-q" id="holdActions">
+          <!-- TODO(api): POST /api/v1/pharmacy/reservations/:id/acknowledge -->
+          <button class="rx-yes" onclick="holdStep('ack')">أكّد — الكمية محفوظة</button>
+          <button class="rx-no" onclick="holdStep('fail')">تعذّر الحفظ</button>
+        </div>
+      </article>
+      <div style="height:6rem"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 6.5 التوفر — INVENTORY ═════
+     دفتر حركات، ليس ERP: لا يوجد حقل كمية قابل للتعديل في أي مكان. -->
+<section class="scr" id="s-rx-stock">
+  <div class="rx">
+    <header class="top">
+      <div class="eyebrow">المخزون السلبي</div>
+      <h1 class="title">التوفر</h1>
+      <p class="sub">يتكوّن تلقائياً من البيع والشراء. لا مشروع إدخال بيانات.</p>
+    </header>
+    <div class="pad">
+      <article class="rx-card">
+        <div class="rx-head">
+          <div><h2 class="rx-name"><bdi dir="ltr">Metformin 500mg</bdi></h2>
+          <div class="rx-meta">١٤ علبة · آخر حركة قبل ساعتين</div></div>
+          <span class="chip chip-ok">موثوق</span>
+        </div>
+      </article>
+      <article class="rx-card">
+        <div class="rx-head">
+          <div><h2 class="rx-name"><bdi dir="ltr">Insulin Glargine</bdi></h2>
+          <div class="rx-meta">٣ علب · يحتاج جرد للتأكيد</div></div>
+          <span class="chip chip-n">غير كافٍ للتنبؤ</span>
+        </div>
+        <button class="btn btn-s btn-full" style="background:#1c302c;border-color:#24403b;color:#dfe9e6" onclick="countStock(this)">سجّل جرد</button>
+        <div class="fold" hidden>
+          <label class="field"><span>العدد الفعلي على الرف</span>
+            <input type="number" inputmode="numeric" min="0" value="3" /></label>
+          <button class="btn btn-p btn-full" onclick="submitCount(this)">سجّل العدّة</button>
+        </div>
+      </article>
+      <div style="height:6rem"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ═════ 6.6 لوحة الصيدلية — DASHBOARD ═════ -->
+<section class="scr" id="s-rx-dash">
+  <div class="rx">
+    <header class="top">
+      <div class="eyebrow">صيدلية الروابي</div>
+      <h1 class="title">فرعك اليوم</h1>
+      <p class="sub">أرقام تشغيلية خاصة بفرعك — ليست تقييمات علنية.</p>
+    </header>
+    <div class="rx-metrics">
+      <div class="rx-metric"><span>طلبات اليوم</span><b>١٤</b></div>
+      <div class="rx-metric"><span>بانتظار رد</span><b>٢</b></div>
+      <div class="rx-metric"><span>عروض أرسلتها</span><b>٩</b></div>
+      <div class="rx-metric"><span>استلام مكتمل</span><b>٦</b></div>
+    </div>
+    <div class="pad" style="margin-top:1rem">
+      <div class="rx-card">
+        <h2 style="font-size:1rem">أداء الفرع</h2>
+        <div class="rows">
+          <div class="row"><span style="color:#93a6a2">معدل الاستجابة</span><b style="color:#f0f6f4">٩٣٪</b></div>
+          <div class="row"><span style="color:#93a6a2">متوسط الرد</span><b style="color:#f0f6f4">٤ دقائق</b></div>
+          <div class="row"><span style="color:#93a6a2">حجوزات ناجحة</span><b style="color:#f0f6f4">٥٧</b></div>
+        </div>
+      </div>
+      <div style="height:6rem"></div>
+    </div>
+  </div>
+</section>
+
+</div><!-- /.app -->
+
+<!--═══════════════════════════════════════════════════════════════════════════
+  7. عناصر عائمة — OVERLAYS
+═══════════════════════════════════════════════════════════════════════════-->
+
+<!-- شريط الانتباه: واحد فقط، والأعلى أولوية يزيح الأدنى.
+
+     ربط المطالبة (claim binding): عندما يعرض هذا الشريط مخرجاً سريرياً، يحمل
+     مرجع المطالبة والعقد وإصدار المعرفة. الواجهة لا تقرر صحة المطالبة — هي
+     تعرض مخرجاً أنتجته طبقة عقد ومعرفة تم التحقق منها، لكنها تحمل المرجع كي
+     يستطيع مدقق أن ينتقل من الشاشة إلى المطالبة ومصدرها ومراجعها وإصدارها بلا
+     تخمين. القيم مُتحقَّق منها آلياً مقابل release-manifest.yaml عبر
+     tools/release/validate.mjs — مطالبة مسحوبة تظهر هنا تُفشل بوابة الإصدار. -->
+<div class="pill" id="pill" role="status"
+     data-clinical-claim="CLM-INT-IBU-WARF-001"
+     data-clinical-contract="interaction-check@2.1.0"
+     data-knowledge-release="2026.08.1">
+  <span class="pi" aria-hidden="true" id="pillIcon">✨</span>
+  <span class="pc"><strong id="pillTitle">عنوان</strong><span id="pillBody">تفاصيل</span></span>
+  <button class="pa" onclick="alert('يفتح المورد المرتبط')">عرض</button>
+  <button class="px" id="pillX" aria-label="إخفاء" onclick="hidePill()">✓</button>
+</div>
+
+<!-- ورقة إعادة الطلب: نقرتان، لأن التطبيق يعرف كل شيء أصلاً -->
+<div class="sheet" id="sheet">
+  <div class="scrim" onclick="closeSheet()"></div>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="shTitle">
+    <div class="grip" aria-hidden="true"></div>
+    <h2 id="shTitle" style="font-size:1.15rem">تطلبها من صيدلية الروابي؟</h2>
+    <p style="font-size:.88rem;margin-top:.4rem">صيدليتك المعتادة · ٠.٨ كم · آخر مرة كلّفتك <bdi dir="ltr">12,000</bdi> د.ع</p>
+    <div class="facts" style="margin:1rem 0">
+      <div class="fact"><span>الدواء</span><b id="shMed" style="font-size:.8rem">—</b></div>
+      <div class="fact"><span>الكمية</span><b>علبة</b></div>
+      <div class="fact"><span>الاستلام</span><b>أنت</b></div>
+    </div>
+    <button class="btn btn-p btn-full" onclick="closeSheet();go('s-live')">أرسل الطلب</button>
+    <button class="btn btn-ghost btn-full" style="margin-top:.4rem" onclick="closeSheet()">مو هسه</button>
+  </div>
+</div>
+
+<!-- التنقل السفلي: ٣ تبويبات فقط -->
+<nav class="nav" aria-label="التنقل">
+  <button id="n1" aria-current="page" onclick="go('s-home')"><span class="g" aria-hidden="true">💊</span>أدويتك</button>
+  <button id="n2" onclick="go('s-live')"><span class="g" aria-hidden="true">📡</span>الطلبات</button>
+  <button id="n3" onclick="go('s-account')"><span class="g" aria-hidden="true">👤</span>حسابك</button>
+</nav>
+
+<!-- شريط المطوّر — احذف هذا القسم بالكامل في الإنتاج -->
+<div class="dev" id="dev">
+  <b>مريض:</b>
+  <button onclick="go('s-onboard')">تشغيل أول</button>
+  <button class="on" onclick="go('s-home')">رئيسية</button>
+  <button onclick="go('s-home-empty')">فارغة</button>
+  <button onclick="go('s-home-loading')">تحميل</button>
+  <button onclick="go('s-home-error')">خطأ</button>
+  <button onclick="go('s-home-offline')">بلا نت</button>
+  <button onclick="go('s-capture')">التقاط</button>
+  <button onclick="go('s-newreq')">طلب جديد</button>
+  <button onclick="go('s-live')">مسرح حي</button>
+  <button onclick="go('s-offers')">عروض</button>
+  <button onclick="go('s-nooffers')">بلا عروض</button>
+  <button onclick="go('s-pass')">تذكرة</button>
+  <button onclick="go('s-pass-dead')">منتهية</button>
+  <button onclick="go('s-med')">دواء</button>
+  <button onclick="go('s-family')">عائلة</button>
+  <button onclick="go('s-notif')">إشعارات</button>
+  <button onclick="go('s-account')">حساب</button>
+  <b>صيدلية:</b>
+  <button onclick="go('s-rx-dash')">لوحة</button>
+  <button onclick="go('s-rx-inbox')">وارد</button>
+  <button onclick="go('s-rx-empty')">وارد فارغ</button>
+  <button onclick="go('s-rx-offer')">تركيب عرض</button>
+  <button onclick="go('s-rx-holds')">حجوزات</button>
+  <button onclick="go('s-rx-stock')">توفر</button>
+  <b>الانتباه:</b>
+  <button onclick="showPill('SEV_ALERT')">خطر</button>
+  <button onclick="showPill('ACTION_REQUIRED')">إجراء</button>
+  <button onclick="showPill('IN_PROGRESS')">جارٍ</button>
+  <button onclick="showPill('SUGGESTION')">اقتراح</button>
+  <button onclick="hidePill()">إخفاء</button>
+</div>
+
+<script>
+/*═══════════════════════════════════════════════════════════════════════════
+  8. المنطق — LOGIC
+  كل شيء هنا وهمي (MOCK). استبدله بنداءات API الحقيقية عند التطوير.
+═══════════════════════════════════════════════════════════════════════════*/
+const $ = (s) => document.querySelector(s);
+
+/* ── 8.1 التنقل بين الشاشات ── */
+function go(id){
+  document.querySelectorAll('.scr').forEach(s => s.classList.toggle('on', s.id === id));
+  // تمييز التبويب النشط
+  const tab = {s:'n1'};
+  document.querySelectorAll('.nav button').forEach(b => b.removeAttribute('aria-current'));
+  const isReq = ['s-live','s-offers','s-nooffers','s-pass','s-pass-dead','s-notif'].includes(id);
+  const isMe  = ['s-account','s-family'].includes(id);
+  const active = isReq ? 'n2' : isMe ? 'n3' : 'n1';
+  $('#'+active).setAttribute('aria-current','page');
+  // تمييز زر المطوّر
+  document.querySelectorAll('.dev button').forEach(b =>
+    b.classList.toggle('on', b.getAttribute('onclick') === `go('${id}')`));
+  window.scrollTo({ top: 0, behavior: 'instant' });
+  // المؤقتات تبدأ عند دخول الشاشة، لا عند تحميل التطبيق
+  if (id === 's-live')     startTheater();
+  if (id === 's-pass')     startPassTimer();
+  if (id === 's-rx-holds') startHoldTimer();
+}
+
+/* ── 8.2 وضع العائلة ── */
+function switchWho(btn, title, med){
+  document.querySelectorAll('.who button').forEach(b => b.setAttribute('aria-pressed','false'));
+  btn.setAttribute('aria-pressed','true');
+  $('#homeTitle').textContent = title;
+  $('#doseName').textContent = med;
+  // TODO(api): GET /api/v1/clinical/timeline?patientUserId=<id>
+}
+
+/* ── 8.3 تأكيد الجرعة ── */
+function takeDose(){
+  const c = $('#doseCard');
+  c.classList.add('done');
+  c.innerHTML = '<div><small>جرعة المساء</small><strong>سُجّلت ✓</strong></div>'
+              + '<span style="font-size:.8rem;opacity:.8">شكراً</span>';
+  // TODO(api): POST /api/v1/clinical/schedules/:id/events
+  // مهم: أرسل clientEventId ثابتاً لكل جرعة حتى لا تتضاعف عند إعادة الإرسال.
+}
+
+/* ── 8.4 تأجيل التذكير ── */
+function snoozeCard(btn){
+  const card = btn.closest('.med');
+  card.classList.remove('low');
+  card.querySelector('.cover b').textContent = 'أجّلنا التذكير أسبوعين';
+  card.querySelector('.med-act').remove();
+  // TODO(api): POST /api/v1/clinical/schedules/:id/snooze {days:14}
+}
+
+/* ── 8.5 ورقة إعادة الطلب ── */
+function openSheet(name){ $('#shMed').textContent = name; $('#sheet').classList.add('on'); }
+function closeSheet(){ $('#sheet').classList.remove('on'); }
+
+/* ── 8.6 عدّاد الكمية ── */
+function qty(delta){
+  const i = $('#qtyInput');
+  i.value = Math.min(20, Math.max(1, (Number(i.value) || 1) + delta));
+}
+
+/* ── 8.7 اختيار من مجموعة أزرار ── */
+function pick(btn){
+  btn.parentElement.querySelectorAll('button').forEach(b => b.setAttribute('aria-pressed','false'));
+  btn.setAttribute('aria-pressed','true');
+}
+
+/* ── 8.8 أسباب عدم التوفر (بيانات ثمينة للتوجيه لاحقاً) ── */
+function showReasons(btn){
+  const row = btn.parentElement;
+  if (row.dataset.done) return;
+  row.dataset.done = '1';
+  row.innerHTML = '';
+  row.style.gridTemplateColumns = 'repeat(3,1fr)';
+  ['نفد المخزون','لا نتعامل به','مغلق حالياً'].forEach(label => {
+    const b = document.createElement('button');
+    b.className = 'rx-no'; b.textContent = label;
+    b.onclick = () => {
+      // TODO(api): POST /api/v1/pharmacy/inbox/:id/decline {reason}
+      const card = row.closest('.rx-card');
+      row.remove();
+      const p = document.createElement('p');
+      p.style.cssText = 'font-size:.85rem;color:#8fb3a8;margin:0';
+      p.textContent = 'شكراً — سجّلنا السبب وسنحسّن توجيه الطلبات إليك.';
+      card.appendChild(p);
+    };
+    row.appendChild(b);
+  });
+}
+
+/* ── 8.9 مسرح الطلب الحي ── */
+let theaterOn = false;
+function startTheater(){
+  if (theaterOn) return; theaterOn = true;
+  // TODO(api): استبدل هذا بـ SSE أو WebSocket من الخادم
+  setTimeout(() => {
+    $('#ask1').className = 'asker replied';
+    $('#ask1').querySelector('.st').textContent = 'ردّت ✓';
+    $('#liveMsg').textContent = 'صيدلية الروابي عندها الدواء';
+    $('#liveSub').textContent = 'ننتظر ثانية حتى تقدر تقارن.';
+  }, 2200);
+  setTimeout(() => {
+    $('#ask2').className = 'asker open';
+    $('#ask2').querySelector('.st').textContent = 'فتحت الطلب';
+  }, 3400);
+  setTimeout(() => {
+    $('#ask2').className = 'asker replied';
+    $('#ask2').querySelector('.st').textContent = 'ردّت ✓';
+    $('#liveMsg').textContent = 'وصلك ردّان — تقدر تقارن';
+    $('#liveSub').textContent = '';
+    setTimeout(() => go('s-offers'), 900);
+  }, 5200);
+}
+
+/* ── 8.10 عدّاد التذكرة ──
+   في الإنتاج: احسب من hold_expires_at القادم من الخادم، لا من الجهاز. */
+let passOn = false;
+function startPassTimer(){
+  if (passOn) return; passOn = true;
+  let left = 14 * 60 + 32;
+  const t = setInterval(() => {
+    left = Math.max(0, left - 1);
+    $('#passCd').textContent =
+      String(Math.floor(left/60)).padStart(2,'0') + ':' + String(left%60).padStart(2,'0');
+    if (left === 0){ clearInterval(t); go('s-pass-dead'); }
+  }, 1000);
+}
+
+/* ── 8.11 دورة حياة الحجز (جهة الصيدلية) ── */
+let holdOn = false, holdTimer = null;
+function startHoldTimer(){
+  if (holdOn) return; holdOn = true;
+  runHoldCountdown(2 * 60);
+}
+function runHoldCountdown(seconds){
+  clearInterval(holdTimer);
+  let left = seconds;
+  holdTimer = setInterval(() => {
+    const el = $('#holdCd'); if (!el) { clearInterval(holdTimer); return; }
+    left = Math.max(0, left - 1);
+    el.textContent = Math.floor(left/60) + ':' + String(left%60).padStart(2,'0');
+    if (left === 0){ clearInterval(holdTimer); holdStep('expired'); }
+  }, 1000);
+}
+function holdStep(state){
+  const badge = $('#holdBadge'), line = $('#holdLine'), acts = $('#holdActions');
+  if (state === 'ack'){
+    badge.textContent = 'محفوظ'; badge.className = 'chip chip-ok';
+    line.innerHTML = '⏱ الحفظ النشط ينتهي خلال: <b style="font-variant-numeric:tabular-nums;direction:ltr;unicode-bidi:isolate" id="holdCd">15:00</b>';
+    acts.innerHTML = '<button class="rx-yes" onclick="holdStep(\'ready\')">الدواء جاهز</button>'
+                   + '<button class="rx-no" onclick="holdStep(\'fail\')">مشكلة بالتنفيذ</button>';
+    runHoldCountdown(15 * 60);
+    // TODO(api): POST /api/v1/pharmacy/reservations/:id/acknowledge
+  } else if (state === 'ready'){
+    clearInterval(holdTimer);
+    badge.textContent = 'جاهز'; badge.className = 'chip chip-ok';
+    line.textContent = '📦 بانتظار حضور المريض — أبقِ الكمية جانباً';
+    acts.innerHTML = '<button class="rx-yes" onclick="holdStep(\'done\')">تأكيد الاستلام</button>'
+                   + '<button class="rx-no" onclick="holdStep(\'noshow\')">لم يحضر</button>';
+  } else if (state === 'done'){
+    badge.textContent = 'اكتمل'; badge.className = 'chip chip-ok';
+    line.textContent = '✅ اكتمل الاستلام — انعكس على موثوقية فرعك';
+    acts.remove();
+  } else {
+    clearInterval(holdTimer);
+    badge.textContent = state === 'noshow' ? 'لم يحضر' : state === 'expired' ? 'انتهت المهلة' : 'تعذّر الحفظ';
+    badge.className = 'chip chip-n';
+    line.textContent = '↩️ رجع الطلب للمريض ليختار عرضاً آخر. الإبلاغ الصادق لا يضرّك.';
+    if (acts) acts.remove();
+  }
+}
+
+/* ── 8.12 شريط الانتباه ──
+   قاعدة صارمة: SEV_ALERT ليس له زر إغلاق. يُغلق بمعالجة سببه فقط. */
+const PILL = {
+  // المخرجات السريرية وحدها تحمل مرجع مطالبة. الشريط التشغيلي لا يحمل شيئاً،
+  // ولا يجوز أن يحمل — الربط يعني "هذا نص سريري خضع لمراجعة"، وإلصاقه بنص
+  // تشغيلي يُفرغ الربط من معناه.
+  SEV_ALERT:      { cls:'sev',  icon:'🛡️', title:'تعارض دوائي مهم',   body:'Ibuprofen مع Warfarin — يزيد خطر النزف. لا يُصرف قبل مراجعة الصيدلي.',
+                    claim:'CLM-INT-IBU-WARF-001', contract:'interaction-check@2.1.0', knowledge:'2026.08.1' },
+  ACTION_REQUIRED:{ cls:'act',  icon:'📋', title:'حقل يحتاج تأكيدك',  body:'ما قدرنا نقرأ الجرعة من الوصفة بوضوح.' },
+  IN_PROGRESS:    { cls:'prog', icon:'⏱',  title:'طلبك قيد الإرسال',  body:'وصل إلى ٣ صيدليات قريبة.' },
+  SUGGESTION:     { cls:'',     icon:'✨', title:'دواؤك قارب على الانتهاء', body:'Amlodipine تكفيك ٤ أيام.' },
+};
+function showPill(priority){
+  const cfg = PILL[priority]; if (!cfg) return;
+  const p = $('#pill');
+  p.className = 'pill on ' + cfg.cls;
+  p.setAttribute('role', priority === 'SEV_ALERT' ? 'alert' : 'status');
+  p.setAttribute('aria-live', priority === 'SEV_ALERT' ? 'assertive' : 'polite');
+  $('#pillIcon').textContent = cfg.icon;
+  $('#pillTitle').textContent = cfg.title;
+  $('#pillBody').textContent = cfg.body;
+  // مرجع المطالبة يتبع المحتوى: يُضاف مع المخرج السريري، ويُزال معه. مرجع
+  // متروك من حالة سابقة يجعل التدقيق يشير إلى المطالبة الخطأ — وهذا أسوأ من
+  // غياب المرجع، لأنه يبدو صحيحاً.
+  for (const [attr, key] of [['data-clinical-claim','claim'],
+                             ['data-clinical-contract','contract'],
+                             ['data-knowledge-release','knowledge']]) {
+    if (cfg[key]) p.setAttribute(attr, cfg[key]); else p.removeAttribute(attr);
+  }
+  // زر الإخفاء يُحذف تماماً في حالة الخطر — لا يُعطّل فقط
+  $('#pillX').style.display = priority === 'SEV_ALERT' ? 'none' : 'grid';
+}
+function hidePill(){ $('#pill').classList.remove('on'); }
+
+
+/* ── 8.14 أزرار كانت بلا معالج ──
+   زر بلا سلوك أسوأ من زر غائب: المستخدم يضغطه فيستنتج أن التطبيق معطّل، لا أن
+   الميزة غير جاهزة. كل واحد هنا يغيّر حالة حقيقية، ونقطة التكامل معلّمة. */
+function addToWallet(b){
+  b.disabled = true;
+  b.textContent = 'أُضيفت إلى Apple Wallet ✓';
+  b.style.color = 'var(--mint-3)';
+  // TODO(api): GET /api/v1/reservations/:id/pass.pkpass ثم location.href = url
+}
+function choosePharmacy(b){
+  const f = b.parentElement.querySelector('.fold');
+  f.hidden = !f.hidden;
+  b.textContent = f.hidden ? 'غيّر صيدليتك' : 'إلغاء';
+}
+function setPharmacy(b, name, meta){
+  const card = b.closest('.med') || b.closest('article');
+  card.querySelector('.med-name, h2').textContent = name;
+  card.querySelector('.med-sig, .sub').textContent = meta + ' · صيدليتك المعتادة الآن';
+  b.closest('.fold').hidden = true;
+  card.querySelector('.btn-s').textContent = 'غيّر صيدليتك';
+  // TODO(api): PUT /api/v1/me/preferred-pharmacy
+}
+function saveSettings(b){
+  b.disabled = true;
+  const was = b.textContent;
+  b.textContent = 'حُفظت ✓';
+  // الزر يعود قابلاً للضغط: حفظ يعطّل نفسه للأبد يمنع تعديلاً لاحقاً.
+  setTimeout(() => { b.disabled = false; b.textContent = was; }, 2200);
+  // TODO(api): PATCH /api/v1/me مع Idempotency-Key
+}
+function countStock(b){
+  const f = b.parentElement.querySelector('.fold');
+  f.hidden = !f.hidden;
+  if (!f.hidden) f.querySelector('input').focus();
+}
+/* الجرد حركة في السجل، لا تعديل لحقل كمية. عدّة تطابق السجل صالحة تماماً
+   وترفع الثقة — ولهذا لا يُشترط أن يختلف الرقم. */
+function submitCount(b){
+  const fold = b.closest('.fold');
+  const card = b.closest('article');
+  const n = fold.querySelector('input').value;
+  card.querySelector('.rx-meta').textContent = n + ' علب · جُردت الآن';
+  const chip = card.querySelector('.chip');
+  if (chip){ chip.textContent = 'ثقة كافية للتنبؤ'; chip.className = 'chip chip-ok'; }
+  fold.hidden = true;
+  card.querySelector('.btn-s').textContent = 'سجّل جرد';
+  // TODO(api): POST /api/v1/pharmacy/stock-movements {reason:'COUNT', countedQty}
+}
+
+
+/* ── 8.15 قرارات الخصوصية والحساب ──
+   كانت هذه alert() و confirm(). في الموافقة العائلية تحديداً، زر "أوافق"
+   يعرض رسالة ثم لا يمنح شيئاً هو كذب على المستخدم بشأن من يرى بياناته
+   الصحية — وهو أخطر من زر لا يعمل إطلاقاً، لأنه يبدو ناجحاً. */
+function grantAccess(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'ابنك · الاطلاع والطلب · مُنح الآن';
+  card.querySelector('.btn-row').remove();
+  const undo = document.createElement('button');
+  undo.className = 'btn btn-ghost btn-full';
+  undo.textContent = 'اسحب الوصول';
+  undo.onclick = () => armRevoke(undo);
+  const fold = document.createElement('div');
+  fold.className = 'fold'; fold.hidden = true;
+  fold.innerHTML = '<div class="btn-row">' +
+    '<button class="btn btn-danger" onclick="doRevoke(this)">أكّد السحب</button>' +
+    '<button class="btn btn-s" onclick="cancelRevoke(this)">تراجع</button></div>';
+  card.append(undo, fold);
+  // TODO(api): POST /api/v1/clinical/family/:id/grant {scope} مع Idempotency-Key
+}
+function denyAccess(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'رُفض الطلب · ما عنده أي وصول';
+  card.querySelector('.btn-row').remove();
+  card.style.opacity = '.6';
+  // TODO(api): POST /api/v1/clinical/family/:id/deny
+}
+/* السحب خطوتان: وصول عائلي بيانات صحية، وسحبه بنقرة واحدة خطأ بالاتجاه الآخر. */
+function armRevoke(b){
+  b.hidden = true;
+  b.closest('.med').querySelector('.fold').hidden = false;
+}
+function cancelRevoke(b){
+  const card = b.closest('.med');
+  card.querySelector('.fold').hidden = true;
+  card.querySelector('.btn-danger, .btn-ghost').hidden = false;
+}
+function doRevoke(b){
+  const card = b.closest('.med');
+  card.querySelector('.med-sig').textContent = 'سُحب الوصول — ما عادت تشوف أدويتك';
+  card.querySelector('.fold').remove();
+  const back = document.createElement('button');
+  back.className = 'btn btn-s btn-full';
+  back.textContent = 'أعِد الوصول';
+  back.onclick = () => {
+    card.querySelector('.med-sig').textContent = 'الاطلاع فقط · أُعيد الوصول الآن';
+    back.remove();
+    // TODO(api): POST /api/v1/clinical/family — رابط جديد، لا إحياء للقديم
+  };
+  card.appendChild(back);
+  // السحب لا يحذف السجل. الصلاحية تُبطَل والحدث يُدوَّن.
+  // TODO(api): POST /api/v1/clinical/family/:id/revoke
+}
+
+/* حذف الحساب مطلب متجر التطبيقات (5.1.1(v)). كان confirm() يرجع true ثم لا
+   يتبعه شيء — أسوأ حالة ممكنة: المستخدم يظن أنه حذف حسابه وهو لم يُحذف. */
+function armDelete(b){
+  b.hidden = true;
+  b.parentElement.querySelector('.fold').hidden = false;
+  $('#delWord').focus();
+}
+function cancelDelete(b){
+  const box = b.closest('.fold');
+  box.hidden = true;
+  $('#delWord').value = ''; $('#delGo').disabled = true;
+  box.parentElement.querySelector('.btn-danger').hidden = false;
+}
+// حاجز مقصود: الحذف لا رجعة فيه، فيُكتب لا يُنقر.
+function checkDelete(){ $('#delGo').disabled = $('#delWord').value.trim() !== 'حذف'; }
+function doDelete(b){
+  const box = b.closest('.fold').parentElement;
+  box.innerHTML = '<h2 style="font-size:1rem;color:var(--alert)">جُدول حذف حسابك</h2>' +
+    '<p style="font-size:.85rem;margin-top:.4rem">ينتهي خلال ٣٠ يوماً. تسجيل دخولك قبلها يلغي الحذف.</p>';
+  // TODO(api): POST /api/v1/auth/account/delete مع Idempotency-Key
+}
+
+function widenRadius(b){
+  b.disabled = true;
+  b.textContent = 'نبحث ضمن ٥ كم…';
+  // النتيجة تصل من الخادم؛ العرض هنا يمثّل الانتقال إلى حالة البحث الحية.
+  setTimeout(() => go('s-live'), 700);
+  // TODO(api): PATCH /api/v1/requests/:id {radiusKm: 5}
+}
+function stopTracking(b){
+  const row = b.parentElement;
+  row.innerHTML = '<span style="font-size:.85rem;color:var(--ink-3)">أوقفنا التتبع — ' +
+    'ما راح نذكّرك بهذا الدواء.</span>';
+  const undo = document.createElement('button');
+  undo.className = 'btn btn-s'; undo.textContent = 'تراجع';
+  undo.onclick = () => location.reload();
+  row.appendChild(undo);
+  // TODO(api): PATCH /api/v1/clinical/schedules/:id {active:false}
+  // ملاحظة سريرية: هذا إيقاف تذكير، لا إيقاف دواء. لا نقول "أوقفت الدواء".
+}
+
+/* ── 8.13 التحية حسب الوقت ── */
+const h = new Date().getHours();
+$('#greet').textContent = h < 12 ? 'صباح الخير' : h < 17 ? 'ظهر طيب' : 'مساء الخير';
+</script>
+</body>
+</html>
