@@ -189,6 +189,10 @@
   --cell-hot: 0 0 0 var(--rule-w) var(--signal);
   --glow: 0 0 0 1px var(--signal-30), 0 8px 40px -12px var(--signal-30);
 
+  /* lets height/width animate to and from auto, so a disclosure can open to
+     its own content height instead of faking it with a grid row */
+  interpolate-size: allow-keywords;
+
   --z-grid: 1; --z-sticky: 50; --z-drawer: 70; --z-hud: 80;
   --z-overlay: 90; --z-cursor: 100;
 }
@@ -593,6 +597,33 @@ select.ap-input{ background:var(--ground); }
 @keyframes apRipple{ from{ transform:scale(0.2); opacity:.55; } to{ transform:scale(2.6); opacity:0; } }
 @keyframes apSweep{ from{ transform:translateY(-100%); } to{ transform:translateY(400%); } }
 
+/* ── VIEW TRANSITIONS ────────────────────────────────────────────────────────
+   Retuning a token used to swap the whole page between one frame and the next.
+   The browser can hold a snapshot of the old state and cross-fade to the new
+   one, which turns a jump-cut into a wash — and reads as the system settling
+   rather than the page reloading. The chart and the reading are named, so they
+   morph in place instead of being caught up in the page-wide fade.
+   ─────────────────────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: no-preference){
+  ::view-transition-old(root),::view-transition-new(root){
+    animation-duration:var(--dur-3);
+    animation-timing-function:var(--ease);
+  }
+  #chart{ view-transition-name:ap-chart; }
+  #dashRead{ view-transition-name:ap-reading; }
+  ::view-transition-group(ap-chart),::view-transition-group(ap-reading){
+    animation-duration:var(--dur-3);
+    animation-timing-function:var(--ease);
+  }
+}
+/* reduced motion means the state simply changes; nothing crossfades */
+html[data-motion="reduced"] ::view-transition-group(*),
+html[data-motion="reduced"] ::view-transition-old(*),
+html[data-motion="reduced"] ::view-transition-new(*){ animation:none !important; }
+
+/* a long answer grows the field instead of hiding itself behind a scrollbar */
+textarea.ap-input{ field-sizing:content; max-height:44vh; }
+
 /* ── SCROLL REVEAL — CSS owns the animation, JS only adds a class.
       Content is visible by default, so a JS failure degrades to plain HTML. ─ */
 @media (prefers-reduced-motion: no-preference){
@@ -699,6 +730,21 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
   .ap-cursor{ display:none; }
 }
 
+.ap-head-rule{
+  position:absolute; inset-block-end:calc(var(--rule-w) * -1); inset-inline:0;
+  height:var(--rule-w); background:var(--signal);
+  transform:scaleX(0); transform-origin:right center;
+  transition:transform var(--dur-3) var(--ease);
+}
+
+/* A sticky header looks identical whether it is resting in the flow or
+   pinned over content. Stuck, it earns a firmer edge and tighter padding —
+   previously this needed a scroll listener; now the container answers. */
+@container scroll-state(stuck: top){
+  .ap-head-in{ padding-block:calc(var(--sp-4) * 0.72); }
+  .ap-head-rule{ transform:scaleX(1); }
+}
+
 /* ── SCROLL PROGRESS + VELOCITY ──────────────────────────────────────────── */
 .ap-progress{
   position:fixed; inset-block-start:0; inset-inline:0; height:3px;
@@ -709,9 +755,20 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
   transform-origin:right center; will-change:transform;
 }
 [dir="ltr"] .ap-progress-bar{ transform-origin:left center; }
+/* Driven by the scroll position itself rather than by a scroll listener, so
+   it advances on the compositor and costs the main thread nothing. */
+@supports (animation-timeline: scroll()){
+  .ap-progress-bar{
+    animation:apProgressGrow linear both;
+    animation-timeline:scroll(root block);
+  }
+  @keyframes apProgressGrow{ from{ transform:scaleX(0); } to{ transform:scaleX(1); } }
+}
 
 /* ── HEADER ──────────────────────────────────────────────────────────────── */
 .ap-head{
+  /* the header can be asked, in CSS, whether it is currently stuck */
+  container-type:scroll-state;
   position:sticky; inset-block-start:0; z-index:var(--z-sticky);
   background:color-mix(in srgb, var(--ground) 88%, transparent);
   /* on screen for the whole visit, so this blur is paid for on every scrolled
@@ -884,14 +941,21 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
 
 /* ── COMMAND PALETTE ─────────────────────────────────────────────────────── */
 .ap-cmd{
-  position:fixed; inset:0; z-index:var(--z-overlay); display:grid;
+  position:fixed; inset:0; z-index:var(--z-overlay);
   place-items:start center; padding:clamp(40px,12vh,140px) var(--sp-4) var(--sp-4);
   background:color-mix(in srgb, var(--ground) 72%, transparent);
   backdrop-filter:blur(8px);
-  opacity:0; pointer-events:none; visibility:hidden;
-  transition:opacity var(--dur-2) var(--ease), visibility 0s linear var(--dur-2);
+  /* Closed means display:none, not merely invisible — an overlay that is only
+     transparent still holds its place in the tab order. `allow-discrete` lets
+     display animate anyway, and @starting-style gives it something to enter
+     from, so nothing is traded away for the correctness. */
+  display:none; opacity:0;
+  transition:opacity var(--dur-2) var(--ease),
+             display var(--dur-2) allow-discrete,
+             overlay var(--dur-2) allow-discrete;
 }
-.ap-cmd.is-open{ opacity:1; pointer-events:auto; visibility:visible; transition-delay:0s; }
+.ap-cmd.is-open{ display:grid; opacity:1; }
+@starting-style{ .ap-cmd.is-open{ opacity:0; } }
 .ap-cmd-box{
   width:min(640px,100%); background:var(--ground);
   border:var(--rule-w) solid var(--signal);
@@ -926,12 +990,16 @@ html[data-cursor-mode="signature"] [data-cursor]{ cursor:none; }
 
 /* ── HELP / SHORTCUTS OVERLAY ────────────────────────────────────────────── */
 .ap-modal{
-  position:fixed; inset:0; z-index:var(--z-overlay); display:grid; place-items:center;
+  position:fixed; inset:0; z-index:var(--z-overlay); place-items:center;
   padding:var(--sp-4); background:color-mix(in srgb, var(--ground) 82%, transparent);
-  backdrop-filter:blur(10px); opacity:0; pointer-events:none; visibility:hidden;
-  transition:opacity var(--dur-2) var(--ease), visibility 0s linear var(--dur-2);
+  backdrop-filter:blur(10px);
+  display:none; opacity:0;
+  transition:opacity var(--dur-2) var(--ease),
+             display var(--dur-2) allow-discrete,
+             overlay var(--dur-2) allow-discrete;
 }
-.ap-modal.is-open{ opacity:1; pointer-events:auto; visibility:visible; transition-delay:0s; }
+.ap-modal.is-open{ display:grid; opacity:1; }
+@starting-style{ .ap-modal.is-open{ opacity:0; } }
 .ap-modal-box{
   width:min(720px,100%); max-height:84vh; overflow-y:auto;
   background:var(--ground); border:var(--rule-w) solid var(--rule);
@@ -2069,6 +2137,8 @@ tr[aria-selected="true"] .ap-mini path,tr:hover .ap-mini path{ stroke:var(--sign
     </nav>
 
     <span class="ap-head-spy" id="spy">SEC 00 · ENTRY</span>
+
+    <span class="ap-head-rule" aria-hidden="true"></span>
 
     <div class="ap-head-tools">
       <button class="ap-icon-btn" id="cmdOpen" type="button" aria-label="لوحة الأوامر (اضغط K)"
@@ -4076,6 +4146,15 @@ function driveFrame(now) {
 function addDriver(fn) { drivers.push(fn); }
 function wake() { if (!driverRaf) { driverLast = 0; driverRaf = requestAnimationFrame(driveFrame); } }
 
+/* Run a state change inside a view transition when the browser offers one.
+   The callback still does the ordinary DOM work — the browser handles holding
+   the old frame and crossfading to the new one. Falls back to calling it
+   directly, so nothing depends on the feature being present. */
+function withTransition(fn) {
+  if (motionOff() || !document.startViewTransition) { fn(); return; }
+  try { document.startViewTransition(fn); } catch (e) { fn(); }
+}
+
 var reduceQuery = window.matchMedia('(prefers-reduced-motion: reduce)');
 var lightQuery = window.matchMedia('(prefers-color-scheme: light)');
 var finePointer = window.matchMedia('(hover: hover) and (pointer: fine)');
@@ -4239,7 +4318,8 @@ function setAxis(axis, val, quiet) {
     if (!quiet) paletteLocked = true;   /* a deliberate pick pins the palette */
   }
   if (axis === 'grid') flashGrid();
-  applyAll();
+  /* the boot-time sync is silent and must not crossfade the first paint */
+  if (quiet) applyAll(); else withTransition(applyAll);
   if (!quiet) toast(axis.toUpperCase(), axisMessage(axis, val));
 }
 function axisMessage(axis, val) {
@@ -4574,13 +4654,16 @@ if ('IntersectionObserver' in window && SECTIONS.length) {
   SECTIONS.forEach(function (s) { spyIO.observe(s); });
 }
 
+/* where the browser can drive the progress bar off the scroll timeline, the
+   scroll handler stops writing to it altogether */
+var scrollTimeline = !!(window.CSS && CSS.supports && CSS.supports('animation-timeline: scroll()'));
 var lastY = 0, tickRate = 1, tickerEl = $('#ticker');
 var onScroll = raf(function () {
   var h = document.documentElement;
   var max = h.scrollHeight - h.clientHeight;
   var y = h.scrollTop;
   var p = max > 0 ? clamp(y / max, 0, 1) : 0;
-  if (progressEl) progressEl.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+  if (progressEl && !scrollTimeline) progressEl.style.transform = 'scaleX(' + p.toFixed(4) + ')';
 
   var dy = y - lastY;
   if (headEl) {
@@ -5131,6 +5214,7 @@ function firstVisit() {
 /* export a few things to the sibling scripts */
 window.__AP = {
   $: $, $$: $$, on: on, raf: raf, clamp: clamp, lerp: lerp, pad2: pad2, fmt: fmt,
+  withTransition: withTransition,
   mulberry: mulberry, motionOff: motionOff, toast: toast, easeOutCubic: easeOutCubic,
   observeReveals: observeReveals, initMagnets: initMagnets, sparkPath: sparkPath,
   buildSparks: buildSparks, finePointer: finePointer,
@@ -5199,7 +5283,7 @@ window.__AP.boot = function () {
 'use strict';
 var A = window.__AP;
 var $ = A.$, $$ = A.$$, on = A.on, clamp = A.clamp, pad2 = A.pad2, fmt = A.fmt;
-var toast = A.toast, motionOff = A.motionOff;
+var toast = A.toast, motionOff = A.motionOff, withTransition = A.withTransition;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    THE SYNTHETIC ACCOUNT
@@ -5319,7 +5403,7 @@ function paintKpis() {
   $$('.ap-kpi', wrap).forEach(function (b) {
     on(b, 'click', function () {
       DASH.metric = b.getAttribute('data-metric');
-      paintKpis(); paintChart(true); paintRead();
+      withTransition(function () { paintKpis(); paintChart(true); paintRead(); });
       toast('CHART', METRICS[DASH.metric].ar + ' — المنحنى وأرقام المقارنة تحدّثت.');
     });
   });
@@ -5651,7 +5735,7 @@ $$('#dashRange .seg-btn').forEach(function (b) {
   on(b, 'click', function () {
     DASH.range = +b.getAttribute('data-val');
     $$('#dashRange .seg-btn').forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-    refresh(true);
+    withTransition(function () { refresh(true); });
     toast('RANGE', 'المدى ' + DASH.range + ' يوماً — والمقارنة الآن مع الـ ' + DASH.range + ' يوماً التي قبلها.');
   });
 });
@@ -5659,7 +5743,7 @@ $$('#dashView .seg-btn').forEach(function (b) {
   on(b, 'click', function () {
     DASH.view = b.getAttribute('data-val');
     $$('#dashView .seg-btn').forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-    paintSide();
+    withTransition(paintSide);
   });
 });
 var camSel = $('#dashCampaign');
@@ -5890,7 +5974,7 @@ $$('#planScope .seg-btn').forEach(function (b) {
   on(b, 'click', function () {
     planScope = b.getAttribute('data-scope');
     $$('#planScope .seg-btn').forEach(function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
-    buildPlans();
+    withTransition(buildPlans);
     toast('PACKAGES', planScope === 'new'
       ? 'الآن ترى ما تضيفه كل حزمة فوق التي قبلها فقط — الفرق الحقيقي بين المستويات.'
       : 'كل حزمة تعرض ما تشمله كاملاً، بما فيه ما ورثته عن الحزمة الأدنى.');
@@ -5955,7 +6039,7 @@ A.boot();
 'use strict';
 var A = window.__AP;
 var $ = A.$, $$ = A.$$, on = A.on, clamp = A.clamp, lerp = A.lerp, pad2 = A.pad2;
-var toast = A.toast, motionOff = A.motionOff;
+var toast = A.toast, motionOff = A.motionOff, withTransition = A.withTransition;
 
 /* ═══════════════════════════════════════════════════════════════════════════
    TRANSFORMATION — nine cumulative design decisions
@@ -6879,10 +6963,12 @@ $$('#labTabs .seg-btn').forEach(function (b) {
   on(b, 'click', function () {
     var val = b.getAttribute('data-val');
     $$('#labTabs .seg-btn').forEach(function (x) { x.setAttribute('aria-selected', x === b ? 'true' : 'false'); });
-    $$('.ap-lab-pane').forEach(function (p) {
-      var on_ = p.id === 'pane-' + val;
-      p.classList.toggle('is-on', on_);
-      p.hidden = !on_;
+    withTransition(function () {
+      $$('.ap-lab-pane').forEach(function (p) {
+        var on_ = p.id === 'pane-' + val;
+        p.classList.toggle('is-on', on_);
+        p.hidden = !on_;
+      });
     });
     var st = $('#labState');
     if (st) st.textContent = val.toUpperCase() + ' · LIVE';
