@@ -1,55 +1,37 @@
 # ─────────────────────────────────────────────────────────────────────────────
-# Netlify — THIS BRANCH (claude/dawai-ui-review-6w4x26) publishes the DAWAI
-# app preview from dawai-site/. Other branches keep their own netlify.toml
-# (main/cursor point at public/adspulse); branch configs never collide.
+# Netlify — publishes the ADS PULSE site only (public/adspulse).
 #
-# `base` matters: pointing the build context at dawai-site means Netlify
-# finds no package.json, installs nothing, and simply uploads the folder.
+# `base` matters here: the repository root is the Adlytic Node app, whose
+# package.json runs `prisma generate` on postinstall. Pointing the build
+# context at public/adspulse means Netlify finds no package.json, installs
+# nothing, and simply uploads the folder. The app itself keeps deploying to
+# Railway from railway.toml — the two never touch.
+#
+# Paths below are relative to `base`, per Netlify's build settings.
 # ─────────────────────────────────────────────────────────────────────────────
 
 [build]
-  base    = "platform"
-  publish = "dist-web"
-  command = "npm ci && npm run build:web"
-  # The review build carries the mock API. Product asked for this directly: a
-  # missing backend must not stop the workflow being reviewed. Unset it and the
-  # module is never imported, so it never reaches the bundle.
-  environment = { VITE_MOCK_API = "1", NODE_VERSION = "22" }
-
-# Why the base changed from dawai-site: every deploy on this branch was being
-# CANCELLED, and the reason was here. Netlify skips a build when nothing inside
-# the base directory changed, and dawai-site/ has not been touched in months —
-# so the preview link kept showing an old static folder while the app it is
-# supposed to preview was never built at all.
-
-# ── routing ──────────────────────────────────────────────────────────────────
-# Vite's root is the platform directory, so the entry is emitted at the path it
-# occupies in the source tree. The dev server answers the front door with a
-# middleware; a static host cannot run middleware, so it does the same with a
-# rewrite. 200, not 301: the address stays the one the visitor typed.
-[[redirects]]
-  from   = "/"
-  to     = "/apps/patient/web/index.html"
-  status = 200
-
-# One page, one entry. The app owns its own navigation and reads nothing from
-# the URL. The mock answers /v1/ inside the page, so nothing needs to escape.
-[[redirects]]
-  from   = "/*"
-  to     = "/apps/patient/web/index.html"
-  status = 200
+  base    = "public/adspulse"
+  publish = "."
+  command = "echo 'Static site — no build step, no dependencies.'"
 
 # ── caching ──────────────────────────────────────────────────────────────────
-# The bundle carries a content hash and can be cached for a year; the document
-# names that bundle and must never be.
+# The font subsets are frozen: same glyphs, same filenames, forever.
 [[headers]]
-  for = "/assets/*"
+  for = "/assets/fonts/*"
   [headers.values]
     Cache-Control = "public, max-age=31536000, immutable"
 
-# The service worker must always be revalidated, or updates never reach users.
+# Images may be re-encoded one day, so a month rather than a year.
 [[headers]]
-  for = "/sw.js"
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=2592000"
+
+# The page carries all of its own markup, CSS and JS, so it must always be
+# revalidated — otherwise an edit ships but nobody sees it.
+[[headers]]
+  for = "/"
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
@@ -58,26 +40,11 @@
   [headers.values]
     Cache-Control = "public, max-age=0, must-revalidate"
 
-[[headers]]
-  for = "/manifest.webmanifest"
-  [headers.values]
-    Cache-Control = "public, max-age=0, must-revalidate"
-    Content-Type  = "application/manifest+json"
-
-[[headers]]
-  for = "/*.svg"
-  [headers.values]
-    Cache-Control = "public, max-age=2592000"
-
-# ── security ─────────────────────────────────────────────────────────────────
+# ── headers ──────────────────────────────────────────────────────────────────
 [[headers]]
   for = "/*"
   [headers.values]
     X-Content-Type-Options = "nosniff"
     Referrer-Policy        = "strict-origin-when-cross-origin"
     X-Frame-Options        = "SAMEORIGIN"
-    # R2 asks the patient to photograph a prescription, and camera=() would
-    # refuse it in a way no error message could explain. Geolocation stays
-    # denied: the product asks for a district rather than reading where anyone
-    # is.
-    Permissions-Policy     = "camera=(self), geolocation=(), microphone=()"
+    Permissions-Policy     = "geolocation=(), microphone=(), camera=()"
