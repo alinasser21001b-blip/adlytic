@@ -4137,9 +4137,19 @@ function raf(fn) {                       /* coalesce to one call per frame */
     id = requestAnimationFrame(function () { id = 0; fn.apply(null, last); });
   };
 }
+/* Grouped thousands, done by hand. toLocaleString builds an Intl.NumberFormat
+   per call, and the first one drags in the browser's whole ICU number pipeline
+   — seventy milliseconds of the boot budget on a mid-tier phone, to print a
+   price. The page only ever needs en-US grouping, which is a regex. */
 function fmt(n, d) {
   if (d === undefined) d = 0;
-  return Number(n).toLocaleString('en-US', { minimumFractionDigits: d, maximumFractionDigits: d });
+  var v = Number(n);
+  if (!isFinite(v)) return d > 0 ? (0).toFixed(d) : '0';
+  var neg = v < 0; if (neg) v = -v;
+  var s = v.toFixed(d);
+  var dot = s.indexOf('.');
+  var head = dot < 0 ? s : s.slice(0, dot), tail = dot < 0 ? '' : s.slice(dot);
+  return (neg ? '-' : '') + head.replace(/\B(?=(\d{3})+(?!\d))/g, ',') + tail;
 }
 /* a small seeded generator, so the "live" data is believable AND identical
    on every load — a dashboard that reshuffles on refresh reads as fake. */
@@ -4166,6 +4176,22 @@ function smooth(cur, target, factor, dt) {
    own loop plus a polling setInterval. It sleeps when nothing needs a frame,
    so an idle page costs nothing at all. */
 var drivers = [], driverRaf = 0, driverLast = 0;
+/* Scroll offsets, read once at the top of the frame and shared from there.
+   Reading scrollY *after* something has written to style forces the browser to
+   redo layout to answer — so a handler that reads it a second time pays for a
+   full relayout of the document. At the top of a frame the previous layout is
+   still clean and the read is free. */
+var pageY = 0, pageX = 0;
+function readScroll() {
+  pageY = window.scrollY || window.pageYOffset || 0;
+  pageX = window.scrollX || window.pageXOffset || 0;
+}
+readScroll();
+/* Taken in the scroll event, not in a frame callback. Events run before any of
+   this frame's rendering work, so the last layout is still valid and the read
+   is answered from it; the same read inside rAF lands after the handlers have
+   written and has to force layout to be truthful. */
+on(window, 'scroll', readScroll, { passive: true });
 function driveFrame(now) {
   var dt = driverLast ? Math.min(now - driverLast, 50) : 16.667;
   driverLast = now;
@@ -4307,13 +4333,54 @@ function applyAll() {
   st.setProperty('--t-measure', eff.measure + 'ch');
 
   syncControls();
-  paintHudCode();
-  paintSwatches();
-  paintSpecMeta();
-  paintMotionCode();
-  paintSpaceRamp();
-  save();
+  scheduleReadouts();
+  saveSoon();
 }
+
+/* Writing the axes above invalidates style for the whole document. The five
+   readouts then read computed style back — and each one wrote innerHTML before
+   the next one read, so every pass forced the browser to recompute the style it
+   had just been told to discard, four times over. They are now a single pass:
+   read every token once, then write. And because the pass is scheduled rather
+   than immediate, dragging a slider repaints the readouts once per frame
+   instead of once per input event — `input` fires faster than the screen. */
+var READ_TOKENS = ['--ground', '--ground-2', '--ink', '--signal', '--signal-text',
+  '--signal-plate', '--signal-ink', '--density-mult', '--motion-mult', '--rule-w',
+  '--dur-1', '--dur-2', '--dur-3', '--dur-4', '--lift', '--ease',
+  '--sp-1', '--sp-2', '--sp-3', '--sp-4', '--sp-6', '--sp-8', '--sp-12', '--sp-16'];
+var readoutId = 0;
+function paintReadouts() {
+  readoutId = 0;
+  var cs = getComputedStyle(root), T = {};
+  for (var i = 0; i < READ_TOKENS.length; i++) T[READ_TOKENS[i]] = cs.getPropertyValue(READ_TOKENS[i]).trim();
+  paintHudCode(T);
+  paintSwatches(T);
+  paintSpecMeta();
+  paintMotionCode(T);
+  paintSpaceRamp(T);
+}
+/* During interaction the readouts must keep up with the frame. At boot nothing
+   is reading them yet — the HUD is closed and the labs are below the fold — so
+   the first pass waits for idle instead of competing with the first paint. */
+var booted = false;
+function scheduleReadouts() {
+  if (readoutId) return;
+  if (!booted && window.requestIdleCallback) {
+    readoutId = requestIdleCallback(paintReadouts, { timeout: 2000 });
+    return;
+  }
+  readoutId = requestAnimationFrame(paintReadouts);
+}
+/* localStorage.setItem is synchronous main-thread I/O. At one call per input
+   event a slider drag serialised and wrote the whole state object sixty times
+   a second; the trailing write is the only one that mattered. */
+var saveTimer = 0;
+function saveSoon() { clearTimeout(saveTimer); saveTimer = setTimeout(save, 400); }
+/* a debounced write must not lose the last change when the tab goes away */
+on(window, 'pagehide', function () { clearTimeout(saveTimer); save(); });
+on(document, 'visibilitychange', function () {
+  if (document.visibilityState === 'hidden') { clearTimeout(saveTimer); save(); }
+});
 
 /* keep every control in the page — HUD, labs, palette grid — in agreement */
 function syncControls() {
@@ -4424,10 +4491,9 @@ function setFlag(flag, on) {
 }
 
 /* the live token dump — the site reporting its own state */
-function paintHudCode() {
+function paintHudCode(T) {
   var el = $('#hudCode'); if (!el) return;
-  var cs = getComputedStyle(root);
-  function g(n) { return cs.getPropertyValue(n).trim(); }
+  function g(n) { return T[n]; }
   el.innerHTML =
     ':root{\n' +
     '  --ground: <b>' + g('--ground') + '</b>\n' +
@@ -4445,27 +4511,34 @@ function paintHudCode() {
   if (rep) rep.textContent = AXES.palette.toUpperCase() + ' · ' + AXES.density.toUpperCase() +
     ' · ' + AXES.motion.toUpperCase() + ' · ' + AXES.grid.toUpperCase();
 }
-function paintMotionCode() {
+function paintMotionCode(T) {
   var el = $('#motionCode'); if (!el) return;
-  var cs = getComputedStyle(root);
   el.innerHTML =
-    '--motion-mult: <b>' + cs.getPropertyValue('--motion-mult').trim() + '</b>\n' +
-    '--dur-1: <b>' + cs.getPropertyValue('--dur-1').trim() + '</b>\n' +
-    '--dur-3: <b>' + cs.getPropertyValue('--dur-3').trim() + '</b>\n' +
-    '--dur-4: <b>' + cs.getPropertyValue('--dur-4').trim() + '</b>\n' +
-    '--lift: <b>' + cs.getPropertyValue('--lift').trim() + '</b>\n' +
-    '--ease: <b>' + cs.getPropertyValue('--ease').trim() + '</b>';
+    '--motion-mult: <b>' + T['--motion-mult'] + '</b>\n' +
+    '--dur-1: <b>' + T['--dur-1'] + '</b>\n' +
+    '--dur-3: <b>' + T['--dur-3'] + '</b>\n' +
+    '--dur-4: <b>' + T['--dur-4'] + '</b>\n' +
+    '--lift: <b>' + T['--lift'] + '</b>\n' +
+    '--ease: <b>' + T['--ease'] + '</b>';
 }
 
 /* ── contrast maths, so the colour lab can measure instead of claim ─────── */
+/* Memoised, and against one probe kept in the tree. Each call used to append a
+   div to the body, read its computed colour and remove it again — six swatches
+   × two colours each, twelve layout-invalidating DOM mutations per repaint,
+   for what is a pure function of the string handed in. Every colour the
+   swatches resolve is a literal hex, so the string is a sound cache key. */
+var colorCache = {}, colorProbe = null;
 function parseColor(str) {
-  var d = document.createElement('div');
-  d.style.color = str; d.style.display = 'none';
-  document.body.appendChild(d);
-  var c = getComputedStyle(d).color;
-  document.body.removeChild(d);
-  var m = c.match(/[\d.]+/g);
-  return m ? [+m[0], +m[1], +m[2]] : [0, 0, 0];
+  if (colorCache[str]) return colorCache[str];
+  if (!colorProbe) {
+    colorProbe = document.createElement('div');
+    colorProbe.style.display = 'none';
+    document.body.appendChild(colorProbe);
+  }
+  colorProbe.style.color = str;
+  var m = getComputedStyle(colorProbe).color.match(/[\d.]+/g);
+  return (colorCache[str] = m ? [+m[0], +m[1], +m[2]] : [0, 0, 0]);
 }
 function relLum(rgb) {
   var a = rgb.map(function (v) {
@@ -4480,16 +4553,15 @@ function contrast(a, b) {
 }
 function grade(r) { return r >= 7 ? 'AAA' : r >= 4.5 ? 'AA' : r >= 3 ? 'AA18' : 'FAIL'; }
 
-function paintSwatches() {
+function paintSwatches(T) {
   var wrap = $('#swatches'); if (!wrap) return;
-  var cs = getComputedStyle(root);
-  var ground = cs.getPropertyValue('--ground').trim();
-  var ink = cs.getPropertyValue('--ink').trim();
-  var signal = cs.getPropertyValue('--signal').trim();
-  var signalText = cs.getPropertyValue('--signal-text').trim();
-  var signalPlate = cs.getPropertyValue('--signal-plate').trim();
-  var signalInk = cs.getPropertyValue('--signal-ink').trim();
-  var ground2 = cs.getPropertyValue('--ground-2').trim();
+  var ground = T['--ground'];
+  var ink = T['--ink'];
+  var signal = T['--signal'];
+  var signalText = T['--signal-text'];
+  var signalPlate = T['--signal-plate'];
+  var signalInk = T['--signal-ink'];
+  var ground2 = T['--ground-2'];
   var roles = [
     { n: 'GROUND', v: ground, bg: ground, fg: ink, against: ink, label: 'INK ON GROUND' },
     { n: 'SURFACE', v: ground2, bg: ground2, fg: ink, against: ink, label: 'INK ON SURFACE' },
@@ -4539,12 +4611,11 @@ function paintSpecMeta() {
     el.textContent = size + 'PX / ' + w + (k === 'b' ? ' / ' + eff.measure + 'CH' : '');
   });
 }
-function paintSpaceRamp() {
+function paintSpaceRamp(T) {
   var wrap = $('#spaceRamp'); if (!wrap) return;
-  var cs = getComputedStyle(root);
   var steps = [1, 2, 3, 4, 6, 8, 12, 16];
   wrap.innerHTML = steps.map(function (s) {
-    var v = Math.round(parseFloat(cs.getPropertyValue('--sp-' + s)) || 0);
+    var v = Math.round(parseFloat(T['--sp-' + s]) || 0);
     return '<div class="ap-space-row"><span class="ap-mono" style="min-width:52px">SP-' + s + '</span>' +
       '<span class="ap-space-bar" style="width:' + Math.min(v, 200) + 'px"></span>' +
       '<span class="ap-mono" style="color:var(--signal)">' + v + 'PX</span></div>';
@@ -4610,7 +4681,13 @@ function markRevealed(el) {
 if ('IntersectionObserver' in window) {
   revealIO = new IntersectionObserver(function (entries) {
     entries.forEach(function (en) { if (en.isIntersecting) markRevealed(en.target); });
-  }, { rootMargin: '0px 0px -10% 0px', threshold: 0.1 });
+    /* threshold 0, not 0.1. A fraction-of-the-target threshold asks a section
+       taller than the viewport to show a tenth of itself before it counts as
+       arrived — which its top edge can never do, so the tallest blocks on the
+       page stayed at opacity 0 until something else swept them in. The bottom
+       inset already says what we mean: reveal once the top edge rises into the
+       upper ninety percent of the screen, whatever the element's height. */
+  }, { rootMargin: '0px 0px -10% 0px', threshold: 0 });
 }
 /* Containers whose children should arrive one after another rather than as a
    block. Re-run after any rebuild, because most of these are filled by JS. */
@@ -4650,17 +4727,30 @@ function observeReveals() {
    CTA, the command palette — and the browser renders it without any further
    scrolling, so the observer is never re-consulted and the content stays at
    opacity 0. This sweep re-checks whatever is still hidden and reveals
-   anything that now has a box inside the viewport. The list only shrinks,
-   so it costs nothing once the page has been read through. */
-function revealCatchUp() {
+   anything that now has a box inside the viewport.
+
+   Two things this got wrong. It measured and revealed in the same loop, and
+   markRevealed() writes a class — so every read after the first write forced a
+   full layout of a fifteen-thousand-pixel document, once per element still
+   pending. And it ran on the scroll path, where the observer already does the
+   job correctly; the sweep is only ever needed after a jump. Now: read all the
+   boxes, then apply all the classes, and off a jump run it immediately while
+   ordinary scrolling gets a throttled safety net. */
+var lastCatchUp = 0;
+function revealCatchUp(force) {
   if (!pendingReveals.length) return;
-  var vh = window.innerHeight || 800;
-  pendingReveals = pendingReveals.filter(function (el) {
-    if (el.classList.contains('is-in')) return false;
+  var now = performance.now();
+  if (!force && now - lastCatchUp < 180) return;
+  lastCatchUp = now;
+  var vh = window.innerHeight || 800, hit = [], still = [], i;
+  for (i = 0; i < pendingReveals.length; i++) {
+    var el = pendingReveals[i];
+    if (el.classList.contains('is-in')) continue;
     var r = el.getBoundingClientRect();
-    if (r.height > 0 && r.top < vh * 0.94) { markRevealed(el); return false; }
-    return true;
-  });
+    if (r.height > 0 && r.top < vh * 0.94) hit.push(el); else still.push(el);
+  }
+  pendingReveals = still;
+  for (i = 0; i < hit.length; i++) markRevealed(hit[i]);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -4717,12 +4807,28 @@ if ('IntersectionObserver' in window && SECTIONS.length) {
    scroll handler stops writing to it altogether */
 var scrollTimeline = !!(window.CSS && CSS.supports && CSS.supports('animation-timeline: scroll()'));
 var lastY = 0, tickRate = 1, tickerEl = $('#ticker');
+/* The scrollable distance is a property of the document, not of the scroll —
+   it changes when the page reflows and at no other time. Reading scrollHeight
+   every frame forced a full layout of a page that defers most of its own
+   layout, which is the most expensive question you can ask it. */
+var docMax = 0, docGeom = false;
+function measureDoc() {
+  var h = document.documentElement;
+  docMax = h.scrollHeight - h.clientHeight;
+  docGeom = true;
+}
+on(window, 'resize', function () { docGeom = false; });
+if (window.ResizeObserver) new ResizeObserver(function () { docGeom = false; }).observe(document.body);
 var onScroll = raf(function () {
   var h = document.documentElement;
-  var max = h.scrollHeight - h.clientHeight;
   var y = h.scrollTop;
-  var p = max > 0 ? clamp(y / max, 0, 1) : 0;
-  if (progressEl && !scrollTimeline) progressEl.style.transform = 'scaleX(' + p.toFixed(4) + ')';
+  /* where the browser drives the bar off the scroll timeline, the denominator
+     is never needed and the layout it would force is never paid for */
+  if (progressEl && !scrollTimeline) {
+    if (!docGeom) measureDoc();
+    progressEl.style.transform =
+      'scaleX(' + (docMax > 0 ? clamp(y / docMax, 0, 1) : 0).toFixed(4) + ')';
+  }
 
   var dy = y - lastY;
   if (headEl) {
@@ -4736,9 +4842,13 @@ var onScroll = raf(function () {
     wake();
   }
   lastY = y;
-  revealCatchUp();
-  methodRail();
-  scrollLabTiles();
+  /* no reveal sweep here: the observer handles anything that scrolls into
+     view, and measuring on the scroll path cost a forced full-document
+     layout per frame. The sweep is only needed after a jump, where the
+     observer cannot fire because the target had no box to intersect. */
+  pageY = y;
+  methodRail(y);
+  scrollLabTiles(y);
 });
 on(window, 'scroll', onScroll, { passive: true });
 on(window, 'resize', onScroll);
@@ -4750,13 +4860,30 @@ addDriver(function (dt) {
   return true;
 });
 
-function methodRail() {
-  var rail = $('#methodRail'), sec = $('#capabilities');
-  if (!rail || !sec) return;
-  var r = sec.getBoundingClientRect();
-  var seen = clamp((window.innerHeight * 0.85 - r.top) / (r.height * 0.75), 0, 1);
-  rail.style.transform = 'scaleX(' + seen.toFixed(3) + ')';
+/* Called once per scroll frame. It used to re-query both elements and measure
+   the section every time — two selector walks and a forced layout of the whole
+   document, to compute a number that only depends on how far the page has been
+   scrolled. The section's own box changes on resize and reflow, not on scroll,
+   so it is measured then and the frame is left with arithmetic. */
+var railEl, railSec, railTop = 0, railH = 1, railGeom = false;
+function measureRail() {
+  railEl = railEl || $('#methodRail');
+  railSec = railSec || $('#capabilities');
+  if (!railSec) return;
+  var r = railSec.getBoundingClientRect();
+  railTop = r.top + pageY;
+  railH = r.height || 1;
+  railGeom = true;
 }
+function methodRail(y) {
+  if (!railGeom) measureRail();
+  if (!railEl || !railSec) return;
+  var top = railTop - (y === undefined ? pageY : y);
+  var seen = clamp((window.innerHeight * 0.85 - top) / (railH * 0.75), 0, 1);
+  railEl.style.transform = 'scaleX(' + seen.toFixed(3) + ')';
+}
+on(window, 'resize', function () { railGeom = false; });
+if (window.ResizeObserver) new ResizeObserver(function () { railGeom = false; }).observe(document.body);
 
 /* ── navigating to a section ─────────────────────────────────────────────────
    `content-visibility: auto` means the sections below the viewport have not
@@ -4776,7 +4903,7 @@ function dropDefer() {
   deferDropped = true;
   root.setAttribute('data-nodefer', '1');
   void document.body.offsetHeight;     /* lay it all out before we take aim */
-  revealCatchUp();
+  revealCatchUp(true);
 }
 function scrollToEl(target) {
   if (!target) return;
@@ -4797,7 +4924,7 @@ function scrollToEl(target) {
     tries++;
     timer = setTimeout(function () {
       if (aborted) return;
-      revealCatchUp();
+      revealCatchUp(true);
       if (tries < 16 && !arrived()) return pass();
       window.removeEventListener('wheel', abort);
       window.removeEventListener('touchstart', abort);
@@ -4838,6 +4965,10 @@ tickClock(); setInterval(tickClock, 20000);
    ═══════════════════════════════════════════════════════════════════════════ */
 var cursor = $('#cursor');
 var cx = window.innerWidth / 2, cy = window.innerHeight / 2, rx = cx, ry = cy;
+/* Until the pointer actually moves, no magnet can be within reach of it, so
+   there is nothing to measure. Boot reflows were flipping the geometry stale
+   dozens of times and each one bought a forced layout the cursor never used. */
+var pointerMoved = false;
 var cursorLive = false, cursorRaf = 0;
 var cLabel = cursor ? $('.ap-cursor-label', cursor) : null;
 
@@ -4856,6 +4987,7 @@ addDriver(function (dt) {
 function kickCursor() { wake(); }
 
 on(window, 'pointermove', function (e) {
+  pointerMoved = true;
   cx = e.clientX; cy = e.clientY;
   wake();
   if (!cursorEnabled()) return;
@@ -4898,24 +5030,36 @@ function initMagnets() {
 /* Geometry is read once and cached. Measuring inside pointermove forced a
    synchronous layout on every move event, for every magnet. */
 var geomStale = true;
+/* Anchors are stored in *document* space. Scrolling moves a magnet on screen
+   but not on the page, so the old code — which invalidated on every scroll
+   event and re-read every magnet's box on the next frame — was paying a forced
+   layout per frame to recompute numbers that had not changed. Only a resize or
+   a reflow can actually move them; scrolling is now just a subtraction. */
 function measureMagnets() {
+  var sx = window.scrollX || window.pageXOffset || 0;
+  var sy = window.scrollY || window.pageYOffset || 0;
   magnets.forEach(function (m) {
     var r = m.el.getBoundingClientRect();
     /* add back the offset already applied, so the anchor never drifts */
-    m.ax = r.left + r.width / 2 + m.x;
-    m.ay = r.top + r.height / 2 + m.y;
+    m.ax = r.left + sx + r.width / 2 + m.x;
+    m.ay = r.top + sy + r.height / 2 + m.y;
     m.reach = Math.max(r.width, r.height) * 1.55 + 40;
   });
   geomStale = false;
 }
 addDriver(function (dt) {
-  if (!magnets.length || motionOff() || !finePointer.matches) return false;
+  if (!magnets.length || motionOff() || !finePointer.matches || !pointerMoved) return false;
   if (geomStale) measureMagnets();
   var live = false;
+  var sx = pageX, sy = pageY;
   for (var i = 0; i < magnets.length; i++) {
     var m = magnets[i];
-    var dx = cx - m.ax, dy = cy - m.ay;
-    var dist = Math.sqrt(dx * dx + dy * dy);
+    var dx = cx - (m.ax - sx), dy = cy - (m.ay - sy);
+    /* square-compare first: most magnets on a long page are nowhere near the
+       cursor, and a rejected one should not cost a square root */
+    var d2 = dx * dx + dy * dy, reach2 = m.reach * m.reach;
+    if (d2 > reach2 && !m.on) continue;
+    var dist = Math.sqrt(d2);
     var pull = dist < m.reach ? (1 - dist / m.reach) : 0;
     m.x = smooth(m.x, dx * pull * m.s, 0.26, dt);
     m.y = smooth(m.y, dy * pull * m.s, 0.26, dt);
@@ -4929,8 +5073,12 @@ addDriver(function (dt) {
   }
   return live;
 });
-on(window, 'scroll', function () { geomStale = true; }, { passive: true });
 on(window, 'resize', function () { geomStale = true; });
+/* Document-space anchors survive scrolling, but not a reflow — and this page
+   reflows as it is read, because content-visibility gives real heights to
+   sections only as they approach. Watch the document box instead of polling:
+   it fires exactly when the geometry below actually moved. */
+if (window.ResizeObserver) new ResizeObserver(function () { geomStale = true; }).observe(document.body);
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DRAWER
@@ -5300,17 +5448,44 @@ function firstVisit() {
 }
 
 /* export a few things to the sibling scripts */
+/* Run once, when the element is within a screen of the viewport.
+   The labs each measured and painted themselves at boot — a getBoundingClientRect
+   on a stage eight thousand pixels below the fold, a canvas sized, a chart drawn.
+   All of it landed in the same blocking stretch as the first paint, and none of
+   it was visible. Deferring is only correct because these are self-contained
+   readouts: nothing above the fold reads their output. Bindings still happen at
+   boot, so a control that is reached early still responds. */
+function idle(fn, timeout) {
+  if (window.requestIdleCallback) requestIdleCallback(fn, { timeout: timeout || 800 });
+  else setTimeout(fn, 1);
+}
+function whenNear(el, fn) {
+  if (!el || !('IntersectionObserver' in window)) { fn(); return; }
+  var io = new IntersectionObserver(function (entries) {
+    if (!entries[0].isIntersecting) return;
+    io.disconnect();
+    /* Intersection fires inside the frame that scrolled, so running the work
+       here just moves the stall from boot to the scroll — worse, because the
+       visitor is reading. Hand it to idle instead, with a deadline so it still
+       lands well before the section arrives; a screen and a half of runway is
+       enough for that to be invisible. */
+    idle(fn, 700);
+  }, { rootMargin: '150% 0px' });
+  io.observe(el);
+}
 window.__AP = {
   $: $, $$: $$, on: on, raf: raf, clamp: clamp, lerp: lerp, pad2: pad2, fmt: fmt,
-  withTransition: withTransition,
+  withTransition: withTransition, whenNear: whenNear, idle: idle,
+  scrollY: function () { return pageY; },
   mulberry: mulberry, motionOff: motionOff, toast: toast, easeOutCubic: easeOutCubic,
   observeReveals: observeReveals, initMagnets: initMagnets, sparkPath: sparkPath,
   buildSparks: buildSparks, finePointer: finePointer,
   onReady: [],
   scrollHooks: []
 };
-function scrollLabTiles() {
-  window.__AP.scrollHooks.forEach(function (fn) { try { fn(); } catch (e) {} });
+function scrollLabTiles(y) {
+  var hooks = window.__AP.scrollHooks;
+  for (var i = 0; i < hooks.length; i++) { try { hooks[i](y === undefined ? pageY : y); } catch (e) {} }
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -5345,17 +5520,21 @@ firstVisit();
 /* a deep link lands mid-page before anything below has been laid out, so it
    needs the same re-aiming a click gets */
 on(window, 'load', function () {
-  setTimeout(revealCatchUp, 200);
+  /* Only a jump can strand a reveal — an ordinary load leaves every section to
+     the observer, and sweeping anyway costs a forced layout of the whole
+     document for nothing. */
+  if (location.hash) setTimeout(function () { revealCatchUp(true); }, 200);
   if (location.hash) {
     var t = document.getElementById(location.hash.slice(1));
     if (t) scrollToEl(t);
   }
 });
+on(window, 'load', function () { booted = true; });
 on(window, 'hashchange', function () {
   var t = document.getElementById(location.hash.slice(1));
   if (t) scrollToEl(t);
 });
-setTimeout(revealCatchUp, 1200);
+setTimeout(function () { if (deferDropped || location.hash) revealCatchUp(true); }, 1200);
 
 window.__AP.boot = function () {
   observeReveals();
@@ -6114,12 +6293,32 @@ buildMethod();
 buildPlans();
 buildFaq();
 buildIdx();
-refresh(false);
+/* the whole dashboard — KPIs, chart geometry, table, generated reading — used
+   to be painted during boot, while it sat a screen and a half below the fold */
+A.whenNear($('.ap-dash'), function () {
+  /* even at idle this is too much for one frame on a slow phone — the chart
+     geometry and the table are each a full pass over the series. Split them
+     so no single slice can overrun a frame. */
+  paintKpis(); paintChart(false);
+  A.idle(function () { paintSide(); paintTable(); paintRead(); hideChartPoint(); }, 500);
+});
 
-/* the chart animates in only when it is actually on screen */
+/* The chart draws itself in only once it is actually on screen. It used to get
+   there by calling paintChart(true) — a second full pass over six campaigns and
+   thirty days, re-deriving geometry identical to what was already on screen, so
+   that one CSS class could be added. The path is already in the DOM; animating
+   it is a class and a length, and that is all this does now. */
+function drawChartIn() {
+  var path = $('#seriePath');
+  if (!path) { paintChart(true); return; }        /* not painted yet — do it properly */
+  if (motionOff()) return;
+  if (path.getTotalLength) path.style.setProperty('--len', path.getTotalLength());
+  path.classList.add('draw');
+  requestAnimationFrame(function () { path.classList.add('is-in'); });
+}
 if ('IntersectionObserver' in window && chart) {
   var chIO = new IntersectionObserver(function (es) {
-    es.forEach(function (e) { if (e.isIntersecting) { paintChart(true); chIO.disconnect(); } });
+    es.forEach(function (e) { if (e.isIntersecting) { chIO.disconnect(); A.idle(drawChartIn, 300); } });
   }, { threshold: 0.25 });
   chIO.observe(chart);
 }
@@ -6404,7 +6603,9 @@ $$('#rlPresets .seg-btn').forEach(function (b) {
   on(b, 'click', function () { rlSet(+b.getAttribute('data-w')); });
 });
 on(window, 'resize', A.raf(function () { rlSet(rlW, true); }));
-rlSet(1280, true);
+/* the opening state needs the frame's real width, and measuring it at boot
+   forced a layout of the whole document before anything had been painted */
+A.whenNear(rlFrame, function () { rlSet(1280, true); });
 
 /* ═══════════════════════════════════════════════════════════════════════════
    DESIGN INTELLIGENCE — each option carries a measured consequence
@@ -6693,11 +6894,21 @@ function localPos(el, e) {
 (function () {
   var tile = $('[data-lab="scroll"]'); if (!tile) return;
   var stage = $('#stStage'), word = $('#stWord');
-  A.scrollHooks.push(function () {
-    var r = stage.getBoundingClientRect();
-    if (r.bottom < -100 || r.top > window.innerHeight + 100) return;
+  /* the stage's box is a document fact; only a reflow moves it. Measuring it
+     on every scroll frame forced the layout this page works hardest to defer. */
+  var stTop = 0, stH = 1, stGeom = false;
+  function stMeasure() {
+    var b = stage.getBoundingClientRect();
+    stTop = b.top + A.scrollY(); stH = b.height || 1; stGeom = true;
+  }
+  on(window, 'resize', function () { stGeom = false; });
+  if (window.ResizeObserver) new ResizeObserver(function () { stGeom = false; }).observe(document.body);
+  A.scrollHooks.push(function (y) {
+    if (!stGeom) stMeasure();
+    var top = stTop - y;
+    if (top + stH < -100 || top > window.innerHeight + 100) return;
     var mid = window.innerHeight / 2;
-    var p = clamp(1 - Math.abs((r.top + r.height / 2) - mid) / (window.innerHeight * 0.62), 0, 1);
+    var p = clamp(1 - Math.abs((top + stH / 2) - mid) / (window.innerHeight * 0.62), 0, 1);
     var scale = motionOff() ? 1 : (0.62 + p * 0.62);
     word.style.setProperty('--stv', scale.toFixed(3));
     word.style.setProperty('--sto', String(Math.round(38 + p * 62)));
@@ -6760,8 +6971,12 @@ function localPos(el, e) {
     cv.width = Math.max(1, Math.round(r.width * dpr));
     cv.height = Math.max(1, Math.round(r.height * dpr));
   }
-  size();
-  if (window.ResizeObserver) new ResizeObserver(A.raf(size)).observe(stage);
+  /* sizing reads the stage's box; off-screen at boot that is a forced layout
+     of the whole page for a canvas nobody can see yet */
+  A.whenNear(stage, function () {
+    size();
+    if (window.ResizeObserver) new ResizeObserver(A.raf(size)).observe(stage);
+  });
   function css(v) { return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
   function draw() {
     anim = 0;
@@ -6821,20 +7036,24 @@ function localPos(el, e) {
   var line = $('#heroLine'); if (!line) return;
   var words = $$('span', line);
   var wgeo = [], wStale = true;
+  /* kept in document space, so scrolling is a subtraction rather than a reason
+     to re-measure every word in the headline */
   function wMeasure() {
+    var sy = A.scrollY();
     wgeo = words.map(function (w) {
       var r = w.getBoundingClientRect();
-      return { x: r.left + r.width / 2, y: r.top + r.height / 2 };
+      return { x: r.left + r.width / 2, y: r.top + sy + r.height / 2 };
     });
     wStale = false;
   }
-  on(window, 'scroll', function () { wStale = true; }, { passive: true });
   on(window, 'resize', function () { wStale = true; });
+  if (window.ResizeObserver) new ResizeObserver(function () { wStale = true; }).observe(document.body);
   var move = A.raf(function (e) {
     if (wStale) wMeasure();
+    var sy = A.scrollY();
     words.forEach(function (w, wi) {
       var g = wgeo[wi]; if (!g) return;
-      var dx = g.x - e.clientX, dy = g.y - e.clientY;
+      var dx = g.x - e.clientX, dy = (g.y - sy) - e.clientY;
       var d = Math.sqrt(dx * dx + dy * dy), reach = 260;
       var f = d < reach ? 1 - d / reach : 0;
       w.style.transform = f ? 'translateY(' + (-f * 7).toFixed(1) + 'px) rotate(' + (dx * f * 0.012).toFixed(2) + 'deg)' : '';
