@@ -58,7 +58,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <body><div class="wrap">
 
 <h1>Dawai — Visual Review</h1>
-<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-03 21:04 UTC</p>
+<p class="sub">Patient · Vertical slice 3 · Prescription capture (R2–R3) + explicit substitution consent (R9–R10) · generated 2026-08-04 18:14 UTC</p>
 
 <div class="banner ok">
   All quality gates pass — this build may be pushed.
@@ -69,7 +69,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <div class="panel"><div class="kpi">16.5%<small>of Blueprint screens contracted</small></div>
     <div class="bar"><i style="width:16.5%"></i></div></div>
   <div class="panel"><div class="kpi">22<small>screens contracted</small></div></div>
-  <div class="panel"><div class="kpi">17<small>screens rendered &amp; photographed</small></div></div>
+  <div class="panel"><div class="kpi">18<small>screens rendered &amp; photographed</small></div></div>
   <div class="panel"><div class="kpi">111<small>screens remaining</small></div></div>
 </div>
 <div class="panel" style="margin-top:14px">
@@ -107,6 +107,41 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <h2>Screen gallery</h2>
 <p class="note" style="margin-bottom:14px">Every state below is the REAL component tree — the same screens, tokens and props the app ships — rendered through a DOM adapter and photographed at 390×844. It proves layout, hierarchy, typography, colour, spacing and tap-target size. It does not prove native gestures, platform chrome or animation.</p>
 <div class="grid g3"><div class="shot">
+  <img src="screenshots/S1-new.png" alt="S1-new">
+  <div class="cap">
+    <h3>S1 — empty · teaching</h3>
+    <p class="note">§22's first empty, and the highest-attention moment in the product: a brand-new account is TAUGHT what this screen will carry, and the one action is worded for a first time rather than a hundredth. The generic «أطلب دواء» is deliberately absent — two controls to one destination on the emptiest screen would be the app repeating itself.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/S1-quiet.png" alt="S1-quiet">
+  <div class="cap">
+    <h3>S1 — empty · quiet</h3>
+    <p class="note">§22's second empty, and the opposite screen: a well-managed patient on an ordinary day is REASSURED, not taught. It carries no state action at all — offering one would invent urgency nobody has — so the standing «أطلب دواء» is what a thumb finds.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/S1-held.png" alt="S1-held">
+  <div class="cap">
+    <h3>S1 — ready · a live hold</h3>
+    <p class="note">The one thing that needs the patient today, stated as information rather than as a card-sized button: the pharmacy, the expiry and the time left are all readable by a screen reader instead of being swallowed by a single card label (TD-12). The code stays on V2 — one place to keep honest when a hold lapses.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/S1-last.png" alt="S1-last">
+  <div class="cap">
+    <h3>S1 — ready · nearly expired</h3>
+    <p class="note">The same hold, near its end. The countdown changes colour as it becomes urgent instead of staying calm to the last minute, on the screen a patient glances at before deciding whether to walk.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/S1-cached.png" alt="S1-cached">
+  <div class="cap">
+    <h3>S1 — offline</h3>
+    <p class="note">S1's offline rule — active reservations from cache, age-labelled. The hold still renders because a patient without a signal still has to reach the counter; the countdown says plainly that it is the last thing we were told.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/S1-failed.png" alt="S1-failed">
+  <div class="cap">
+    <h3>S1 — error</h3>
+    <p class="note">§23 — what failed, that nothing was lost, and one thing to press. The hold stays on screen behind the failure: a refresh that could not happen is no reason to take away what we already knew.</p>
+  </div></div><div class="shot">
+  <img src="screenshots/S1-loading.png" alt="S1-loading">
+  <div class="cap">
+    <h3>S1 — loading</h3>
+    <p class="note">A skeleton shaped like what is coming, so Today does not jump when it arrives.</p>
+  </div></div><div class="shot">
   <img src="screenshots/F1-empty.png" alt="F1-empty">
   <div class="cap">
     <h3>F1 — empty · teaching</h3>
@@ -329,6 +364,24 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   </div></div></div>
 
 <h2>Screen contracts</h2><div class="grid g3"><div class="shot">
+    <img src="screenshots/S1-new.png" alt="اليوم">
+    <div class="cap">
+      <h3>S1 · اليوم</h3>
+      <p class="note">What is happening right now</p>
+      <div style="margin-top:10px">
+        <div class="tag">back: none</div>
+        <div class="tag ok">primary: أطلب دواء → R1</div>
+        <div class="tag">guard: requireSession</div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag">loading</span><span class="tag">empty</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="tag ok">→ R1</span><span class="tag bad">→ S2 (not built)</span><span class="tag ok">→ V2</span><span class="tag bad">→ V8 (not built)</span>
+      </div>
+      
+    </div>
+  </div><div class="shot">
     <img src="screenshots/E4-guarded.png" alt="ليش نحتاج رقمك">
     <div class="cap">
       <h3>E4 · ليش نحتاج رقمك</h3>
@@ -639,7 +692,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Contracted screens with no rendered state yet</h3>
   <p class="note">Declared, checked by ux-check, and part of a later slice's rendering work.</p>
   <table style="margin-top:10px"><thead><tr><th>Screen</th><th>Title</th><th>Purpose</th><th>States</th></tr></thead><tbody>
-  <tr><td class="mono">S1</td><td>اليوم</td><td class="note">What is happening right now</td><td><span class="tag">loading</span><span class="tag">empty</span><span class="tag">empty</span><span class="tag">offline</span><span class="tag">error</span></td></tr><tr><td class="mono">R4</td><td>لمن الدواء؟</td><td class="note">Choose the subject</td><td>—</td></tr><tr><td class="mono">R5</td><td>شكد مستعجل؟</td><td class="note">Set the window honestly</td><td>—</td></tr><tr><td class="mono">R11</td><td>ما رد أحد</td><td class="note">The honest empty case</td><td>—</td></tr><tr><td class="mono">R13</td><td>بانتظار الإرسال</td><td class="note">Everything waiting to send</td><td><span class="tag">empty</span><span class="tag">error</span></td></tr>
+  <tr><td class="mono">R4</td><td>لمن الدواء؟</td><td class="note">Choose the subject</td><td>—</td></tr><tr><td class="mono">R5</td><td>شكد مستعجل؟</td><td class="note">Set the window honestly</td><td>—</td></tr><tr><td class="mono">R11</td><td>ما رد أحد</td><td class="note">The honest empty case</td><td>—</td></tr><tr><td class="mono">R13</td><td>بانتظار الإرسال</td><td class="note">Everything waiting to send</td><td><span class="tag">empty</span><span class="tag">error</span></td></tr>
   </tbody></table></div>
 
 <h2>Component library</h2>
@@ -647,64 +700,74 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <table class="tbl"><thead><tr><th>Component</th><th>Uses</th><th>Screens</th><th>Purpose</th></tr></thead><tbody>
   <tr>
     <td class="mono">Label</td>
-    <td class="mono">78</td>
-    <td class="note">ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="mono">87</td>
+    <td class="note">ConfirmScreen, DraftScreen, FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">All text. 5 type roles × 7 colour roles.</td>
   </tr><tr>
     <td class="mono">Row</td>
-    <td class="mono">19</td>
-    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="mono">22</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, OffersScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">Things side by side. The single place `flexDirection` is written in the patient app.</td>
+  </tr><tr>
+    <td class="mono">Primary</td>
+    <td class="mono">12</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="note">The one dominant action. At most one per screen, counted from the rendered tree every build.</td>
   </tr><tr>
     <td class="mono">InfoCard</td>
     <td class="mono">12</td>
     <td class="note">FindScreen, OfferDetailScreen, OffersScreen, PrescriptionScreen, ReservationScreen</td>
     <td class="note">Information, not an action. A refused item renders as information rather than a control that would reject the tap.</td>
   </tr><tr>
-    <td class="mono">Primary</td>
+    <td class="mono">Card</td>
     <td class="mono">11</td>
-    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
-    <td class="note">The one dominant action. At most one per screen, counted from the rendered tree every build.</td>
+    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, TodayScreen, WaitingScreen</td>
+    <td class="note">A rectangle of content raised off the ground. The one card primitive.</td>
   </tr><tr>
     <td class="mono">Secondary</td>
-    <td class="mono">10</td>
-    <td class="note">DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="mono">11</td>
+    <td class="note">DraftScreen, FindScreen, PrescriptionScreen, ReservationScreen, TodayScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">Never competes with the primary: no fill, no accent background.</td>
   </tr><tr>
     <td class="mono">Banner</td>
-    <td class="mono">9</td>
+    <td class="mono">10</td>
     <td class="note">(every screen, via the frame, when offline)</td>
     <td class="note">A full-bleed strip under the header carrying a statement about the WHOLE screen — today, that the content came from the device rather than from a pharmacy.</td>
   </tr><tr>
-    <td class="mono">Card</td>
-    <td class="mono">9</td>
-    <td class="note">ConfirmScreen, DraftScreen, OfferDetailScreen, WaitingScreen</td>
-    <td class="note">A rectangle of content raised off the ground. The one card primitive.</td>
-  </tr><tr>
     <td class="mono">Screen</td>
-    <td class="mono">9</td>
+    <td class="mono">10</td>
     <td class="note">(every screen, via the frame)</td>
     <td class="note">The frame every screen renders through. It is the reason no screen can ship without answering 'where am I' and 'how do I go back'.</td>
   </tr><tr>
     <td class="mono">StateBlock</td>
-    <td class="mono">9</td>
+    <td class="mono">10</td>
     <td class="note">(every screen, via the frame)</td>
     <td class="note">Renders whichever treatment the screen's contract declared. It cannot fall through to a generic message.</td>
   </tr><tr>
+    <td class="mono">Spacer</td>
+    <td class="mono">8</td>
+    <td class="note">DraftScreen, OfferDetailScreen, OffersScreen, TodayScreen, WaitingScreen</td>
+    <td class="note">Pushes what follows to the far edge of a Row.</td>
+  </tr><tr>
     <td class="mono">Section</td>
-    <td class="mono">7</td>
-    <td class="note">ConfirmScreen, OfferDetailScreen, OffersScreen, WaitingScreen, WhyNumberScreen</td>
+    <td class="mono">8</td>
+    <td class="note">ConfirmScreen, OfferDetailScreen, OffersScreen, TodayScreen, WaitingScreen, WhyNumberScreen</td>
     <td class="note">A heading and the things it governs, as one unit.</td>
   </tr><tr>
-    <td class="mono">Spacer</td>
-    <td class="mono">6</td>
-    <td class="note">DraftScreen, OfferDetailScreen, OffersScreen, WaitingScreen</td>
-    <td class="note">Pushes what follows to the far edge of a Row.</td>
+    <td class="mono">Digits</td>
+    <td class="mono">5</td>
+    <td class="note">ConfirmScreen, DraftScreen, ReservationScreen, TodayScreen</td>
+    <td class="note">Countdowns, prices, quantities, the reservation code.</td>
   </tr><tr>
     <td class="mono">Bidi</td>
     <td class="mono">5</td>
     <td class="note">DraftScreen, FindScreen, OfferDetailScreen</td>
     <td class="note">Isolates a Latin run inside Arabic — drug names, codes, prices — so it does not reorder.</td>
+  </tr><tr>
+    <td class="mono">FactRow</td>
+    <td class="mono">4</td>
+    <td class="note">ReservationScreen, TodayScreen</td>
+    <td class="note">A labelled fact — muted label on one edge, value on the other — so the eye scans one column of labels instead of parsing sentences.</td>
   </tr><tr>
     <td class="mono">Grow</td>
     <td class="mono">4</td>
@@ -715,16 +778,6 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="mono">4</td>
     <td class="note">DraftScreen, FindScreen, PrescriptionScreen</td>
     <td class="note">A cluster of secondary actions under the content.</td>
-  </tr><tr>
-    <td class="mono">Digits</td>
-    <td class="mono">4</td>
-    <td class="note">ConfirmScreen, DraftScreen, ReservationScreen</td>
-    <td class="note">Countdowns, prices, quantities, the reservation code.</td>
-  </tr><tr>
-    <td class="mono">FactRow</td>
-    <td class="mono">3</td>
-    <td class="note">ReservationScreen</td>
-    <td class="note">A labelled fact — muted label on one edge, value on the other — so the eye scans one column of labels instead of parsing sentences.</td>
   </tr><tr>
     <td class="mono">Note</td>
     <td class="mono">3</td>
@@ -787,7 +840,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td class="note">How far along something is, as a bar rather than a spinner.</td>
   </tr>
 </tbody></table>
-<p class="note" style="margin-top:12px">28 components · 214 render sites across 9 screens · 9 specified components not built.</p>
+<p class="note" style="margin-top:12px">28 components · 238 render sites across 10 screens · 9 specified components not built.</p>
 
 <div class="panel" style="margin-top:14px">
   <h3>Raw layout in screens</h3>
@@ -795,10 +848,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div>
 
 <h2>Responsive health</h2>
-<p class="note" style="margin-bottom:14px">Every screen state rendered at 320pt · 360pt · 390pt · 430pt and measured — 176 renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>10 detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
+<p class="note" style="margin-bottom:14px">Every screen state rendered at 320pt · 360pt · 390pt · 430pt and measured — 204 renders. No layout was changed to produce this; it is a measurement, taken before implementation begins. <strong>10 detectors</strong> are proved to fire against injected defects before any real page is measured, so a green row means "checked and clean", not "not checked".</p>
 
 <div class="grid g4" style="margin-bottom:14px">
-  <div class="panel"><h3>44</h3><p class="note">✓ pass</p></div>
+  <div class="panel"><h3>51</h3><p class="note">✓ pass</p></div>
   <div class="panel"><h3>0</h3><p class="note">⚠ minor</p></div>
   <div class="panel"><h3>0</h3><p class="note">✗ fail</p></div>
   <div class="panel"><h3>4</h3><p class="note">widths measured</p></div>
@@ -1001,6 +1054,41 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
       <td class="note">—</td>
       <td><a href="responsive/R9-undecided@320.png">320</a></td><td><a href="responsive/R9-undecided@360.png">360</a></td><td><a href="responsive/R9-undecided@390.png">390</a></td><td><a href="responsive/R9-undecided@430.png">430</a></td>
     </tr><tr>
+      <td class="mono">S1-cached</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-cached@320.png">320</a></td><td><a href="responsive/S1-cached@360.png">360</a></td><td><a href="responsive/S1-cached@390.png">390</a></td><td><a href="responsive/S1-cached@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">S1-failed</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-failed@320.png">320</a></td><td><a href="responsive/S1-failed@360.png">360</a></td><td><a href="responsive/S1-failed@390.png">390</a></td><td><a href="responsive/S1-failed@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">S1-held</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-held@320.png">320</a></td><td><a href="responsive/S1-held@360.png">360</a></td><td><a href="responsive/S1-held@390.png">390</a></td><td><a href="responsive/S1-held@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">S1-last</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-last@320.png">320</a></td><td><a href="responsive/S1-last@360.png">360</a></td><td><a href="responsive/S1-last@390.png">390</a></td><td><a href="responsive/S1-last@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">S1-loading</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-loading@320.png">320</a></td><td><a href="responsive/S1-loading@360.png">360</a></td><td><a href="responsive/S1-loading@390.png">390</a></td><td><a href="responsive/S1-loading@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">S1-new</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-new@320.png">320</a></td><td><a href="responsive/S1-new@360.png">360</a></td><td><a href="responsive/S1-new@390.png">390</a></td><td><a href="responsive/S1-new@430.png">430</a></td>
+    </tr><tr>
+      <td class="mono">S1-quiet</td>
+      <td><span class="tag ok">✓ Pass</span></td>
+      <td class="note">—</td>
+      <td><a href="responsive/S1-quiet@320.png">320</a></td><td><a href="responsive/S1-quiet@360.png">360</a></td><td><a href="responsive/S1-quiet@390.png">390</a></td><td><a href="responsive/S1-quiet@430.png">430</a></td>
+    </tr><tr>
       <td class="mono">V1-requesting</td>
       <td><span class="tag ok">✓ Pass</span></td>
       <td class="note">—</td>
@@ -1108,7 +1196,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Contrast — measured, not asserted</h3>
   <p class="note">Every pair a component may place together, run through the WCAG relative-luminance formula in both schemes. Floor: 4.5:1 body, 3:1 boundaries.</p>
   <div class="scroll"><table style="margin-top:10px"><thead><tr><th>Pair</th><th>Light</th><th>Dark</th><th></th></tr></thead><tbody>
-  <tr><td class="mono">ink on surface</td><td class="mono">16.5</td><td class="mono">16.5</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceRaised</td><td class="mono">14.47</td><td class="mono">14.47</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceSunken</td><td class="mono">13.71</td><td class="mono">13.71</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surface</td><td class="mono">9.55</td><td class="mono">9.55</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surfaceRaised</td><td class="mono">8.37</td><td class="mono">8.37</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surface</td><td class="mono">7.02</td><td class="mono">7.02</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surfaceRaised</td><td class="mono">6.15</td><td class="mono">6.15</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAccent on accent</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onSuccess on success</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onWarning on warning</td><td class="mono">8.14</td><td class="mono">8.14</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAlert on alert</td><td class="mono">5.34</td><td class="mono">5.34</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">accent on surface</td><td class="mono">8.94</td><td class="mono">8.94</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">alert on surface</td><td class="mono">8.82</td><td class="mono">8.82</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on surface</td><td class="mono">9.34</td><td class="mono">9.34</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on line</td><td class="mono">6.61</td><td class="mono">6.61</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on line</td><td class="mono">6.47</td><td class="mono">6.47</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on line</td><td class="mono">11.42</td><td class="mono">11.42</td><td><span class="tag ok">pass</span></td></tr>
+  <tr><td class="mono">ink on surface</td><td class="mono">16.5</td><td class="mono">16.5</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceRaised</td><td class="mono">14.47</td><td class="mono">14.47</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on surfaceSunken</td><td class="mono">13.71</td><td class="mono">13.71</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surface</td><td class="mono">9.55</td><td class="mono">9.55</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on surfaceRaised</td><td class="mono">8.37</td><td class="mono">8.37</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surface</td><td class="mono">7.02</td><td class="mono">7.02</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkSubtle on surfaceRaised</td><td class="mono">6.15</td><td class="mono">6.15</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAccent on accent</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onSuccess on success</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onWarning on warning</td><td class="mono">8.14</td><td class="mono">8.14</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">onAlert on alert</td><td class="mono">5.34</td><td class="mono">5.34</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">accent on surface</td><td class="mono">8.94</td><td class="mono">8.94</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">alert on surface</td><td class="mono">8.82</td><td class="mono">8.82</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on surface</td><td class="mono">9.34</td><td class="mono">9.34</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">inkMuted on line</td><td class="mono">6.61</td><td class="mono">6.61</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on line</td><td class="mono">6.47</td><td class="mono">6.47</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">ink on line</td><td class="mono">11.42</td><td class="mono">11.42</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">accent on surfaceRaised</td><td class="mono">7.84</td><td class="mono">7.84</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">warning on surfaceRaised</td><td class="mono">8.19</td><td class="mono">8.19</td><td><span class="tag ok">pass</span></td></tr><tr><td class="mono">alert on surfaceRaised</td><td class="mono">7.74</td><td class="mono">7.74</td><td><span class="tag ok">pass</span></td></tr>
   </tbody></table></div>
 </div>
 
@@ -1141,12 +1229,12 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   
     <div style="margin-top:14px">
       <h3>UI <span class="note" style="font-weight:400">— renders a resolved view; decides nothing</span></h3>
-      <div style="margin-top:6px"><span class="tag">App.tsx</span><span class="tag">screens/ConfirmScreen.tsx</span><span class="tag">screens/DraftScreen.tsx</span><span class="tag">screens/FindScreen.tsx</span><span class="tag">screens/OfferDetailScreen.tsx</span><span class="tag">screens/OffersScreen.tsx</span><span class="tag">screens/OnboardingScreens.tsx</span><span class="tag">screens/PrescriptionScreen.tsx</span><span class="tag">screens/ReservationScreen.tsx</span><span class="tag">screens/WaitingScreen.tsx</span><span class="tag">screens/WhyNumberScreen.tsx</span><span class="tag">screens/gallery.tsx</span><span class="tag">ui/kit.tsx</span><span class="tag">ui/layout.tsx</span><span class="tag">ui/motion.tsx</span></div>
+      <div style="margin-top:6px"><span class="tag">App.tsx</span><span class="tag">screens/ConfirmScreen.tsx</span><span class="tag">screens/DraftScreen.tsx</span><span class="tag">screens/FindScreen.tsx</span><span class="tag">screens/OfferDetailScreen.tsx</span><span class="tag">screens/OffersScreen.tsx</span><span class="tag">screens/OnboardingScreens.tsx</span><span class="tag">screens/PrescriptionScreen.tsx</span><span class="tag">screens/ReservationScreen.tsx</span><span class="tag">screens/TodayScreen.tsx</span><span class="tag">screens/WaitingScreen.tsx</span><span class="tag">screens/WhyNumberScreen.tsx</span><span class="tag">screens/gallery.tsx</span><span class="tag">ui/kit.tsx</span><span class="tag">ui/layout.tsx</span><span class="tag">ui/motion.tsx</span></div>
       <div class="note" style="margin-top:8px">↓</div>
     </div>
     <div style="margin-top:18px">
       <h3>STATE <span class="note" style="font-weight:400">— pure reducer and view models; asks the domain, never computes a rule</span></h3>
-      <div style="margin-top:6px"><span class="tag">app/store.ts</span><span class="tag">model/consent.ts</span><span class="tag">model/draft.ts</span><span class="tag">model/offers.ts</span><span class="tag">model/onboarding.ts</span><span class="tag">model/prescription.ts</span><span class="tag">model/reservation.ts</span><span class="tag">model/search.ts</span><span class="tag">model/send.ts</span><span class="tag">model/view.ts</span></div>
+      <div style="margin-top:6px"><span class="tag">app/store.ts</span><span class="tag">model/consent.ts</span><span class="tag">model/draft.ts</span><span class="tag">model/offers.ts</span><span class="tag">model/onboarding.ts</span><span class="tag">model/prescription.ts</span><span class="tag">model/reservation.ts</span><span class="tag">model/search.ts</span><span class="tag">model/send.ts</span><span class="tag">model/today.ts</span><span class="tag">model/view.ts</span></div>
       <div class="note" style="margin-top:8px">↓</div>
     </div>
     <div style="margin-top:18px">
@@ -1195,7 +1283,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Layer boundaries</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">147 file(s) scanned across 11 layer(s)</div></div>
+  <div class="note mono">151 file(s) scanned across 11 layer(s)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Screen contracts</b> — <span class="tag ok">PASS</span>
@@ -1207,11 +1295,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Tests</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">1111 passed (1111)</div></div>
+  <div class="note mono">1199 passed (1199)</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Test reach</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">44 test file(s) on disk · 44 reported by the runner</div></div>
+  <div class="note mono">45 test file(s) on disk · 45 reported by the runner</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Generated documents</b> — <span class="tag ok">PASS</span>
@@ -1219,11 +1307,11 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Responsive layout</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">44 screen state(s) photographed at 390×844</div></div>
+  <div class="note mono">51 screen state(s) photographed at 390×844</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Responsive validation</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">44 pass · 0 minor · 0 fail across 320/360/390/430pt — 176 renders, 10 detectors proved</div></div>
+  <div class="note mono">51 pass · 0 minor · 0 fail across 320/360/390/430pt — 204 renders, 10 detectors proved</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Navigation — no unreachable screen</b> — <span class="tag ok">PASS</span>
@@ -1239,7 +1327,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Accessibility — contrast</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">17 pairs measured in both schemes, floor 4.5:1</div></div>
+  <div class="note mono">20 pairs measured in both schemes, floor 4.5:1</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Empty states</b> — <span class="tag ok">PASS</span>
@@ -1267,7 +1355,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Visual regression reviewed</b> — <span class="tag ok">PASS</span>
-  <div class="note mono">44 unchanged · 0 changed · 0 new · 0 removed — all listed below</div></div>
+  <div class="note mono">38 unchanged · 6 changed · 7 new · 0 removed — all listed below</div></div>
 </div></div><div class="panel"><div class="chk" style="border:none;padding:0">
   <span class="dot ok"></span>
   <div><b>Technical debt registered</b> — <span class="tag ok">PASS</span>
@@ -1297,7 +1385,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3 style="margin-top:20px">What is ready</h3>
   <ul>
     <li class="note">The patient core loop, end to end: search → request → wait → compare → consent → reserve → collect.</li>
-    <li class="note">22 screens contracted, 17 rendered, 44 states photographed and audited.</li>
+    <li class="note">22 screens contracted, 18 rendered, 51 states photographed and audited.</li>
     <li class="note">Every product rule enforced on every registered state — one primary, 44pt floor, readable labels, no repeated action, one numeral system, explained disabled states.</li>
     <li class="note">Contrast measured in both schemes; navigation proven free of traps and unreachable screens.</li>
   </ul>
@@ -1325,8 +1413,8 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag">—</span></td>
-    <td class="mono">0</td>
-    <td><span class="tag">not rendered</span></td>
+    <td class="mono">7</td>
+    <td><span class="tag ok">new</span></td>
   </tr><tr>
     <td class="mono">E4</td>
     <td class="note">Explain before the one hard ask</td>
@@ -1386,7 +1474,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag">—</span></td>
     <td><span class="tag">—</span></td>
     <td class="mono">1</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">F2</td>
     <td class="note">Find a catalogue item the way people actually type</td>
@@ -1396,7 +1484,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
     <td><span class="tag ok">yes</span></td>
     <td><span class="tag ok">search.unmatched</span></td>
     <td class="mono">5</td>
-    <td><span class="tag">unchanged</span></td>
+    <td><span class="tag warn">changed</span></td>
   </tr><tr>
     <td class="mono">R1</td>
     <td class="note">Assemble the lines to ask for</td>
@@ -1545,13 +1633,14 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <p class="note">Byte-level PNG comparison against the screenshots in git HEAD, so the baseline is what was actually last reviewed rather than a file somebody remembered to update. It cannot say WHAT changed, only that something did — which is enough to guarantee nothing changes without being listed.</p>
   
   <div style="margin-top:12px">
-    <span class="tag ok">44 unchanged</span>
-    <span class="tag warn">0 changed</span>
-    <span class="tag">0 new</span>
+    <span class="tag ok">38 unchanged</span>
+    <span class="tag warn">6 changed</span>
+    <span class="tag">7 new</span>
     <span class="tag ">0 removed</span>
   </div>
-  
-  
+  <div style="margin-top:14px"><h3>Changed — each one looked at before this push</h3>
+    <div class="grid g3" style="margin-top:10px"><div class="shot"><img src="screenshots/F1-empty.png" alt="F1-empty.png"><div class="cap"><span class="mono">F1-empty.png</span></div></div><div class="shot"><img src="screenshots/F2-empty.png" alt="F2-empty.png"><div class="cap"><span class="mono">F2-empty.png</span></div></div><div class="shot"><img src="screenshots/F2-error.png" alt="F2-error.png"><div class="cap"><span class="mono">F2-error.png</span></div></div><div class="shot"><img src="screenshots/F2-loading.png" alt="F2-loading.png"><div class="cap"><span class="mono">F2-loading.png</span></div></div><div class="shot"><img src="screenshots/F2-offline.png" alt="F2-offline.png"><div class="cap"><span class="mono">F2-offline.png</span></div></div><div class="shot"><img src="screenshots/F2-results.png" alt="F2-results.png"><div class="cap"><span class="mono">F2-results.png</span></div></div></div></div>
+  <div style="margin-top:14px"><h3>New this slice</h3><div><span class="tag ok">S1-cached.png</span><span class="tag ok">S1-failed.png</span><span class="tag ok">S1-held.png</span><span class="tag ok">S1-last.png</span><span class="tag ok">S1-loading.png</span><span class="tag ok">S1-new.png</span><span class="tag ok">S1-quiet.png</span></div></div>
   
   
 </div>
@@ -1560,10 +1649,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 <div class="panel">
   <h3>Measured</h3>
   <div class="grid g4" style="margin-top:12px">
-    <div><div class="kpi">86<small>source files</small></div></div>
-    <div><div class="kpi">12,693<small>source lines</small></div></div>
-    <div><div class="kpi">0.57×<small>test lines per source line</small></div></div>
-    <div><div class="kpi">5.66s<small>full suite wall-clock</small></div></div>
+    <div><div class="kpi">88<small>source files</small></div></div>
+    <div><div class="kpi">13,287<small>source lines</small></div></div>
+    <div><div class="kpi">0.56×<small>test lines per source line</small></div></div>
+    <div><div class="kpi">6.05s<small>full suite wall-clock</small></div></div>
   </div>
   <p class="note" style="margin-top:12px">Source size is NOT a bundle size. No Metro bundle has been produced.</p>
 </div>
@@ -1572,7 +1661,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <h3>Rendered weight per screen state</h3>
   <p class="note">View nodes each state produces, counted from the review renders. A screen that produces several hundred nodes is a screen that will scroll badly on a low-end Android — this is a real proxy, measured, not a runtime frame time.</p>
   <div class="scroll"><table style="margin-top:10px"><thead><tr><th>State</th><th>View nodes</th><th>Markup bytes</th></tr></thead><tbody>
-  <tr><td class="mono">R8-offers</td><td class="mono">61</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">56</td><td class="mono">11.6 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">53</td><td class="mono">10.9 KB</td></tr><tr><td class="mono">E8-chosen</td><td class="mono">44</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">E8-list</td><td class="mono">44</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">43</td><td class="mono">8.1 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.9 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">39</td><td class="mono">8.0 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr><tr><td class="mono">V2-last</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr>
+  <tr><td class="mono">R8-offers</td><td class="mono">61</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-undecided</td><td class="mono">56</td><td class="mono">11.6 KB</td></tr><tr><td class="mono">R9-agreed</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R9-refused</td><td class="mono">55</td><td class="mono">11.3 KB</td></tr><tr><td class="mono">R1-lines</td><td class="mono">53</td><td class="mono">10.9 KB</td></tr><tr><td class="mono">E8-chosen</td><td class="mono">44</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">E8-list</td><td class="mono">44</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">R8-withdrawn</td><td class="mono">43</td><td class="mono">8.1 KB</td></tr><tr><td class="mono">V2-cached</td><td class="mono">41</td><td class="mono">7.9 KB</td></tr><tr><td class="mono">F2-results</td><td class="mono">39</td><td class="mono">8.3 KB</td></tr><tr><td class="mono">R1-refused</td><td class="mono">39</td><td class="mono">8.0 KB</td></tr><tr><td class="mono">V2-held</td><td class="mono">39</td><td class="mono">7.2 KB</td></tr>
   </tbody></table></div>
 </div>
 
@@ -1652,6 +1741,13 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
   <td class="mono">patient-app</td>
   <td class="note">Blocked — needs a failure sentence for E8</td>
 </tr><tr>
+  <td class="mono">TD-27</td>
+  <td>S1 cannot tell §22's two empties apart from anything but the CURRENT SESSION. The Blueprint gives Today active reservations AND dispense history, scoped to the active subject; this build has a port for neither — the reservation Today reads is the one held in memory since launch, and V8 (dispense history) is not contracted. So `fromReservation(null)` answers `new`, and a returning patient who collected a prescription last week is greeted by the teaching empty rather than by «كل شي تمام». Two further Blueprint facts are absent for the same reason: the subject switcher (S2) and the history list (V8) are declared exits that `isBuilt` drops, so Today shows one subject's reservation and never says whose.</td>
+  <td class="note">The wrong empty, in the SAFE direction, and deliberately so: being taught something you already know costs a patient nothing, while «ما عندك شي يحتاج انتباهك» in front of someone whose hold we failed to load tells them to stay home while their medicine goes back on the shelf. Nothing here is a guess about product behaviour — the states, their words and their actions are all declared, and what is missing is data. It resolves with the reads behind S1 (GET /v1/me for the subject, the dispense history for V8), not with a decision.</td>
+  <td><span class="tag warn">high</span></td>
+  <td class="mono">patient-app</td>
+  <td class="note">Stage 5 — Infrastructure</td>
+</tr><tr>
   <td class="mono">TD-17</td>
   <td>The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.</td>
   <td class="note">Nothing in the app hard-codes an id from the list and the real one replaces the file wholesale, so this cannot leak into logic. It does mean a patient in a district Dawai actually serves may not find it, and the coverage claim on each row is not yet a claim product has made. Needs the coverage list as a product input.</td>
@@ -1717,10 +1813,10 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </tr><tr>
   <td class="mono">TD-15</td>
   <td>A screen can be opened without the state it needs. `open` runs the route guards and `isBuilt`, neither of which knows that V2 without a reservation, R9 without an offer, or R3 without a capture has nothing to draw. Dispatching { kind: &quot;open&quot;, screen: &quot;V2&quot; } on a signed-in state with reservation: null navigates there and renders the Placeholder. App.tsx claimed the reducer prevented this; it does not.</td>
-  <td class="note">Not reachable today: nothing rendered dispatches it, and the only declared exit into V2 belongs to S1, which this build does not contain. It becomes reachable the moment S1 lands, and through D26's replay of a pending screen — both of which are ordinary paths, not edge cases. What a patient should see when the reservation behind V2 is gone is a product decision (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect was invented. The Placeholder is honest about the failure but is still a screen nobody designed.</td>
+  <td class="note">S1 has now landed, and this did NOT become reachable through it, which the previous version of this item predicted it would. Today draws the control into V2 from the reservation it is holding — no hold, no control — so the one declared exit into V2 cannot be taken while there is nothing behind it. What remains is D26's replay of a pending screen, and the raw intent, neither of which any rendered control produces. The underlying question is unchanged and still a product one: what a patient should see when the reservation behind V2 is gone (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect has been invented. The Placeholder is honest about the failure and is still a screen nobody designed.</td>
   <td><span class="tag ">medium</span></td>
   <td class="mono">patient-app</td>
-  <td class="note">Blocked — needs a product answer, and lands with S1</td>
+  <td class="note">Blocked — needs a product answer — S1 landed without opening the path this predicted, because Today derives its exit into V2 from the hold it holds rather than rendering it unconditionally.</td>
 </tr><tr>
   <td class="mono">TD-16</td>
   <td>Nothing bounds the pack count on a request line. `Marketplace.packs` refuses zero, negatives and non-integers and accepts everything else — 1,000,000 packs is ACCEPTED, verified by probe. `draft.setPacks` and `draft.add` pass the value straight through, and DraftScreen's stepper increments without a ceiling, so a patient holding the + button sends whatever number they reach to every eligible pharmacy.</td>
@@ -1732,7 +1828,7 @@ ul { margin:6px 0 0; padding-inline-start:20px; } li { margin:4px 0; }
 </tbody></table>
 <h3 style="margin-top:20px">Resolved</h3>
 <table style="margin-top:8px"><thead><tr><th>ID</th><th>Was</th><th>Resolved by</th></tr></thead><tbody>
-<tr><td class="mono">TD-26</td><td class="note">A deployed build had no API, so it showed the first screen and stopped: no medicines, no sign-in, no offers, no reservation. The v1 routes were served only by a vite middleware that is not in the production bundle. Worse, the first version of the routing made the failure DISHONEST — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read that as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue. It is. The backend isn't.</td><td class="note">Product decided the review build carries the mock rather than let a missing backend stop the workflow being reviewed, so `apps/patient/web/mock.ts` installs THE SAME `handle` the dev server runs — tools/devserver/api.mjs, one implementation of the contracts, not a second one that would drift. That file imports nothing from node; it speaks req/res, so the only thing missing in a browser was those two objects. It is imported only when VITE_MOCK_API is set, and lands in its own 3.6 kB chunk, so a build without the flag never carries it and a real backend replaces it by absence. Walked on the STATIC BUILD served the way Netlify serves it — search → draft → sign in → name → district → send → offers arriving → compare → substitution consent → reserved with a pickup code, no console errors. Separately: every deploy on this branch had been CANCELLED, and the cause was the root netlify.toml's base of `dawai-site` — Netlify skips a build when nothing in the base directory changed, and that folder had not been touched in months, so the preview URL kept showing an old static site while the app was never built at all. The base now points at `platform`. What remains is TD-1: this is a mock, and the data resets on reload.</td></tr><tr><td class="mono">TD-9</td><td class="note">R2's shutter was SILENTLY inert — pressing «صوّر» left the screen, the controls and the state exactly as they were. No medicine that requires a prescription could be requested at all: D18 refuses the send without an image, the only way to attach one is a photograph, and none could be taken. The register called this a device problem for months, and that was wrong: a browser can take a photograph and `POST /v1/prescriptions` has been declared the entire time. The real obstacle was one line of this repository's own design — `Host.camera` returned an `imageId`, which a platform cannot know, because an id is minted by the media service. The interface was asking the host to do the app's job.</td><td class="note">The host now returns bytes and nothing else: `camera(): Promise&lt;{ localUri } | null&gt;`, implemented in the browser with a hidden `&lt;input type=&quot;file&quot; accept=&quot;image/*&quot; capture=&quot;environment&quot;&gt;` — the rear camera on a phone, a file picker on a laptop, where the paper has usually already been photographed — and a `cancel`/focus fallback so a dismissed picker resolves null instead of leaving «تصوير» pressed for ever. A new `MediaPort` (`infra/media.ts`) reads those bytes through an injectable `ReadImage` and uploads them over the declared route (multipart image + { subjectId } → 201 { imageId }, 413 too_large, 415 unsupported_type), with the content-type deliberately unset so the platform writes the multipart boundary. The two refusals are kept apart because they are different things to fix, a 201 with no id is a failure rather than a success the app cannot use, and an unreadable uri is permanent — R2 keeps the review state and the patient takes another. `Prescription.Capture` gained the moment that was missing between confirmed and attached: `uploading`, then `attached(imageId)` at the one place an id can enter, or `failed(localUri, reason)` which keeps the photograph retryable. Phase 0 still reads nothing (D18) — the dev server counts the bytes and discards them, logging «not stored (D18)». Walked in Chromium: a blocked prescription line, «صوّر», R3's review, «واضحة — كمّل», and R1 reading «الوصفة مرفقة».</td></tr><tr><td class="mono">TD-18</td><td class="note">E7 (name) and E8 (district) could not be reached in the running app. `perform` mapped the declared 200 from POST /v1/auth/verify to the `authenticated` intent, which replayed the action the guard had interrupted (D26), while the path that navigates to E7 needed a `codeJudged` verdict of &quot;correct&quot; that nothing but a test produced. Both behaviours were declared — the Blueprint's screen graph draws E6 → E7 → E8 → S1, and D26 says the preserved action resumes — and the ORDER between them was not. Product answered: the name and the district first.</td><td class="note">Verification authenticates the session and carries on to E7; the replay waits for the end of onboarding. E8's submit sends both answers in ONE call over the declared PATCH /v1/me (§4 M2 — { name?, districtId? } → 200, 400 invalid_district), because an account with a name and no district is one that cannot make a request. `profileSaved` then applies the district to the draft the GUEST built — `newDraft` had been given a guest's authority, so every request left with `districtId: &quot;&quot;` and a real server would have refused it — tells the composition root through a new `onDistrict` port, and only then replays what D26 preserved. A district the server refuses keeps the patient on E8 with E12's sentence, and a dropped connection says nothing at all rather than borrowing «ما اخترت منطقة» and blaming them for a network (TD-25). Proved by a test that fails when the district is not applied, and walked in Chromium: E6 → E7 → E8 → back to the request → sent, with the dev server logging «profile: أم علي in d1».</td></tr><tr><td class="mono">TD-5</td><td class="note">A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.</td><td class="note">R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.</td></tr><tr><td class="mono">TD-4</td><td class="note">The sign-in chain E4 → E8 existed as screens and was wired to nothing: the app root rendered none of them, so a guest who touched an action needing an account was redirected by the guard and drawn the search screen instead. Signing in was then only half done — the store learned who had verified and the RUNTIME did not, so `authority()` still answered from an empty relationship set and the R6 guard refused a patient on the request they had verified in order to send.</td><td class="note">The root renders E4–E8, and a new `onVerified` port tells the composition root who signed in at the moment the server says so. Authority is then answered from §9's invariant — an Account always owns exactly one self Subject, created atomically by POST /v1/auth/verify — supplied to `Authority.authorise`, which still decides: a memorialised subject is refused exactly as before (D04), and a grant over someone else is NOT inferred, because grants[] comes from GET /v1/me and no port reads it yet. Walked in Chromium: search → sign in → «أرسل الطلب» → R7 «انرسل — ننتظر الردود». What remains is separate and registered: E7 and E8 are still unreachable (TD-18), so the request carries no district.</td></tr><tr><td class="mono">TD-19</td><td class="note">`isBuilt` meant &quot;this screen has a CONTRACT&quot;, while its docstring promised what callers assumed: &quot;Nothing renders a control that leads to a screen that is not here.&quot; Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.</td><td class="note">`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means &quot;leave for Today&quot;, and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium.</td></tr><tr><td class="mono">TD-0a</td><td class="note">layer-check scanned only .ts, so the app layer stopped being checked when it became .tsx.</td><td class="note">Extended to .tsx and proven with a rejecting case.</td></tr><tr><td class="mono">TD-0b</td><td class="note">Build output emitted beside sources, so tests ran against a stale build.</td><td class="note">Project references corrected, stray output banned by layer-check, and .gitignore updated.</td></tr><tr><td class="mono">TD-0c</td><td class="note">Prices were rounded to the nearest thousand, displaying 8,500 as '9 ألف'.</td><td class="note">Exact formatting, with a test asserting two different totals never print identically.</td></tr>
+<tr><td class="mono">TD-26</td><td class="note">A deployed build had no API, so it showed the first screen and stopped: no medicines, no sign-in, no offers, no reservation. The v1 routes were served only by a vite middleware that is not in the production bundle. Worse, the first version of the routing made the failure DISHONEST — the catch-all rewrite answered GET /v1/catalogue/search with the HTML document and a 200, the app read that as an empty result, and the screen said «ما لكيناه بقائمتنا»: it told the patient the medicine is not in our catalogue. It is. The backend isn't.</td><td class="note">Product decided the review build carries the mock rather than let a missing backend stop the workflow being reviewed, so `apps/patient/web/mock.ts` installs THE SAME `handle` the dev server runs — tools/devserver/api.mjs, one implementation of the contracts, not a second one that would drift. That file imports nothing from node; it speaks req/res, so the only thing missing in a browser was those two objects. It is imported only when VITE_MOCK_API is set, and lands in its own 3.6 kB chunk, so a build without the flag never carries it and a real backend replaces it by absence. Walked on the STATIC BUILD served the way Netlify serves it — search → draft → sign in → name → district → send → offers arriving → compare → substitution consent → reserved with a pickup code, no console errors. Separately: every deploy on this branch had been CANCELLED, and the cause was the root netlify.toml's base of `dawai-site` — Netlify skips a build when nothing in the base directory changed, and that folder had not been touched in months, so the preview URL kept showing an old static site while the app was never built at all. The base now points at `platform`. What remains is TD-1: this is a mock, and the data resets on reload.</td></tr><tr><td class="mono">TD-9</td><td class="note">R2's shutter was SILENTLY inert — pressing «صوّر» left the screen, the controls and the state exactly as they were. No medicine that requires a prescription could be requested at all: D18 refuses the send without an image, the only way to attach one is a photograph, and none could be taken. The register called this a device problem for months, and that was wrong: a browser can take a photograph and `POST /v1/prescriptions` has been declared the entire time. The real obstacle was one line of this repository's own design — `Host.camera` returned an `imageId`, which a platform cannot know, because an id is minted by the media service. The interface was asking the host to do the app's job.</td><td class="note">The host now returns bytes and nothing else: `camera(): Promise&lt;{ localUri } | null&gt;`, implemented in the browser with a hidden `&lt;input type=&quot;file&quot; accept=&quot;image/*&quot; capture=&quot;environment&quot;&gt;` — the rear camera on a phone, a file picker on a laptop, where the paper has usually already been photographed — and a `cancel`/focus fallback so a dismissed picker resolves null instead of leaving «تصوير» pressed for ever. A new `MediaPort` (`infra/media.ts`) reads those bytes through an injectable `ReadImage` and uploads them over the declared route (multipart image + { subjectId } → 201 { imageId }, 413 too_large, 415 unsupported_type), with the content-type deliberately unset so the platform writes the multipart boundary. The two refusals are kept apart because they are different things to fix, a 201 with no id is a failure rather than a success the app cannot use, and an unreadable uri is permanent — R2 keeps the review state and the patient takes another. `Prescription.Capture` gained the moment that was missing between confirmed and attached: `uploading`, then `attached(imageId)` at the one place an id can enter, or `failed(localUri, reason)` which keeps the photograph retryable. Phase 0 still reads nothing (D18) — the dev server counts the bytes and discards them, logging «not stored (D18)». Walked in Chromium: a blocked prescription line, «صوّر», R3's review, «واضحة — كمّل», and R1 reading «الوصفة مرفقة».</td></tr><tr><td class="mono">TD-18</td><td class="note">E7 (name) and E8 (district) could not be reached in the running app. `perform` mapped the declared 200 from POST /v1/auth/verify to the `authenticated` intent, which replayed the action the guard had interrupted (D26), while the path that navigates to E7 needed a `codeJudged` verdict of &quot;correct&quot; that nothing but a test produced. Both behaviours were declared — the Blueprint's screen graph draws E6 → E7 → E8 → S1, and D26 says the preserved action resumes — and the ORDER between them was not. Product answered: the name and the district first.</td><td class="note">Verification authenticates the session and carries on to E7; the replay waits for the end of onboarding. E8's submit sends both answers in ONE call over the declared PATCH /v1/me (§4 M2 — { name?, districtId? } → 200, 400 invalid_district), because an account with a name and no district is one that cannot make a request. `profileSaved` then applies the district to the draft the GUEST built — `newDraft` had been given a guest's authority, so every request left with `districtId: &quot;&quot;` and a real server would have refused it — tells the composition root through a new `onDistrict` port, and only then replays what D26 preserved. A district the server refuses keeps the patient on E8 with E12's sentence, and a dropped connection says nothing at all rather than borrowing «ما اخترت منطقة» and blaming them for a network (TD-25). Proved by a test that fails when the district is not applied, and walked in Chromium: E6 → E7 → E8 → back to the request → sent, with the dev server logging «profile: أم علي in d1».</td></tr><tr><td class="mono">TD-5</td><td class="note">A substitution could be seen on R8 and accepted with the offer, while §4 R10 requires an explicit acknowledgement of a different brand. A flag on a row is not consent.</td><td class="note">R9/R10 built. Consent is per line, starts undecided with no constructor that produces agreement, treats undecided as NOT agreed when computing what gets reserved, and blocks acceptance until every proposal is answered. Refusing sends the line to the child request (D06) and the screen says so, because a patient who believes refusing loses the order will agree to a brand they did not want.</td></tr><tr><td class="mono">TD-4</td><td class="note">The sign-in chain E4 → E8 existed as screens and was wired to nothing: the app root rendered none of them, so a guest who touched an action needing an account was redirected by the guard and drawn the search screen instead. Signing in was then only half done — the store learned who had verified and the RUNTIME did not, so `authority()` still answered from an empty relationship set and the R6 guard refused a patient on the request they had verified in order to send.</td><td class="note">The root renders E4–E8, and a new `onVerified` port tells the composition root who signed in at the moment the server says so. Authority is then answered from §9's invariant — an Account always owns exactly one self Subject, created atomically by POST /v1/auth/verify — supplied to `Authority.authorise`, which still decides: a memorialised subject is refused exactly as before (D04), and a grant over someone else is NOT inferred, because grants[] comes from GET /v1/me and no port reads it yet. Walked in Chromium: search → sign in → «أرسل الطلب» → R7 «انرسل — ننتظر الردود». What remains is separate and registered: E7 and E8 are still unreachable (TD-18), so the request carries no district.</td></tr><tr><td class="mono">TD-19</td><td class="note">`isBuilt` meant &quot;this screen has a CONTRACT&quot;, while its docstring promised what callers assumed: &quot;Nothing renders a control that leads to a screen that is not here.&quot; Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.</td><td class="note">`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means &quot;leave for Today&quot;, and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium. SINCE: S1 has been built, so it is no longer a substitution and the root no longer draws the search screen for it — and the guard this item created is now a gate rather than a convention, because `journey.test.tsx` fails the build when a screen `isBuilt` admits has no case in the app root.</td></tr><tr><td class="mono">TD-0a</td><td class="note">layer-check scanned only .ts, so the app layer stopped being checked when it became .tsx.</td><td class="note">Extended to .tsx and proven with a rejecting case.</td></tr><tr><td class="mono">TD-0b</td><td class="note">Build output emitted beside sources, so tests ran against a stale build.</td><td class="note">Project references corrected, stray output banned by layer-check, and .gitignore updated.</td></tr><tr><td class="mono">TD-0c</td><td class="note">Prices were rounded to the nearest thousand, displaying 8,500 as '9 ألف'.</td><td class="note">Exact formatting, with a test asserting two different totals never print identically.</td></tr>
 </tbody></table></div>
 
 <h2>Blueprint workflow progress</h2>
