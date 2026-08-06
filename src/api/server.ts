@@ -120,6 +120,9 @@ import { generateText, isAIAvailable } from '../services/ai/aiService';
 import { getActiveProviderName } from '../services/ai/providerManager';
 import { classifyLlmError } from '../lib/llmErrors';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
+// MetaConnection is the single source of auth truth for Meta — the upsert
+// lives in one shared module so the orchestrator writes identical rows.
+import { upsertMetaConnection } from '../services/metaConnectionStore';
 import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
 import {
   getCachedWorkspaceTokenHealth,
@@ -737,47 +740,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const fallback = params.systemUserId ? `su_${params.systemUserId}` : 'unknown';
     console.warn(`[adlytic:meta-oauth] Could not resolve a Business Manager id from Meta — falling back to "${fallback}". The MetaConnection will use this placeholder business id.`);
     return { id: fallback, name: params.businessName ?? null };
-  }
-
-  /**
-   * Create or update the MetaConnection row for a workspace+business. Encrypts
-   * the System User token, records granted scopes/assets, and marks it ACTIVE
-   * with a null expiry (System User tokens do not expire). Returns the row id.
-   */
-  async function upsertMetaConnection(params: {
-    workspaceId:     string;
-    businessId:      string;
-    businessName?:   string | null;
-    systemUserId?:   string | null;
-    token:           string;
-    scopes:          string[];
-    grantedAssetIds: string[];
-    configId?:       string | null;
-  }): Promise<string> {
-    const encrypted = encryptToken(params.token);
-    const data = {
-      businessName:         params.businessName ?? undefined,
-      systemUserId:         params.systemUserId ?? undefined,
-      accessTokenEncrypted: encrypted,
-      tokenType:            'SYSTEM_USER' as const,
-      tokenExpiresAt:       null,
-      grantedScopes:        params.scopes,
-      grantedAssetIds:      params.grantedAssetIds,
-      configId:             params.configId ?? undefined,
-      status:               'ACTIVE' as const,
-      lastValidatedAt:      new Date(),
-    };
-    const existing = await prisma.metaConnection.findUnique({
-      where: { workspaceId_businessId: { workspaceId: params.workspaceId, businessId: params.businessId } },
-    });
-    if (existing) {
-      await prisma.metaConnection.update({ where: { id: existing.id }, data });
-      return existing.id;
-    }
-    const created = await prisma.metaConnection.create({
-      data: { workspaceId: params.workspaceId, businessId: params.businessId, ...data },
-    });
-    return created.id;
   }
 
   // ── Persistent OAuth state (replaces the in-memory Map) ───────────────────
@@ -4561,7 +4523,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               token:        sysToken,
               oauth,
             });
-            const connectionId = await upsertMetaConnection({
+            const connectionId = await upsertMetaConnection(prisma, {
               workspaceId,
               businessId:      business.id,
               businessName:    business.name,
@@ -4724,7 +4686,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
           return c.redirect('/welcome?oauth_error=no_ad_accounts_granted');
         }
-        const connectionId = await upsertMetaConnection({
+        const connectionId = await upsertMetaConnection(prisma, {
           workspaceId:     stored.workspaceId,
           businessId:      business.id,
           businessName:    business.name,

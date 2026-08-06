@@ -6,7 +6,7 @@
 // future change makes it do I/O, this file stops compiling and that is the
 // intended alarm.
 import { nextCheckDelayMs, nextCheckAt, isWaitExpired, WAIT_EXPIRY_MS } from './src/orchestrator/polling';
-import { MetaAdapter } from './src/orchestrator/adapters/metaAdapter';
+import { MetaAdapter, resolveConnectionBusinessId } from './src/orchestrator/adapters/metaAdapter';
 import type { CapabilitySet, OnboardingContext } from './src/orchestrator/contracts';
 
 let passed = 0, failed = 0;
@@ -116,6 +116,19 @@ function caps(probed: Partial<CapabilitySet['probed']>): CapabilitySet {
   // STATIC capabilities do not reorder the plan — only PROBED truth does.
   const poorStatic: CapabilitySet = { ...c, static: { hasSystemUserToken: false, hasAppCredentials: false, canLoginForBusiness: false } };
   check('plan depends on PROBED, not STATIC', JSON.stringify(adapter.planSteps(poorStatic, ctx)) === JSON.stringify(adapter.planSteps(c, ctx)));
+}
+
+// ── MetaConnection business id fallback (pure) ──────────────────────────
+// The orchestrator now writes a MetaConnection instead of stamping a token
+// onto the AdAccount. MetaConnection.businessId is non-null, so the fallback
+// convention must match server.ts's resolveBusinessId exactly — otherwise
+// the OAuth path and the orchestrator path create two rival connection rows
+// for the same Business Manager.
+{
+  check('real business id wins', resolveConnectionBusinessId('123', 'su9') === '123');
+  check('no business id → su_<systemUserId>', resolveConnectionBusinessId(undefined, 'su9') === 'su_su9');
+  check('nothing resolvable → "unknown"', resolveConnectionBusinessId(null, null) === 'unknown');
+  check('empty business id is not treated as resolved', resolveConnectionBusinessId('', '7') === 'su_7');
 }
 
 console.log(`\n════ ${passed} passed, ${failed} failed ════`);

@@ -10,7 +10,12 @@
 //  Business Manager, then an operator opens Business Settings and assigns
 //  the ad account to our System User by hand. The CREATE_CONNECTION step
 //  does that assignment over Graph (`POST /{act_id}/assigned_users`), then
-//  writes the local AdAccount row and hands off to the existing sync.
+//  writes the MetaConnection (the single source of auth truth) plus a
+//  token-less AdAccount row pointing at it, and hands off to the existing
+//  sync. The AdAccount NEVER stores a copy of the System User token: it is
+//  written with tokenSource='SYSTEM_USER', connectionId set and
+//  accessTokenEncrypted=null, which is exactly the shape the background
+//  auto-sync's SYSTEM_USER branch selects for.
 //
 //  ── Capability tiers, honestly applied ─────────────────────────────────
 //  STATIC  — read straight from config. Free.
@@ -43,7 +48,7 @@ import {
   fetchMetaAdAccountsByToken,
   type MetaAdAccountInfo,
 } from '../../services/metaOAuth';
-import { encryptToken } from '../../services/tokenEncryption';
+import { upsertMetaConnection } from '../../services/metaConnectionStore';
 import { currencyMinorFactorFor } from '../../lib/currency';
 import { kickoffInitialSync } from '../../lib/initialSync';
 
@@ -88,9 +93,30 @@ const BLOCKED_ASSIGN_REQUIREMENT =
   'افتح إعدادات الأعمال لدى العميل (Business Settings → الحسابات الإعلانية) ' +
   'وأسند الحساب إلى مستخدم النظام الخاص بنا بصلاحية "عرض الأداء" على الأقل، ثم اضغط "تحقق الآن".';
 
+/**
+ * The MetaConnection row requires a non-null `businessId`. When Meta gives
+ * us no Business Manager we fall back to a stable, System-User-derived
+ * placeholder — the SAME convention as server.ts's `resolveBusinessId`, so
+ * the orchestrator and the OAuth flows converge on one connection row per
+ * (workspace, business) instead of silently forking into two.
+ * Pure — unit-tested in test_orchestrator.ts.
+ */
+export function resolveConnectionBusinessId(
+  businessId: string | undefined | null,
+  systemUserId: string | undefined | null,
+): string {
+  if (businessId) return businessId;
+  return systemUserId ? `su_${systemUserId}` : 'unknown';
+}
+
 interface VisibilityProbe {
   accounts: MetaAdAccountInfo[];
   systemUserId?: string;
+  /** Owning Business Manager, when the probe could resolve it. */
+  businessId?: string;
+  businessName?: string;
+  /** Scopes the System User token actually carries (empty when unknown). */
+  scopes: string[];
 }
 
 export class MetaAdapter implements ProviderAdapter {
@@ -105,13 +131,23 @@ export class MetaAdapter implements ProviderAdapter {
   /** ONE probe call: what does our System User currently see? */
   private async probeVisibility(): Promise<VisibilityProbe> {
     const token = this.token();
-    if (!token) return { accounts: [] };
+    if (!token) return { accounts: [], scopes: [] };
     const oauth = buildMetaOAuth();
     if (oauth) {
       const resolved = await oauth.resolveSystemUserConnection(token);
-      return { accounts: resolved.accounts, systemUserId: resolved.systemUserId };
+      return {
+        accounts:     resolved.accounts,
+        systemUserId: resolved.systemUserId,
+        businessId:   resolved.businessId,
+        businessName: resolved.businessName,
+        scopes:       resolved.scopes ?? [],
+      };
     }
-    return { accounts: await fetchMetaAdAccountsByToken(token, config.meta.apiVersion) };
+    // No app credentials: a raw account listing is all we get. Recover the
+    // Business Manager from the accounts themselves when Meta returns it.
+    const accounts = await fetchMetaAdAccountsByToken(token, config.meta.apiVersion);
+    const biz = accounts.find((a) => a.business?.id)?.business;
+    return { accounts, businessId: biz?.id, businessName: biz?.name, scopes: [] };
   }
 
   private staticCaps() {
@@ -286,7 +322,38 @@ export class MetaAdapter implements ProviderAdapter {
       }
     }
 
-    // ── Persist the local AdAccount (mirrors /api/meta/oauth/connect) ──
+    // ── Persist auth ONCE, on the MetaConnection ───────────────────────
+    // MetaConnection is the single source of authentication truth. The
+    // AdAccount below deliberately stores NO token: it points at this
+    // connection instead, so rotating META_SYSTEM_USER_TOKEN in the
+    // environment updates one row and every account follows.
+    //
+    // `businessId` is required and non-null on MetaConnection — see
+    // resolveConnectionBusinessId for the fallback convention.
+    const businessId = resolveConnectionBusinessId(probe.businessId, probe.systemUserId);
+    if (!probe.businessId) {
+      console.warn(
+        `[orchestrator:meta] Could not resolve a Business Manager id from Meta — falling back to "${businessId}". The MetaConnection will use this placeholder business id.`,
+      );
+    }
+
+    let connectionId: string;
+    try {
+      connectionId = await upsertMetaConnection(ctx.prisma, {
+        workspaceId:     ctx.workspaceId,
+        businessId,
+        businessName:    probe.businessName ?? null,
+        systemUserId:    probe.systemUserId ?? null,
+        token,
+        scopes:          probe.scopes,
+        grantedAssetIds: probe.accounts.map((a) => a.id),
+        configId:        config.meta.systemUserConfigId,
+      });
+    } catch (err) {
+      return { status: 'FAILED', retryable: true, reason: sanitize(err) };
+    }
+
+    // ── Persist the local AdAccount (pure account representation) ──────
     const name = info.name?.trim() ? info.name : `Meta Ad Account ${info.id}`;
     const currency = info.currency?.trim() ? info.currency.toUpperCase() : 'USD';
     const timezone = info.timezone_name?.trim() ? info.timezone_name : 'UTC';
@@ -300,7 +367,12 @@ export class MetaAdapter implements ProviderAdapter {
           currencyMinorFactor: currencyMinorFactorFor(currency),
           timezone,
           status: 'ACTIVE',
-          accessTokenEncrypted: encryptToken(token),
+          // Auth now lives on the connection — see the note above. These
+          // three fields together are exactly what the background auto-sync
+          // SYSTEM_USER branch matches on (src/workers/backgroundScheduler.ts).
+          tokenSource: 'SYSTEM_USER',
+          connectionId,
+          accessTokenEncrypted: null,
           tokenExpiresAt: null,
         },
         create: {
@@ -312,7 +384,9 @@ export class MetaAdapter implements ProviderAdapter {
           currencyMinorFactor: currencyMinorFactorFor(currency),
           timezone,
           status: 'ACTIVE',
-          accessTokenEncrypted: encryptToken(token),
+          tokenSource: 'SYSTEM_USER',
+          connectionId,
+          accessTokenEncrypted: null,
           tokenExpiresAt: null,
         },
         select: { id: true },
