@@ -72,6 +72,7 @@ model Workspace {
 
   adAccounts      AdAccount[]
   members         WorkspaceMember[]
+  connectionOnboardings ConnectionOnboarding[]
   industryProfile IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
   executions      RecommendationExecution[]
   paymentEvents   PaymentEvent[]
@@ -1333,4 +1334,108 @@ enum TicketPriority {
 enum MessageSenderType {
   USER
   ADMIN
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  Connection Orchestrator — provider-agnostic onboarding state.
+//
+//  The engine owns ESTABLISHING and MAINTAINING a provider connection.
+//  It does NOT own sync scheduling or the data pipeline: it hands off to
+//  the existing sync worker once an AdAccount is ready. Keeping that
+//  boundary explicit is what stops this from becoming a god-object.
+//
+//  States are deliberately provider-neutral so Google Ads / TikTok become
+//  new Adapters, not a new engine.
+// ════════════════════════════════════════════════════════════════════════
+
+model ConnectionOnboarding {
+  id                String              @id @default(cuid())
+  workspaceId       String              @map("workspace_id")
+  provider          ConnectionProvider  @default(META)
+  /// Provider-scoped account identifier (Meta: "act_123456").
+  externalAccountId String              @map("external_account_id")
+  state             OnboardingState     @default(REQUEST_CREATED)
+
+  /// Current PlannedStep[] — RE-EVALUATED on every transition, never
+  /// computed once. A plan frozen at creation goes stale the moment a
+  /// capability changes (e.g. App Review lands mid-flight).
+  planJson          Json?               @map("plan_json")
+  /// Last detected CapabilitySet (STATIC + PROBED tiers only —
+  /// OPTIMISTIC capabilities are never pre-computed).
+  capabilitiesJson  Json?               @map("capabilities_json")
+  /// Step id the engine is currently working, from planJson.
+  currentStepId     String?             @map("current_step_id")
+
+  attempts          Int                 @default(0)
+  lastError         String?             @map("last_error")
+  /// Set when state = BLOCKED: the single missing requirement to surface.
+  blockedRequirement String?            @map("blocked_requirement")
+
+  /// Adaptive polling: when the poller should next look at this row.
+  nextCheckAt       DateTime?           @map("next_check_at")
+  /// When the current external wait began — drives the backoff curve.
+  waitingSince      DateTime?           @map("waiting_since")
+  lastCheckedAt     DateTime?           @map("last_checked_at")
+
+  /// Set once the AdAccount row exists (hand-off point to the sync worker).
+  linkedAdAccountId String?             @map("linked_ad_account_id")
+
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+  completedAt       DateTime?           @map("completed_at")
+
+  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  events            OnboardingEvent[]
+
+  @@unique([workspaceId, provider, externalAccountId])
+  @@index([state, nextCheckAt])
+  @@index([workspaceId])
+  @@map("connection_onboardings")
+}
+
+/// Append-only audit timeline. Doubles as the live-progress feed for the
+/// UI, so the same structure serves both operators and debugging.
+model OnboardingEvent {
+  id           String               @id @default(cuid())
+  onboardingId String               @map("onboarding_id")
+  at           DateTime             @default(now())
+  kind         OnboardingEventKind
+  fromState    OnboardingState?     @map("from_state")
+  toState      OnboardingState?     @map("to_state")
+  stepId       String?              @map("step_id")
+  /// Human-readable line rendered in the timeline.
+  message      String
+  dataJson     Json?                @map("data_json")
+
+  onboarding   ConnectionOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+
+  @@index([onboardingId, at])
+  @@map("onboarding_events")
+}
+
+enum ConnectionProvider {
+  META
+  GOOGLE_ADS
+  TIKTOK
+}
+
+enum OnboardingState {
+  REQUEST_CREATED
+  WAITING_EXTERNAL_ACTION
+  CONNECTING
+  VERIFYING
+  SYNCING
+  READY
+  BLOCKED
+  FAILED
+}
+
+enum OnboardingEventKind {
+  STATE_CHANGE
+  STEP_EXECUTED
+  STEP_VERIFIED
+  RECONCILED
+  CAPABILITY_CHANGE
+  ERROR
+  NOTE
 }

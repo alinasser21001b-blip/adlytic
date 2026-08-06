@@ -29,8 +29,17 @@ import {
 import { refreshExpiringMetaTokens } from './refreshMetaTokens';
 import { refreshCampaignHistoryRollups } from './rollupHistory';
 import { bootQueueWorkers } from './queue';
+import { advance, listDue } from '../orchestrator/engine';
+import { metaAdapter } from '../orchestrator/adapters/metaAdapter';
 
 const SYNC_INTERVAL_MS = config.sync.intervalMs;
+/** Connection-onboarding poll cadence. The per-record adaptive backoff in
+ *  orchestrator/polling.ts decides which rows are actually due; this is
+ *  only how often we ask. A module constant on purpose — one more env var
+ *  for a value nobody tunes is a worse trade than a constant. */
+const ONBOARDING_POLL_INTERVAL_MS = 60_000;
+/** Records advanced per pass. Bounded so one busy pass can't monopolize. */
+const ONBOARDING_BATCH = 20;
 const RAW_INSIGHTS_RETAIN_DAYS = config.sync.rawInsightsRetainDays;
 const API_VERSION = config.meta.apiVersion;
 
@@ -248,6 +257,44 @@ function scheduleSyncLoop(prisma: PrismaClient): void {
   }, SYNC_INTERVAL_MS);
 }
 
+// ── Connection Orchestrator poll ─────────────────────────────────────
+// Drives every non-terminal onboarding record whose adaptive next_check_at
+// has come due. Failures are isolated PER RECORD: one client whose Meta
+// call blows up must never stop the other nineteen from progressing.
+async function runOnboardingPass(prisma: PrismaClient): Promise<void> {
+  let due;
+  try {
+    due = await listDue(prisma, ONBOARDING_BATCH);
+  } catch (err) {
+    console.error('[adlytic:onboarding] Failed to list due records:', err instanceof Error ? err.message : err);
+    return;
+  }
+  if (due.length === 0) return;
+
+  let advanced = 0;
+  let failed = 0;
+  for (const record of due) {
+    try {
+      await advance(prisma, record.id, metaAdapter);
+      advanced++;
+    } catch (err) {
+      failed++;
+      console.error(
+        `[adlytic:onboarding] advance failed for ${record.id} (${record.externalAccountId}):`,
+        err instanceof Error ? err.message : err,
+      );
+    }
+  }
+  console.log(`[adlytic:onboarding] pass done — due=${due.length} advanced=${advanced} failed=${failed}`);
+}
+
+function scheduleOnboardingLoop(prisma: PrismaClient): void {
+  setTimeout(async () => {
+    await runOnboardingPass(prisma);
+    scheduleOnboardingLoop(prisma);
+  }, ONBOARDING_POLL_INTERVAL_MS);
+}
+
 // ── Raw insights retention job ───────────────────────────────────────
 // Deletes raw_insight rows older than RAW_INSIGHTS_RETAIN_DAYS to prevent
 // unbounded table growth. Processed data lives in daily_stats and is kept.
@@ -328,6 +375,9 @@ export function startBackgroundWork(prisma: PrismaClient): void {
   bootQueueWorkers(prisma);
 
   scheduleSyncLoop(prisma);
+
+  // Connection Orchestrator: its own cadence, independent of the ETL loop.
+  scheduleOnboardingLoop(prisma);
 
   // Delay initial maintenance by 30s so startup traffic settles first.
   setTimeout(() => {

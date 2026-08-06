@@ -75,6 +75,7 @@ import { adminConsolePage } from '../web/pages/adminConsolePage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
+import { addClientPage } from '../web/pages/addClientPage';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import {
   createTicket, replyToTicket, getTicketWithMessages, adminListTickets,
@@ -119,6 +120,9 @@ import { generateText, isAIAvailable } from '../services/ai/aiService';
 import { getActiveProviderName } from '../services/ai/providerManager';
 import { classifyLlmError } from '../lib/llmErrors';
 import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
+// MetaConnection is the single source of auth truth for Meta — the upsert
+// lives in one shared module so the orchestrator writes identical rows.
+import { upsertMetaConnection } from '../services/metaConnectionStore';
 import { recordMetaAuditEvent, listMetaAuditEvents } from '../services/metaAudit';
 import {
   getCachedWorkspaceTokenHealth,
@@ -135,6 +139,14 @@ import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWe
 import { config } from '../config';
 import { enqueueOrFallback, getQueues } from '../lib/queue';
 import { kickoffInitialSync as kickoffInitialSyncImpl } from '../lib/initialSync';
+// ── Connection Orchestrator (see src/orchestrator/contracts.ts) ──────────
+import {
+  createOnboarding,
+  advance as advanceOnboarding,
+  reconcile as reconcileOnboarding,
+} from '../orchestrator/engine';
+import { getTimeline } from '../orchestrator/timeline';
+import { metaAdapter } from '../orchestrator/adapters/metaAdapter';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
@@ -558,6 +570,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
   app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
   app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
+  app.get('/admin/add-client', (c) => c.html(addClientPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
@@ -727,47 +740,6 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const fallback = params.systemUserId ? `su_${params.systemUserId}` : 'unknown';
     console.warn(`[adlytic:meta-oauth] Could not resolve a Business Manager id from Meta — falling back to "${fallback}". The MetaConnection will use this placeholder business id.`);
     return { id: fallback, name: params.businessName ?? null };
-  }
-
-  /**
-   * Create or update the MetaConnection row for a workspace+business. Encrypts
-   * the System User token, records granted scopes/assets, and marks it ACTIVE
-   * with a null expiry (System User tokens do not expire). Returns the row id.
-   */
-  async function upsertMetaConnection(params: {
-    workspaceId:     string;
-    businessId:      string;
-    businessName?:   string | null;
-    systemUserId?:   string | null;
-    token:           string;
-    scopes:          string[];
-    grantedAssetIds: string[];
-    configId?:       string | null;
-  }): Promise<string> {
-    const encrypted = encryptToken(params.token);
-    const data = {
-      businessName:         params.businessName ?? undefined,
-      systemUserId:         params.systemUserId ?? undefined,
-      accessTokenEncrypted: encrypted,
-      tokenType:            'SYSTEM_USER' as const,
-      tokenExpiresAt:       null,
-      grantedScopes:        params.scopes,
-      grantedAssetIds:      params.grantedAssetIds,
-      configId:             params.configId ?? undefined,
-      status:               'ACTIVE' as const,
-      lastValidatedAt:      new Date(),
-    };
-    const existing = await prisma.metaConnection.findUnique({
-      where: { workspaceId_businessId: { workspaceId: params.workspaceId, businessId: params.businessId } },
-    });
-    if (existing) {
-      await prisma.metaConnection.update({ where: { id: existing.id }, data });
-      return existing.id;
-    }
-    const created = await prisma.metaConnection.create({
-      data: { workspaceId: params.workspaceId, businessId: params.businessId, ...data },
-    });
-    return created.id;
   }
 
   // ── Persistent OAuth state (replaces the in-memory Map) ───────────────────
@@ -2233,6 +2205,196 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       limit: Number.isFinite(limit) ? limit : undefined,
     });
     return c.json(safeJson({ events }));
+  });
+
+  // ── Partner-Access "Add a Client" onboarding (platform-admin) ─────────────
+  // Read-only helpers that back the guided operator screen at /admin/add-client.
+  // They discover the ad accounts currently visible to the app's System User
+  // token and cross-reference the DB so the operator can watch a newly-approved
+  // Partner-Access grant appear live, with each account's currency surfaced.
+
+  /**
+   * Discover every ad account visible to the System User token, marking whether
+   * each is already linked to an Adlytic workspace.
+   *
+   * Not configured (no token) → { configured:false, reason }.
+   * Meta call failure          → { configured:true, error } (sanitized).
+   */
+  app.get('/api/admin/meta/discover-accounts', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const token = normalizeEnvAccessToken(config.meta.systemUserToken);
+    if (!token) {
+      return c.json({
+        configured: false,
+        reason: 'META_SYSTEM_USER_TOKEN is not set on this server.',
+      }, 200);
+    }
+
+    try {
+      const oauth = buildMetaOAuth();
+      let businessName: string | undefined;
+      let accounts;
+      if (oauth) {
+        const resolved = await oauth.resolveSystemUserConnection(token);
+        businessName = resolved.businessName;
+        accounts = resolved.accounts;
+      } else {
+        accounts = await fetchMetaAdAccountsByToken(token, config.meta.apiVersion);
+        businessName = accounts.find(a => a.business?.name)?.business?.name;
+      }
+
+      // Cross-reference the DB once to mark linked accounts + owning workspace.
+      const linkedRows = await prisma.adAccount.findMany({
+        select: { externalAccountId: true, workspaceId: true },
+      });
+      const linkedMap = new Map<string, string>();
+      for (const row of linkedRows) linkedMap.set(row.externalAccountId, row.workspaceId);
+
+      return c.json({
+        configured: true,
+        businessName: businessName ?? null,
+        accounts: accounts.map(a => ({
+          id: a.id,
+          name: a.name,
+          currency: a.currency,
+          accountStatus: a.account_status,
+          linked: linkedMap.has(a.id),
+          linkedWorkspaceId: linkedMap.get(a.id) ?? null,
+        })),
+      });
+    } catch (err) {
+      console.error('[admin:add-client] discover-accounts failed:', summarizeMetaAuthError(err));
+      return c.json({ configured: true, error: summarizeMetaAuthError(err) });
+    }
+  });
+
+  // ── Connection Orchestrator (platform-admin) ──────────────────────────────
+  // Thin HTTP skin over src/orchestrator/engine.ts. All state-machine logic
+  // lives in the engine; these routes only translate HTTP ⇄ engine calls so
+  // the same behavior is reachable from the poller and from the operator UI.
+
+  /**
+   * POST /api/admin/onboarding — start (or re-attach to) an onboarding.
+   * Body: { workspaceId, externalAccountId }. Idempotent by contract: a
+   * double-click returns the existing in-flight record, never a duplicate.
+   */
+  app.post('/api/admin/onboarding', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { workspaceId?: string; externalAccountId?: string };
+    const workspaceId = body.workspaceId?.trim();
+    const rawAccountId = body.externalAccountId?.trim();
+    if (!workspaceId || !rawAccountId) {
+      return c.json({ error: 'workspaceId and externalAccountId are required' }, 400);
+    }
+    // Operators paste bare digits from the Meta UI; the platform-wide
+    // convention is the act_ prefix.
+    const externalAccountId = /^\d+$/.test(rawAccountId) ? `act_${rawAccountId}` : rawAccountId;
+
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!workspace) return c.json({ error: 'Workspace not found' }, 404);
+
+    const record = await createOnboarding(prisma, { workspaceId, externalAccountId });
+    return c.json(safeJson({ ok: true, onboarding: record }), 201);
+  });
+
+  /** GET /api/admin/onboarding?workspaceId= — all records for a workspace. */
+  app.get('/api/admin/onboarding', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const workspaceId = c.req.query('workspaceId')?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+
+    const records = await prisma.connectionOnboarding.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return c.json(safeJson({ onboardings: records }));
+  });
+
+  /** GET /api/admin/onboarding/:id — record + full audit timeline. */
+  app.get('/api/admin/onboarding/:id', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const id = c.req.param('id');
+    const record = await prisma.connectionOnboarding.findUnique({ where: { id } });
+    if (!record) return c.json({ error: 'Onboarding not found' }, 404);
+    const timeline = await getTimeline(prisma, id);
+    return c.json(safeJson({ onboarding: record, timeline }));
+  });
+
+  /**
+   * POST /api/admin/onboarding/:id/check — the operator's "تحقق الآن" nudge.
+   * Reconcile against provider truth FIRST (so a crash-window inconsistency
+   * is corrected before we act on it), then advance one step.
+   */
+  app.post('/api/admin/onboarding/:id/check', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const id = c.req.param('id');
+    const existing = await prisma.connectionOnboarding.findUnique({ where: { id } });
+    if (!existing) return c.json({ error: 'Onboarding not found' }, 404);
+
+    await reconcileOnboarding(prisma, id, metaAdapter);
+    const record = await advanceOnboarding(prisma, id, metaAdapter);
+    const timeline = await getTimeline(prisma, id);
+    return c.json(safeJson({ ok: true, onboarding: record, timeline }));
+  });
+
+  /**
+   * Check whether a specific ad account is visible to the System User token yet
+   * (the "check status" step of the onboarding checklist). Accepts a bare
+   * numeric id or an `act_`-prefixed id.
+   */
+  app.get('/api/admin/meta/check-account', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const token = normalizeEnvAccessToken(config.meta.systemUserToken);
+    if (!token) {
+      return c.json({
+        configured: false,
+        reason: 'META_SYSTEM_USER_TOKEN is not set on this server.',
+      }, 200);
+    }
+
+    const raw = (c.req.query('adAccountId') ?? '').trim();
+    if (!raw) return c.json({ error: 'adAccountId is required' }, 400);
+    // Normalize: accept bare digits or an existing act_ prefix.
+    const adAccountId = /^\d+$/.test(raw) ? `act_${raw}` : raw;
+
+    try {
+      const oauth = buildMetaOAuth();
+      const accounts = oauth
+        ? (await oauth.resolveSystemUserConnection(token)).accounts
+        : await fetchMetaAdAccountsByToken(token, config.meta.apiVersion);
+      const match = accounts.find(a => a.id === adAccountId);
+      if (!match) return c.json({ visible: false });
+      return c.json({
+        visible: true,
+        account: {
+          id: match.id,
+          name: match.name,
+          currency: match.currency,
+          accountStatus: match.account_status,
+        },
+      });
+    } catch (err) {
+      console.error('[admin:add-client] check-account failed:', summarizeMetaAuthError(err));
+      return c.json({ configured: true, error: summarizeMetaAuthError(err) });
+    }
   });
 
   /**
@@ -4361,7 +4523,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               token:        sysToken,
               oauth,
             });
-            const connectionId = await upsertMetaConnection({
+            const connectionId = await upsertMetaConnection(prisma, {
               workspaceId,
               businessId:      business.id,
               businessName:    business.name,
@@ -4524,7 +4686,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
           return c.redirect('/welcome?oauth_error=no_ad_accounts_granted');
         }
-        const connectionId = await upsertMetaConnection({
+        const connectionId = await upsertMetaConnection(prisma, {
           workspaceId:     stored.workspaceId,
           businessId:      business.id,
           businessName:    business.name,
