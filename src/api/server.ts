@@ -136,6 +136,14 @@ import { verifyMetaSignature, processMetaWebhookEvent } from '../services/metaWe
 import { config } from '../config';
 import { enqueueOrFallback, getQueues } from '../lib/queue';
 import { kickoffInitialSync as kickoffInitialSyncImpl } from '../lib/initialSync';
+// ── Connection Orchestrator (see src/orchestrator/contracts.ts) ──────────
+import {
+  createOnboarding,
+  advance as advanceOnboarding,
+  reconcile as reconcileOnboarding,
+} from '../orchestrator/engine';
+import { getTimeline } from '../orchestrator/timeline';
+import { metaAdapter } from '../orchestrator/adapters/metaAdapter';
 import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, MetaOAuth } from '../services/metaOAuth';
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
@@ -2299,6 +2307,87 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       console.error('[admin:add-client] discover-accounts failed:', summarizeMetaAuthError(err));
       return c.json({ configured: true, error: summarizeMetaAuthError(err) });
     }
+  });
+
+  // ── Connection Orchestrator (platform-admin) ──────────────────────────────
+  // Thin HTTP skin over src/orchestrator/engine.ts. All state-machine logic
+  // lives in the engine; these routes only translate HTTP ⇄ engine calls so
+  // the same behavior is reachable from the poller and from the operator UI.
+
+  /**
+   * POST /api/admin/onboarding — start (or re-attach to) an onboarding.
+   * Body: { workspaceId, externalAccountId }. Idempotent by contract: a
+   * double-click returns the existing in-flight record, never a duplicate.
+   */
+  app.post('/api/admin/onboarding', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = req.body as { workspaceId?: string; externalAccountId?: string };
+    const workspaceId = body.workspaceId?.trim();
+    const rawAccountId = body.externalAccountId?.trim();
+    if (!workspaceId || !rawAccountId) {
+      return c.json({ error: 'workspaceId and externalAccountId are required' }, 400);
+    }
+    // Operators paste bare digits from the Meta UI; the platform-wide
+    // convention is the act_ prefix.
+    const externalAccountId = /^\d+$/.test(rawAccountId) ? `act_${rawAccountId}` : rawAccountId;
+
+    const workspace = await prisma.workspace.findUnique({ where: { id: workspaceId }, select: { id: true } });
+    if (!workspace) return c.json({ error: 'Workspace not found' }, 404);
+
+    const record = await createOnboarding(prisma, { workspaceId, externalAccountId });
+    return c.json(safeJson({ ok: true, onboarding: record }), 201);
+  });
+
+  /** GET /api/admin/onboarding?workspaceId= — all records for a workspace. */
+  app.get('/api/admin/onboarding', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const workspaceId = c.req.query('workspaceId')?.trim();
+    if (!workspaceId) return c.json({ error: 'workspaceId is required' }, 400);
+
+    const records = await prisma.connectionOnboarding.findMany({
+      where: { workspaceId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return c.json(safeJson({ onboardings: records }));
+  });
+
+  /** GET /api/admin/onboarding/:id — record + full audit timeline. */
+  app.get('/api/admin/onboarding/:id', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const id = c.req.param('id');
+    const record = await prisma.connectionOnboarding.findUnique({ where: { id } });
+    if (!record) return c.json({ error: 'Onboarding not found' }, 404);
+    const timeline = await getTimeline(prisma, id);
+    return c.json(safeJson({ onboarding: record, timeline }));
+  });
+
+  /**
+   * POST /api/admin/onboarding/:id/check — the operator's "تحقق الآن" nudge.
+   * Reconcile against provider truth FIRST (so a crash-window inconsistency
+   * is corrected before we act on it), then advance one step.
+   */
+  app.post('/api/admin/onboarding/:id/check', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const id = c.req.param('id');
+    const existing = await prisma.connectionOnboarding.findUnique({ where: { id } });
+    if (!existing) return c.json({ error: 'Onboarding not found' }, 404);
+
+    await reconcileOnboarding(prisma, id, metaAdapter);
+    const record = await advanceOnboarding(prisma, id, metaAdapter);
+    const timeline = await getTimeline(prisma, id);
+    return c.json(safeJson({ ok: true, onboarding: record, timeline }));
   });
 
   /**
