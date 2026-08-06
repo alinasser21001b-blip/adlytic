@@ -191,6 +191,7 @@ export function adminConsolePage(): string {
       <div class="nav-label">⚙️ العمليات</div>
       <a class="nav-item" href="#customers" data-tab="customers">الزبائن</a>
       <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
+      <a class="nav-item" href="/admin/add-client">إضافة عميل</a>
       <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
       <a class="nav-item" href="/admin/inbox">صندوق بريد العملاء</a>

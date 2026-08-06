@@ -75,6 +75,7 @@ import { adminConsolePage } from '../web/pages/adminConsolePage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
+import { addClientPage } from '../web/pages/addClientPage';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import {
   createTicket, replyToTicket, getTicketWithMessages, adminListTickets,
@@ -558,6 +559,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
   app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
   app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
+  app.get('/admin/add-client', (c) => c.html(addClientPage()));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
@@ -2233,6 +2235,115 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       limit: Number.isFinite(limit) ? limit : undefined,
     });
     return c.json(safeJson({ events }));
+  });
+
+  // ── Partner-Access "Add a Client" onboarding (platform-admin) ─────────────
+  // Read-only helpers that back the guided operator screen at /admin/add-client.
+  // They discover the ad accounts currently visible to the app's System User
+  // token and cross-reference the DB so the operator can watch a newly-approved
+  // Partner-Access grant appear live, with each account's currency surfaced.
+
+  /**
+   * Discover every ad account visible to the System User token, marking whether
+   * each is already linked to an Adlytic workspace.
+   *
+   * Not configured (no token) → { configured:false, reason }.
+   * Meta call failure          → { configured:true, error } (sanitized).
+   */
+  app.get('/api/admin/meta/discover-accounts', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const token = normalizeEnvAccessToken(config.meta.systemUserToken);
+    if (!token) {
+      return c.json({
+        configured: false,
+        reason: 'META_SYSTEM_USER_TOKEN is not set on this server.',
+      }, 200);
+    }
+
+    try {
+      const oauth = buildMetaOAuth();
+      let businessName: string | undefined;
+      let accounts;
+      if (oauth) {
+        const resolved = await oauth.resolveSystemUserConnection(token);
+        businessName = resolved.businessName;
+        accounts = resolved.accounts;
+      } else {
+        accounts = await fetchMetaAdAccountsByToken(token, config.meta.apiVersion);
+        businessName = accounts.find(a => a.business?.name)?.business?.name;
+      }
+
+      // Cross-reference the DB once to mark linked accounts + owning workspace.
+      const linkedRows = await prisma.adAccount.findMany({
+        select: { externalAccountId: true, workspaceId: true },
+      });
+      const linkedMap = new Map<string, string>();
+      for (const row of linkedRows) linkedMap.set(row.externalAccountId, row.workspaceId);
+
+      return c.json({
+        configured: true,
+        businessName: businessName ?? null,
+        accounts: accounts.map(a => ({
+          id: a.id,
+          name: a.name,
+          currency: a.currency,
+          accountStatus: a.account_status,
+          linked: linkedMap.has(a.id),
+          linkedWorkspaceId: linkedMap.get(a.id) ?? null,
+        })),
+      });
+    } catch (err) {
+      console.error('[admin:add-client] discover-accounts failed:', summarizeMetaAuthError(err));
+      return c.json({ configured: true, error: summarizeMetaAuthError(err) });
+    }
+  });
+
+  /**
+   * Check whether a specific ad account is visible to the System User token yet
+   * (the "check status" step of the onboarding checklist). Accepts a bare
+   * numeric id or an `act_`-prefixed id.
+   */
+  app.get('/api/admin/meta/check-account', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const token = normalizeEnvAccessToken(config.meta.systemUserToken);
+    if (!token) {
+      return c.json({
+        configured: false,
+        reason: 'META_SYSTEM_USER_TOKEN is not set on this server.',
+      }, 200);
+    }
+
+    const raw = (c.req.query('adAccountId') ?? '').trim();
+    if (!raw) return c.json({ error: 'adAccountId is required' }, 400);
+    // Normalize: accept bare digits or an existing act_ prefix.
+    const adAccountId = /^\d+$/.test(raw) ? `act_${raw}` : raw;
+
+    try {
+      const oauth = buildMetaOAuth();
+      const accounts = oauth
+        ? (await oauth.resolveSystemUserConnection(token)).accounts
+        : await fetchMetaAdAccountsByToken(token, config.meta.apiVersion);
+      const match = accounts.find(a => a.id === adAccountId);
+      if (!match) return c.json({ visible: false });
+      return c.json({
+        visible: true,
+        account: {
+          id: match.id,
+          name: match.name,
+          currency: match.currency,
+          accountStatus: match.account_status,
+        },
+      });
+    } catch (err) {
+      console.error('[admin:add-client] check-account failed:', summarizeMetaAuthError(err));
+      return c.json({ configured: true, error: summarizeMetaAuthError(err) });
+    }
   });
 
   /**
