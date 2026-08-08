@@ -207,6 +207,22 @@ export const METRIC_DICTIONARY: Record<string, MetricDefinition> = {
     displayPriority: 1,
   }),
 
+  landing_page_views: def({
+    metricKey: 'landing_page_views',
+    labelAr: 'مشاهدات صفحة الهبوط',
+    labelEn: 'Landing page views',
+    definition: 'People who actually ARRIVED at the destination page after clicking. The gap between link clicks and this is the landing-page problem: a click that never loads the page (slow site, broken URL, bounce before render). Meta\'s own landing_page_view action — never estimated from clicks.',
+    formula: 'sum(actions.landing_page_view)',
+    sourceFields: ['actions.landing_page_view'],
+    storedAs: ['DailyStat.landingPageViews'],
+    applicableObjectives: ['traffic'],
+    aggregationRule: 'sum',
+    confidenceLevel: 'exact',
+    benchmarkable: false,
+    goodDirection: 'up',
+    displayPriority: 2,
+  }),
+
   ctr: def({
     metricKey: 'ctr',
     labelAr: 'معدل النقر',

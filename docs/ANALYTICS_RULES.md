@@ -187,7 +187,9 @@ in review as a semantic decision rather than an invisible side effect.
 
 ## Phase scope (current)
 
-**Completed:** P0 link clicks, P1 benchmark confidence, P2 result semantics.
+**Completed:** P0 link clicks, P1 benchmark confidence, P2 result semantics,
+P3 funnel intelligence (objective-aware funnels, landing-page views persisted,
+earliest-break diagnosis, material-degradation gating, `FunnelDiagnosis` DTO).
 
 **P2 exit conditions — all met (2026-08-08):**
 
@@ -203,8 +205,10 @@ in review as a semantic decision rather than an invisible side effect.
 | All tests green | 24 suites; result-semantics 42, architecture 16 |
 | No P3 code introduced | funnel work is design-only |
 
-**Next, on approval:** P3 funnel intelligence, P4 objective-driven dashboard
-sections, P5 anomaly detection — in that order, and not before.
+**Next, on approval:** P4 objective-driven dashboard sections, P5 anomaly
+detection — in that order, and not before. P5 also reconciles the existing
+HIGH_FREQUENCY detector with the funnel's reach stage so two systems never
+describe the same phenomenon differently.
 
 **Explicitly out of scope:** Google Ads or any additional provider, large UI
 redesigns, unrelated architecture work. Enforced by a test that fails if a

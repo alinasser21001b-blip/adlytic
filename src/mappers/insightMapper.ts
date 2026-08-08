@@ -32,6 +32,17 @@ export interface NormalizedInsight {
    * understates cost-per-click against what Ads Manager shows by default.
    */
   linkClicks: number;
+  /**
+   * People who actually ARRIVED at the destination page.
+   *
+   * Distinct from linkClicks: a click that never loads the page (slow site,
+   * bounce before render, broken URL) counts as a click but not a view. The
+   * gap between the two IS the landing-page problem, which is why traffic
+   * campaigns cannot be diagnosed without this.
+   *
+   * Meta's own `landing_page_view` action — never estimated from clicks.
+   */
+  landingPageViews: number;
   uniqueClicks: number;
   messages: number;
   purchases: number;
@@ -84,6 +95,7 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   // double-counts and produced a 163 vs Meta-Ads-Manager-reported 87 in
   // production. We pick exactly ONE canonical action_type per row.
   const messages = pickMessages(actions);
+  const landingPageViews = sumActions(actions, LANDING_PAGE_VIEW_ACTION_TYPES);
   const purchases = sumActions(actions, PURCHASE_ACTION_TYPES);
   const leads = sumActions(actions, LEAD_ACTION_TYPES);
   // LEGACY, FROZEN (see docs/ANALYTICS_RULES.md rule 4).
@@ -121,7 +133,7 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   return {
     date,
     spendMinor,
-    impressions, reach, clicks, linkClicks, uniqueClicks,
+    impressions, reach, clicks, linkClicks, landingPageViews, uniqueClicks,
     messages, purchases, leads, conversions,
     revenueMinor,
     ctr: nullableFloat(row.ctr),
@@ -283,6 +295,13 @@ function pickMessages(actions: ActionRow[]): number {
   }
   return 0;
 }
+// Meta's real landing-page-view signal. NEVER estimated from clicks: the
+// whole diagnostic value is the GAP between a click and an arrival.
+const LANDING_PAGE_VIEW_ACTION_TYPES = new Set([
+  "landing_page_view",
+  "omni_landing_page_view",
+]);
+
 const PURCHASE_ACTION_TYPES = new Set([
   "purchase",
   "offsite_conversion.fb_pixel_purchase",

@@ -196,6 +196,28 @@ check('link clicks default to 0 when Meta omits the field', () => {
   assert.equal(mapMetaInsight(row, { currencyMinorFactor: 1 }).linkClicks, 0);
 });
 
+check('landing page views come from the REAL Meta action, never from clicks', () => {
+  // P3: the traffic funnel's diagnostic value lives in the GAP between a
+  // click and an arrival. Estimating LPV from clicks would close that gap by
+  // definition and destroy the signal.
+  const row: any = {
+    date_start: '2026-08-01', spend: '100', impressions: '10000', reach: '8000',
+    clicks: '500', inline_link_clicks: '120', unique_clicks: '450',
+    actions: [
+      { action_type: 'landing_page_view', value: '95' },
+      { action_type: 'link_click', value: '120' },   // must NOT leak into LPV
+    ],
+  };
+  const n = mapMetaInsight(row, { currencyMinorFactor: 1 });
+  assert.equal(n.landingPageViews, 95);
+  assert.ok(n.landingPageViews !== n.linkClicks, 'LPV must be independent of link clicks');
+});
+
+check('landing page views default to 0 when the action is absent', () => {
+  const row: any = { date_start: '2026-08-01', spend: '10', impressions: '100', clicks: '5', actions: [] };
+  assert.equal(mapMetaInsight(row, { currencyMinorFactor: 1 }).landingPageViews, 0);
+});
+
 console.log('\n── 5. Messaging counts stay parity-correct with Ads Manager ──');
 
 check('conversation-started wins over messaging-connection (never summed)', () => {

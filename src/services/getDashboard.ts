@@ -90,6 +90,9 @@ import {
   isApproximate,
   type CampaignResultContribution,
 } from "../analytics/resultSemantics";
+import { diagnoseFunnel, type FunnelDiagnosis } from "../analytics/funnel/diagnose";
+import { resolveAccountResultKey } from "../analytics/accountResultKey";
+import type { FunnelWindowTotals } from "../analytics/funnel/compute";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
@@ -290,6 +293,13 @@ export interface DashboardDTO {
    * summed into or used as a stand-in for the rest.
    */
   resultBreakdown?: ResultBreakdownDTO;
+  /**
+   * P3 — objective-aware funnel diagnosis for the account's single purpose.
+   * Deterministic output of analytics/funnel; the UI renders it verbatim and
+   * performs NO diagnosis logic of its own. Absent for mixed-purpose accounts
+   * (no single funnel shape exists) and unresolvable purposes.
+   */
+  funnel?: import("../analytics/funnel/diagnose").FunnelDiagnosis;
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
   /** Every active campaign with its window metrics, sorted by health desc. Powers
@@ -1220,9 +1230,12 @@ export async function getDashboard(
   // weekly report, creative health): a slow secondary panel must degrade to null,
   // never blank the whole dashboard. softStage() turns a stage timeout into the
   // fallback; each builder's own `.catch(() => null)` handles non-timeout errors.
-  const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
+  const [cards, accountFunnel, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
+    ),
+    softStage('funnel', null, () =>
+      buildAccountFunnel(account.id, prisma).catch(() => null),
     ),
     softStage('brainSection', null, () =>
       buildBrainSection(
@@ -1508,6 +1521,7 @@ export async function getDashboard(
     bleedAlert,
     ...(morningStory && { morningStory }),
     resultBreakdown: accountResultBreakdown ?? undefined,
+    funnel: accountFunnel ?? undefined,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
     campaigns: cards.all,
@@ -1839,6 +1853,80 @@ async function buildResultBreakdown(
     singleUnitCount: single && !single.approximate ? single.count : null,
     singleUnitApproximate: single?.approximate ?? false,
   };
+}
+
+/**
+ * P3 — account funnel diagnosis: current 7-day window vs the prior 7 days,
+ * lagged 2 days for Meta attribution backfill (same convention as the
+ * analytics engine).
+ *
+ * Only for accounts with ONE resolvable purpose: a mixed account has no
+ * single funnel shape, and diagnosing the dominant purpose's funnel while
+ * other purposes' spend flows through it would mis-attribute. Honest absence
+ * over confident nonsense.
+ */
+async function buildAccountFunnel(
+  adAccountId: string,
+  prisma: PrismaClient,
+): Promise<FunnelDiagnosis | null> {
+  const lagDays = 2, windowDays = 7;
+  const now = new Date();
+  const dayMs = 86_400_000;
+  const floor = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const currentUntil = floor(new Date(now.getTime() - lagDays * dayMs));
+  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * dayMs);
+  const priorUntil = new Date(currentSince.getTime() - dayMs);
+  const priorSince = new Date(priorUntil.getTime() - (windowDays - 1) * dayMs);
+
+  const { resultKey, families } = await resolveAccountResultKey(prisma, adAccountId, priorSince, currentUntil);
+  if (!resultKey || families.length !== 1) return null;
+  const family = families[0]!;
+
+  const rows = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.ACCOUNT,
+      entityId: adAccountId,
+      date: { gte: priorSince, lte: currentUntil },
+    },
+    select: {
+      date: true, spend: true, impressions: true, reach: true, linkClicks: true,
+      landingPageViews: true, messages: true, leads: true, purchases: true, clicks: true,
+    },
+  });
+  if (rows.length === 0) return null;
+
+  const zero = (): FunnelWindowTotals => ({
+    impressions: 0, reach: 0, linkClicks: 0, landingPageViews: 0,
+    messages: 0, leads: 0, purchases: 0, clicks: 0,
+  });
+  const cur = zero(), pri = zero();
+  let spendCur = 0, spendPri = 0;
+  for (const r of rows) {
+    const inCurrent = r.date.getTime() >= currentSince.getTime();
+    const t = inCurrent ? cur : pri;
+    t.impressions += Number(r.impressions);
+    // Reach maxes — not additive (same person on two days is one person).
+    t.reach = Math.max(t.reach, Number(r.reach));
+    t.linkClicks += Number(r.linkClicks);
+    t.landingPageViews += Number(r.landingPageViews);
+    t.messages += Number(r.messages);
+    t.leads += Number(r.leads);
+    t.purchases += Number(r.purchases);
+    t.clicks += Number(r.clicks);
+    if (inCurrent) spendCur += Number(r.spend); else spendPri += Number(r.spend);
+  }
+
+  // Supporting signals (NOT funnel stages): spend and cost per result.
+  const resultCur = cur[resultKey as keyof FunnelWindowTotals] as number;
+  const resultPri = pri[resultKey as keyof FunnelWindowTotals] as number;
+  const signals = {
+    spendCurrentMinor: spendCur,
+    spendPriorMinor: spendPri,
+    costPerResultCurrentMinor: resultCur > 0 ? spendCur / resultCur : null,
+    costPerResultPriorMinor: resultPri > 0 ? spendPri / resultPri : null,
+  };
+
+  return diagnoseFunnel(family, cur, pri, signals);
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──

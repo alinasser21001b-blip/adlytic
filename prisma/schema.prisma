@@ -395,6 +395,12 @@ model DailyStat {
   /// click against Ads Manager's default column. This is the honest denominator
   /// for cost-per-link-click and for the click → conversation rate.
   linkClicks     BigInt     @default(0) @map("link_clicks")
+  /// People who actually ARRIVED at the destination page (Meta's own
+  /// `landing_page_view` action). The gap between link_clicks and this is the
+  /// landing-page problem — a click that never loads the page. Never estimated
+  /// from clicks; 0 on rows predating the column, so a zero denominator must
+  /// read as INSUFFICIENT_DATA rather than a measured zero.
+  landingPageViews BigInt   @default(0) @map("landing_page_views")
   uniqueClicks   BigInt     @default(0) @map("unique_clicks")
   messages       BigInt     @default(0)
   purchases      BigInt     @default(0)
