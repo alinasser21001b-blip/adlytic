@@ -10,16 +10,22 @@ function check(name: string, cond: boolean, actual?: unknown) {
 }
 
 // ── benchmarks ──
-check('ctr null in → null', benchmarkCtr(null, null, false) === null);
-check('ctr above global good', benchmarkCtr(2.0, null, false)?.position === 'good');
-check('ctr within global ok', benchmarkCtr(1.2, null, false)?.position === 'ok');
-check('ctr below global low', benchmarkCtr(0.5, null, false)?.position === 'low');
+// Benchmarks are now SAMPLE-GATED (analytics/confidence.ts). A verdict
+// requires a real sample; these cases pass one explicitly. The gating
+// behaviour itself is asserted in test_analytics_semantics.ts.
+const BIG = { size: 50_000, days: 30 };   // comfortably above every floor
+
+check('ctr null in → null', benchmarkCtr(null, null, false, BIG) === null);
+check('ctr above global good', benchmarkCtr(2.0, null, false, BIG)?.position === 'good');
+check('ctr within global ok', benchmarkCtr(1.2, null, false, BIG)?.position === 'ok');
+check('ctr below global low', benchmarkCtr(0.5, null, false, BIG)?.position === 'low');
 // Furniture industry: 0.8-1.5 — a 1.2 CTR is "within", not "below" the fashion range
-check('industry match (furniture)', benchmarkCtr(0.9, 'Furniture Store', false)?.position === 'ok');
-check('arabic text present', (benchmarkCtr(2.0, null, true)?.text ?? '').includes('المعيار'));
-check('freq healthy', benchmarkFrequency(2.1, false)?.position === 'good');
-check('freq watch band', benchmarkFrequency(3.5, false)?.position === 'ok');
-check('freq saturated', benchmarkFrequency(4.5, false)?.position === 'low');
+check('industry match (furniture)', benchmarkCtr(0.9, 'Furniture Store', false, BIG)?.position === 'ok');
+check('arabic text present', (benchmarkCtr(2.0, null, true, BIG)?.text ?? '').includes('المعيار'));
+check('freq healthy', benchmarkFrequency(2.1, false, BIG)?.position === 'good');
+check('freq watch band', benchmarkFrequency(3.5, false, BIG)?.position === 'ok');
+check('freq saturated', benchmarkFrequency(4.5, false, BIG)?.position === 'low');
+check('benchmark discloses its sample size', benchmarkCtr(2.0, null, false, BIG)?.sampleSize === 50_000);
 
 // ── forecast ──
 const D = (offsetDays: number, spend: number, messages: number, base: Date) => ({

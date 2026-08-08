@@ -1,0 +1,20 @@
+-- Persist link clicks separately from all-clicks.
+--
+-- Meta's `clicks` counts every click on the ad — reactions, comments, shares,
+-- profile taps and photo expands alongside real link clicks. Adlytic requested
+-- `inline_link_clicks` on every insights call and then discarded it at the
+-- mapper, so all-clicks was reported as "النقرات" and used as the CPC
+-- denominator. That overstated traffic and made cost per click read LOWER than
+-- the same client sees in Ads Manager.
+--
+-- It also made the click → conversation rate uncomputable: the honest
+-- denominator did not exist. That ratio is what separates a delivery problem
+-- (few clicks) from an after-click problem (clicks that never convert), which
+-- is the diagnosis Adlytic's messaging clients most need.
+--
+-- Additive with a DEFAULT 0: inert on existing rows, no rewrite, no lock beyond
+-- the catalog update. Existing rows read 0 until the normal sync upsert
+-- backfills them per account — see the accompanying note in dailyStatsRepo.
+-- 0 here means "not yet synced", which is why no analytics path may treat a
+-- zero denominator as a real zero (it returns INSUFFICIENT_DATA instead).
+ALTER TABLE "daily_stats" ADD COLUMN IF NOT EXISTS "link_clicks" BIGINT NOT NULL DEFAULT 0;

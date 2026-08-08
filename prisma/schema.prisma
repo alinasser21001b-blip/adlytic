@@ -389,6 +389,12 @@ model DailyStat {
   impressions    BigInt     @default(0)
   reach          BigInt     @default(0)
   clicks         BigInt     @default(0)
+  /// Clicks that actually opened the destination (website, WhatsApp, Messenger).
+  /// Distinct from `clicks`, which also counts reactions, comments, shares and
+  /// photo expands — so `clicks` overstates traffic and understates cost per
+  /// click against Ads Manager's default column. This is the honest denominator
+  /// for cost-per-link-click and for the click → conversation rate.
+  linkClicks     BigInt     @default(0) @map("link_clicks")
   uniqueClicks   BigInt     @default(0) @map("unique_clicks")
   messages       BigInt     @default(0)
   purchases      BigInt     @default(0)

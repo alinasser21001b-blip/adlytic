@@ -24,6 +24,13 @@ import {
   METRIC_DICTIONARY,
 } from './src/analytics/metricDictionary';
 import { mapMetaInsight } from './src/mappers/insightMapper';
+import { resolveCampaignPurpose as resolvePurpose } from './src/lib/campaignPurpose';
+import { GOLDEN_CASES, GOLDEN_UNKNOWN_OBJECTIVES } from './src/analytics/goldenDataset';
+import {
+  gateRateBenchmark, gateCostBenchmark, classificationConfidenceFromReason,
+  MIN_IMPRESSIONS_FOR_RATE, MIN_RESULTS_FOR_COST,
+} from './src/analytics/confidence';
+import { benchmarkCtr, benchmarkFrequency } from './src/lib/smartInsights';
 
 let passed = 0;
 const fail: string[] = [];
@@ -202,6 +209,109 @@ check('conversation-started wins over messaging-connection (never summed)', () =
   };
   // Production bug: summing produced 163 against Ads Manager's 87.
   assert.equal(mapMetaInsight(row, { currencyMinorFactor: 1 }).messages, 87);
+});
+
+console.log('\n── 6. GOLDEN DATASET — no campaign may silently change meaning ──');
+
+for (const g of GOLDEN_CASES) {
+  check(`${g.id} ${g.description.slice(0, 62)}`, () => {
+    const p = resolvePurpose(g.input);
+    assert.equal(p.family, g.expectedFamily,
+      `${g.id}: expected family ${g.expectedFamily}, got ${p.family} (reason: ${p.reason})`);
+    assert.ok(p.reason.startsWith(g.expectedReasonPrefix),
+      `${g.id}: expected the "${g.expectedReasonPrefix}" rung to decide this, but reason was "${p.reason}" — right answer via the wrong evidence is still a regression`);
+  });
+}
+
+check('every golden case has a unique, stable id', () => {
+  const ids = GOLDEN_CASES.map((g) => g.id);
+  assert.equal(new Set(ids).size, ids.length);
+});
+
+for (const obj of GOLDEN_UNKNOWN_OBJECTIVES) {
+  check(`unknown objective "${obj || '(empty)'}" never resolves to a family`, () => {
+    assert.equal(resolveObjectiveFamily(obj), null);
+  });
+}
+
+console.log('\n── 7. Benchmark confidence is sample-gated (P1) ──');
+
+check('a rate benchmark below the hard floor is UNAVAILABLE', () => {
+  const g = gateRateBenchmark({ size: 40 });
+  assert.equal(g.status, 'UNAVAILABLE');
+  assert.equal(g.reason, 'SAMPLE_TOO_SMALL');
+});
+
+check('the grey band returns LOW_CONFIDENCE, not a verdict', () => {
+  assert.equal(gateRateBenchmark({ size: MIN_IMPRESSIONS_FOR_RATE + 1, days: 30 }).status, 'LOW_CONFIDENCE');
+});
+
+check('a healthy sample passes', () => {
+  assert.equal(gateRateBenchmark({ size: 50_000, days: 30 }).status, 'OK');
+});
+
+check('a short window is LOW_CONFIDENCE even with many impressions', () => {
+  assert.equal(gateRateBenchmark({ size: 100_000, days: 3 }).status, 'LOW_CONFIDENCE');
+});
+
+check('cost benchmarks gate on result count, not impressions', () => {
+  assert.equal(gateCostBenchmark({ size: MIN_RESULTS_FOR_COST - 1 }).status, 'UNAVAILABLE');
+  assert.equal(gateCostBenchmark({ size: 100 }).status, 'OK');
+});
+
+check('40 impressions yields NO CTR verdict (the production hazard)', () => {
+  // Previously: one lucky click on 40 impressions = "2.5% CTR, above benchmark,
+  // high confidence." At Iraqi SMB spend that is noise wearing a verdict.
+  assert.equal(benchmarkCtr(2.5, null, false, { size: 40, days: 2 }), null);
+});
+
+check('a mid-size sample shows the value but withholds the judgement', () => {
+  const b = benchmarkCtr(2.5, null, true, { size: 2_000, days: 30 });
+  assert.ok(b, 'should still return something to render');
+  assert.equal(b!.position, null, 'position must be null — no verdict');
+  assert.equal(b!.status, 'LOW_CONFIDENCE');
+  assert.equal(b!.sampleSize, 2_000, 'n must always be disclosed');
+});
+
+check('frequency benchmarks are gated on the same sample', () => {
+  assert.equal(benchmarkFrequency(4.5, false, { size: 100 }), null);
+  assert.equal(benchmarkFrequency(4.5, false, { size: 50_000, days: 30 })?.position, 'low');
+});
+
+console.log('\n── 8. Classification confidence is separate from data/benchmark ──');
+
+check('destination-decided classification is CONFIRMED', () => {
+  const p = resolvePurpose(clickToWhatsApp);
+  assert.equal(classificationConfidenceFromReason(p.reason), 'CONFIRMED');
+});
+
+check('objective-decided classification is INFERRED, not CONFIRMED', () => {
+  // When objective and optimization goal agree the resolver records only the
+  // objective rung, so confidence reads INFERRED even though two signals
+  // corroborate. Under-claiming is the safe direction — see the corroboration
+  // note in goldenDataset.ts, flagged for the P2 review.
+  const p = resolvePurpose({ objective: 'OUTCOME_TRAFFIC', optimizationGoals: ['LINK_CLICKS'] });
+  assert.equal(p.reason, 'objective:traffic');
+  assert.equal(classificationConfidenceFromReason(p.reason), 'INFERRED');
+});
+
+check('an explicit optimization goal that DECIDES is CONFIRMED', () => {
+  const p = resolvePurpose({ objective: 'OUTCOME_ENGAGEMENT', optimizationGoals: ['CONVERSATIONS'] });
+  assert.equal(classificationConfidenceFromReason(p.reason), 'CONFIRMED');
+});
+
+check('evidence-rung classification is flagged as EVIDENCE, not CONFIRMED', () => {
+  const p = resolvePurpose({
+    objective: 'OUTCOME_ENGAGEMENT', optimizationGoals: ['POST_ENGAGEMENT'],
+    messagesWindow: 30, clicksWindow: 100,
+  });
+  assert.equal(p.family, 'messaging');
+  assert.equal(classificationConfidenceFromReason(p.reason), 'EVIDENCE',
+    'a classification inferred from results must not claim the same confidence as one read from destination_type');
+});
+
+check('an unresolvable classification is UNKNOWN', () => {
+  assert.equal(classificationConfidenceFromReason(null), 'UNKNOWN');
 });
 
 console.log(`\n════ ${passed} passed, ${fail.length} failed ════`);

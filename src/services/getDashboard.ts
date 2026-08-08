@@ -772,6 +772,18 @@ export async function getDashboard(
     syncedAt: account.lifetimeSyncedAt?.toISOString() ?? null,
   };
 
+  // Benchmark sample: impressions are the denominator behind CTR and
+  // frequency, and today's partial row would understate a day count, so
+  // complete days only. The gate lives in the analytics layer — see
+  // analytics/confidence.ts — so no caller can publish a verdict without one.
+  const benchTodayFloorMs = Date.UTC(
+    new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(),
+  );
+  const benchmarkSample = {
+    size: totalImpr,
+    days: daily.filter((d) => d.date.getTime() < benchTodayFloorMs).length,
+  };
+
   const kpis: DashboardDTO["kpis"] = [
     { key: "spend", label: kpiLabel("spend", locale), value: totalSpendMinor, display: money(totalSpendMinor),
       deltaPct: windowTrends.spendTrend, direction: dir(windowTrends.spendTrend), goodWhenUp: false },
@@ -780,14 +792,16 @@ export async function getDashboard(
     { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? null,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
       deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true,
-      benchmark: benchmarkCtr(ctrWindow, ws.industryProfile?.name ?? null, locale === Locale.AR) },
+      benchmark: benchmarkCtr(ctrWindow, ws.industryProfile?.name ?? null, locale === Locale.AR,
+        benchmarkSample) },
     { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? null,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
     { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? null,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false,
-      benchmark: benchmarkFrequency(freqAvg, locale === Locale.AR) },
+      benchmark: benchmarkFrequency(freqAvg, locale === Locale.AR,
+        benchmarkSample) },
     { key: "reach", label: kpiLabel("reach", locale), value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];

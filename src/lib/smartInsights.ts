@@ -12,12 +12,27 @@
 //  rather than guess when the data is too thin — no fake intelligence.
 // ════════════════════════════════════════════════════════════════════════
 
+import {
+  gateRateBenchmark,
+  benchmarkGateTextAr,
+  type BenchmarkSample,
+  type BenchmarkStatus,
+} from '../analytics/confidence';
+
 export type BenchmarkPosition = 'good' | 'ok' | 'low';
 
 export interface KpiBenchmark {
   /** Short localized line, e.g. "المعيار بقطاعك: 0.8-1.5% — أنت فوقه". */
   text: string;
-  position: BenchmarkPosition;
+  /**
+   * The verdict. NULL when the sample is too small to justify one — the value
+   * is still worth showing, the judgement is not. "You're below average" from
+   * 40 impressions is noise wearing the costume of insight.
+   */
+  position: BenchmarkPosition | null;
+  status: BenchmarkStatus;
+  /** Always disclosed, so the UI can print n alongside the verdict. */
+  sampleSize: number;
 }
 
 // Industry CTR ranges (percent) distilled from knowledge/benchmarks_by_industry.json.
@@ -33,12 +48,32 @@ const GLOBAL_CTR = { lo: 0.9, hi: 1.5 };
 const FREQUENCY_FATIGUE_LO = 3.0;
 const FREQUENCY_FATIGUE_HI = 4.0;
 
+/**
+ * CTR versus an industry range — GATED BY SAMPLE SIZE.
+ *
+ * `sample` is REQUIRED, not optional, so no caller can bypass the gate: metric
+ * applicability and comparison validity are enforced here in the analytics
+ * layer, never left to the UI to remember.
+ */
 export function benchmarkCtr(
   ctr: number | null,
   industry: string | null,
   ar: boolean,
+  sample: BenchmarkSample,
 ): KpiBenchmark | null {
   if (ctr === null || !Number.isFinite(ctr)) return null;
+  const gate = gateRateBenchmark(sample);
+  if (gate.status === 'UNAVAILABLE') return null;
+  if (gate.status === 'LOW_CONFIDENCE') {
+    return {
+      position: null,
+      status: 'LOW_CONFIDENCE',
+      sampleSize: gate.sampleSize,
+      text: ar
+        ? (benchmarkGateTextAr(gate) ?? 'العيّنة صغيرة — لا حكم')
+        : `Sample too small (${gate.sampleSize.toLocaleString('en-US')}) — showing the value without a verdict`,
+    };
+  }
   const ind = industry ? INDUSTRY_CTR_RANGES.find((r) => r.match.test(industry)) : undefined;
   const { lo, hi } = ind ?? GLOBAL_CTR;
   const scope = ind
@@ -47,38 +82,55 @@ export function benchmarkCtr(
   const range = `${lo}-${hi}%`;
   if (ctr > hi) {
     return {
-      position: 'good',
+      position: 'good', status: 'OK', sampleSize: gate.sampleSize,
       text: ar ? `المعيار ${scope}: ${range} — أنت فوقه 👏` : `Benchmark ${scope}: ${range} — you're above it 👏`,
     };
   }
   if (ctr >= lo) {
     return {
-      position: 'ok',
+      position: 'ok', status: 'OK', sampleSize: gate.sampleSize,
       text: ar ? `المعيار ${scope}: ${range} — أنت ضمنه` : `Benchmark ${scope}: ${range} — you're within it`,
     };
   }
   return {
-    position: 'low',
+    position: 'low', status: 'OK', sampleSize: gate.sampleSize,
     text: ar ? `المعيار ${scope}: ${range} — أنت دونه` : `Benchmark ${scope}: ${range} — you're below it`,
   };
 }
 
-export function benchmarkFrequency(freq: number | null, ar: boolean): KpiBenchmark | null {
+/** Frequency versus the fatigue line — gated on the same impression sample. */
+export function benchmarkFrequency(
+  freq: number | null,
+  ar: boolean,
+  sample: BenchmarkSample,
+): KpiBenchmark | null {
   if (freq === null || !Number.isFinite(freq)) return null;
+  const gate = gateRateBenchmark(sample);
+  if (gate.status === 'UNAVAILABLE') return null;
+  if (gate.status === 'LOW_CONFIDENCE') {
+    return {
+      position: null,
+      status: 'LOW_CONFIDENCE',
+      sampleSize: gate.sampleSize,
+      text: ar
+        ? (benchmarkGateTextAr(gate) ?? 'العيّنة صغيرة — لا حكم')
+        : `Sample too small (${gate.sampleSize.toLocaleString('en-US')}) — showing the value without a verdict`,
+    };
+  }
   if (freq < FREQUENCY_FATIGUE_LO) {
     return {
-      position: 'good',
+      position: 'good', status: 'OK', sampleSize: gate.sampleSize,
       text: ar ? `تحت خط الإشباع (${FREQUENCY_FATIGUE_LO}-${FREQUENCY_FATIGUE_HI}) — صحي` : `Below the fatigue line (${FREQUENCY_FATIGUE_LO}-${FREQUENCY_FATIGUE_HI}) — healthy`,
     };
   }
   if (freq <= FREQUENCY_FATIGUE_HI) {
     return {
-      position: 'ok',
+      position: 'ok', status: 'OK', sampleSize: gate.sampleSize,
       text: ar ? `داخل نطاق الإشباع (${FREQUENCY_FATIGUE_LO}-${FREQUENCY_FATIGUE_HI}) — راقبه` : `Inside the fatigue band (${FREQUENCY_FATIGUE_LO}-${FREQUENCY_FATIGUE_HI}) — watch it`,
     };
   }
   return {
-    position: 'low',
+    position: 'low', status: 'OK', sampleSize: gate.sampleSize,
     text: ar ? `فوق خط الإشباع (${FREQUENCY_FATIGUE_HI}) — الجمهور مشبع` : `Above the fatigue line (${FREQUENCY_FATIGUE_HI}) — audience saturated`,
   };
 }
