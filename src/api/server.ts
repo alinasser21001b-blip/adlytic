@@ -46,7 +46,7 @@ import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
-import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError } from '../services/getDashboard';
+import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError, resolveAccountResultColumns } from '../services/getDashboard';
 import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelligence';
 import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
@@ -3903,14 +3903,49 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       prisma.dailyStat.findMany({ where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: currentDate } }),
       prisma.dailyStat.findMany({ where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: priorDate } }),
     ]);
+    // WHICH COLUMN IS "results" DEPENDS ON THE OBJECTIVE.
+    //
+    // This endpoint used to sum `messages` for every account. On a sales
+    // account that attributed a PURCHASE swing to the conversation count and
+    // returned a confident impressions/CTR/CVR breakdown computed from the
+    // wrong metric — an answer that looked authoritative and described a
+    // number the merchant had not asked about.
+    const { columns, labelsAr, mixed } = await resolveAccountResultColumns(
+      account.id, prisma, priorDate,
+    );
+    if (mixed) {
+      // Two units cannot share one attribution: the drivers of a conversation
+      // change and an order change are different, and averaging them produces
+      // a breakdown that is true of neither. Declining is the honest answer.
+      return c.json({
+        error: 'MIXED_RESULT_UNITS',
+        messageAr: 'هذا الحساب يجمع أهدافاً مختلفة (' + labelsAr.join(' و') + ') — لا يمكن إسناد تغيّر واحد لها معاً. اطّلع على الإسناد داخل كل حملة.',
+        units: labelsAr,
+      }, 422);
+    }
+    const resultColumn = columns[0];
+    if (!resultColumn) {
+      return c.json({
+        error: 'UNRESOLVED_OBJECTIVE',
+        messageAr: 'لم نتمكن من تحديد هدف هذا الحساب، ولا نُسند تغيّراً إلى مقياس مُخمّن.',
+      }, 422);
+    }
+
     const sumField = (rows: { [k: string]: any }[], f: string) => rows.reduce((a, r) => a + Number(r[f] ?? 0), 0);
-    const current = { impressions: sumField(currentRows, 'impressions'), clicks: sumField(currentRows, 'clicks'), results: sumField(currentRows, 'messages') };
-    const prior = { impressions: sumField(priorRows, 'impressions'), clicks: sumField(priorRows, 'clicks'), results: sumField(priorRows, 'messages') };
+    const current = { impressions: sumField(currentRows, 'impressions'), clicks: sumField(currentRows, 'clicks'), results: sumField(currentRows, resultColumn) };
+    const prior = { impressions: sumField(priorRows, 'impressions'), clicks: sumField(priorRows, 'clicks'), results: sumField(priorRows, resultColumn) };
     const attribution = attributeChange(current, prior);
     if (!attribution) {
       return c.json({ error: 'Not enough data to attribute this day (no prior-week baseline)' }, 422);
     }
-    return c.json({ date: dateParam, priorDate: priorDate.toISOString().slice(0, 10), attribution });
+    // The unit travels with the answer so the caller can name what moved
+    // instead of printing a bare "results".
+    return c.json({
+      date: dateParam,
+      priorDate: priorDate.toISOString().slice(0, 10),
+      resultLabelAr: labelsAr[0] ?? null,
+      attribution,
+    });
   });
 
   /**

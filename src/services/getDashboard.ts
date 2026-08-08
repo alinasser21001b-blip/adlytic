@@ -1845,6 +1845,73 @@ function dailyColumnForUnit(unit: string): string {
 }
 
 /**
+ * The DailyStat columns that carry this account's results, one per distinct
+ * result unit, resolved from each campaign's own evidence.
+ *
+ * Exists so callers that need "the account's results" as a time series — day
+ * attribution, trend comparison — stop hardcoding a column. `/attribution`
+ * summed `messages` as the result for every account regardless of objective,
+ * which attributed a furniture shop's PURCHASE swing to its conversation
+ * count, and reported a confident driver breakdown built on the wrong metric.
+ *
+ * Returns `mixed: true` when the account spans more than one unit. There is no
+ * correct single "results" number in that case, and the caller must decline
+ * rather than pick one — the same rule the dashboard follows.
+ */
+export async function resolveAccountResultColumns(
+  adAccountId: string,
+  prisma: PrismaClient,
+  sinceDate: Date,
+): Promise<{ columns: string[]; labelsAr: string[]; mixed: boolean }> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { adAccountId },
+    select: {
+      id: true,
+      objective: true,
+      adSets: { select: { optimizationGoal: true, destinationType: true } },
+    },
+  });
+  if (campaigns.length === 0) return { columns: [], labelsAr: [], mixed: false };
+
+  const windows = await prisma.dailyStat.groupBy({
+    by: ['entityId'],
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaigns.map((c) => c.id) },
+      date: { gte: sinceDate },
+    },
+    _sum: { messages: true, clicks: true },
+  });
+  const windowByCampaign = new Map(windows.map((w) => [w.entityId, w]));
+
+  const byUnit = new Map<string, { column: string; labelAr: string }>();
+  for (const c of campaigns) {
+    const w = windowByCampaign.get(c.id);
+    const purpose = resolveCampaignPurpose({
+      objective: c.objective,
+      optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: c.adSets.map((a) => a.destinationType),
+      messagesWindow: Number(w?._sum.messages ?? 0),
+      clicksWindow: Number(w?._sum.clicks ?? 0),
+    });
+    // An unresolved purpose contributes nothing. It is NOT folded into a
+    // default family — that fabrication is what this whole layer removed.
+    if (!purpose.family) continue;
+    const def = resultFor(purpose.family);
+    if (!byUnit.has(def.unit)) {
+      byUnit.set(def.unit, { column: def.resultKey, labelAr: def.labelAr });
+    }
+  }
+
+  const entries = [...byUnit.values()];
+  return {
+    columns: entries.map((e) => e.column),
+    labelsAr: entries.map((e) => e.labelAr),
+    mixed: entries.length > 1,
+  };
+}
+
+/**
  * Per-unit result subtotals for the account window.
  *
  * Resolves each campaign's purpose from its own evidence (objective + ad-set
