@@ -2331,12 +2331,30 @@ export const dashboardStyles = `<style>
 
          Fixed here, scoped to this page, because layout.ts is shared and
          frozen. The proper fix is in layout.ts and is reported as such:
-         .topbar-actions must be allowed to shrink and wrap on phones. */
-      .topbar { height: auto; min-height: var(--topbar-h); flex-wrap: wrap; padding: 8px 12px; gap: 8px; }
-      .topbar-title { flex: 1 1 auto; min-width: 0; }
-      .topbar-actions { flex-shrink: 1; flex-wrap: wrap; min-width: 0; justify-content: flex-end; }
-      .topbar-ws { max-width: 100%; min-width: 0; min-height: 44px; }
+         .topbar-actions must be allowed to shrink on phones.
+
+         Letting the row WRAP was the first fix and it worked, but it made a
+         171px sticky header — with the 60px bottom nav that is 30% of a
+         780px phone screen permanently spent on chrome. So the row scrolls
+         instead: the bar stays one line, every control keeps its full 44px,
+         and the overflow is contained inside a scroller rather than dragging
+         the whole document sideways. */
+      .topbar { padding: 0 10px; gap: 8px; }
+      .topbar-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .topbar-actions {
+        flex: 1 1 auto; min-width: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .topbar-actions::-webkit-scrollbar { display: none; }
+      /* Inside a scroller, nothing shrinks — a squeezed 18px-wide workspace
+         chip is not a control, it is a sliver. The row gets longer instead. */
+      .topbar-actions > * { flex-shrink: 0; }
+      .topbar-ws { flex: 0 0 auto; width: 150px; max-width: 150px; min-height: 44px; }
       .topbar-ws-copy { min-width: 0; }
+      .mode-toggle { flex-shrink: 0; }
       .mode-toggle-btn { min-height: 44px; display: inline-flex; align-items: center; font-size: 12px; }
 
       /* ── Filters move into the sheet ─────────────────────────────────── */
