@@ -133,10 +133,40 @@ const SPECS: Record<ObjectiveKpiFamily, ObjectiveKpiSpec> = {
   },
 };
 
-/** Normalize Meta objective strings (legacy + Outcome-era) into a KPI family. */
-export function objectiveKpiFamily(objective: string | null | undefined): ObjectiveKpiFamily {
+/**
+ * Resolve a Meta objective string to a family, or null when it genuinely
+ * cannot be determined.
+ *
+ * `null` is a real answer, not a failure: an account-level view spans mixed
+ * objectives, and an unsynced or future Meta objective has no family. The
+ * older `objectiveKpiFamily` collapsed both cases to 'messaging', which meant
+ * an awareness-only account received messaging diagnoses and messaging Arabic
+ * vocabulary. Callers that must degrade gracefully should branch on null
+ * rather than inherit a guess.
+ */
+export function resolveObjectiveFamily(
+  objective: string | null | undefined,
+): ObjectiveKpiFamily | null {
   const raw = String(objective || '').trim().toUpperCase();
-  if (!raw) return 'messaging'; // historical Phase-1 default when Meta omitted objective
+  if (!raw) return null;
+  const family = matchKnownObjective(raw);
+  return family;
+}
+
+/**
+ * Legacy resolver: same mapping, but falls back to 'messaging' for anything
+ * unrecognized.
+ *
+ * @deprecated Prefer `resolveObjectiveFamily` (returns null) for new code, and
+ * `resolveCampaignPurpose` whenever ad-set optimization goals or destination
+ * types are available — the campaign objective alone misclassifies every
+ * click-to-WhatsApp campaign that ships under an ENGAGEMENT shell.
+ */
+export function objectiveKpiFamily(objective: string | null | undefined): ObjectiveKpiFamily {
+  return resolveObjectiveFamily(objective) ?? 'messaging';
+}
+
+function matchKnownObjective(raw: string): ObjectiveKpiFamily | null {
 
   if (
     raw === 'OUTCOME_AWARENESS' ||
@@ -197,11 +227,25 @@ export function objectiveKpiFamily(objective: string | null | undefined): Object
   if (raw === 'VIDEO_VIEWS' || raw === 'OUTCOME_VIDEO_VIEWS') {
     return 'awareness';
   }
-  return 'messaging';
+  // Unrecognized (a future Meta objective, or a typo): say so honestly.
+  return null;
 }
 
 export function getObjectiveKpiSpec(objective: string | null | undefined): ObjectiveKpiSpec {
   return SPECS[objectiveKpiFamily(objective)];
+}
+
+/**
+ * KPI spec for an ALREADY-RESOLVED family.
+ *
+ * Prefer this over `getObjectiveKpiSpec` wherever the caller has run
+ * `resolveCampaignPurpose`. Converting a resolved family back into a synthetic
+ * objective string just to re-parse it is lossy: 'messaging' derived from a
+ * WhatsApp destination and 'messaging' derived from a MESSAGES objective are
+ * the same answer, and the round-trip only creates opportunities to disagree.
+ */
+export function getKpiSpecForFamily(family: ObjectiveKpiFamily): ObjectiveKpiSpec {
+  return SPECS[family];
 }
 
 export function signalGoodDirection(key: SignalMetricKey): 'up' | 'down' {

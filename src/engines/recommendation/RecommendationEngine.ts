@@ -26,6 +26,10 @@ import { PrismaClient, EntityType, IssueCode, RecommendationPriority } from "@pr
 import { RecommendationsRepo, type RecommendationRecord } from "../../repositories/recommendationsRepo";
 import { COMPOSITION_RULES, type CompositionRule } from "./compositionRules";
 import { matchCompositionRule } from "./matchCompositionRule";
+import { resolveCampaignPurpose } from "../../lib/campaignPurpose";
+import { resultFor } from "../../analytics/resultSemantics";
+import { resolveAccountResultKey } from "../../analytics/accountResultKey";
+import type { ResultMetricKey } from "../../lib/objectiveKpis";
 import {
   evaluateCampaign,
   evaluateBenchmarks,
@@ -152,6 +156,38 @@ export class RecommendationEngine {
       },
     });
 
+    // Which counter is this entity's result? Resolved from its own purpose;
+    // null for an account spanning objectives, where no single unit applies.
+    let resultKey: ResultMetricKey | null = null;
+    try {
+      if (entityType === EntityType.CAMPAIGN) {
+        const meta = await this.prisma.campaign.findUnique({
+          where: { id: entityId },
+          select: {
+            objective: true,
+            adSets: { select: { optimizationGoal: true, destinationType: true } },
+          },
+        });
+        if (meta) {
+          let wMsgs = 0, wClicks = 0;
+          for (const r of daily as any[]) { wMsgs += Number(r.messages); wClicks += Number(r.clicks); }
+          resultKey = resultFor(resolveCampaignPurpose({
+            objective: meta.objective,
+            optimizationGoals: meta.adSets.map((a) => a.optimizationGoal),
+            destinationTypes: meta.adSets.map((a) => a.destinationType),
+            messagesWindow: wMsgs,
+            clicksWindow: wClicks,
+          }).family).resultKey;
+        }
+      } else {
+        resultKey = (await resolveAccountResultKey(
+          this.prisma, entityId, dateOnly(currentSince), dateOnly(currentUntil),
+        )).resultKey;
+      }
+    } catch {
+      resultKey = null;
+    }
+
     let impTotal = 0;
     let clickTotal = 0;
     let ctrNum = 0;
@@ -168,7 +204,11 @@ export class RecommendationEngine {
       if (r.ctr != null && imp > 0) ctrNum += r.ctr * imp;
       if (r.cpm != null && imp > 0) cpmNum += r.cpm * imp;
       if (r.frequency != null) freqVals.push(r.frequency);
-      resultsSum += Number(r.messages ?? r.conversions ?? 0);
+      // Objective-aware: count THIS entity's own result. Was
+      // `messages ?? conversions`, which hard-coded messages as "results" for
+      // every campaign and fell back to the ambiguous column when absent —
+      // so a sales campaign's recommendations were driven by message volume.
+      resultsSum += resultKey ? Number(r[resultKey]) || 0 : 0;
       spendSum += Number(r.spend);
     }
 

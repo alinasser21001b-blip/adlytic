@@ -17,11 +17,31 @@ import { calculateFrequencyTrend } from '../analytics/calculateFrequencyTrend';
 import { calculateResultsTrend } from '../analytics/calculateResultsTrend';
 import { calculateSpendTrend } from '../analytics/calculateSpendTrend';
 import type { Signals } from './types';
+import { resolveCampaignPurpose } from '../../lib/campaignPurpose';
+import { resultFor } from '../../analytics/resultSemantics';
+import type { ObjectiveKpiFamily } from '../../lib/objectiveKpis';
 
 export interface LoadCampaignSignalsOptions {
   asOf?: Date;
   windowDays?: number;
   attributionLagDays?: number;
+}
+
+/**
+ * Pull ONE purpose's result counter off a daily point.
+ *
+ * Reads the per-type columns that have always been stored separately and
+ * correctly — never the ambiguous `conversions` fallback.
+ */
+function resultCountFromPoint(p: DailyPoint, resultKey: string): number {
+  switch (resultKey) {
+    case 'messages':    return Number(p.messages) || 0;
+    case 'purchases':   return Number(p.purchases) || 0;
+    case 'leads':       return Number(p.leads) || 0;
+    case 'clicks':      return Number(p.clicks) || 0;
+    case 'impressions': return Number(p.impressions) || 0;
+    default:            return 0;
+  }
 }
 
 /**
@@ -54,6 +74,20 @@ export async function loadCampaignSignalsBatch(
     orderBy: { date: 'asc' },
   });
 
+  // Resolve each campaign's purpose so results are counted in the RIGHT unit.
+  // Summing `conversions` here previously meant an awareness campaign's
+  // "results" could be a message count and a sales campaign's could be a lead
+  // count, with the detectors none the wiser.
+  const campaignRows = await prisma.campaign.findMany({
+    where: { id: { in: campaignIds } },
+    select: {
+      id: true,
+      objective: true,
+      adSets: { select: { optimizationGoal: true, destinationType: true } },
+    },
+  });
+  const purposeById = new Map<string, { family: ObjectiveKpiFamily; resultKey: string }>();
+
   const byCampaign = new Map<string, DailyPoint[]>();
   for (const r of rows as any[]) {
     const list = byCampaign.get(r.entityId) ?? [];
@@ -67,7 +101,8 @@ export async function loadCampaignSignalsBatch(
       ctr: r.ctr,
       cpm: r.cpm,
       frequency: r.frequency,
-      conversions: Number(r.conversions),
+      purchases: Number(r.purchases),
+      leads: Number(r.leads),
     });
     byCampaign.set(r.entityId, list);
   }
@@ -82,6 +117,23 @@ export async function loadCampaignSignalsBatch(
     const prior = points.filter((p) => p.date >= priSinceY && p.date <= priUntilY);
     if (current.length === 0) continue;
 
+    // Resolve purpose from this campaign's own evidence, using window volumes
+    // for the guarded evidence rung — same inputs the campaigns API uses, so
+    // the two can never disagree.
+    let windowMessages = 0;
+    let windowClicks = 0;
+    for (const p of current) { windowMessages += p.messages; windowClicks += p.clicks; }
+    const meta = campaignRows.find((c) => c.id === campaignId);
+    const purpose = resolveCampaignPurpose({
+      objective: meta?.objective ?? null,
+      optimizationGoals: (meta?.adSets ?? []).map((a) => a.optimizationGoal),
+      destinationTypes: (meta?.adSets ?? []).map((a) => a.destinationType),
+      messagesWindow: windowMessages,
+      clicksWindow: windowClicks,
+    });
+    const resultDef = resultFor(purpose.family);
+    purposeById.set(campaignId, { family: purpose.family, resultKey: resultDef.resultKey });
+
     let impTotal = 0;
     let ctrNum = 0;
     let cpmNum = 0;
@@ -94,15 +146,17 @@ export async function loadCampaignSignalsBatch(
       if (p.ctr != null && imp > 0) ctrNum += p.ctr * imp;
       if (p.cpm != null && imp > 0) cpmNum += p.cpm * imp;
       if (p.frequency != null) freqVals.push(p.frequency);
-      resultsSum += p.conversions;
+      // Objective-aware: count THIS purpose's own result, in one unit.
+      resultsSum += resultCountFromPoint(p, resultDef.resultKey);
       spendSum += p.spend;
     }
 
     out.set(campaignId, {
+      purposeFamily: purpose.family,
       ctrTrend: calculateCtrTrend(current, prior),
       cpmTrend: calculateCpmTrend(current, prior),
       frequencyTrend: calculateFrequencyTrend(current, prior),
-      resultsTrend: calculateResultsTrend(current, prior),
+      resultsTrend: calculateResultsTrend(current, prior, resultDef.resultKey),
       spendTrend: calculateSpendTrend(current, prior),
       currentCtr: impTotal > 0 ? +(ctrNum / impTotal).toFixed(4) : null,
       currentCpm: impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,

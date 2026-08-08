@@ -81,6 +81,26 @@ import {
   upgradeGenericNarration,
 } from "../lib/insightQualityGate";
 import type { Signals } from "../engines/rules/types";
+import { resolveCampaignPurpose } from "../lib/campaignPurpose";
+import {
+  aggregateMixedResults,
+  describeMixedAr,
+  describeMixedEn,
+  singleUnitResult,
+  isApproximate,
+  resultFor,
+  type CampaignResultContribution,
+} from "../analytics/resultSemantics";
+import { diagnoseFunnel, type FunnelDiagnosis } from "../analytics/funnel/diagnose";
+import { buildObjectiveKpiCards } from "../analytics/objectiveKpiCards";
+import { detectAnomaly } from "../analytics/intelligence/anomaly";
+import { reconcileIntelligence } from "../analytics/intelligence/hierarchy";
+import { scoreObjectiveHealth } from "../analytics/intelligence/objectiveHealth";
+import { buildRecommendation } from "../analytics/intelligence/recommend";
+import { classificationConfidenceFromReason, type ClassificationConfidence, type DataConfidence } from "../analytics/confidence";
+import type { ObjectiveKpiFamily } from "../lib/objectiveKpis";
+import { resolveAccountResultKey } from "../analytics/accountResultKey";
+import type { FunnelWindowTotals } from "../analytics/funnel/compute";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
@@ -118,6 +138,40 @@ function getStandalonePrisma(): PrismaClient {
 }
 
 // ── The public shape. This is the contract every consumer codes against. ──
+/**
+ * Per-unit result subtotals for an account.
+ *
+ * Deliberately has NO single cross-unit total field: no correct value exists,
+ * so the type makes the fabrication unrepresentable rather than merely
+ * discouraged (see analytics/resultSemantics.ts).
+ */
+export interface ResultBreakdownDTO {
+  byUnit: Array<{
+    unit: string;
+    outcome: string;
+    count: number;
+    campaigns: number;
+    labelAr: string;
+    labelEn: string;
+    /** True when the count is a proxy rather than a direct platform count. */
+    approximate: boolean;
+  }>;
+  /** True when more than one unit is present — the UI must not show one total. */
+  mixed: boolean;
+  /**
+   * True when ANY contributing result is a proxy rather than a direct platform
+   * count (engagement and app both approximate results from all-clicks). The
+   * UI must disclose it, and no consumer may treat these as measured business
+   * outcomes.
+   */
+  approximate: boolean;
+  /** HEADLINE FRAMING ONLY. Never sum into this; always render byUnit too. */
+  dominant: { unit: string; outcome: string; count: number; spendShare: number } | null;
+  /** Ready-to-render localized summary, e.g. "84 محادثة · 12 طلب". */
+  displayAr: string;
+  displayEn: string;
+}
+
 export interface DashboardDTO {
   /** Present and true only when the workspace has no ad account yet. */
   empty?: true;
@@ -237,6 +291,71 @@ export interface DashboardDTO {
   audienceInsight?: { text: string } | null;
   /** Red banner: today is spending with zero results (vs a producing norm). */
   bleedAlert?: { text: string } | null;
+  /**
+   * Results broken down BY UNIT, never flattened into one number.
+   *
+   * An account running messaging and sales campaigns has no single result
+   * count: 84 conversations and 12 orders are different quantities. `byUnit`
+   * carries the honest subtotals; `dominant` exists only so the headline can
+   * lead with the purpose that owns most of the spend, and must never be
+   * summed into or used as a stand-in for the rest.
+   */
+  resultBreakdown?: ResultBreakdownDTO;
+  /**
+   * P4.2 — the KPI set THIS objective cares about, chosen by the analytics
+   * layer. The dashboard renders whatever arrives here; it does not hold a
+   * per-objective layout table of its own, so a new objective never requires
+   * a frontend change.
+   */
+  objectiveKpis?: {
+    family: string;
+    /** Ordered; index 0 is the headline result. */
+    cards: Array<{
+      key: string;
+      labelAr: string;
+      value: number | null;
+      display: string;
+      /** True when the number is a proxy — the UI must label it. */
+      approximate: boolean;
+      /** 1 = headline, 2 = supporting, 3 = context. */
+      priority: number;
+    }>;
+  };
+  /**
+   * P3 — objective-aware funnel diagnosis for the account's single purpose.
+   * Deterministic output of analytics/funnel; the UI renders it verbatim and
+   * performs NO diagnosis logic of its own. Absent for mixed-purpose accounts
+   * (no single funnel shape exists) and unresolvable purposes.
+   */
+  funnel?: import("../analytics/funnel/diagnose").FunnelDiagnosis;
+  /**
+   * P5 — the reconciled intelligence verdict: one problem class the whole
+   * system agrees on, with the layer that decided it and the actions
+   * downstream engines are forbidden to suggest. Deterministic; the AI layer
+   * may rephrase it but never alter it.
+   */
+  intelligence?: {
+    problemClass: string;
+    confidence: string;
+    decidedBy: string;
+    alert: boolean;
+    evidence: string[];
+    trace: Array<{ layer: string; conclusion: string }>;
+    anomaly: { significant: boolean; kind: string; confidence: string };
+    fatigue: {
+      frequency: number | null; severity: string; confidence: string;
+      corroboratingSignals: number; evidence: string[];
+    } | null;
+    health: {
+      score: number | null; band: string; confidence: string;
+      excludedFacets: string[];
+      facets: Array<{ key: string; score: number | null; weight: number; applicable: boolean; evidence: string }>;
+    };
+    recommendation: {
+      problem: string; evidence: string[]; severity: string; confidence: string;
+      actionCode: string; action: string; expectedImpact: string; targetStage: string | null;
+    } | null;
+  };
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
   /** Every active campaign with its window metrics, sorted by health desc. Powers
@@ -772,6 +891,18 @@ export async function getDashboard(
     syncedAt: account.lifetimeSyncedAt?.toISOString() ?? null,
   };
 
+  // Benchmark sample: impressions are the denominator behind CTR and
+  // frequency, and today's partial row would understate a day count, so
+  // complete days only. The gate lives in the analytics layer — see
+  // analytics/confidence.ts — so no caller can publish a verdict without one.
+  const benchTodayFloorMs = Date.UTC(
+    new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate(),
+  );
+  const benchmarkSample = {
+    size: totalImpr,
+    days: daily.filter((d) => d.date.getTime() < benchTodayFloorMs).length,
+  };
+
   const kpis: DashboardDTO["kpis"] = [
     { key: "spend", label: kpiLabel("spend", locale), value: totalSpendMinor, display: money(totalSpendMinor),
       deltaPct: windowTrends.spendTrend, direction: dir(windowTrends.spendTrend), goodWhenUp: false },
@@ -780,14 +911,16 @@ export async function getDashboard(
     { key: "ctr", label: kpiLabel("ctr", locale), value: ctrWindow ?? null,
       display: ctrWindow !== null ? `${ctrWindow.toFixed(2)}%` : "—",
       deltaPct: windowTrends.ctrTrend, direction: dir(windowTrends.ctrTrend), goodWhenUp: true,
-      benchmark: benchmarkCtr(ctrWindow, ws.industryProfile?.name ?? null, locale === Locale.AR) },
+      benchmark: benchmarkCtr(ctrWindow, ws.industryProfile?.name ?? null, locale === Locale.AR,
+        benchmarkSample) },
     { key: "cpm", label: kpiLabel("cpm", locale), value: cpmWindow ?? null,
       display: cpmWindow !== null ? moneyMajor(cpmWindow) : "—",
       deltaPct: windowTrends.cpmTrend, direction: dir(windowTrends.cpmTrend), goodWhenUp: false },
     { key: "frequency", label: kpiLabel("frequency", locale), value: freqAvg ?? null,
       display: freqAvg !== null ? freqAvg.toFixed(2) : "—",
       deltaPct: windowTrends.frequencyTrend, direction: dir(windowTrends.frequencyTrend), goodWhenUp: false,
-      benchmark: benchmarkFrequency(freqAvg, locale === Locale.AR) },
+      benchmark: benchmarkFrequency(freqAvg, locale === Locale.AR,
+        benchmarkSample) },
     { key: "reach", label: kpiLabel("reach", locale), value: totalReach, display: totalReach.toLocaleString(),
       deltaPct: null, direction: "flat", goodWhenUp: true },
   ];
@@ -951,15 +1084,38 @@ export async function getDashboard(
     }
   }
 
+  // 7a-bis. Per-unit result subtotals. Computed here rather than alongside the
+  // later enrichment stages because the diagnosis below depends on it: it needs
+  // a result count in ONE coherent unit, not a cross-unit sum.
+  const accountResults = await buildResultBreakdown(account.id, prisma, sinceDate)
+    .catch(() => null);
+  const accountResultBreakdown = accountResults?.dto ?? null;
+  const accountResultsSingleUnit = accountResults?.singleUnitCount ?? null;
+
   // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
   const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
     issueCode: d.issueCode,
     severity: d.severity,
     evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
   }));
-  // Align currentResults with RulesEngine.buildSignals (sum of conversions),
-  // not messages — so diagnose() evidence matches what detectors persisted.
-  const totalConversions = sum(daily, "conversions");
+  // Account-level results, in ONE coherent unit or not at all.
+  //
+  // Previously this summed `conversions`, adding conversations to purchases to
+  // leads as though they were one quantity, and fed that straight into
+  // diagnose(). Now: when the account runs a single purpose — the overwhelming
+  // majority of Adlytic's accounts — we count that purpose's own result. When
+  // it genuinely mixes purposes, there IS no single result count, so we pass 0
+  // and let the detectors lean on delivery signals instead of a fabricated
+  // total. The per-unit detail travels separately on `resultBreakdown`.
+  //
+  // Deliberately NOT `dominant.count`: dominant is a display-only framing
+  // helper for the headline, and using it here would silently discard the
+  // other units — the same fabrication in better manners.
+  //
+  // Also null when the single result is APPROXIMATE (engagement/app derive
+  // theirs from all-clicks): a proxy must not drive a diagnosis as though it
+  // were a measured business outcome.
+  const totalConversions = accountResultsSingleUnit ?? 0;
   const signals: Signals = {
     ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
     cpmTrend: (latestTrend as any)?.cpmTrend ?? null,
@@ -1130,9 +1286,12 @@ export async function getDashboard(
   // weekly report, creative health): a slow secondary panel must degrade to null,
   // never blank the whole dashboard. softStage() turns a stage timeout into the
   // fallback; each builder's own `.catch(() => null)` handles non-timeout errors.
-  const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
+  const [cards, accountFunnel, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
+    ),
+    softStage('funnel', null, () =>
+      buildAccountFunnel(account.id, prisma).catch(() => null),
     ),
     softStage('brainSection', null, () =>
       buildBrainSection(
@@ -1417,6 +1576,35 @@ export async function getDashboard(
     audienceInsight,
     bleedAlert,
     ...(morningStory && { morningStory }),
+    resultBreakdown: accountResultBreakdown ?? undefined,
+    funnel: accountFunnel?.funnel ?? undefined,
+    objectiveKpis: accountFunnel
+      ? buildObjectiveKpiCards(accountFunnel.family, {
+          spendMinor: accountFunnel.windows.spendCur,
+          impressions: accountFunnel.windows.cur.impressions,
+          reach: accountFunnel.windows.cur.reach,
+          clicks: accountFunnel.windows.cur.clicks,
+          linkClicks: accountFunnel.windows.cur.linkClicks,
+          landingPageViews: accountFunnel.windows.cur.landingPageViews,
+          messages: accountFunnel.windows.cur.messages,
+          leads: accountFunnel.windows.cur.leads,
+          purchases: accountFunnel.windows.cur.purchases,
+          revenueMinor: accountFunnel.windows.revenueMinorCur,
+          ctr: accountFunnel.windows.ctrCur,
+          cpc: accountFunnel.windows.cpcCur,
+          cpm: accountFunnel.windows.cpmCur,
+          frequency: accountFunnel.windows.freqCur,
+          roas: accountFunnel.windows.roasCur,
+          money,
+        }) ?? undefined
+      : undefined,
+    intelligence: accountFunnel
+      ? buildIntelligence(
+          accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
+          accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
+          accountFunnel.resultApproximate,
+        )
+      : undefined,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
     campaigns: cards.all,
@@ -1641,6 +1829,330 @@ function buildSteadyStateSummary(input: {
     mainMoveTitle,
     mainMoveNarrative,
     insights,
+  };
+}
+
+/**
+ * Per-unit result subtotals for the account window.
+ *
+ * Resolves each campaign's purpose from its own evidence (objective + ad-set
+ * optimization goals + destination types) and groups results by UNIT, so
+ * conversations are never added to orders. Campaigns whose purpose cannot be
+ * determined are skipped rather than guessed at (rule 3).
+ */
+async function buildResultBreakdown(
+  adAccountId: string,
+  prisma: PrismaClient,
+  sinceDate: Date,
+): Promise<{
+  dto: ResultBreakdownDTO;
+  singleUnitCount: number | null;
+  singleUnitApproximate: boolean;
+} | null> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { adAccountId },
+    select: {
+      id: true,
+      objective: true,
+      adSets: { select: { optimizationGoal: true, destinationType: true } },
+    },
+  });
+  if (campaigns.length === 0) return null;
+
+  const rows = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaigns.map((c) => c.id) },
+      date: { gte: sinceDate },
+    },
+    select: {
+      entityId: true, spend: true, messages: true, purchases: true,
+      leads: true, clicks: true, impressions: true,
+    },
+  });
+  if (rows.length === 0) return null;
+
+  const byCampaign = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byCampaign.get(r.entityId) ?? [];
+    list.push(r);
+    byCampaign.set(r.entityId, list);
+  }
+
+  const contributions: CampaignResultContribution[] = [];
+  for (const c of campaigns) {
+    const campaignRows = byCampaign.get(c.id);
+    if (!campaignRows || campaignRows.length === 0) continue;
+
+    // Window totals feed the resolver's guarded evidence rung.
+    let msgs = 0, clks = 0, spend = 0;
+    for (const r of campaignRows) {
+      msgs += Number(r.messages);
+      clks += Number(r.clicks);
+      spend += Number(r.spend);
+    }
+    const purpose = resolveCampaignPurpose({
+      objective: c.objective,
+      optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: c.adSets.map((a) => a.destinationType),
+      messagesWindow: msgs,
+      clicksWindow: clks,
+    });
+    contributions.push({
+      family: purpose.family,
+      spendMinor: spend,
+      rows: campaignRows.map((r) => ({
+        messages: r.messages, purchases: r.purchases, leads: r.leads,
+        clicks: r.clicks, impressions: r.impressions,
+      })),
+    });
+  }
+
+  const total = aggregateMixedResults(contributions);
+  if (total.byUnit.length === 0) return null;
+
+  const dto: ResultBreakdownDTO = {
+    byUnit: total.byUnit.map((u) => ({
+      unit: u.unit,
+      outcome: u.outcome,
+      count: u.count,
+      campaigns: u.campaigns,
+      labelAr: u.labelAr,
+      labelEn: u.labelEn,
+      approximate: u.approximate,
+    })),
+    mixed: total.mixed,
+    approximate: isApproximate(total),
+    dominant: total.dominant,
+    displayAr: describeMixedAr(total),
+    displayEn: describeMixedEn(total),
+  };
+  const single = singleUnitResult(total);
+  return {
+    dto,
+    // Approximation travels WITH the count so the diagnosis can limit its own
+    // confidence — an "app install" count derived from clicks must never drive
+    // a conclusion as though it were a measured install.
+    singleUnitCount: single && !single.approximate ? single.count : null,
+    singleUnitApproximate: single?.approximate ?? false,
+  };
+}
+
+/**
+ * P3 — account funnel diagnosis: current 7-day window vs the prior 7 days,
+ * lagged 2 days for Meta attribution backfill (same convention as the
+ * analytics engine).
+ *
+ * Only for accounts with ONE resolvable purpose: a mixed account has no
+ * single funnel shape, and diagnosing the dominant purpose's funnel while
+ * other purposes' spend flows through it would mis-attribute. Honest absence
+ * over confident nonsense.
+ */
+async function buildAccountFunnel(
+  adAccountId: string,
+  prisma: PrismaClient,
+): Promise<{
+  funnel: FunnelDiagnosis | null;
+  family: ObjectiveKpiFamily | null;
+  windows: FunnelWindowContext;
+  classificationConfidence: ClassificationConfidence;
+  dataConfidence: DataConfidence;
+  resultApproximate: boolean;
+} | null> {
+  const lagDays = 2, windowDays = 7;
+  const now = new Date();
+  const dayMs = 86_400_000;
+  const floor = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const currentUntil = floor(new Date(now.getTime() - lagDays * dayMs));
+  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * dayMs);
+  const priorUntil = new Date(currentSince.getTime() - dayMs);
+  const priorSince = new Date(priorUntil.getTime() - (windowDays - 1) * dayMs);
+
+  const { resultKey, families } = await resolveAccountResultKey(prisma, adAccountId, priorSince, currentUntil);
+  if (!resultKey || families.length !== 1) return null;
+  const family = families[0]!;
+
+  const rows = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.ACCOUNT,
+      entityId: adAccountId,
+      date: { gte: priorSince, lte: currentUntil },
+    },
+    select: {
+      date: true, spend: true, impressions: true, reach: true, linkClicks: true,
+      landingPageViews: true, messages: true, leads: true, purchases: true, clicks: true,
+      ctr: true, cpm: true, cpc: true, frequency: true, revenueMinor: true, roas: true,
+    },
+  });
+  if (rows.length === 0) return null;
+
+  const zero = (): FunnelWindowTotals => ({
+    impressions: 0, reach: 0, linkClicks: 0, landingPageViews: 0,
+    messages: 0, leads: 0, purchases: 0, clicks: 0,
+  });
+  const cur = zero(), pri = zero();
+  let spendCur = 0, spendPri = 0;
+  let revCur = 0, revPri = 0;
+  // Impression-weighted rate accumulators — ratios are never averaged flat.
+  const rate = {
+    cur: { imp: 0, ctr: 0, cpm: 0, cpc: 0, freq: [] as number[] },
+    pri: { imp: 0, ctr: 0, cpm: 0, cpc: 0, freq: [] as number[] },
+  };
+  for (const r of rows) {
+    const inCurrent = r.date.getTime() >= currentSince.getTime();
+    const t = inCurrent ? cur : pri;
+    const acc = inCurrent ? rate.cur : rate.pri;
+    const imp = Number(r.impressions);
+    acc.imp += imp;
+    if (r.ctr != null && imp > 0) acc.ctr += r.ctr * imp;
+    if (r.cpm != null && imp > 0) acc.cpm += r.cpm * imp;
+    if (r.cpc != null && imp > 0) acc.cpc += r.cpc * imp;
+    if (r.frequency != null) acc.freq.push(r.frequency);
+    t.impressions += Number(r.impressions);
+    // Reach maxes — not additive (same person on two days is one person).
+    t.reach = Math.max(t.reach, Number(r.reach));
+    t.linkClicks += Number(r.linkClicks);
+    t.landingPageViews += Number(r.landingPageViews);
+    t.messages += Number(r.messages);
+    t.leads += Number(r.leads);
+    t.purchases += Number(r.purchases);
+    t.clicks += Number(r.clicks);
+    if (inCurrent) { spendCur += Number(r.spend); revCur += Number(r.revenueMinor); }
+    else { spendPri += Number(r.spend); revPri += Number(r.revenueMinor); }
+  }
+
+  // Supporting signals (NOT funnel stages): spend and cost per result.
+  const resultCur = cur[resultKey as keyof FunnelWindowTotals] as number;
+  const resultPri = pri[resultKey as keyof FunnelWindowTotals] as number;
+  const signals = {
+    spendCurrentMinor: spendCur,
+    spendPriorMinor: spendPri,
+    costPerResultCurrentMinor: resultCur > 0 ? spendCur / resultCur : null,
+    costPerResultPriorMinor: resultPri > 0 ? spendPri / resultPri : null,
+  };
+
+  const funnel = diagnoseFunnel(family, cur, pri, signals);
+
+  const wavg = (a: typeof rate.cur, key: 'ctr' | 'cpm' | 'cpc') =>
+    a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;
+  const favg = (a: typeof rate.cur) =>
+    a.freq.length ? +(a.freq.reduce((x, y) => x + y, 0) / a.freq.length).toFixed(4) : null;
+
+  return {
+    funnel,
+    family,
+    windows: {
+      cur, pri, spendCur, spendPri,
+      ctrCur: wavg(rate.cur, 'ctr'), ctrPri: wavg(rate.pri, 'ctr'),
+      cpmCur: wavg(rate.cur, 'cpm'), cpmPri: wavg(rate.pri, 'cpm'),
+      cpcCur: wavg(rate.cur, 'cpc'), cpcPri: wavg(rate.pri, 'cpc'),
+      freqCur: favg(rate.cur), freqPri: favg(rate.pri),
+      costPerResultCur: signals.costPerResultCurrentMinor,
+      costPerResultPri: signals.costPerResultPriorMinor,
+      resultCur: resultCur, resultPri: resultPri,
+      revenueMinorCur: revCur, revenueMinorPri: revPri,
+      // ROAS from the window's own corrected revenue and spend — never a
+      // stored per-row value averaged across days.
+      roasCur: spendCur > 0 && revCur > 0 ? +(revCur / spendCur).toFixed(4) : null,
+    },
+    // The account resolved to exactly ONE family (checked above), so its
+    // classification is at least as strong as the campaign evidence allows.
+    classificationConfidence: 'CONFIRMED' as ClassificationConfidence,
+    // The window excludes the last 2 days for Meta attribution backfill, so
+    // the rows in it are settled.
+    dataConfidence: 'COMPLETE' as DataConfidence,
+    resultApproximate: resultFor(family).approximate,
+  };
+}
+
+/**
+ * Window context shared by the P4 KPI cards and the P5 intelligence layer.
+ * Computed ONCE from the funnel's own query — neither consumer re-reads the DB.
+ */
+interface FunnelWindowContext {
+  cur: FunnelWindowTotals;
+  pri: FunnelWindowTotals;
+  spendCur: number; spendPri: number;
+  ctrCur: number | null; ctrPri: number | null;
+  cpmCur: number | null; cpmPri: number | null;
+  cpcCur: number | null; cpcPri: number | null;
+  freqCur: number | null; freqPri: number | null;
+  costPerResultCur: number | null; costPerResultPri: number | null;
+  resultCur: number | null; resultPri: number | null;
+  revenueMinorCur: number; revenueMinorPri: number;
+  roasCur: number | null;
+}
+
+/**
+ * P5 — run the intelligence hierarchy over the account's funnel.
+ *
+ * Reuses the SAME window totals the funnel already computed, so this adds no
+ * extra database round-trips and no Meta calls.
+ */
+function buildIntelligence(
+  funnel: FunnelDiagnosis | null,
+  family: ObjectiveKpiFamily | null,
+  windows: FunnelWindowContext,
+  classificationConfidence: ClassificationConfidence,
+  dataConfidence: DataConfidence,
+  resultApproximate: boolean,
+) {
+  const { verdict, fatigue } = detectAnomaly({
+    funnel,
+    spendCurrentMinor: windows.spendCur,
+    spendPriorMinor: windows.spendPri,
+    impressionsCurrent: windows.cur.impressions,
+    impressionsPrior: windows.pri.impressions,
+    cpmCurrent: windows.cpmCur,
+    cpmPrior: windows.cpmPri,
+    fatigue: {
+      frequency: windows.freqCur, priorFrequency: windows.freqPri,
+      ctr: windows.ctrCur, priorCtr: windows.ctrPri,
+      cpc: windows.cpcCur, priorCpc: windows.cpcPri,
+      impressions: windows.cur.impressions,
+    },
+  });
+
+  const reconciled = reconcileIntelligence({
+    dataConfidence, classificationConfidence, funnel, anomaly: verdict, fatigue,
+  });
+
+  const health = scoreObjectiveHealth({
+    family,
+    primaryResultCurrent: windows.resultCur,
+    primaryResultPrior: windows.resultPri,
+    ctr: windows.ctrCur, ctrPrior: windows.ctrPri,
+    cpm: windows.cpmCur, cpmPrior: windows.cpmPri,
+    costPerResultCurrent: windows.costPerResultCur,
+    costPerResultPrior: windows.costPerResultPri,
+    impressions: windows.cur.impressions,
+    reconciled, fatigue, resultApproximate,
+  });
+
+  const recommendation = buildRecommendation(reconciled, family);
+
+  return {
+    problemClass: reconciled.problemClass,
+    confidence: reconciled.confidence,
+    decidedBy: reconciled.decidedBy,
+    alert: reconciled.alert,
+    evidence: reconciled.evidence,
+    trace: reconciled.trace,
+    anomaly: { significant: verdict.significant, kind: verdict.kind, confidence: verdict.confidence },
+    fatigue: fatigue.confidence === 'INSUFFICIENT_DATA' ? null : {
+      frequency: fatigue.frequency, severity: fatigue.severity,
+      confidence: fatigue.confidence, corroboratingSignals: fatigue.corroboratingSignals,
+      evidence: fatigue.evidence,
+    },
+    health: {
+      score: health.score, band: health.band, confidence: health.confidence,
+      excludedFacets: health.excludedFacets,
+      facets: health.facets.map((f) => ({
+        key: f.key, score: f.score, weight: f.weight,
+        applicable: f.applicable, evidence: f.evidence,
+      })),
+    },
+    recommendation,
   };
 }
 

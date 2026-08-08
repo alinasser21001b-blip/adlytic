@@ -14,7 +14,9 @@ import {
   arabicResultPhrase,
   getMetaObjectiveStandard,
   lowCtrFloorForObjective,
+  type ObjectiveInput,
 } from "../../knowledge/metaObjectiveStandards";
+import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
 import type { Signals } from "./types";
 
 export interface Diagnosis {
@@ -29,24 +31,38 @@ export interface Diagnosis {
 
 type IssueMap = Map<string, IssueRecord>;
 
+/** Prefer the resolved purpose family; fall back to the raw objective. */
+function objectiveInputOf(s: Signals): ObjectiveInput {
+  return s.purposeFamily ?? s.objective;
+}
+
 function resultNoun(s: Signals): string {
-  return arabicResultPhrase(s.objective);
+  return arabicResultPhrase(objectiveInputOf(s));
 }
 
 function efficiencyNoun(s: Signals): string {
-  return arabicEfficiencyPhrase(s.objective);
+  return arabicEfficiencyPhrase(objectiveInputOf(s));
+}
+
+/**
+ * The campaign's family, preferring the resolved purpose over the raw Meta
+ * objective. Returns 'unknown' at account level (mixed objectives) so callers
+ * below can stay silent instead of asserting a result type.
+ */
+function familyOf(s: Signals): ObjectiveKpiFamily | "unknown" {
+  return getMetaObjectiveStandard(objectiveInputOf(s)).family;
 }
 
 function isMessagingFamily(s: Signals): boolean {
-  return getMetaObjectiveStandard(s.objective).family === "messaging";
+  return familyOf(s) === "messaging";
 }
 
 function isAwarenessFamily(s: Signals): boolean {
-  return getMetaObjectiveStandard(s.objective).family === "awareness";
+  return familyOf(s) === "awareness";
 }
 
 function isSalesOrLeads(s: Signals): boolean {
-  const f = getMetaObjectiveStandard(s.objective).family;
+  const f = familyOf(s);
   return f === "sales" || f === "leads";
 }
 
@@ -157,7 +173,7 @@ function diagnoseLandingPageProblem(m: IssueMap, s: Signals): Diagnosis | null {
   if (!m.has("DECLINING_RESULTS")) return null;
   // Awareness campaigns rarely have a "post-click" conversion path — skip.
   if (isAwarenessFamily(s)) return null;
-  const ctrFloor = lowCtrFloorForObjective(s.objective);
+  const ctrFloor = lowCtrFloorForObjective(objectiveInputOf(s));
   const ctrHealthy = s.currentCtr != null && s.currentCtr >= ctrFloor;
   const ctrNotDropping = s.ctrTrend == null || s.ctrTrend > -0.10;
   if (!ctrHealthy || !ctrNotDropping) return null;

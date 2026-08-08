@@ -37,6 +37,8 @@
 import { PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import type { DailyPoint } from "../analytics/aggregate";
+import { resolveAccountResultKey } from "../../analytics/accountResultKey";
+import type { ResultMetricKey } from "../../lib/objectiveKpis";
 import { avgRate, sumCount } from "../analytics/aggregate";
 import { calculateCtrTrend } from "../analytics/calculateCtrTrend";
 import { calculateCpmTrend } from "../analytics/calculateCpmTrend";
@@ -105,11 +107,12 @@ function pct(n: number): string { return `${(n * 100).toFixed(1)}%`; }
 function ruleAudienceFatigue(
   cur: DailyPoint[],
   prior: DailyPoint[],
-  entityId: string
+  entityId: string,
+  resultKey: ResultMetricKey | null,
 ): IssueRow | null {
   const freqTrend = calculateFrequencyTrend(cur, prior);
   const ctrTrend = calculateCtrTrend(cur, prior);
-  const resultsTrend = calculateResultsTrend(cur, prior);
+  const resultsTrend = calculateResultsTrend(cur, prior, resultKey);
 
   const freqUp      = freqTrend != null && freqTrend >= 0.15;
   const ctrDown     = ctrTrend != null  && ctrTrend <= -0.15;
@@ -185,17 +188,22 @@ function ruleHighFrequency(
 function ruleDecliningResults(
   cur: DailyPoint[],
   prior: DailyPoint[],
-  entityId: string
+  entityId: string,
+  resultKey: ResultMetricKey | null,
 ): IssueRow | null {
-  const resultsTrend = calculateResultsTrend(cur, prior);
+  const resultsTrend = calculateResultsTrend(cur, prior, resultKey);
   if (resultsTrend == null || resultsTrend > -0.20) return null;
 
   const magnitude = Math.abs(resultsTrend);
   const strength = Math.min(0.95, magnitude * 1.2);
   const severity = severityLabel(magnitude);
 
-  const curResults = sumCount(cur, "messages") + sumCount(cur, "conversions");
-  const prvResults = sumCount(prior, "messages") + sumCount(prior, "conversions");
+  // Was `messages + conversions`, which DOUBLE-COUNTED: `conversions` is
+  // `messages || purchases || leads`, so for a messaging account it IS the
+  // message count and the evidence string reported roughly twice the truth.
+  // Now one counter, chosen by the account's resolved purpose.
+  const curResults = resultKey ? sumCount(cur, resultKey as keyof DailyPoint) : 0;
+  const prvResults = resultKey ? sumCount(prior, resultKey as keyof DailyPoint) : 0;
 
   const evidence: string[] = [
     `Results fell ${pct(magnitude)} vs prior 7 days (${prvResults} → ${curResults})`,
@@ -210,10 +218,11 @@ function ruleDecliningResults(
 function ruleRisingCostPerResult(
   cur: DailyPoint[],
   prior: DailyPoint[],
-  entityId: string
+  entityId: string,
+  resultKey: ResultMetricKey | null,
 ): IssueRow | null {
   const cpmTrend = calculateCpmTrend(cur, prior);
-  const resultsTrend = calculateResultsTrend(cur, prior);
+  const resultsTrend = calculateResultsTrend(cur, prior, resultKey);
 
   // Rising CPM alone or CPM up with results flat/down
   const cpmUp = cpmTrend != null && cpmTrend >= 0.20;
@@ -339,20 +348,27 @@ export class AdlyticIntelligenceSystem {
     const priorUntil = addDays(currentSince, -1);
     const priorSince = addDays(priorUntil, -(windowDays - 1));
 
+    // Which counter carries "results" for this account this window? Null when
+    // it mixes purposes — rules then lean on delivery signals rather than a
+    // sum of conversations and orders.
+    const resultKey = (await resolveAccountResultKey(
+      this.prisma, adAccountId, dateOnly(priorSince), dateOnly(currentUntil),
+    ).catch(() => ({ resultKey: null }))).resultKey;
+
     const allPoints = await this.loadPoints(adAccountId, priorSince, currentUntil);
     const cur = allPoints.filter(p => p.date >= ymd(currentSince) && p.date <= ymd(currentUntil));
     const prior = allPoints.filter(p => p.date >= ymd(priorSince) && p.date <= ymd(priorUntil));
 
     // ── Phase 1: signals ────────────────────────────────────────────────
-    const signals = this.extractSignals(cur, prior, adAccountId);
+    const signals = this.extractSignals(cur, prior, adAccountId, resultKey);
 
     // ── Phase 2: expert rules ───────────────────────────────────────────
     const issues: IssueRow[] = [
-      ruleAudienceFatigue(cur, prior, adAccountId),
+      ruleAudienceFatigue(cur, prior, adAccountId, resultKey),
       ruleLowCtr(cur, adAccountId),
       ruleHighFrequency(cur, adAccountId),
-      ruleDecliningResults(cur, prior, adAccountId),
-      ruleRisingCostPerResult(cur, prior, adAccountId),
+      ruleDecliningResults(cur, prior, adAccountId, resultKey),
+      ruleRisingCostPerResult(cur, prior, adAccountId, resultKey),
     ].filter((r): r is IssueRow => r !== null);
 
     const healthScore = deriveHealthScore(issues);
@@ -379,11 +395,14 @@ export class AdlyticIntelligenceSystem {
     await this.upsert(adAccountId, now, healthScore, signals, issues, recs);
   }
 
-  private extractSignals(cur: DailyPoint[], prior: DailyPoint[], _entityId: string): Signal[] {
+  private extractSignals(
+    cur: DailyPoint[], prior: DailyPoint[], _entityId: string,
+    resultKey: ResultMetricKey | null,
+  ): Signal[] {
     const ctrTrend = calculateCtrTrend(cur, prior);
     const cpmTrend = calculateCpmTrend(cur, prior);
     const freqTrend = calculateFrequencyTrend(cur, prior);
-    const resultsTrend = calculateResultsTrend(cur, prior);
+    const resultsTrend = calculateResultsTrend(cur, prior, resultKey);
     const spendTrend = calculateSpendTrend(cur, prior);
 
     const curCtr = avgRate(cur, "ctr");
@@ -432,7 +451,11 @@ export class AdlyticIntelligenceSystem {
       ctr: r.ctr,
       cpm: r.cpm,
       frequency: r.frequency,
-      conversions: Number(r.conversions),
+      // Per-purpose counters MUST be populated: the rules above count the
+      // result key resolved from the account's purpose, so a sales account
+      // reading an unpopulated `purchases` would silently report zero results.
+      purchases: Number(r.purchases),
+      leads: Number(r.leads),
     }));
   }
 

@@ -15,7 +15,8 @@
 
 import {
   getObjectiveKpiSpec,
-  objectiveKpiFamily,
+  getKpiSpecForFamily,
+  resolveObjectiveFamily,
   type ObjectiveKpiFamily,
   type ObjectiveKpiSpec,
 } from '../lib/objectiveKpis';
@@ -38,8 +39,31 @@ export interface MetaFrequencyStandard {
   sweetSpotAr: string;
 }
 
+/**
+ * What the caller knows about a campaign's purpose.
+ *
+ * A resolved `ObjectiveKpiFamily` is the preferred input — it already carries
+ * ad-set optimization goals and destination types (see campaignPurpose.ts), so
+ * a click-to-WhatsApp campaign shipped under an ENGAGEMENT shell arrives here
+ * already correctly identified as messaging.
+ *
+ * A raw Meta objective string is still accepted for call sites that genuinely
+ * only have one, and 'unknown' / null is accepted for the account-level view,
+ * which legitimately spans several objectives at once.
+ */
+export type ObjectiveInput = ObjectiveKpiFamily | 'unknown' | string | null | undefined;
+
+const KNOWN_FAMILIES = new Set<string>([
+  'awareness', 'traffic', 'engagement', 'leads', 'sales', 'messaging', 'app',
+]);
+
 export interface MetaObjectiveStandard {
-  family: ObjectiveKpiFamily;
+  /**
+   * 'unknown' when the objective could not be determined — for example the
+   * account-level view, which mixes objectives. Consumers MUST NOT speak
+   * objective-specific vocabulary in that case.
+   */
+  family: ObjectiveKpiFamily | 'unknown';
   kpi: ObjectiveKpiSpec;
   ctr: MetaCtrStandard;
   frequency: MetaFrequencyStandard;
@@ -147,26 +171,60 @@ const FAMILY_STANDARDS: Record<ObjectiveKpiFamily, Omit<MetaObjectiveStandard, '
   },
 };
 
-/** Resolve full Meta standard for a campaign objective string. */
+/**
+ * Neutral standard used when the objective is genuinely unknown (account-level
+ * view spanning several objectives, or an objective Meta has not told us
+ * about). Deliberately forbids EVERY objective-specific noun: with mixed
+ * campaigns underneath, calling the account's results "رسائل" is a guess, and
+ * guessing is exactly the failure this module exists to prevent.
+ */
+const UNKNOWN_STANDARD: Omit<MetaObjectiveStandard, 'family' | 'kpi'> = {
+  ctr: { lowFloorPct: 1.0, typicalPct: 1.5, goodPct: 2.0 },
+  frequency: FREQ_DEFAULT,
+  kbMetricKeys: ['ctr', 'cpm', 'frequency', 'cpc'],
+  resultNounAr: 'نتائج',
+  efficiencyNounAr: 'تكلفة النتيجة',
+  forbiddenVocabAr: ['رسائل', 'تكلفة الرسالة', 'محادثة', 'مشتريات', 'عائد الإعلان', 'عملاء محتملون'],
+  preferredVocabAr: ['نتائج', 'تكلفة النتيجة', 'الإنفاق', 'معدل النقر'],
+  coachingFrameAr:
+    'هذا عرض على مستوى الحساب يجمع أهدافاً مختلفة — تحدث عن الأداء العام والإنفاق ومعدل النقر، ولا تسمِّ نوع النتيجة.',
+};
+
+/**
+ * Resolve the full Meta standard for a campaign.
+ *
+ * Accepts an already-resolved family (preferred — see ObjectiveInput) or a raw
+ * Meta objective string. Anything unrecognized yields the neutral 'unknown'
+ * standard rather than silently inheriting messaging vocabulary, which is what
+ * previously made an awareness-only account read as a messaging account.
+ */
 export function getMetaObjectiveStandard(
-  objective: string | null | undefined,
+  objective: ObjectiveInput,
 ): MetaObjectiveStandard {
-  const family = objectiveKpiFamily(objective);
-  const base = FAMILY_STANDARDS[family];
-  return {
-    family,
-    kpi: getObjectiveKpiSpec(objective),
-    ...base,
-  };
+  // Already a resolved family — trust it; it outranks any raw objective string
+  // because it was derived with optimization-goal and destination context.
+  if (typeof objective === 'string' && KNOWN_FAMILIES.has(objective)) {
+    const family = objective as ObjectiveKpiFamily;
+    return { family, kpi: getKpiSpecForFamily(family), ...FAMILY_STANDARDS[family] };
+  }
+  const family = resolveObjectiveFamily(objective);
+  if (family === null) {
+    return {
+      family: 'unknown',
+      kpi: getObjectiveKpiSpec(null),
+      ...UNKNOWN_STANDARD,
+    };
+  }
+  return { family, kpi: getObjectiveKpiSpec(objective), ...FAMILY_STANDARDS[family] };
 }
 
 /** Absolute CTR floor (%) for LOW_CTR detection — objective-aware. */
-export function lowCtrFloorForObjective(objective: string | null | undefined): number {
+export function lowCtrFloorForObjective(objective: ObjectiveInput): number {
   return getMetaObjectiveStandard(objective).ctr.lowFloorPct;
 }
 
 /** KB metric keys allowed for this objective (shared delivery metrics always included). */
-export function kbMetricKeysForObjective(objective: string | null | undefined): Set<string> {
+export function kbMetricKeysForObjective(objective: ObjectiveInput): Set<string> {
   return new Set(getMetaObjectiveStandard(objective).kbMetricKeys);
 }
 
@@ -206,10 +264,10 @@ export function arabicObjectiveCoachingBlock(objective: string | null | undefine
 }
 
 /** Short Arabic result phrase for deterministic templates. */
-export function arabicResultPhrase(objective: string | null | undefined): string {
+export function arabicResultPhrase(objective: ObjectiveInput): string {
   return getMetaObjectiveStandard(objective).resultNounAr;
 }
 
-export function arabicEfficiencyPhrase(objective: string | null | undefined): string {
+export function arabicEfficiencyPhrase(objective: ObjectiveInput): string {
   return getMetaObjectiveStandard(objective).efficiencyNounAr;
 }

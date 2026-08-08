@@ -1,0 +1,24 @@
+-- Persist landing page views — the traffic funnel's terminal stage.
+--
+-- Meta returns `landing_page_view` inside the `actions` array that Adlytic
+-- already requests, so no new API field and no extra quota cost: the value was
+-- arriving on every insights response and being discarded at the mapper.
+--
+-- Without it the traffic funnel cannot separate two very different failures:
+--
+--   link clicks healthy + LPV rate collapsed  → the landing page is broken
+--                                               or unbearably slow
+--   link click rate collapsed                 → the creative stopped working
+--
+-- Those demand opposite actions, and conflating them is exactly the class of
+-- error P2 removed from result semantics.
+--
+-- Deliberately NOT estimated from clicks. The whole diagnostic value lives in
+-- the GAP between a click and an arrival; deriving one from the other would
+-- close that gap by definition and destroy the signal.
+--
+-- Additive with DEFAULT 0: inert on existing rows, no rewrite. Rows predating
+-- this migration read 0 because the value was never persisted, not because
+-- nobody arrived — so no analytics path may treat a zero denominator here as a
+-- measured zero (it returns INSUFFICIENT_DATA instead).
+ALTER TABLE "daily_stats" ADD COLUMN IF NOT EXISTS "landing_page_views" BIGINT NOT NULL DEFAULT 0;

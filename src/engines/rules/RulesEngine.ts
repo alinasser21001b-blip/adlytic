@@ -21,6 +21,9 @@ import type { Detector, Signals } from "./types";
 import { ALL_DETECTORS } from "./detectors";
 import { runDetectorPipeline } from "./runDetectorPipeline";
 import type { Diagnosis } from "./diagnose";
+import { resolveCampaignPurpose } from "../../lib/campaignPurpose";
+import { resultFor } from "../../analytics/resultSemantics";
+import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
 
 export interface RulesOptions {
   /** "as of" date for the run. Must match the date used by AnalyticsEngine. */
@@ -117,6 +120,35 @@ export class RulesEngine {
       },
     });
 
+    // Resolve the entity's purpose so results are counted in ONE unit.
+    // Summing `conversions` here meant "results" silently changed meaning per
+    // row — a sales campaign with incidental page messages counted messages.
+    // Account-level entities legitimately span objectives, so they resolve to
+    // null and the detectors fall back to delivery signals rather than a
+    // fabricated result type (rule 3).
+    let purposeFamily: ObjectiveKpiFamily | null = null;
+    if (entityType === EntityType.CAMPAIGN) {
+      const meta = await this.prisma.campaign.findUnique({
+        where: { id: entityId },
+        select: {
+          objective: true,
+          adSets: { select: { optimizationGoal: true, destinationType: true } },
+        },
+      });
+      if (meta) {
+        let wMsgs = 0, wClicks = 0;
+        for (const r of daily as any[]) { wMsgs += Number(r.messages); wClicks += Number(r.clicks); }
+        purposeFamily = resolveCampaignPurpose({
+          objective: meta.objective,
+          optimizationGoals: meta.adSets.map((a) => a.optimizationGoal),
+          destinationTypes: meta.adSets.map((a) => a.destinationType),
+          messagesWindow: wMsgs,
+          clicksWindow: wClicks,
+        }).family;
+      }
+    }
+    const resultKey = purposeFamily ? resultFor(purposeFamily).resultKey : null;
+
     // Current-period aggregates — same rates-vs-counts discipline as Analytics.
     // Rates: impression-weighted average. Counts: sum.
     let impTotal = 0, ctrNum = 0, cpmNum = 0;
@@ -128,7 +160,10 @@ export class RulesEngine {
       if (r.ctr != null && imp > 0) ctrNum += r.ctr * imp;
       if (r.cpm != null && imp > 0) cpmNum += r.cpm * imp;
       if (r.frequency != null) freqVals.push(r.frequency);
-      resultsSum += Number(r.conversions);
+      // Objective-aware result count. With no resolvable purpose (account
+      // level, mixed objectives) results stay 0 — an honest absence rather
+      // than a cross-unit sum.
+      resultsSum += resultKey ? Number(r[resultKey]) || 0 : 0;
       spendSum += Number(r.spend);
     }
 
@@ -146,6 +181,7 @@ export class RulesEngine {
         : null,
       currentResults: resultsSum,
       currentSpend: spendSum,
+      purposeFamily,
     };
   }
 }

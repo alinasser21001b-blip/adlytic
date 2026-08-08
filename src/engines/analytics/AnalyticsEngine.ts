@@ -25,6 +25,10 @@ import { calculateCtrTrend } from "./calculateCtrTrend";
 import { calculateCpmTrend } from "./calculateCpmTrend";
 import { calculateFrequencyTrend } from "./calculateFrequencyTrend";
 import { calculateResultsTrend } from "./calculateResultsTrend";
+import { resolveAccountResultKey } from "../../analytics/accountResultKey";
+import { resolveCampaignPurpose } from "../../lib/campaignPurpose";
+import { resultFor } from "../../analytics/resultSemantics";
+import type { ResultMetricKey } from "../../lib/objectiveKpis";
 import { calculateSpendTrend } from "./calculateSpendTrend";
 import { attributeChange, type Attribution } from "./attributeChange";
 import { sumCount } from "./aggregate";
@@ -96,6 +100,36 @@ export class AnalyticsEngine {
       ok: false,
     };
 
+    // Which counter carries "results" for this entity? Resolved from the
+    // campaign's own purpose, or across the account's delivering campaigns.
+    // Null when the account mixes purposes — the trend is then null rather
+    // than a sum of conversations and orders (see accountResultKey.ts).
+    let resultKey: ResultMetricKey | null = null;
+    try {
+      if (entityType === EntityType.CAMPAIGN) {
+        const meta = await this.prisma.campaign.findUnique({
+          where: { id: entityId },
+          select: {
+            objective: true,
+            adSets: { select: { optimizationGoal: true, destinationType: true } },
+          },
+        });
+        if (meta) {
+          resultKey = resultFor(resolveCampaignPurpose({
+            objective: meta.objective,
+            optimizationGoals: meta.adSets.map((a) => a.optimizationGoal),
+            destinationTypes: meta.adSets.map((a) => a.destinationType),
+          }).family).resultKey;
+        }
+      } else if (entityType === EntityType.ACCOUNT) {
+        resultKey = (await resolveAccountResultKey(
+          this.prisma, entityId, dateOnly(priorSince), dateOnly(currentUntil),
+        )).resultKey;
+      }
+    } catch {
+      resultKey = null;   // degrade to no result trend, never to a wrong one
+    }
+
     try {
       // Single DB read: union of both windows, fetched once
       const points = await this.loadPoints(entityType, entityId, priorSince, currentUntil);
@@ -107,13 +141,17 @@ export class AnalyticsEngine {
         ctrTrend: calculateCtrTrend(current, prior),
         cpmTrend: calculateCpmTrend(current, prior),
         frequencyTrend: calculateFrequencyTrend(current, prior),
-        resultsTrend: calculateResultsTrend(current, prior),
+        resultsTrend: calculateResultsTrend(current, prior, resultKey),
         spendTrend: calculateSpendTrend(current, prior),
       };
 
       result.attribution = attributeChange(
-        { impressions: sumCount(current, "impressions"), clicks: sumCount(current, "clicks"), results: sumCount(current, "conversions") },
-        { impressions: sumCount(prior, "impressions"), clicks: sumCount(prior, "clicks"), results: sumCount(prior, "conversions") },
+        // Results counted in the entity's OWN unit; 0 when no single unit
+        // governs (mixed account) rather than a cross-unit sum.
+        { impressions: sumCount(current, "impressions"), clicks: sumCount(current, "clicks"),
+          results: resultKey ? sumCount(current, resultKey as keyof DailyPoint) : 0 },
+        { impressions: sumCount(prior, "impressions"), clicks: sumCount(prior, "clicks"),
+          results: resultKey ? sumCount(prior, resultKey as keyof DailyPoint) : 0 },
       );
 
       // Single write — through the repo
@@ -155,7 +193,6 @@ export class AnalyticsEngine {
       ctr: r.ctr,
       cpm: r.cpm,
       frequency: r.frequency,
-      conversions: Number(r.conversions),
     }));
   }
 }

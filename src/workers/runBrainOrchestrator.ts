@@ -339,15 +339,11 @@ async function loadRawDataForCampaigns(
       messagesWindow: Number(r.messages),
       clicksWindow: Number(r.clicks),
     });
-    const effectiveObjective =
-      purpose.family === 'messaging' ? 'MESSAGES'
-      : purpose.family === 'awareness' ? 'OUTCOME_AWARENESS'
-      : purpose.family === 'traffic' ? 'OUTCOME_TRAFFIC'
-      : purpose.family === 'sales' ? 'OUTCOME_SALES'
-      : purpose.family === 'leads' ? 'OUTCOME_LEADS'
-      : purpose.family === 'app' ? 'OUTCOME_APP_PROMOTION'
-      : purpose.family === 'engagement' ? 'OUTCOME_ENGAGEMENT'
-      : (c.objective ?? null);
+    // Pass the RESOLVED family straight through. Converting it back into a
+    // synthetic objective string ('MESSAGES', 'OUTCOME_AWARENESS', …) just so
+    // a downstream helper could re-parse it was lossy and let the brain and
+    // the campaigns API disagree about the same campaign.
+    const effectiveObjective = purpose.family;
 
     out.set(r.entityId, {
       campaignId:   c.externalCampaignId,   // engine-visible id = Meta id (matches existing test fixtures)

@@ -7,6 +7,12 @@
 //  attribution has backfilled — never a duplicate, never a partial write.
 //
 //  No read-modify-write here: upsert is atomic in Postgres via the unique key.
+//
+//  NOTE on link_clicks: the column defaults to 0 and rows written before the
+//  20260808 migration carry 0 because the value was never persisted, not
+//  because no link clicks occurred. Analytics must therefore treat a zero
+//  link-click denominator as INSUFFICIENT_DATA rather than a real zero. Rows
+//  converge to true values as each account's normal sync window re-upserts.
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient, EntityType } from "@prisma/client";
@@ -33,6 +39,8 @@ export class DailyStatsRepo {
       impressions: BigInt(insight.impressions),
       reach: BigInt(insight.reach),
       clicks: BigInt(insight.clicks),
+      linkClicks: BigInt(insight.linkClicks),
+      landingPageViews: BigInt(insight.landingPageViews),
       uniqueClicks: BigInt(insight.uniqueClicks),
       messages: BigInt(insight.messages),
       purchases: BigInt(insight.purchases),
@@ -72,6 +80,8 @@ export class DailyStatsRepo {
         impressions: BigInt(r.insight.impressions),
         reach: BigInt(r.insight.reach),
         clicks: BigInt(r.insight.clicks),
+        linkClicks: BigInt(r.insight.linkClicks),
+        landingPageViews: BigInt(r.insight.landingPageViews),
         uniqueClicks: BigInt(r.insight.uniqueClicks),
         messages: BigInt(r.insight.messages),
         purchases: BigInt(r.insight.purchases),

@@ -7,6 +7,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { IssueRecord } from "../../repositories/detectedIssuesRepo";
+import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
 
 /**
  * Everything a detector might want to look at. Compact and explicit — no
@@ -33,8 +34,22 @@ export interface Signals {
    * Meta campaign objective (OUTCOME_AWARENESS, MESSAGES, …).
    * Optional for backward compatibility; when set, detectors/diagnose use
    * Meta objective standards (CTR floors, Arabic result vocabulary).
+   *
+   * @deprecated Prefer `purposeFamily`. The raw objective misclassifies every
+   * click-to-WhatsApp campaign that ships under an ENGAGEMENT shell, because
+   * the deciding evidence lives on the ad sets, not the campaign.
    */
   objective?: string | null;
+
+  /**
+   * The campaign's RESOLVED purpose family, from `resolveCampaignPurpose`
+   * (objective + ad-set optimization goals + ad destination types).
+   *
+   * Takes precedence over `objective` when present. Leave undefined for
+   * account-level signals, which legitimately span several objectives — the
+   * standards layer will then use neutral vocabulary instead of guessing.
+   */
+  purposeFamily?: ObjectiveKpiFamily | null;
 }
 
 export type Detector = (s: Signals) => IssueRecord | null;

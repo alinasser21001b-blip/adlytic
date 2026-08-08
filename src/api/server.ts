@@ -165,6 +165,9 @@ import {
   type WindowTotals,
 } from '../lib/objectiveKpis';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
+import { resolveAccountResultKey } from '../analytics/accountResultKey';
+import { reconcileActionOverlap, summarizeReconcile } from '../lib/actionOverlapReconcile';
+import { allResultDefinitions } from '../analytics/resultSemantics';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -2281,6 +2284,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    * Body: { workspaceId, externalAccountId }. Idempotent by contract: a
    * double-click returns the existing in-flight record, never a duplicate.
    */
+  /**
+   * POST /api/admin/reconcile-actions — historical action-overlap repair.
+   *
+   * Replays the corrected mapper over stored `raw_insights`; makes ZERO Meta
+   * API calls. Bounded per request (default 500 rows, hard cap 5,000) and
+   * cursor-paginated, so it can never become an unbounded background job.
+   *
+   * DRY-RUN BY DEFAULT: `{ "apply": true }` is required to write. The report
+   * is identical either way, so an operator always sees the exact impact
+   * before committing to it.
+   */
+  app.post('/api/admin/reconcile-actions', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    let body: {
+      apply?: boolean; limit?: number; cursor?: string | null;
+      entityIds?: string[]; sinceDate?: string;
+    } = {};
+    try { body = await c.req.json(); } catch { /* empty body = dry run, defaults */ }
+
+    const report = await reconcileActionOverlap(prisma, {
+      limit: body.limit,
+      cursor: body.cursor ?? null,
+      entityIds: Array.isArray(body.entityIds) ? body.entityIds : undefined,
+      since: body.sinceDate ? new Date(body.sinceDate) : undefined,
+      dryRun: body.apply !== true,
+    });
+    console.log(`[admin:reconcile-actions] ${body.apply === true ? 'APPLY' : 'DRY-RUN'} ${summarizeReconcile(report)}`);
+    return c.json({ dryRun: body.apply !== true, ...report });
+  });
+
   app.post('/api/admin/onboarding', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);
@@ -3838,7 +3874,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           frequency: latestStat?.frequency ?? 0,
           spend: latestStat ? Number(latestStat.spend) : 0,
           impressions: latestStat ? Number(latestStat.impressions) : 0,
-          conversions: latestStat ? Number(latestStat.conversions) : 0,
+          ...(await resultSnapshotFields(prisma, account.id, latestStat as never, new Date(Date.now() - 30 * 86400_000))),
           // Provenance — retained for debugging the closed-loop in prod.
           actionCode: top.actionCode,
           priority: top.priority,
@@ -3901,7 +3937,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         cpm: latestStat?.cpm ?? 0,
         spend: latestStat ? Number(latestStat.spend) : 0,
         impressions: latestStat ? Number(latestStat.impressions) : 0,
-        conversions: latestStat ? Number(latestStat.conversions) : 0,
+        ...(await resultSnapshotFields(prisma, account.id, latestStat as never, new Date(Date.now() - 30 * 86400_000))),
       };
 
       if (body.actionCode) {
@@ -5602,4 +5638,33 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   return app;
+}
+
+/**
+ * Objective-aware result fields for a recommendation-outcome snapshot.
+ *
+ * The old snapshot stored the ambiguous `conversions` column, so a before/after
+ * comparison could silently pit conversations against orders. These fields
+ * record WHAT was counted alongside the count, letting the comparison refuse
+ * to compare two different business events.
+ */
+async function resultSnapshotFields(
+  prisma: PrismaClient,
+  adAccountId: string,
+  latestStat: { messages: bigint | number; purchases: bigint | number; leads: bigint | number; clicks: bigint | number; impressions: bigint | number } | null,
+  since: Date,
+): Promise<{ results: number | null; resultOutcome: string | null; resultApproximate: boolean }> {
+  if (!latestStat) return { results: null, resultOutcome: null, resultApproximate: false };
+  try {
+    const { resultKey } = await resolveAccountResultKey(prisma, adAccountId, since);
+    if (!resultKey) return { results: null, resultOutcome: null, resultApproximate: false };
+    const def = allResultDefinitions().find((d) => d.resultKey === resultKey);
+    return {
+      results: Number((latestStat as Record<string, unknown>)[resultKey] ?? 0),
+      resultOutcome: def?.businessOutcome ?? null,
+      resultApproximate: def?.approximate ?? false,
+    };
+  } catch {
+    return { results: null, resultOutcome: null, resultApproximate: false };
+  }
 }

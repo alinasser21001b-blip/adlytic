@@ -30,6 +30,7 @@ import { i18nHelpersJs } from './dashboard/lib/i18n';
 import { formatHelpersJs } from './dashboard/lib/format';
 import { currencyHelpersJs } from './dashboard/lib/currency';
 import { renderKpisJs } from './dashboard/sections/kpis';
+import { renderIntelligenceJs } from './dashboard/sections/intelligence';
 import { renderIssuesJs } from './dashboard/sections/issues';
 import { renderDiagnosesJs } from './dashboard/sections/diagnoses';
 
@@ -135,6 +136,9 @@ export function dashboardPage(): string {
 
       <!-- 0b ▸ Insight strip — forecast + best audience segment -->
       <section class="insight-strip" id="insight-strip" style="display:none;" dir="auto"></section>
+
+      <!-- ═══ P4 INTELLIGENCE: results · diagnosis · funnel · health ═══ -->
+      <section id="intelligence-section" class="intelligence-section" style="display:none;"></section>
 
       <!-- ═══ EXECUTIVE PULSE ═══ -->
       <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
@@ -1681,6 +1685,7 @@ export function dashboardPage(): string {
 
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
   ${renderKpisJs}
+  ${renderIntelligenceJs}
   ${renderIssuesJs}
   ${renderDiagnosesJs}
 
@@ -3209,17 +3214,22 @@ export function dashboardPage(): string {
     // date-DESC; use the most recent day (matches getDashboard.ts convention).
     var latestReach = insights.length ? (Number(insights[0].reach) || 0) : 0;
     var spendMajor = totals.spendMinor / state.minorFactor;
-    var ctr = totals.impressions ? (totals.clicks / totals.impressions) * 100 : 0;
-    var cpc = totals.clicks ? spendMajor / totals.clicks : 0;
-    var cpm = totals.impressions ? (spendMajor / totals.impressions) * 1000 : 0;
+    // DERIVED RATIOS DELIBERATELY OMITTED.
+    //
+    // This fallback used to compute CTR, CPC and CPM here — a second
+    // implementation of metrics the analytics layer already owns, living in
+    // the browser where no dictionary, applicability check or confidence gate
+    // could reach it. That is exactly the frontend analytics logic the P4
+    // contract forbids.
+    //
+    // Summing additive counters is aggregation, not analytics, so those stay.
+    // A ratio the server did not send is simply ABSENT — not recomputed here,
+    // and not rendered as a fabricated 0%.
     return [
       { key: 'spend', label: kpiLabel('spend'), value: spendMajor, display: fmtCurrencyMinor(totals.spendMinor), goodWhenUp: false },
       { key: 'impressions', label: kpiLabel('impressions'), value: totals.impressions, display: fmtNum(totals.impressions), goodWhenUp: true },
       { key: 'reach', label: kpiLabel('reach'), value: latestReach, display: fmtNum(latestReach), goodWhenUp: true },
       { key: 'clicks', label: kpiLabel('clicks'), value: totals.clicks, display: fmtNum(totals.clicks), goodWhenUp: true },
-      { key: 'ctr', label: kpiLabel('ctr'), value: ctr, display: fmtPctLocal(ctr), goodWhenUp: true },
-      { key: 'cpc', label: kpiLabel('cpc'), value: cpc, display: fmtCurrencyMajor(cpc), goodWhenUp: false },
-      { key: 'cpm', label: kpiLabel('cpm'), value: cpm, display: fmtCurrencyMajor(cpm), goodWhenUp: false },
       { key: 'messages', label: kpiLabel('messages'), value: totals.messages, display: fmtNum(totals.messages), goodWhenUp: true },
     ];
   }
@@ -3407,7 +3417,6 @@ export function dashboardPage(): string {
       // Command bar + KPI cards first, then task surfaces.
       safeRender('commandBar', function () { renderCommandBar(dashData); });
       safeRender('healthGauge', function () { renderHealthGauge(dashData); });
-      safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('hero', function () { renderHero(dashData, insights); });
       safeRender('kpiInsights', function () { renderKpiInsights(dashData, kpis); });
       safeRender('executivePulse', function () { renderExecutivePulse(dashData); });
@@ -3420,11 +3429,13 @@ export function dashboardPage(): string {
         safeRender('brainSection', function () { renderBrainSection(dashData.brain, dashData); });
       }
 
-      var dashKpis = Array.isArray(dashData.kpis) ? dashData.kpis : [];
-      var kpis = dashKpis.length > 0 ? dashKpis : buildKpisFromInsights(insights);
+      // NOTE: kpis is already in scope from the declaration above. This block
+      // previously re-declared it and re-ran renderMainMove, so the decision
+      // card was built twice on every load — one wasted full render pass.
       safeRender('bleedAlert', function () { renderBleedAlert(dashData); });
       safeRender('morningStory', function () { renderMorningStory(dashData); });
       safeRender('insightStrip', function () { renderInsightStrip(dashData); });
+      safeRender('intelligence', function () { renderIntelligenceSection(dashData); });
       safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
       safeRender('kpis', function () { renderKpis(kpis); });
       safeRender('predictions', function () { renderPredictions(dashData.predictions); });

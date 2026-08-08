@@ -62,6 +62,16 @@ export interface CampaignPurpose {
   labelAr: string;
   /** Why we classified this way — for debugging / inspector. */
   reason: string;
+  /**
+   * EVIDENCE METADATA ONLY — never an input to classification.
+   *
+   * True when a second independent signal agreed with whichever rung decided
+   * the family (e.g. the objective says traffic AND the ad sets optimize
+   * LINK_CLICKS). It records corroboration for confidence reporting; it does
+   * not, and must not, change `family`. Removing it would lower reported
+   * confidence, never alter the classification.
+   */
+  corroborated: boolean;
   /** Merchant-facing Arabic explanation of the classification basis. */
   reasonAr: string;
 }
@@ -253,6 +263,14 @@ export function resolveCampaignPurpose(input: CampaignPurposeInput): CampaignPur
     }
   }
 
+  // Corroboration: did a second independent signal agree with the decision?
+  // Computed AFTER `family` is final and never fed back into it — this is
+  // additive evidence metadata, not a second classifier.
+  const corroborated =
+    (destination !== null && fromOpt === 'messaging') ||          // destination + goal agree
+    (destination !== null && fromObj === 'messaging') ||          // destination + objective agree
+    (fromOpt !== null && fromOpt === fromObj);                    // goal + objective agree
+
   const kpi = getObjectiveKpiSpec(
     family === fromObj ? objective : familyToSyntheticObjective(family),
   );
@@ -269,6 +287,7 @@ export function resolveCampaignPurpose(input: CampaignPurposeInput): CampaignPur
     labelAr: FAMILY_LABEL_AR[family],
     reason,
     reasonAr,
+    corroborated,
   };
 }
 
