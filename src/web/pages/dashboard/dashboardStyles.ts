@@ -2172,8 +2172,27 @@ export const dashboardStyles = `<style>
       padding: 10px 14px; border-radius: 9px;
       background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
     }
+    /* The earliest break is the whole point of the funnel: an upstream break
+       mechanically depresses everything downstream, so the LAST stage always
+       looks worst and blaming it is the default mistake. The engine already
+       identifies the first stage to break; this makes that stage the loudest
+       thing in the column rather than a faint tint. */
     .funnel-stage.is-break {
-      background: rgba(123,174,194,0.12); border-color: rgba(123,174,194,0.55);
+      background: rgba(224,114,100,0.10);
+      border-color: rgba(224,114,100,0.55);
+      border-inline-start-width: 3px;
+    }
+    .funnel-break-flag {
+      margin-top: 4px; font-size: 12px; font-weight: 700; color: #E07264;
+    }
+    /* Reach is modelled, not counted. Quiet, but present on the stage it
+       qualifies — not buried in a tooltip the merchant will never open. */
+    .funnel-stage-conf {
+      font-size: 12px; font-weight: 600;
+      color: var(--text-3, #8a8a8a);
+      border: 1px solid rgba(138,138,138,0.35);
+      border-radius: 4px; padding: 0 5px; margin-inline-start: 6px;
+      white-space: nowrap;
     }
     .funnel-stage-label { font-size: 13.5px; color: var(--text-2, #bbb); }
     .funnel-stage-count { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }

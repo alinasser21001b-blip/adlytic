@@ -63,6 +63,20 @@ export const renderIntelligenceJs = `
     installs:           'التثبيتات'
   };
 
+  /**
+   * Per-stage measurement confidence, in the merchant's words.
+   *
+   * A LABEL MAP, not a judgement: the value arrives on the stage and this only
+   * translates it. "estimated" is Meta's own word for reach — it is modelled
+   * from a sample, not counted — and saying so is the difference between a
+   * number the merchant can act on and one they should not over-read.
+   */
+  var STAGE_CONF_LABELS = {
+    estimated: 'تقديري',
+    modeled:   'تقديري',
+    partial:   'جزئي'
+  };
+
   function fmtCount(n) {
     return (n == null || !isFinite(Number(n))) ? '—' : Number(n).toLocaleString('en-US');
   }
@@ -136,11 +150,29 @@ export const renderIntelligenceJs = `
              +  '</div>';
       }
 
-      html += '<div class="funnel-stage' + (isBreak ? ' is-break' : '') + '">'
+      // Per-stage measurement confidence. The DTO has carried this all along
+      // and the renderer dropped it: Meta REPORTS reach as an estimate, and a
+      // merchant reading 4,100 next to an exactly-counted 620 link clicks had
+      // no way to know one is measured and the other modelled.
+      //
+      // Only a non-exact stage is labelled — tagging every row "exact" is
+      // noise that trains people to ignore the tag that matters.
+      var confTag = '';
+      if (s.confidence && s.confidence !== 'exact') {
+        confTag = ' <span class="funnel-stage-conf" title="'
+                + escHtml('تقدير من المنصّة وليس عدّاً مباشراً')
+                + '">' + escHtml(STAGE_CONF_LABELS[s.confidence] || s.confidence) + '</span>';
+      }
+
+      html += '<div class="funnel-stage' + (isBreak ? ' is-break' : '') + '"'
+           +    (isBreak ? ' aria-label="' + escHtml('أول خطوة تنكسر: ' + label) + '"' : '')
+           +    '>'
            +    '<div class="funnel-stage-label">' + escHtml(label)
            +      (s.approximate ? ' <span class="approx-tag" title="قيمة تقريبية">تقريبي</span>' : '')
+           +      confTag
            +    '</div>'
            +    '<div class="funnel-stage-count">' + escHtml(fmtCount(count)) + '</div>'
+           +    (isBreak ? '<div class="funnel-break-flag">أول خطوة تنكسر</div>' : '')
            +  '</div>';
     }
     return html + '</div>';
