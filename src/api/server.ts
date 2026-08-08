@@ -46,7 +46,7 @@ import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
 import { honoToApiRequest } from './adapter';
-import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError, resolveAccountResultColumns } from '../services/getDashboard';
+import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError, resolveAccountResultColumns, EMPTY_DASHBOARD_DTO } from '../services/getDashboard';
 import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelligence';
 import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
@@ -4381,7 +4381,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
       }
       if (!context) {
-        context = buildAiContext(dto ?? { empty: true, health: { score: 0, band: 'none' }, kpis: [], trendSeries: { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] }, issues: [], diagnoses: [], attribution: null, priorityAction: null, bestCampaign: null, worstCampaign: null }, message);
+        // Use the shared constant rather than a second hand-written empty DTO.
+        // The copy that lived here had drifted: it still carried health
+        // { score: 0 }, which claims a connected-but-terrible account when the
+        // truth is that no ad account exists at all.
+        context = buildAiContext(dto ?? EMPTY_DASHBOARD_DTO, message);
       }
       if (primaryAccount) {
         const campaignCtx = await buildAiCampaignContext(

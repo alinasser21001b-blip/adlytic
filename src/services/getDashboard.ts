@@ -220,9 +220,31 @@ export interface DashboardDTO {
       deliveryWindowDays: number;
     };
   };
+  /**
+   * THE account health score. Singular, deliberately.
+   *
+   * This field and `intelligence.health` used to be two different engines'
+   * answers to the same question, shipped together and disagreeing (51
+   * "attention" vs 38 "critical" for one account). This one now defers to the
+   * objective-aware engine whenever it will speak, so the two agree by
+   * construction rather than by luck.
+   */
   health: {
     score: number | null;
-    band: "excellent" | "good" | "attention" | "poor" | "none";
+    band: "excellent" | "good" | "attention" | "poor" | "none" | "critical" | "unknown";
+    /**
+     * Present so the headline number can disclose its own reliability. The
+     * legacy engine has no confidence model at all, hence null there.
+     */
+    confidence: string | null;
+    /**
+     * Which engine produced it. "legacy" survives only where the
+     * objective-aware engine declines to judge — an unresolved objective or a
+     * sample too thin — and a reader should weight it accordingly. "none"
+     * means no engine ran at all (no ad account yet), which is distinct from
+     * an engine that ran and scored badly.
+     */
+    source: "objective" | "legacy" | "none";
   };
   /** Account creative-health from Meta's ad-relevance grades. Null when no ad
    *  is graded yet; the UI card hides unless `needAttention > 0`. */
@@ -479,7 +501,10 @@ export interface CampaignCard {
 // ── Empty DTO — returned when workspace has no ad account connected yet ───────
 export const EMPTY_DASHBOARD_DTO: DashboardDTO = {
   empty:          true,
-  health:         { score: 0, band: "none" },
+  // score:null, not 0. A workspace with no ad account connected has NO health
+  // score; it does not have a health score of zero. Same rule the rest of this
+  // layer follows — absent, not-applicable and zero are three different things.
+  health:         { score: null, band: "none", confidence: null, source: "none" },
   kpis:           [],
   trendSeries:    { dates: [], messages: [], results: [], spend: [], ctr: [], frequency: [], cpm: [], costPerResult: [] },
   issues:         [],
@@ -1561,6 +1586,48 @@ export async function getDashboard(
       })
     : undefined;
 
+  const accountIntelligence = accountFunnel
+    ? buildEntityIntelligence(
+        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
+        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
+        accountFunnel.resultApproximate,
+      )
+    : undefined;
+
+  // ── ONE health number ──────────────────────────────────────────────────
+  //
+  // The DTO used to ship TWO, computed by different engines, and they
+  // disagreed: `health` said 51/attention while `intelligence.health` said
+  // 38/critical for the same account in the same response. Both were rendered.
+  //
+  // They are not equally good. objectiveHealth.ts documents exactly why the
+  // legacy HealthScoreEngine is wrong: it scores one fixed facet set (trend,
+  // CTR, frequency, CPM) for every campaign, so a messaging campaign is
+  // penalised for a ROAS it can never earn, and a sales campaign scores well
+  // on healthy CTR while its purchases collapse — because its actual result
+  // never enters the score.
+  //
+  // So this is not a tie to split. The objective-aware score wins whenever it
+  // exists, and the legacy score survives only where the new engine declines
+  // to judge (unresolved objective, or a sample too thin), which is precisely
+  // where it is least harmful. `source` travels so a reader can tell which
+  // engine spoke, and `confidence` travels because the headline number had
+  // none at all.
+  const objectiveScore = accountIntelligence?.health?.score ?? null;
+  const headlineHealth = objectiveScore !== null
+    ? {
+        score: objectiveScore,
+        band: accountIntelligence!.health.band,
+        confidence: accountIntelligence!.health.confidence,
+        source: 'objective' as const,
+      }
+    : {
+        score,
+        band: band(score),
+        confidence: null,
+        source: 'legacy' as const,
+      };
+
   return {
     workspace: {
       id: ws.id,
@@ -1575,7 +1642,7 @@ export async function getDashboard(
       activeCampaigns,
       campaignCounts,
     },
-    health: { score, band: band(score) },
+    health: headlineHealth,
     creativeHealth,
     kpis,
     trendSeries,
@@ -1594,13 +1661,7 @@ export async function getDashboard(
     objectiveKpis: accountFunnel
       ? buildEntityObjectiveKpis(accountFunnel.family, accountFunnel.windows, money) ?? undefined
       : undefined,
-    intelligence: accountFunnel
-      ? buildEntityIntelligence(
-          accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
-          accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
-          accountFunnel.resultApproximate,
-        )
-      : undefined,
+    intelligence: accountIntelligence,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
     campaigns: cards.all,
