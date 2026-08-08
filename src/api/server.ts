@@ -151,7 +151,7 @@ import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, M
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { ExecutionService } from '../services/execution.service';
-import { currencyFactorNeedsHeal, currencyMinorFactorFor, resolveCurrencyMinorFactor } from '../lib/currency';
+import { currencyFactorNeedsHeal, currencyMinorFactorFor, moneyFormatterFor, resolveCurrencyMinorFactor } from '../lib/currency';
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor, accountLocalDateFloor, getAccountLocalDateString } from '../lib/campaignSpending';
@@ -168,6 +168,16 @@ import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { resolveAccountResultKey } from '../analytics/accountResultKey';
 import { reconcileActionOverlap, summarizeReconcile } from '../lib/actionOverlapReconcile';
 import { allResultDefinitions } from '../analytics/resultSemantics';
+import { classificationConfidenceFromReason } from '../analytics/confidence';
+// P4.2 / P3 / P5 — the objective's own KPI set, funnel diagnosis, health and
+// recommendation. Same deterministic engines the dashboard uses; the campaign
+// endpoints run them for ONE campaign instead of the whole account.
+import { buildObjectiveKpiCards } from '../analytics/objectiveKpiCards';
+import {
+  buildEntityFunnel,
+  buildEntityIntelligence,
+  buildEntityObjectiveKpis,
+} from '../services/entityIntelligence';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -2785,11 +2795,20 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               messages: true,
               impressions: true,
               clicks: true,
+              // The honest post-click denominators. `clicks` also counts
+              // reactions, comments and photo expands, so it can never stand in
+              // for a link click or a landing-page view.
+              linkClicks: true,
+              landingPageViews: true,
               purchases: true,
               leads: true,
               revenueMinor: true,
             },
             _max: { reach: true },
+            // Reach is not additive across days, and neither is frequency —
+            // the mean of the daily values is the standard window fallback
+            // (same rule the inspector endpoint applies).
+            _avg: { frequency: true },
           }),
           prisma.dailyStat.findMany({
             where: {
@@ -2814,7 +2833,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
     );
     const aggByCampaign = new Map(
-      windowAgg.map((a) => [a.entityId, { sum: a._sum, maxReach: a._max.reach }]),
+      windowAgg.map((a) => [
+        a.entityId,
+        { sum: a._sum, maxReach: a._max.reach, avgFrequency: a._avg.frequency },
+      ]),
     );
     const sparkIso: string[] = [];
     for (let i = sparkDays - 1; i >= 0; i--) {
@@ -2829,6 +2851,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const lastSpendByCampaign = new Map(
       lastSpendRows.map((r) => [r.entityId, r._max.date?.toISOString().slice(0, 10) ?? null]),
     );
+    // One formatter for the whole account — the analytics layer renders its own
+    // currency strings so the rule lives in exactly one place (KpiSource.money).
+    const listMoney = moneyFormatterFor(
+      account.currency,
+      resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor),
+    );
     return c.json(
       campaigns
         .map((camp) => {
@@ -2841,7 +2869,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const purchases = Number(sum?.purchases ?? 0);
         const leads = Number(sum?.leads ?? 0);
         const revenueMinor = Number(sum?.revenueMinor ?? 0);
+        const linkClicks = Number(sum?.linkClicks ?? 0);
+        const landingPageViews = Number(sum?.landingPageViews ?? 0);
         const reach = Number(agg?.maxReach ?? 0); // best-effort unique (max daily reach)
+        const frequency = agg?.avgFrequency != null && Number.isFinite(agg.avgFrequency)
+          ? agg.avgFrequency
+          : null;
         const spendTodayMinor = spendTodayByCampaign.get(camp.id) ?? 0;
         const spendWindowMinor = Number(sum?.spend ?? 0);
         const factor = resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor);
@@ -2873,6 +2906,36 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           spendTodayMinor,
           spendWindowMinor,
         });
+        // ── P4.2 — the KPI set THIS campaign's objective cares about ───────
+        //
+        // Built here, in the analytics layer, exactly as the account-level
+        // cards are. The campaigns list previously shipped one universal row
+        // shape (results / cost / CTR / budget) and left the client to decide
+        // what a "result" meant per objective — a per-objective layout table
+        // in the browser is the split brain rule 6 exists to prevent.
+        //
+        // Window ratios come from the window's own totals, never from a mean
+        // of daily rates (Σnumerator / Σdenominator), matching the inspector
+        // and the funnel. CPC/CPM stay in MINOR units because that is what
+        // `KpiSource.money` is contracted to receive.
+        const objectiveKpis = buildObjectiveKpiCards(kpiSpec.family, {
+          spendMinor: spendWindowMinor,
+          impressions,
+          reach,
+          clicks,
+          linkClicks,
+          landingPageViews,
+          messages,
+          leads,
+          purchases,
+          revenueMinor,
+          ctr: impressions > 0 ? (clicks / impressions) * 100 : null,
+          cpc: clicks > 0 ? spendWindowMinor / clicks : null,
+          cpm: impressions > 0 ? (spendWindowMinor / impressions) * 1000 : null,
+          frequency,
+          roas: spendWindowMinor > 0 && revenueMinor > 0 ? revenueMinor / spendWindowMinor : null,
+          money: listMoney,
+        });
         // Strip nested adSets from list payload (include was for purpose only).
         const { adSets: _adSets, ...campRow } = row as Record<string, unknown> & { adSets?: unknown };
         return {
@@ -2898,6 +2961,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
           kpiFamily: kpiSpec.family,
+          linkClicksWindow: linkClicks,
+          landingPageViewsWindow: landingPageViews,
+          frequencyWindow: frequency,
+          // Ordered, objective-specific, pre-formatted. `null` when the purpose
+          // could not be resolved — an unknown campaign gets no KPI layout,
+          // because we do not know what it is buying.
+          objectiveKpis,
           purposeLabelAr: purpose.labelAr,
           purposeReason: purpose.reason,
           optimizationGoal: purpose.optimizationGoal,
@@ -3166,6 +3236,46 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const resultsCount = resultCountForObjective(purposeKey, windowTotals);
     const avgCostPerResult = efficiencyForObjective(purposeKey, windowTotals, factor);
 
+    // ── P3/P4/P5 for THIS campaign ────────────────────────────────────────
+    //
+    // The dashboard has always run the funnel diagnosis, the objective KPI
+    // cards, the health score and the reconciled recommendation — but only for
+    // the whole account. A merchant looking at one campaign got a summary and
+    // two deltas, and no verdict, so the "is this healthy?" judgement had
+    // nowhere to come from but the browser. Same pipeline, same engines, one
+    // campaign as the entity. Its own 7d-vs-prior-7d lagged window, which is
+    // deliberately narrower than the summary window above: a verdict must be
+    // comparable, and only settled days are.
+    //
+    // `family` is the already-resolved purpose — never re-derived from the raw
+    // Meta objective here (rule 1).
+    const campaignFunnel = await buildEntityFunnel(
+      prisma,
+      EntityType.CAMPAIGN,
+      campaign.id,
+      purpose.family,
+      {
+        classificationConfidence: classificationConfidenceFromReason(
+          purpose.reason,
+          purpose.corroborated,
+        ),
+      },
+    ).catch(() => null);
+    const inspectorMoney = moneyFormatterFor(account.currency, factor);
+    const objectiveKpis = campaignFunnel
+      ? buildEntityObjectiveKpis(campaignFunnel.family, campaignFunnel.windows, inspectorMoney)
+      : null;
+    const campaignIntelligence = campaignFunnel
+      ? buildEntityIntelligence(
+          campaignFunnel.funnel,
+          campaignFunnel.family,
+          campaignFunnel.windows,
+          campaignFunnel.classificationConfidence,
+          campaignFunnel.dataConfidence,
+          campaignFunnel.resultApproximate,
+        )
+      : null;
+
     // ── Positive / negative signals: 7d vs prior 7d ──────────────────────
     // Daily rows are date-desc, so the first ≤7 are "recent", the next ≤7
     // are "prior". Same correctness rule as the window summary: ratios are
@@ -3418,6 +3528,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         avgCostPerPurchase,
         avgCostPerLead,
       },
+      // P4.2 — ordered, pre-formatted, objective-specific. Index 0 is the
+      // headline result; `priority` separates headline / supporting / context.
+      // Null when the campaign has no settled window to measure.
+      objectiveKpis,
+      // P3 — the funnel diagnosis for this campaign's own shape.
+      funnel: campaignFunnel?.funnel ?? null,
+      // P5 — health score, reconciled problem class and the single
+      // recommendation the whole system agrees on. Rendered verbatim.
+      intelligence: campaignIntelligence,
       timeline: snapshots.map((s) => ({
         tickDate:         s.tickDate,
         action:           s.action,

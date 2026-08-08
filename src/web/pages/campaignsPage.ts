@@ -15,6 +15,12 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
+// The P3/P4/P5 render layer, shared verbatim with the dashboard. Reusing it
+// here means the funnel, the diagnosis, the confidence chips and the health
+// facets have exactly ONE implementation — a campaign and an account are
+// described by the same code, so they can never drift apart in wording or in
+// what they choose to hide.
+import { renderIntelligenceJs } from './dashboard/sections/intelligence';
 
 export function campaignsPage(): string {
   const content = `
@@ -499,40 +505,98 @@ export function campaignsPage(): string {
     }
     #campaigns-tfoot .tot-label { color: var(--text-3); font-weight: 600; font-size: 12px; }
 
-    /* ── Phone campaign cards (replace the 700px-wide table on mobile) ── */
+    /* ── Objective-specific campaign cards ─────────────────────────────
+       Replaces the 9-column desktop table on phones. Every value inside is
+       rendered from campaign.objectiveKpis; the layout only has to make an
+       ordered list of (label, value) legible at 320px in RTL.
+
+       Type floor is 12px throughout — a metric label a merchant has to
+       squint at is a metric they will not act on. */
     .camp-cards { display: none; }
     .camp-card {
       background: var(--surface-2, rgba(255,255,255,0.02));
       border: 1px solid var(--border-2);
       border-inline-start: 3px solid var(--border-2);
-      border-radius: 12px;
-      padding: 14px 16px;
+      border-radius: 14px;
+      padding: 14px 16px 12px;
       cursor: pointer;
+      direction: rtl; text-align: right;
       -webkit-tap-highlight-color: transparent;
       transition: border-color .15s, transform .1s;
     }
     .camp-card:active { transform: scale(0.985); }
+    .camp-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
     .camp-card[data-delivery="DELIVERING_TODAY"] { border-inline-start-color: var(--accent); }
     .camp-card[data-delivery="DELIVERING_WINDOW"] { border-inline-start-color: var(--success); }
     .camp-card[data-delivery="DORMANT_ACTIVE"] { border-inline-start-color: #C77A1F; }
     .camp-card[data-delivery="NOT_DELIVERING"] { border-inline-start-color: var(--danger, #d32f2f); }
     .camp-card[data-delivery="PAUSED"],
     .camp-card[data-delivery="ARCHIVED"] { border-inline-start-color: var(--text-3); }
-    .camp-card-top { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
-    .camp-card-name {
-      font-size: 14px; font-weight: 700; color: var(--text);
-      overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; flex: 1;
+    .camp-card-top {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 10px; margin-bottom: 12px;
     }
-    .camp-card-meta { display: flex; flex-wrap: wrap; gap: 6px; }
+    .camp-card-ident { min-width: 0; flex: 1; }
+    .camp-card-name {
+      font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.35;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    /* The objective is identity, not decoration: it explains why the numbers
+       below are the numbers below. */
+    .camp-card-objective {
+      margin-top: 3px; font-size: 12px; font-weight: 600; color: var(--accent-2, var(--accent));
+    }
+    /* Headline result — objectiveKpis.cards[0], chosen by the analytics layer. */
+    .camp-card-hero {
+      padding: 10px 12px; margin-bottom: 10px; border-radius: 10px;
+      background: linear-gradient(135deg, rgba(217,167,89,0.10), rgba(255,255,255,0.02));
+      border: 1px solid rgba(217,167,89,0.24);
+    }
+    .camp-card-hero-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
+    .camp-card-hero-value {
+      margin-top: 3px; font-size: 24px; font-weight: 700; color: var(--text);
+      line-height: 1.15; font-feature-settings: 'tnum';
+      direction: ltr; unicode-bidi: embed; text-align: right;
+    }
+    .camp-card-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px;
+    }
+    .camp-card-metric {
+      min-width: 0; padding: 8px 10px; border-radius: 9px;
+      background: var(--surface); border: 1px solid var(--border-2);
+    }
+    /* Labels WRAP rather than truncate: "نسبة النقرة إلى محادثة" ellipsised
+       to "نسبة النقرة إلى…" is indistinguishable from three other rates. */
+    .camp-card-metric-label {
+      display: block; font-size: 12px; color: var(--text-3); line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+    .camp-card-metric-value {
+      display: block; margin-top: 2px;
+      font-size: 15px; font-weight: 700; color: var(--text);
+      font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed; text-align: right;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .camp-card-note {
+      font-size: 12px; color: var(--text-3); line-height: 1.5; margin-bottom: 10px;
+    }
+    .camp-card-foot {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 10px; margin-top: 12px; padding-top: 10px;
+      border-top: 1px solid var(--border-2); flex-wrap: wrap;
+    }
+    .camp-card-budget { font-size: 12px; color: var(--text-3); }
+    .camp-card-cta { font-size: 12.5px; font-weight: 700; color: var(--accent); }
+    /* Kept for any legacy chip markup still rendered elsewhere on the page. */
     .camp-card-chip {
-      font-size: 11.5px; color: var(--text-2);
+      font-size: 12px; color: var(--text-2);
       background: var(--surface); border: 1px solid var(--border-2);
       padding: 3px 9px; border-radius: 999px; white-space: nowrap;
     }
     .camp-card-chip b { color: var(--text); font-weight: 600; }
-    .camp-card-cta {
-      margin-top: 10px; font-size: 12px; font-weight: 600; color: var(--accent);
-      display: flex; align-items: center; gap: 4px;
+    .approx-tag {
+      font-size: 12px; padding: 0 5px; border-radius: 4px; vertical-align: middle;
+      background: rgba(177,149,214,0.15); border: 1px solid rgba(177,149,214,0.4); color: #b195d6;
     }
     @media (max-width: 900px) {
       .camp-kpi-row--hero { grid-template-columns: 1fr; }
@@ -544,13 +608,57 @@ export function campaignsPage(): string {
     @media (max-width: 768px) {
       /* Inline display:block from renderTable would beat a plain rule. */
       #table-container { display: none !important; }
-      .camp-cards { display: flex; flex-direction: column; gap: 10px; }
+      /* The cards ARE the phone view — there is no second option to pick.
+         .camp-table-only (set by the desktop view toggle, which defaults to
+         "table" on load) used to hide them with !important while this block
+         hid the table, so a phone showed an empty list with a working filter
+         bar above it. Both halves have to be beaten, hence the compound
+         selector and the !important. The toggle itself is hidden below. */
+      .camp-cards,
+      .camp-table-only #campaigns-cards {
+        display: flex !important; flex-direction: column; gap: 10px;
+      }
+      .display-mode-toggle { display: none; }
       .camp-manager .camp-toolbar { flex-direction: column; align-items: stretch; }
       /* Header: actions wrap under the title instead of overflowing. */
       .page-header.flex { flex-direction: column; align-items: stretch; gap: 12px; }
       #date-tabs { width: 100%; display: flex; }
       #date-tabs .tab { flex: 1; }
       .camp-chart-grid { grid-template-columns: 1fr; }
+
+      /* ── Touch targets (WCAG 2.5.5 / Apple HIG: 44px) ────────────────
+         Page-scoped, so the desktop toolbar keeps its compact density and
+         the shared stylesheet stays untouched. */
+      .camp-manager .btn,
+      .camp-manager .camp-select,
+      .camp-manager .search-input,
+      .camp-manager .view-btn,
+      #date-tabs .tab,
+      .inspector-tab,
+      .modal-footer .btn {
+        min-height: 44px;
+      }
+      .camp-manager .view-btn { min-width: 44px; width: auto; flex: 1; }
+      .display-mode-toggle { display: flex; gap: 6px; }
+      /* The "what is this?" affordance ships at 32px from the shared
+         stylesheet. Widened here for this page only rather than in the frozen
+         shared block — reported for a global fix. */
+      #main-content .info-btn, #campaign-inspector-modal .info-btn {
+        min-width: 44px; min-height: 44px;
+      }
+      /* Type floor — nothing this page owns drops below 12px on a phone.
+         .camp-kpi-label and .status-strip-item are still under the floor but
+         live in the shared stylesheet, which this phase does not touch —
+         see the handover notes. */
+      .sort-hint, .camp-result-count, .camp-field-label,
+      .obj-chip, .th-window, .observer-fix-btn, .camp-trends-note,
+      .fresh-strip-legend, .camp-kpi-sub, .chart-card-sub {
+        font-size: 12px;
+      }
+    }
+    @media (max-width: 380px) {
+      /* Two metric columns stop being readable below ~380px. */
+      .camp-card-grid { grid-template-columns: 1fr; }
     }
     .inspector-tab {
       background: transparent;
@@ -719,9 +827,176 @@ export function campaignsPage(): string {
       border: 1px dashed var(--border-2); border-radius: 10px;
       line-height: 1.65;
     }
+    /* ── Detail step 1: identity ─────────────────────────────────────── */
+    .insp-ident {
+      display: grid; gap: 2px; direction: rtl;
+      border: 1px solid var(--border-2); border-radius: 12px; overflow: hidden;
+    }
+    .insp-ident-row {
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 10px 14px;
+      background: var(--surface-2, rgba(255,255,255,0.02));
+    }
+    .insp-ident-key { font-size: 12.5px; color: var(--text-3); }
+    .insp-ident-val { font-size: 13px; font-weight: 600; color: var(--text); text-align: left; }
+    .insp-ident-id { direction: ltr; unicode-bidi: embed; font-feature-settings: 'tnum'; }
+
+    /* ── Detail step 7: the objective's supporting metrics ────────────── */
+    .insp-support-grid {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px;
+    }
+    .insp-support-cell {
+      min-width: 0; padding: 10px 12px; border-radius: 10px;
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      border: 1px solid var(--border-2);
+    }
+    .insp-support-label {
+      display: block; font-size: 12px; color: var(--text-3);
+      line-height: 1.35; overflow-wrap: anywhere;
+    }
+    .insp-support-value {
+      display: block; margin-top: 3px; font-size: 16px; font-weight: 700; color: var(--text);
+      font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed; text-align: right;
+    }
+
+    /* ── Progressive disclosure ───────────────────────────────────────── */
+    .insp-details {
+      direction: rtl; text-align: right; margin-bottom: 22px;
+      border: 1px solid var(--border-2); border-radius: 12px; overflow: hidden;
+      background: var(--surface-2, rgba(255,255,255,0.02));
+    }
+    .insp-details-summary {
+      list-style: none; cursor: pointer; user-select: none;
+      display: flex; align-items: center; justify-content: space-between;
+      gap: 12px; padding: 13px 16px; min-height: 44px;
+    }
+    .insp-details-summary::-webkit-details-marker { display: none; }
+    .insp-details-summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+    .insp-details-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .insp-details-hint { font-size: 12px; color: var(--text-3); }
+    /* Physical borders on purpose: a logical border-inline-end flips with the
+       RTL direction and turns the "expand" chevron sideways. Down means down. */
+    .insp-details-summary::after {
+      content: ''; width: 7px; height: 7px; flex-shrink: 0;
+      border-right: 2px solid var(--text-3); border-bottom: 2px solid var(--text-3);
+      transform: rotate(45deg); margin-top: -3px; transition: transform .15s;
+    }
+    .insp-details[open] .insp-details-summary::after { transform: rotate(225deg); margin-top: 3px; }
+    .insp-details[open] .insp-details-summary { border-bottom: 1px solid var(--border-2); }
+    .insp-details-body { padding: 14px 16px; }
+    .insp-signals-wrap { margin-top: 14px; }
+    .insp-adv-line {
+      font-size: 12.5px; color: var(--text-2); line-height: 1.6; margin-bottom: 8px;
+    }
+    .insp-trace { list-style: none; margin: 0 0 8px; padding: 0; display: grid; gap: 6px; }
+    .insp-trace li { font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+    .insp-trace b { color: var(--text); font-weight: 700; }
+
+    /* ── Shared P3/P5 render layer styles ─────────────────────────────────
+       Mirrors the dashboard's own intelligence styling (dashboardStyles.ts)
+       so the injected renderer looks the same in both places. Kept here
+       rather than in layout() because only this page and the dashboard use
+       it, and the dashboard already ships its own copy. */
+    .diag-card {
+      border-radius: 14px; padding: 16px 18px; direction: rtl; text-align: right;
+      background: var(--surface-2, rgba(255,255,255,0.03));
+      border: 1px solid var(--border-2);
+      border-inline-start: 3px solid var(--border-2);
+    }
+    .diag-card.is-alert { background: rgba(224,114,100,0.07); }
+    .diag-card.postclick, .diag-card.conversion { border-inline-start-color: #7BAEC2; }
+    .diag-card.click { border-inline-start-color: #E07264; }
+    .diag-card.delivery { border-inline-start-color: #D9A03F; }
+    .diag-card.efficiency { border-inline-start-color: #A0B266; }
+    .diag-card.healthy { border-inline-start-color: #4FA88B; }
+    .diag-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; flex-wrap: wrap; }
+    .diag-title { font-size: 16px; font-weight: 700; color: var(--text); }
+    .diag-problem { font-size: 13.5px; color: var(--text-2); margin-bottom: 10px; line-height: 1.7; }
+    .diag-body { font-size: 13.5px; color: var(--text-2); line-height: 1.7; }
+    .diag-evidence { margin: 0 0 10px; padding-inline-start: 18px; display: grid; gap: 5px; }
+    .diag-evidence li { font-size: 12.5px; color: var(--text-2); line-height: 1.65; }
+    .diag-approx {
+      font-size: 12px; color: #b195d6; margin-bottom: 10px;
+      padding: 7px 10px; border-radius: 8px; background: rgba(177,149,214,0.08);
+    }
+    .diag-rec {
+      margin-top: 12px; padding: 12px 14px; border-radius: 10px; direction: rtl; text-align: right;
+      background: var(--surface-2, rgba(255,255,255,0.04)); border: 1px solid var(--border-2);
+    }
+    .diag-rec.muted { color: var(--text-3); font-size: 12.5px; line-height: 1.65; }
+    .diag-rec-label { font-size: 12px; letter-spacing: .04em; color: var(--text-3); margin-bottom: 5px; }
+    .diag-rec-action { font-size: 14px; font-weight: 600; line-height: 1.7; color: var(--text); }
+    .diag-rec-impact { margin-top: 6px; font-size: 12.5px; color: var(--text-3); line-height: 1.6; }
+    .conf-chip {
+      display: inline-block;
+      font-size: 12px; padding: 2px 10px; border-radius: 999px; white-space: nowrap;
+      border: 1px solid currentColor;
+    }
+    .conf-high { color: #4FA88B; }
+    .conf-medium { color: #D9A03F; }
+    .conf-low { color: #b195d6; }
+    .conf-insufficient { color: var(--text-3); }
+    .funnel-wrap {
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      border: 1px solid var(--border-2); border-radius: 12px; padding: 14px 16px;
+    }
+    .funnel-viz { display: grid; gap: 0; }
+    .funnel-stage {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      padding: 10px 14px; border-radius: 9px;
+      background: var(--surface); border: 1px solid var(--border-2);
+    }
+    .funnel-stage.is-break { background: rgba(123,174,194,0.12); border-color: rgba(123,174,194,0.55); }
+    .funnel-stage-label { font-size: 13px; color: var(--text-2); }
+    .funnel-stage-count {
+      font-size: 17px; font-weight: 700; font-feature-settings: 'tnum';
+      direction: ltr; unicode-bidi: embed;
+    }
+    .funnel-connector {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 5px 0; font-size: 12px;
+    }
+    .funnel-arrow { color: var(--text-3); }
+    .funnel-ratio { color: var(--text-2); font-feature-settings: 'tnum'; }
+    .funnel-ratio.broken { color: #E07264; font-weight: 700; }
+    .funnel-ratio.gated { color: var(--text-3); font-style: italic; }
+    .obj-health {
+      background: var(--surface-2, rgba(255,255,255,0.02));
+      border: 1px solid var(--border-2); border-radius: 12px; padding: 14px 16px;
+      direction: rtl; text-align: right;
+    }
+    .obj-health-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .obj-health-label { font-size: 12.5px; color: var(--text-3); }
+    .obj-health-value {
+      font-size: 22px; font-weight: 700; color: var(--text);
+      font-feature-settings: 'tnum'; direction: ltr; unicode-bidi: embed;
+    }
+    .obj-health.critical .obj-health-value { color: #E07264; }
+    .obj-health.attention .obj-health-value { color: #D9A03F; }
+    .obj-health.good .obj-health-value,
+    .obj-health.excellent .obj-health-value { color: #4FA88B; }
+    .obj-health-note { font-size: 12.5px; color: var(--text-3); line-height: 1.6; }
+    .facet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    .facet {
+      display: flex; align-items: baseline; gap: 10px; font-size: 12.5px;
+      padding: 5px 0; border-top: 1px solid var(--border-2); flex-wrap: wrap;
+    }
+    .facet-key { min-width: 96px; color: var(--text-2); }
+    .facet-score { font-weight: 700; font-feature-settings: 'tnum'; min-width: 30px; }
+    .facet-note { color: var(--text-3); flex: 1; min-width: 0; }
+    .facet.excluded { opacity: .6; }
+    .facet.excluded .facet-note { font-style: italic; }
+
     @media (max-width: 640px) {
       .insp-primary, .insp-secondary, .insp-signals { grid-template-columns: 1fr; }
       .insp-metric.is-hero .insp-metric-value { font-size: 26px; }
+      .insp-support-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
+      .funnel-stage { padding: 9px 11px; }
+      /* Side-by-side title and hint squeeze the title onto two lines on a
+         phone. Stack them so the step name stays one readable line. */
+      .insp-section-head { flex-direction: column; align-items: stretch; gap: 3px; }
+      .insp-details-summary { flex-wrap: wrap; }
+      .insp-details-hint { flex-basis: 100%; }
     }
     .inspector-creative-card {
       background: var(--surface-2, rgba(255,255,255,0.02));
@@ -1373,16 +1648,16 @@ export function campaignsPage(): string {
   }
 
   function costPerResultMinor(c) {
-    // Prefer server-computed objective-aware efficiency (MAJOR units).
-    if (c.costPerResult != null && Number.isFinite(Number(c.costPerResult))) {
-      var factor = state.minorFactor || 100;
-      return Number(c.costPerResult) * factor;
-    }
-    // Legacy fallback: spend ÷ messages (Phase-1 messaging-only accounts).
-    var spend = Number(c.spendWindowMinor) || 0;
-    var msgs = Number(c.messagesWindow) || 0;
-    if (msgs <= 0 || spend <= 0) return null;
-    return spend / msgs;
+    // Server-computed, objective-aware efficiency (MAJOR units) → minor units
+    // for the shared currency formatter. A unit conversion, not a calculation.
+    //
+    // There is deliberately NO client-side fallback. The old one divided spend
+    // by messages in the browser, which silently made "cost per result" mean
+    // "cost per conversation" on a sales campaign. When the server cannot say
+    // what a result costs, the honest answer is "—".
+    if (c.costPerResult == null || !Number.isFinite(Number(c.costPerResult))) return null;
+    var factor = state.minorFactor || 100;
+    return Number(c.costPerResult) * factor;
   }
 
   function resultsCount(c) {
@@ -1597,6 +1872,120 @@ export function campaignsPage(): string {
     wrap.style.display = '';
   }
 
+  // ── Objective-specific campaign cards ─────────────────────────────────────
+  //
+  //  THE RULE THIS BLOCK EXISTS TO OBEY
+  //  ─────────────────────────────────
+  //  There is no per-objective metric table in this file, and there must never
+  //  be one. campaign.objectiveKpis arrives from the analytics layer
+  //  (src/analytics/objectiveKpiCards.ts) already answering three questions:
+  //    · WHICH metrics this objective is allowed to show (dictionary-gated,
+  //      so ROAS is structurally impossible on a messaging campaign),
+  //    · in what ORDER (index 0 is the headline result),
+  //    · and in what STRING (display is pre-formatted, currency included).
+  //
+  //  This renderer picks positions out of that ordered list. It never decides
+  //  what a metric means, never computes a ratio from two counts, and never
+  //  judges a number good or bad. A new Meta objective ships as a server
+  //  change alone.
+  //
+  //  Legacy payloads (an older API, or a campaign whose purpose could not be
+  //  resolved) carry no card set. Those fall back to the four server-computed
+  //  purpose fields — never to numbers derived here.
+
+  /** The ordered card list for a campaign, or null when the server sent none. */
+  function objectiveCardsOf(c) {
+    var ok = c && c.objectiveKpis;
+    if (!ok || !Array.isArray(ok.cards) || ok.cards.length === 0) return null;
+    return ok.cards;
+  }
+
+  /** Approximation is disclosed wherever the analytics layer flagged it. */
+  function approxTag(card) {
+    return card && card.approximate
+      ? ' <span class="approx-tag" title="قيمة تقريبية">تقريبي</span>'
+      : '';
+  }
+
+  function campaignBudgetText(c) {
+    if (c.dailyBudget != null) return fmtCurrencyMinor(c.dailyBudget) + ' / يوم';
+    if (c.lifetimeBudget != null) return fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي';
+    return 'بدون ميزانية';
+  }
+
+  /** One compact metric cell. The display string is already server-formatted. */
+  function campCardMetric(card) {
+    return '<div class="camp-card-metric">'
+      +    '<span class="camp-card-metric-label">' + escHtml(card.labelAr) + approxTag(card) + '</span>'
+      +    '<span class="camp-card-metric-value">' + escHtml(card.display) + '</span>'
+      +  '</div>';
+  }
+
+  /**
+   * Fallback body for a campaign with no objective card set. Every value here
+   * is still server-computed: resultsWindow / resultLabelAr / costPerResult /
+   * ctrWindow all arrive on the campaign row.
+   */
+  function campCardFallbackBody(c) {
+    var cost = costPerResultMinor(c);
+    var cells = ''
+      + '<div class="camp-card-metric">'
+      +   '<span class="camp-card-metric-label">' + escHtml(c.resultLabelAr || 'النتائج') + '</span>'
+      +   '<span class="camp-card-metric-value">' + escHtml(fmtNum(resultsCount(c), 0)) + '</span>'
+      + '</div>'
+      + '<div class="camp-card-metric">'
+      +   '<span class="camp-card-metric-label">' + escHtml(c.efficiencyLabelAr || 'تكلفة النتيجة') + '</span>'
+      +   '<span class="camp-card-metric-value">' + escHtml(cost != null ? fmtCurrencyMinor(cost) : '—') + '</span>'
+      + '</div>'
+      + '<div class="camp-card-metric">'
+      +   '<span class="camp-card-metric-label">المبلغ المنفق</span>'
+      +   '<span class="camp-card-metric-value">' + escHtml(fmtCurrencyMinor(Number(c.spendWindowMinor) || 0)) + '</span>'
+      + '</div>';
+    return '<div class="camp-card-note">لم نتمكن من تحديد هدف هذه الحملة — نعرض النتيجة العامة فقط بدل مؤشرات هدف قد تكون خاطئة.</div>'
+      + '<div class="camp-card-grid">' + cells + '</div>';
+  }
+
+  /**
+   * One campaign card: identity → objective → headline result → the rest of
+   * the objective's own metrics → budget + entry point to the detail view.
+   */
+  function renderCampaignCard(c) {
+    var cards = objectiveCardsOf(c);
+    var body;
+    if (cards) {
+      var hero = cards[0];
+      var rest = cards.slice(1);
+      body = '<div class="camp-card-hero">'
+        +      '<div class="camp-card-hero-label">' + escHtml(hero.labelAr) + approxTag(hero) + '</div>'
+        +      '<div class="camp-card-hero-value">' + escHtml(hero.display) + '</div>'
+        +    '</div>'
+        +    (rest.length
+              ? '<div class="camp-card-grid">' + rest.map(campCardMetric).join('') + '</div>'
+              : '');
+    } else {
+      body = campCardFallbackBody(c);
+    }
+
+    var name = c.name || '—';
+    return '<article class="camp-card" role="button" tabindex="0"'
+      +      ' aria-label="' + escAttr('تفاصيل الحملة ' + name) + '"'
+      +      ' data-campaign-id="' + escAttr(c.id) + '"'
+      +      ' data-delivery="' + escAttr(c.deliveryTier || '') + '">'
+      +   '<div class="camp-card-top">'
+      +     '<div class="camp-card-ident">'
+      +       '<div class="camp-card-name">' + escHtml(name) + '</div>'
+      +       '<div class="camp-card-objective">' + escHtml(purposeLabel(c)) + '</div>'
+      +     '</div>'
+      +     deliveryStatusHtml(c)
+      +   '</div>'
+      +   body
+      +   '<div class="camp-card-foot">'
+      +     '<span class="camp-card-budget">' + escHtml(campaignBudgetText(c)) + '</span>'
+      +     '<span class="camp-card-cta">التفاصيل الكاملة ←</span>'
+      +   '</div>'
+      + '</article>';
+  }
+
   // ── Table rendering ───────────────────────────────────────────────────────
   function renderTable(campaigns) {
     var tbody = document.getElementById('campaigns-tbody');
@@ -1631,31 +2020,9 @@ export function campaignsPage(): string {
       if (s > maxSpend) maxSpend = s;
     });
 
-    // Phone cards — same data, tap anywhere on the card to open the inspector.
+    // Phone cards — objective-specific intelligence cards. See renderCampaignCard.
     if (cardsEl) {
-      cardsEl.innerHTML = campaigns.map(function(c) {
-        var spendTxt = fmtCurrencyMinor(Number(c.spendWindowMinor) || 0);
-        var cost = costPerResultMinor(c);
-        var costTxt = cost != null ? fmtCurrencyMinor(cost) : '—';
-        var budget = c.dailyBudget != null
-          ? fmtCurrencyMinor(c.dailyBudget) + ' / يوم'
-          : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' إجمالي' : 'بدون ميزانية');
-        var st = deliveryStatus(c);
-        return '<div class="camp-card" data-campaign-id="' + escAttr(c.id) + '" data-delivery="' + escAttr(c.deliveryTier || '') + '">'
-          + '<div class="camp-card-top">'
-          +   '<div class="camp-card-name">' + escHtml(c.name || '—') + '</div>'
-          +   deliveryStatusHtml(c)
-          + '</div>'
-          + '<div class="camp-card-meta">'
-          +   '<span class="camp-card-chip"><b>' + escHtml(spendTxt) + '</b> · ' + state.days + ' يوم</span>'
-          +   '<span class="camp-card-chip">' + escHtml(fmtNum(resultsCount(c), 0)) + ' ' + escHtml(c.resultLabelAr || 'نتيجة') + '</span>'
-          +   '<span class="camp-card-chip">تكلفة: <b>' + escHtml(costTxt) + '</b></span>'
-          +   '<span class="camp-card-chip">' + escHtml(purposeLabel(c)) + '</span>'
-          +   '<span class="camp-card-chip">' + escHtml(budget) + '</span>'
-          + '</div>'
-          + '<div class="camp-card-cta">عرض التفاصيل ←</div>'
-          + '</div>';
-      }).join('');
+      cardsEl.innerHTML = campaigns.map(renderCampaignCard).join('');
     }
 
     var totSpend = 0, totResults = 0;
@@ -1851,6 +2218,13 @@ export function campaignsPage(): string {
       })
       .catch(function() { /* keep showing the previous window's numbers */ });
   }
+
+  // ── Shared P3/P4/P5 render layer ──────────────────────────────────────────
+  // Injected verbatim from src/web/pages/dashboard/sections/intelligence.ts.
+  // Provides renderFunnel / renderDiagnosisCard / renderRecommendationBlock /
+  // renderObjectiveHealth / confidenceChip. Contains no analytics — it projects
+  // the pre-computed funnel and intelligence DTOs into HTML.
+${renderIntelligenceJs}
 
   // ── Campaign Inspector (drawer-style modal) ───────────────────────────────
   // Opens when the user clicks the "View" button on a campaign row. Fetches
@@ -2195,9 +2569,151 @@ export function campaignsPage(): string {
         + '</section>';
     }
 
+    // ══ Campaign detail, in the order a merchant actually reads ═════════
+    //
+    //   identity → objective → primary result → health → diagnosis →
+    //   funnel → supporting metrics → recommendation → trend → advanced
+    //
+    // The sequence is an argument: WHAT this is, WHAT it is buying, HOW MUCH
+    // it bought, whether that is healthy, WHY not, WHERE it broke, the detail
+    // behind it, WHAT to do, how it moved, and only then the machinery.
+    // Everything from "supporting metrics" on is progressive disclosure — a
+    // phone screen should be able to stop at the recommended action.
+    //
+    // Every verdict below (health score, problem class, funnel break,
+    // recommended action) arrives pre-decided on the DTO. Nothing here judges.
+
+    // ── 1. Identity ──────────────────────────────────────────────────────
+    var createdText = c.createdAt ? fmtDate(c.createdAt) : '—';
+    var identityHtml =
+      '<div class="insp-ident">'
+    +   '<div class="insp-ident-row"><span class="insp-ident-key">الحالة</span>'
+    +     '<span class="insp-ident-val">' + escHtml(statusArabic(c.status)) + '</span></div>'
+    +   '<div class="insp-ident-row"><span class="insp-ident-key">الميزانية</span>'
+    +     '<span class="insp-ident-val">' + escHtml(budgetLine) + '</span></div>'
+    +   '<div class="insp-ident-row"><span class="insp-ident-key">تاريخ الإنشاء</span>'
+    +     '<span class="insp-ident-val">' + escHtml(createdText) + '</span></div>'
+    +   (c.externalCampaignId
+        ? '<div class="insp-ident-row"><span class="insp-ident-key">معرّف Meta</span>'
+          + '<span class="insp-ident-val insp-ident-id">' + escHtml(String(c.externalCampaignId)) + '</span></div>'
+        : '')
+    + '</div>';
+
+    // ── 3 + 7. Objective KPI cards, straight off the DTO ─────────────────
+    // data.objectiveKpis.cards is ordered by the analytics layer: index 0 is
+    // the headline result, index 1 its cost, the rest supporting context. This
+    // file picks POSITIONS out of that list. It does not choose metrics, and
+    // it therefore cannot show a metric this objective does not buy.
+    var okCards = (data.objectiveKpis && Array.isArray(data.objectiveKpis.cards))
+      ? data.objectiveKpis.cards
+      : null;
+    var primaryHtml, supportingHtml;
+    if (okCards && okCards.length) {
+      var okHero = okCards[0];
+      var okSecond = okCards.length > 1 ? okCards[1] : null;
+      primaryHtml =
+        '<div class="insp-primary">'
+      +   metricCard({
+            hero: true,
+            label: okHero.labelAr + (okHero.approximate ? ' (تقريبي)' : ''),
+            infoId: resultInfoId,
+            value: okHero.display,
+            sub: 'النتيجة الأساسية لهذا الهدف',
+          })
+      +   (okSecond
+          ? metricCard({
+              hero: true,
+              label: okSecond.labelAr + (okSecond.approximate ? ' (تقريبي)' : ''),
+              infoId: efficiencyInfoId,
+              value: okSecond.display,
+              sub: 'تكلفة كل وحدة من النتيجة الأساسية',
+            })
+          : '')
+      + '</div>';
+      var okRest = okCards.slice(2);
+      supportingHtml = okRest.length
+        ? '<div class="insp-support-grid">'
+          + okRest.map(function (card) {
+              return '<div class="insp-support-cell">'
+                +    '<span class="insp-support-label">' + escHtml(card.labelAr)
+                +      (card.approximate ? ' <span class="approx-tag">تقريبي</span>' : '')
+                +    '</span>'
+                +    '<span class="insp-support-value">' + escHtml(card.display) + '</span>'
+                +  '</div>';
+            }).join('')
+          + '</div>'
+        : '';
+    } else {
+      // No card set — the purpose could not be resolved, or there is no settled
+      // window yet. Fall back to the server's purpose-aware summary rather than
+      // assembling a metric list here.
+      primaryHtml = kpiHtml;
+      supportingHtml = '';
+    }
+
+    // ── 4/5/6/8. Health, diagnosis, funnel, recommendation ───────────────
+    // Rendered by the SAME functions the dashboard uses (renderIntelligenceJs),
+    // so a campaign and an account can never describe a break differently.
+    var intel = data.intelligence || null;
+    var funnelDto = data.funnel || null;
+    var healthHtml = intel
+      ? renderObjectiveHealth(
+          intel.health,
+          'صحة الحملة',
+          'لم نتمكن من تحديد هدف هذه الحملة — لا نُصدر تقييماً مُخمّناً.'
+        )
+      : '';
+    var diagnosisHtml = intel
+      ? renderDiagnosisCard(intel, funnelDto, { withRecommendation: false })
+      : '';
+    var funnelHtml = (intel && funnelDto)
+      ? renderFunnel(funnelDto, intel.problemClass === 'EFFICIENCY' ? null : funnelDto.degradedStage)
+      : '';
+    var recommendationHtml = intel ? renderRecommendationBlock(intel) : '';
+
+    // ── 10. Advanced — how the verdict was reached, collapsed by default ──
+    var traceHtml = (intel && intel.trace && intel.trace.length)
+      ? '<ul class="insp-trace">' + intel.trace.map(function (t) {
+          return '<li><b>' + escHtml(t.layer) + '</b> — ' + escHtml(t.conclusion) + '</li>';
+        }).join('') + '</ul>'
+      : '';
+    var fatigueHtml = (intel && intel.fatigue)
+      ? '<div class="insp-adv-line">إجهاد الجمهور: ' + escHtml(intel.fatigue.severity)
+        + ' ' + confidenceChip(intel.fatigue.confidence) + '</div>'
+      : '';
+    var anomalyHtml = (intel && intel.anomaly)
+      ? '<div class="insp-adv-line">شذوذ: ' + escHtml(intel.anomaly.kind)
+        + ' ' + confidenceChip(intel.anomaly.confidence) + '</div>'
+      : '';
+    var advancedBody = anomalyHtml + fatigueHtml + traceHtml
+      + (c.purposeReasonAr
+        ? '<div class="insp-adv-line">أساس التصنيف: ' + escHtml(c.purposeReasonAr) + '</div>'
+        : '')
+      + timelineHtml;
+
+    /** A collapsed step. Progressive disclosure keeps the phone view short. */
+    function collapsibleBlock(title, hint, body) {
+      if (!body) return '';
+      return '<details class="insp-details">'
+        +   '<summary class="insp-details-summary">'
+        +     '<span class="insp-details-title">' + escHtml(title) + '</span>'
+        +     (hint ? '<span class="insp-details-hint">' + escHtml(hint) + '</span>' : '')
+        +   '</summary>'
+        +   '<div class="insp-details-body">' + body + '</div>'
+        + '</details>';
+    }
+
     var overviewHtml =
-      purposeBanner
-    + sectionBlock('نتائج الهدف', 'كما يعرضها مدير إعلانات Meta لهذا النوع', kpiHtml)
+      sectionBlock('التعريف', 'الحملة كما هي في Meta', identityHtml)
+    + purposeBanner
+    + sectionBlock('النتيجة الأساسية', 'كما يعرضها مدير إعلانات Meta لهذا الهدف', primaryHtml)
+    + (healthHtml ? sectionBlock('الصحة', 'تقييم محسوب على مؤشرات هذا الهدف فقط', healthHtml) : '')
+    + (diagnosisHtml ? sectionBlock('التشخيص', 'حكم واحد متفق عليه عبر طبقات التحليل', diagnosisHtml) : '')
+    + (funnelHtml
+      ? sectionBlock('مسار العميل', 'أين تفقد الحملة الناس', '<div class="funnel-wrap">' + funnelHtml + '</div>')
+      : '')
+    + collapsibleBlock('مؤشرات مساندة', 'بقية مؤشرات هذا الهدف', supportingHtml)
+    + (recommendationHtml ? sectionBlock('الإجراء الموصى به', null, recommendationHtml) : '')
     + sectionBlock('اتجاه الأداء', 'إنفاق · نتائج الهدف · الكفاءة — أيام بلا بيانات تظهر كفجوة',
         '<div class="insp-chart-grid">'
       +   '<div class="chart-card">'
@@ -2217,7 +2733,7 @@ export function campaignsPage(): string {
       +   '</div>'
       + '</div>')
     + sectionBlock('تغيّر الأداء', 'مقارنة آخر 7 أيام بالـ 7 التي قبلها', signalsHtml)
-    + sectionBlock('نصائح الذكاء الاصطناعي', null, timelineHtml);
+    + collapsibleBlock('تفاصيل متقدمة', 'كيف وصلنا إلى هذا الحكم', advancedBody);
 
     var creativesHtml = renderCreativesTab(Array.isArray(data.creatives) ? data.creatives : []);
 
@@ -3040,6 +3556,14 @@ export function campaignsPage(): string {
     document.getElementById('campaigns-cards').addEventListener('click', function(e) {
       var card = e.target && e.target.closest && e.target.closest('.camp-card');
       if (!card) return;
+      openInspector(card.getAttribute('data-campaign-id'));
+    });
+    // The card is role="button", so it must answer Enter/Space like one.
+    document.getElementById('campaigns-cards').addEventListener('keydown', function(e) {
+      if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+      var card = e.target && e.target.closest && e.target.closest('.camp-card');
+      if (!card) return;
+      e.preventDefault();
       openInspector(card.getAttribute('data-campaign-id'));
     });
 
