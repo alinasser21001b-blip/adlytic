@@ -77,6 +77,20 @@ export const renderIntelligenceJs = `
     partial:   'جزئي'
   };
 
+  /**
+   * Default note when the health score is withheld.
+   *
+   * A named constant rather than an inline fallback, because this file builds
+   * markup by concatenating '+'-prefixed lines: a multi-line nullish-fallback
+   * inside a call argument picks up the leading '+' of its continuation line
+   * and emits escHtml(a + || b), which is a syntax error that takes the whole
+   * 160KB bundle down. That is exactly what happened here, and the mobile gate
+   * caught it as "JS error — Unexpected token". Keep such expressions on one
+   * line, or hoist them to a constant, in this file.
+   */
+  var WITHHELD_SCORE_NOTE_AR =
+    'لا نُصدر تقييماً قبل أن تكفي البيانات — لا يعني هذا أن حسابك سيّئ، بل أننا لم نقس بعد.';
+
   function fmtCount(n) {
     return (n == null || !isFinite(Number(n))) ? '—' : Number(n).toLocaleString('en-US');
   }
@@ -301,8 +315,7 @@ export const renderIntelligenceJs = `
         // default asserted the objective was unresolved and was simply wrong
         // half the time.
         +   '<div class="obj-health-note">'
-        +     escHtml(unknownNoteAr
-        +       || 'لا نُصدر تقييماً قبل أن تكفي البيانات — لا يعني هذا أن حسابك سيّئ، بل أننا لم نقس بعد.')
+        +     escHtml(unknownNoteAr || WITHHELD_SCORE_NOTE_AR)
         +   '</div>'
         + '</div>';
     }
