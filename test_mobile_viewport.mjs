@@ -27,6 +27,36 @@ const FONT_MIN = 12;    // below this is unreadable on a phone
 
 const fullDto = JSON.parse(readFileSync(new URL('./tests/fixtures/mobile-dto.json', import.meta.url), 'utf8'));
 
+// The orchestrator state the add-client stub should report. Set immediately
+// before a navigation so one page can be measured in every state it can reach —
+// the five-step mobile flow renders a different screen for each, and a screen
+// that is never rendered is never measured.
+let OB_STATE = null;
+
+const OB_STATES = [
+  'REQUEST_CREATED', 'WAITING_EXTERNAL_ACTION', 'CONNECTING', 'VERIFYING',
+  'SYNCING', 'READY', 'BLOCKED', 'FAILED',
+];
+
+// Deliberately carries the operator-facing wording the real adapter emits, so
+// the audit shows what a phone does with a string full of internal vocabulary.
+const BLOCKED_REQUIREMENT =
+  'لا يملك مستخدم النظام صلاحية إسناد هذا الحساب الإعلاني تلقائيًا. '
+  + 'افتح إعدادات الأعمال لدى العميل وأسند الحساب إلى مستخدم النظام الخاص بنا.';
+
+const obRecord = () => ({
+  id: 'ob_1', workspaceId: WS, provider: 'META',
+  externalAccountId: 'act_1234567890',
+  state: OB_STATE, currentStepId: null, planJson: [],
+  blockedRequirement: OB_STATE === 'BLOCKED' ? BLOCKED_REQUIREMENT : null,
+  lastError: OB_STATE === 'FAILED' ? 'Graph API returned code 190' : null,
+  waitingSince: '2026-08-08T10:00:00.000Z',
+  nextCheckAt: '2026-08-08T10:05:00.000Z',
+  createdAt: '2026-08-08T09:00:00.000Z',
+  completedAt: OB_STATE === 'READY' ? '2026-08-08T10:20:00.000Z' : null,
+  linkedAdAccountId: OB_STATE === 'READY' ? 'aa_1' : null,
+});
+
 const server = http.createServer((req, res) => {
   const url = (req.url || '').split('?')[0];
   const json = (c, o) => { res.writeHead(c, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
@@ -38,7 +68,24 @@ const server = http.createServer((req, res) => {
     return res.end(html);
   } catch { /* not a page — fall through to API stubs */ }
 
-  if (url.startsWith('/api/auth/me')) return json(200, { id: 'u1', email: 'ali@adlytic.com', name: 'Ali', locale: 'AR', isActive: true, memberships: [{ workspaceId: WS, workspace: { id: WS, name: "Ali's Workspace" } }] });
+  // isPlatformAdmin was missing, so /add-client failed its own gate and
+  // redirected to /dashboard — the audit measured the dashboard twice and
+  // labelled one of them "add-client".
+  if (url.startsWith('/api/auth/me')) return json(200, { id: 'u1', email: 'ali@adlytic.com', name: 'Ali', locale: 'AR', isActive: true, isPlatformAdmin: true, memberships: [{ workspaceId: WS, workspace: { id: WS, name: "Ali's Workspace" } }] });
+
+  // ── Connection Orchestrator (admin) ──────────────────────────────────
+  if (url.startsWith('/api/admin/customers')) {
+    return json(200, { customers: [{ email: 'client@example.com', workspaces: [{ id: WS, name: 'عميل تجريبي' }] }] });
+  }
+  if (url.startsWith('/api/admin/meta/discover-accounts')) {
+    return json(200, { configured: false, reason: 'stubbed in the mobile audit' });
+  }
+  if (url === '/api/admin/onboarding') {
+    return json(200, { onboardings: OB_STATE ? [obRecord()] : [] });
+  }
+  if (url.startsWith('/api/admin/onboarding/')) {
+    return json(200, { onboarding: OB_STATE ? obRecord() : null, timeline: [] });
+  }
   if (url === '/api/dashboard/' + WS) return json(200, fullDto);
   if (url.startsWith('/api/dashboard/pulse/')) return json(200, { empty: true, workspaceId: WS });
   if (url.includes('/campaigns')) return json(200, fullDto.campaigns || []);
@@ -50,8 +97,11 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('');
 });
 
-await new Promise((r) => server.listen(4601, r));
-const base = 'http://127.0.0.1:4601';
+// Overridable so two checkouts (or a worktree beside its parent) can run the
+// audit at the same time instead of one dying on EADDRINUSE.
+const PORT = Number(process.env.MOBILE_AUDIT_PORT || 4601);
+await new Promise((r) => server.listen(PORT, r));
+const base = `http://127.0.0.1:${PORT}`;
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium', args: ['--no-sandbox'] });
 
 /** The measurement probe — runs inside the page. */
@@ -137,11 +187,28 @@ const PROBE = `(() => {
   };
 })()`;
 
-const pages = readdirSync(new URL('./.mobile-pages/', import.meta.url)).map(f => f.replace('.html',''));
+// .html only: the previous run leaves findings.json in this directory, and an
+// unfiltered listing turned it into a "page" that failed every width.
+const pages = readdirSync(new URL('./.mobile-pages/', import.meta.url))
+  .filter(f => f.endsWith('.html'))
+  .map(f => f.replace('.html', ''));
+
+// One case per thing that can be on screen. Most pages have exactly one; the
+// add-client flow has one per orchestrator state, because each renders a
+// different step and only a rendered step can be measured.
+const CASES = [];
+for (const slug of pages) {
+  CASES.push({ key: slug, slug, ob: null });
+  if (slug === 'add-client') {
+    for (const s of OB_STATES) CASES.push({ key: `add-client[${s}]`, slug, ob: s });
+  }
+}
+
 const findings = {};
 
-for (const slug of pages) {
-  findings[slug] = {};
+for (const { key, slug, ob } of CASES) {
+  OB_STATE = ob;
+  findings[key] = {};
   for (const width of WIDTHS) {
     const ctx = await browser.newContext({
       viewport: { width, height: 780 },
@@ -164,10 +231,10 @@ for (const slug of pages) {
     try {
       await page.goto(`${base}/${slug}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
       await page.waitForTimeout(2200);
-      findings[slug][width] = await page.evaluate(PROBE);
-      if (errors.length) findings[slug][width].jsErrors = errors.slice(0, 3);
+      findings[key][width] = await page.evaluate(PROBE);
+      if (errors.length) findings[key][width].jsErrors = errors.slice(0, 3);
     } catch (e) {
-      findings[slug][width] = { error: e.message.slice(0, 90) };
+      findings[key][width] = { error: e.message.slice(0, 90) };
     }
     await ctx.close();
   }
@@ -198,7 +265,7 @@ for (const [slug, byWidth] of Object.entries(findings)) {
   if (w320.jsErrors) console.log(`   JS ERRORS     : ${w320.jsErrors.join(' | ')}`);
   console.log('');
 }
-console.log(`SUMMARY: ${overflowPages.length}/${pages.length} pages overflow horizontally → ${overflowPages.join(', ') || 'none'}`);
+console.log(`SUMMARY: ${overflowPages.length}/${CASES.length} screens overflow horizontally → ${overflowPages.join(', ') || 'none'}`);
 
 // ── Gate ──────────────────────────────────────────────────────────────
 const failures = [];
