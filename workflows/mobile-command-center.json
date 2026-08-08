@@ -1,0 +1,50 @@
+{
+  "name": "mobile-command-center",
+  "pattern": "evaluator",
+  "rationale": "Phase 3 is the one remaining task with NO objectively correct answer. What belongs in a merchant's first phone viewport is a judgement call, and a single agent producing one layout gives nothing to compare it against. Generator-variants plus a judge is the right shape — and it is the ONLY task here that earns the extra cost of competition.",
+
+  "why_not_parallel": "Parallel fan-out divides independent work. Competition runs the SAME task N times to choose among variants. Using competition for the other phases would pay N times the cost to solve problems that already have a machine-checkable right answer.",
+
+  "generator": {
+    "isolation": "worktree",
+    "variants": 3,
+    "task": "Design and implement the mobile home command center. First viewport must answer, in order: HEALTH → MOST IMPORTANT CHANGE → MOST IMPORTANT PROBLEM → RECOMMENDED ACTION.",
+    "hard_constraints": [
+      "Render ONLY from dashData.intelligence / dashData.funnel / dashData.resultBreakdown — the deterministic P0-P5 output",
+      "No analytics computation in JavaScript. If a needed value is absent from the DTO, STOP and report it as a contract gap",
+      "Confidence must be visible, including INSUFFICIENT_DATA",
+      "Approximate metrics must be labelled",
+      "Mixed-purpose accounts show per-unit results, never a fabricated single total"
+    ],
+    "differentiator": "Each variant must take a DIFFERENT position on the central question: how much to show before the fold. Variant A: single verdict only. Variant B: verdict + funnel break. Variant C: verdict + per-unit results + action."
+  },
+
+  "evaluator": {
+    "type": "rubric",
+    "gates_first": [
+      "npx tsc --noEmit",
+      "node test_mobile_viewport.mjs",
+      "test_analytics_architecture.ts PART B (no frontend analytics)"
+    ],
+    "note": "A variant failing any gate is disqualified before judging. Taste is only consulted among correct implementations.",
+    "rubric": [
+      { "criterion": "Time to the answer", "weight": 30, "measure": "vertical px from viewport top to the recommended action" },
+      { "criterion": "Honesty under uncertainty", "weight": 25, "measure": "renders INSUFFICIENT_DATA and approximate labels without hiding them" },
+      { "criterion": "One-thumb reach", "weight": 20, "measure": "primary action within the bottom 60% of a 780px viewport" },
+      { "criterion": "Density", "weight": 15, "measure": "screens to scroll for the full first answer; fewer is better" },
+      { "criterion": "Restraint", "weight": 10, "measure": "does not show a metric the objective does not care about" }
+    ],
+    "tie_break": "prefer the variant that shows LESS — a phone command center is judged by what it omits"
+  },
+
+  "budgets": {
+    "per_variant_seconds": 2400,
+    "evaluation_seconds": 600,
+    "context_policy": "Each variant receives the DTO shape, the audit density findings (dashboard: 4569px, 5.9 screens, first action at 158px), and the P4 renderer as prior art. Not the analytics implementation history."
+  },
+
+  "failure_policy": {
+    "all_variants_fail_gates": "report and stop — do not merge a variant that breaks the analytics boundary to win on aesthetics",
+    "single_variant_passes": "merge it without a competition; note that the comparison was not meaningful"
+  }
+}

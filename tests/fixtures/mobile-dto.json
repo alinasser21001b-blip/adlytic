@@ -1,664 +1,1156 @@
 {
- "workspace": {
-  "id": "ws_x",
-  "name": "Ali's Workspace",
-  "industry": "furniture",
-  "locale": "AR",
-  "currency": "IQD",
-  "currencyMinorFactor": 1,
-  "lastSyncedAt": "2026-08-08T12:00:00Z",
-  "activeCampaigns": 2,
-  "campaignCounts": {
-   "total": 5,
-   "activeStatus": 17,
-   "paused": 1,
-   "archived": 1,
-   "spendingToday": 2,
-   "deliveringInWindow": 4,
-   "dormantActive": 13,
-   "withMetrics": 2,
-   "deliveryWindowDays": 30
-  }
- },
- "health": {
-  "score": 51,
-  "band": "attention"
- },
- "kpis": [
-  {
-   "key": "spend",
-   "label": "Spend",
-   "value": 100,
-   "display": "100 IQD",
-   "deltaPct": 0.1,
-   "direction": "up",
-   "goodWhenUp": false
-  },
-  {
-   "key": "ctr",
-   "label": "CTR",
-   "value": 1.4,
-   "display": "1.4%",
-   "deltaPct": 0.05,
-   "direction": "up",
-   "goodWhenUp": true,
-   "benchmark": {
-    "position": "ok",
-    "text": "ضمن المعيار"
-   }
-  }
- ],
- "trendSeries": {
-  "dates": [
-   "2026-08-06",
-   "2026-08-07"
-  ],
-  "messages": [
-   4,
-   5
-  ],
-  "results": [
-   4,
-   5
-  ],
-  "spend": [
-   13000,
-   14000
-  ],
-  "ctr": [
-   2,
-   2.1
-  ],
-  "frequency": [
-   1.2,
-   1.3
-  ],
-  "cpm": [
-   12.5,
-   12
-  ],
-  "costPerResult": [
-   3.25,
-   3.1
-  ]
- },
- "issues": [],
- "priorityAction": {
-  "actionCode": "REFRESH_CREATIVES",
-  "priority": "HIGH",
-  "text": "جدّد التصاميم",
-  "details": null
- },
- "diagnoses": [],
- "attribution": null,
- "bestCampaign": {
-  "id": "c1",
-  "metaId": "120001",
-  "name": "Bedroom",
-  "health": 94,
-  "band": "excellent",
-  "messages": 45,
-  "ctr": 4.2,
-  "cpm": 3.8,
-  "frequency": 3.1
- },
- "worstCampaign": {
-  "id": "c2",
-  "metaId": "120002",
-  "name": "Living",
-  "health": 57,
-  "band": "attention",
-  "messages": 8,
-  "ctr": 1.6,
-  "cpm": 6.1,
-  "frequency": 6.4
- },
- "lifetimeSpend": {
-  "minor": 128294,
-  "display": "128,294 IQD",
-  "syncedAt": "2026-08-08T12:00:00Z"
- },
- "resultBreakdown": {
-  "byUnit": [
-   {
-    "unit": "conversation",
-    "outcome": "qualified_conversations",
-    "count": 84,
-    "campaigns": 3,
-    "labelAr": "محادثة",
-    "labelEn": "conversation",
-    "approximate": false
-   },
-   {
-    "unit": "order",
-    "outcome": "orders",
-    "count": 12,
-    "campaigns": 1,
-    "labelAr": "طلب",
-    "labelEn": "order",
-    "approximate": false
-   }
-  ],
-  "mixed": true,
-  "approximate": false,
-  "dominant": {
-   "unit": "conversation",
-   "outcome": "qualified_conversations",
-   "count": 84,
-   "spendShare": 0.9
-  },
-  "displayAr": "84 محادثة · 12 طلب",
-  "displayEn": "84 conversations · 12 orders"
- },
- "funnel": {
-  "family": "messaging",
-  "status": "BREAK_FOUND",
-  "degradedStage": "conversations",
-  "problemClass": "POST_CLICK",
-  "confidence": "HIGH",
-  "approximateInvolved": false,
-  "evidence": [
-   "نسبة «المحادثات» انخفضت 66.7% (10.00% ← 3.33%) — أول حلقة تنكسر في القمع"
-  ],
-  "ratios": [],
-  "stages": {
-   "current": [
-    {
-     "status": "OK",
-     "stageKey": "impressions",
-     "count": 120000,
-     "ratioFromPrevious": null,
-     "approximate": false,
-     "confidence": "exact"
-    },
-    {
-     "status": "OK",
-     "stageKey": "reach",
-     "count": 32000,
-     "ratioFromPrevious": 0.2667,
-     "approximate": false,
-     "confidence": "estimated"
-    },
-    {
-     "status": "OK",
-     "stageKey": "link_clicks",
-     "count": 1420,
-     "ratioFromPrevious": 0.0444,
-     "approximate": false,
-     "confidence": "exact"
-    },
-    {
-     "status": "OK",
-     "stageKey": "conversations",
-     "count": 84,
-     "ratioFromPrevious": 0.0592,
-     "approximate": false,
-     "confidence": "exact"
+  "workspace": {
+    "id": "ws_x",
+    "name": "Ali's Workspace",
+    "industry": "furniture",
+    "locale": "AR",
+    "currency": "IQD",
+    "currencyMinorFactor": 1,
+    "lastSyncedAt": "2026-08-08T12:00:00Z",
+    "activeCampaigns": 2,
+    "campaignCounts": {
+      "total": 5,
+      "activeStatus": 17,
+      "paused": 1,
+      "archived": 1,
+      "spendingToday": 2,
+      "deliveringInWindow": 4,
+      "dormantActive": 13,
+      "withMetrics": 2,
+      "deliveryWindowDays": 30
     }
-   ],
-   "prior": []
-  }
- },
- "intelligence": {
-  "problemClass": "POST_CLICK",
-  "confidence": "HIGH",
-  "decidedBy": "FUNNEL_DIAGNOSIS",
-  "alert": true,
-  "evidence": [
-   "نسبة «المحادثات» انخفضت 66.7% (10.00% ← 3.33%) — أول حلقة تنكسر في القمع"
-  ],
-  "trace": [
-   {
-    "layer": "FUNNEL_DIAGNOSIS",
-    "conclusion": "break at conversations → POST_CLICK"
-   }
-  ],
-  "anomaly": {
-   "significant": true,
-   "kind": "POST_CLICK_DEGRADATION",
-   "confidence": "HIGH"
   },
-  "fatigue": null,
   "health": {
-   "score": 38,
-   "band": "critical",
-   "confidence": "HIGH",
-   "excludedFacets": [
-    "roas"
-   ],
-   "facets": [
+    "score": 51,
+    "band": "attention"
+  },
+  "kpis": [
     {
-     "key": "primaryResult",
-     "score": 20,
-     "weight": 40,
-     "applicable": true,
-     "evidence": "المحادثات: -66.7%"
+      "key": "spend",
+      "label": "Spend",
+      "value": 100,
+      "display": "100 IQD",
+      "deltaPct": 0.1,
+      "direction": "up",
+      "goodWhenUp": false
     },
     {
-     "key": "funnelHealth",
-     "score": 25,
-     "weight": 25,
-     "applicable": true,
-     "evidence": "التشخيص: POST_CLICK (إنذار)"
-    },
-    {
-     "key": "efficiency",
-     "score": null,
-     "weight": 20,
-     "applicable": false,
-     "evidence": "roas لا ينطبق على هذا الهدف"
-    },
-    {
-     "key": "delivery",
-     "score": 62,
-     "weight": 15,
-     "applicable": true,
-     "evidence": "CTR: +1.0%"
+      "key": "ctr",
+      "label": "CTR",
+      "value": 1.4,
+      "display": "1.4%",
+      "deltaPct": 0.05,
+      "direction": "up",
+      "goodWhenUp": true,
+      "benchmark": {
+        "position": "ok",
+        "text": "ضمن المعيار"
+      }
     }
-   ]
+  ],
+  "trendSeries": {
+    "dates": [
+      "2026-08-06",
+      "2026-08-07"
+    ],
+    "messages": [
+      4,
+      5
+    ],
+    "results": [
+      4,
+      5
+    ],
+    "spend": [
+      13000,
+      14000
+    ],
+    "ctr": [
+      2,
+      2.1
+    ],
+    "frequency": [
+      1.2,
+      1.3
+    ],
+    "cpm": [
+      12.5,
+      12
+    ],
+    "costPerResult": [
+      3.25,
+      3.1
+    ]
   },
-  "recommendation": {
-   "problem": "الناس تضغط لكنها لا تصل إلى المحادثة",
-   "evidence": [
-    "نسبة «المحادثات» انخفضت 66.7%"
-   ],
-   "severity": "CRITICAL",
-   "confidence": "HIGH",
-   "actionCode": "FIX_MESSAGING_DESTINATION",
-   "action": "تحقّق من رقم واتساب، رسالة الترحيب، وسرعة الرد في أوقات الذروة",
-   "expectedImpact": "ارتفاع نسبة التحويل إلى محادثة دون الحاجة لتغيير الإعلان",
-   "targetStage": "POST_CLICK"
-  }
- },
- "campaigns": [
-  {
-   "id": "c1",
-   "metaId": "120001",
-   "name": "غرف نوم — واتساب",
-   "objective": "OUTCOME_ENGAGEMENT",
-   "status": "ACTIVE",
-   "health": 78,
-   "band": "good",
-   "messages": 84,
-   "spend": 69000,
-   "ctr": 2.8,
-   "cpc": 310,
-   "cpm": 8300,
-   "frequency": 3.1,
-   "purposeLabelAr": "رسائل"
+  "issues": [],
+  "priorityAction": {
+    "actionCode": "REFRESH_CREATIVES",
+    "priority": "HIGH",
+    "text": "جدّد التصاميم",
+    "details": null
   },
-  {
-   "id": "c2",
-   "metaId": "120002",
-   "name": "أثاث المعيشة — مبيعات",
-   "objective": "OUTCOME_SALES",
-   "status": "ACTIVE",
-   "health": 38,
-   "band": "critical",
-   "messages": 0,
-   "purchases": 12,
-   "spend": 120000,
-   "ctr": 2.1,
-   "cpc": 660,
-   "cpm": 13300,
-   "frequency": 3,
-   "purposeLabelAr": "مبيعات"
+  "diagnoses": [],
+  "attribution": null,
+  "bestCampaign": {
+    "id": "c1",
+    "metaId": "120001",
+    "name": "Bedroom",
+    "health": 94,
+    "band": "excellent",
+    "messages": 45,
+    "ctr": 4.2,
+    "cpm": 3.8,
+    "frequency": 3.1
   },
-  {
-   "id": "c3",
-   "metaId": "120003",
-   "name": "حملة وعي رمضان",
-   "objective": "OUTCOME_AWARENESS",
-   "status": "PAUSED",
-   "health": 62,
-   "band": "good",
-   "messages": 0,
-   "spend": 45000,
-   "ctr": 0.4,
-   "cpc": 900,
-   "cpm": 3000,
-   "frequency": 5,
-   "purposeLabelAr": "وعي بالعلامة"
-  }
- ],
- "insights": [
-  {
-   "date": "2026-07-01",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
+  "worstCampaign": {
+    "id": "c2",
+    "metaId": "120002",
+    "name": "Living",
+    "health": 57,
+    "band": "attention",
+    "messages": 8,
+    "ctr": 1.6,
+    "cpm": 6.1,
+    "frequency": 6.4
   },
-  {
-   "date": "2026-07-02",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
+  "lifetimeSpend": {
+    "minor": 128294,
+    "display": "128,294 IQD",
+    "syncedAt": "2026-08-08T12:00:00Z"
   },
-  {
-   "date": "2026-07-03",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
+  "resultBreakdown": {
+    "byUnit": [
+      {
+        "unit": "conversation",
+        "outcome": "qualified_conversations",
+        "count": 84,
+        "campaigns": 3,
+        "labelAr": "محادثة",
+        "labelEn": "conversation",
+        "approximate": false
+      },
+      {
+        "unit": "order",
+        "outcome": "orders",
+        "count": 12,
+        "campaigns": 1,
+        "labelAr": "طلب",
+        "labelEn": "order",
+        "approximate": false
+      }
+    ],
+    "mixed": true,
+    "approximate": false,
+    "dominant": {
+      "unit": "conversation",
+      "outcome": "qualified_conversations",
+      "count": 84,
+      "spendShare": 0.9
+    },
+    "displayAr": "84 محادثة · 12 طلب",
+    "displayEn": "84 conversations · 12 orders"
   },
-  {
-   "date": "2026-07-04",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
+  "funnel": {
+    "family": "messaging",
+    "status": "BREAK_FOUND",
+    "degradedStage": "conversations",
+    "problemClass": "POST_CLICK",
+    "confidence": "HIGH",
+    "approximateInvolved": false,
+    "evidence": [
+      "نسبة «المحادثات» انخفضت 66.7% (10.00% ← 3.33%) — أول حلقة تنكسر في القمع"
+    ],
+    "ratios": [],
+    "stages": {
+      "current": [
+        {
+          "status": "OK",
+          "stageKey": "impressions",
+          "count": 120000,
+          "ratioFromPrevious": null,
+          "approximate": false,
+          "confidence": "exact"
+        },
+        {
+          "status": "OK",
+          "stageKey": "reach",
+          "count": 32000,
+          "ratioFromPrevious": 0.2667,
+          "approximate": false,
+          "confidence": "estimated"
+        },
+        {
+          "status": "OK",
+          "stageKey": "link_clicks",
+          "count": 1420,
+          "ratioFromPrevious": 0.0444,
+          "approximate": false,
+          "confidence": "exact"
+        },
+        {
+          "status": "OK",
+          "stageKey": "conversations",
+          "count": 84,
+          "ratioFromPrevious": 0.0592,
+          "approximate": false,
+          "confidence": "exact"
+        }
+      ],
+      "prior": []
+    }
   },
-  {
-   "date": "2026-07-05",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
+  "intelligence": {
+    "problemClass": "POST_CLICK",
+    "confidence": "HIGH",
+    "decidedBy": "FUNNEL_DIAGNOSIS",
+    "alert": true,
+    "evidence": [
+      "نسبة «المحادثات» انخفضت 66.7% (10.00% ← 3.33%) — أول حلقة تنكسر في القمع"
+    ],
+    "trace": [
+      {
+        "layer": "FUNNEL_DIAGNOSIS",
+        "conclusion": "break at conversations → POST_CLICK"
+      }
+    ],
+    "anomaly": {
+      "significant": true,
+      "kind": "POST_CLICK_DEGRADATION",
+      "confidence": "HIGH"
+    },
+    "fatigue": null,
+    "health": {
+      "score": 38,
+      "band": "critical",
+      "confidence": "HIGH",
+      "excludedFacets": [
+        "roas"
+      ],
+      "facets": [
+        {
+          "key": "primaryResult",
+          "score": 20,
+          "weight": 40,
+          "applicable": true,
+          "evidence": "المحادثات: -66.7%"
+        },
+        {
+          "key": "funnelHealth",
+          "score": 25,
+          "weight": 25,
+          "applicable": true,
+          "evidence": "التشخيص: POST_CLICK (إنذار)"
+        },
+        {
+          "key": "efficiency",
+          "score": null,
+          "weight": 20,
+          "applicable": false,
+          "evidence": "roas لا ينطبق على هذا الهدف"
+        },
+        {
+          "key": "delivery",
+          "score": 62,
+          "weight": 15,
+          "applicable": true,
+          "evidence": "CTR: +1.0%"
+        }
+      ]
+    },
+    "recommendation": {
+      "problem": "الناس تضغط لكنها لا تصل إلى المحادثة",
+      "evidence": [
+        "نسبة «المحادثات» انخفضت 66.7%"
+      ],
+      "severity": "CRITICAL",
+      "confidence": "HIGH",
+      "actionCode": "FIX_MESSAGING_DESTINATION",
+      "action": "تحقّق من رقم واتساب، رسالة الترحيب، وسرعة الرد في أوقات الذروة",
+      "expectedImpact": "ارتفاع نسبة التحويل إلى محادثة دون الحاجة لتغيير الإعلان",
+      "targetStage": "POST_CLICK"
+    }
   },
-  {
-   "date": "2026-07-06",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-07",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-08",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-09",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-10",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-11",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-12",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-13",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-14",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-15",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-16",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-17",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-18",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-19",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-20",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-21",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-22",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-23",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-24",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-25",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-26",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-27",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-28",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-29",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  },
-  {
-   "date": "2026-07-30",
-   "spend": 13000,
-   "impressions": 2500,
-   "reach": 1800,
-   "clicks": 65,
-   "messages": 5,
-   "ctr": 2.6,
-   "cpm": 5200,
-   "frequency": 1.4
-  }
- ],
- "recommendations": [
-  {
-   "id": "r1",
-   "actionCode": "FIX_MESSAGING_DESTINATION",
-   "priority": "CRITICAL",
-   "text": "تحقّق من رقم واتساب"
-  }
- ]
+  "campaigns": [
+    {
+      "id": "c1",
+      "metaId": "12001",
+      "externalCampaignId": "23847101",
+      "name": "غرف نوم — واتساب",
+      "objective": "OUTCOME_ENGAGEMENT",
+      "status": "ACTIVE",
+      "deliveryTier": "DELIVERING_TODAY",
+      "deliveringInWindow": true,
+      "isCurrentlySpending": true,
+      "isDormantActive": false,
+      "lastSpendDate": "2026-08-06",
+      "windowDays": 30,
+      "spendWindowMinor": 690000,
+      "messagesWindow": 840,
+      "impressionsWindow": 412000,
+      "clicksWindow": 9800,
+      "purchasesWindow": 0,
+      "leadsWindow": 0,
+      "reachWindow": 133000,
+      "linkClicksWindow": 5400,
+      "landingPageViewsWindow": 0,
+      "frequencyWindow": 3.1,
+      "resultsWindow": 840,
+      "resultLabelAr": "المحادثات",
+      "efficiencyLabelAr": "تكلفة المحادثة",
+      "kpiFamily": "messaging",
+      "objectiveKpis": {
+        "family": "messaging",
+        "cards": [
+          {
+            "key": "conversations",
+            "labelAr": "المحادثات",
+            "value": 840,
+            "display": "840",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "cost_per_conversation",
+            "labelAr": "تكلفة المحادثة",
+            "value": 821.4285714285714,
+            "display": "821 IQD",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "link_clicks",
+            "labelAr": "النقرات على الرابط",
+            "value": 5400,
+            "display": "5,400",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "conversation_rate",
+            "labelAr": "نسبة النقرة إلى محادثة",
+            "value": 0.15555555555555556,
+            "display": "15.6%",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "ctr",
+            "labelAr": "معدل النقر",
+            "value": 2.38,
+            "display": "2.38%",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "cpc",
+            "labelAr": "تكلفة النقرة",
+            "value": 70,
+            "display": "70 IQD",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "frequency",
+            "labelAr": "معدل التكرار",
+            "value": 3.1,
+            "display": "3.10",
+            "approximate": false,
+            "priority": 3
+          },
+          {
+            "key": "spend",
+            "labelAr": "المبلغ المنفق",
+            "value": 690000,
+            "display": "690,000 IQD",
+            "approximate": false,
+            "priority": 2
+          }
+        ]
+      },
+      "purposeLabelAr": "رسائل",
+      "costPerResult": 821,
+      "ctrWindow": 2.38,
+      "dailyBudget": 15000,
+      "lifetimeBudget": null,
+      "spark": [
+        12000,
+        18000,
+        9000,
+        21000,
+        17000,
+        23000,
+        19000
+      ],
+      "health": 60,
+      "band": "good"
+    },
+    {
+      "id": "c2",
+      "metaId": "12002",
+      "externalCampaignId": "23847102",
+      "name": "أثاث المعيشة — مبيعات",
+      "objective": "OUTCOME_SALES",
+      "status": "ACTIVE",
+      "deliveryTier": "DELIVERING_WINDOW",
+      "deliveringInWindow": true,
+      "isCurrentlySpending": false,
+      "isDormantActive": false,
+      "lastSpendDate": "2026-08-06",
+      "windowDays": 30,
+      "spendWindowMinor": 1200000,
+      "messagesWindow": 0,
+      "impressionsWindow": 380000,
+      "clicksWindow": 8000,
+      "purchasesWindow": 120,
+      "leadsWindow": 0,
+      "reachWindow": 126000,
+      "linkClicksWindow": 4100,
+      "landingPageViewsWindow": 3200,
+      "frequencyWindow": 3,
+      "resultsWindow": 120,
+      "resultLabelAr": "المشتريات",
+      "efficiencyLabelAr": "تكلفة الشراء",
+      "kpiFamily": "sales",
+      "objectiveKpis": {
+        "family": "sales",
+        "cards": [
+          {
+            "key": "purchases",
+            "labelAr": "المشتريات",
+            "value": 120,
+            "display": "120",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "revenue",
+            "labelAr": "الإيرادات",
+            "value": 4800000,
+            "display": "4,800,000 IQD",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "cost_per_purchase",
+            "labelAr": "تكلفة الشراء",
+            "value": 10000,
+            "display": "10,000 IQD",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "roas",
+            "labelAr": "العائد على الإنفاق",
+            "value": 4,
+            "display": "4.00x",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "link_clicks",
+            "labelAr": "النقرات على الرابط",
+            "value": 4100,
+            "display": "4,100",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "purchase_rate",
+            "labelAr": "نسبة النقرة إلى شراء",
+            "value": 0.02926829268292683,
+            "display": "2.9%",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "ctr",
+            "labelAr": "معدل النقر",
+            "value": 2.1,
+            "display": "2.10%",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "spend",
+            "labelAr": "المبلغ المنفق",
+            "value": 1200000,
+            "display": "1,200,000 IQD",
+            "approximate": false,
+            "priority": 2
+          }
+        ]
+      },
+      "purposeLabelAr": "مبيعات",
+      "costPerResult": 10000,
+      "ctrWindow": 2.1,
+      "dailyBudget": 40000,
+      "lifetimeBudget": null,
+      "spark": [
+        12000,
+        18000,
+        9000,
+        21000,
+        17000,
+        23000,
+        19000
+      ],
+      "health": 60,
+      "band": "good"
+    },
+    {
+      "id": "c3",
+      "metaId": "12003",
+      "externalCampaignId": "23847103",
+      "name": "حملة وعي رمضان",
+      "objective": "OUTCOME_AWARENESS",
+      "status": "PAUSED",
+      "deliveryTier": "PAUSED",
+      "deliveringInWindow": false,
+      "isCurrentlySpending": false,
+      "isDormantActive": false,
+      "lastSpendDate": "2026-08-06",
+      "windowDays": 30,
+      "spendWindowMinor": 450000,
+      "messagesWindow": 0,
+      "impressionsWindow": 900000,
+      "clicksWindow": 3600,
+      "purchasesWindow": 0,
+      "leadsWindow": 0,
+      "reachWindow": 180000,
+      "linkClicksWindow": 900,
+      "landingPageViewsWindow": 0,
+      "frequencyWindow": 5,
+      "resultsWindow": 900000,
+      "resultLabelAr": "مرات الظهور",
+      "efficiencyLabelAr": "تكلفة الألف ظهور",
+      "kpiFamily": "awareness",
+      "objectiveKpis": {
+        "family": "awareness",
+        "cards": [
+          {
+            "key": "impressions",
+            "labelAr": "مرات الظهور",
+            "value": 900000,
+            "display": "900,000",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "reach",
+            "labelAr": "الوصول",
+            "value": 180000,
+            "display": "180,000",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "frequency",
+            "labelAr": "معدل التكرار",
+            "value": 5,
+            "display": "5.00",
+            "approximate": false,
+            "priority": 3
+          },
+          {
+            "key": "cpm",
+            "labelAr": "تكلفة الألف ظهور",
+            "value": 500,
+            "display": "500 IQD",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "spend",
+            "labelAr": "المبلغ المنفق",
+            "value": 450000,
+            "display": "450,000 IQD",
+            "approximate": false,
+            "priority": 2
+          }
+        ]
+      },
+      "purposeLabelAr": "وعي بالعلامة",
+      "costPerResult": 500,
+      "ctrWindow": 0.4,
+      "dailyBudget": null,
+      "lifetimeBudget": null,
+      "spark": [
+        12000,
+        18000,
+        9000,
+        21000,
+        17000,
+        23000,
+        19000
+      ],
+      "health": 60,
+      "band": "good"
+    },
+    {
+      "id": "c4",
+      "metaId": "12004",
+      "externalCampaignId": "23847104",
+      "name": "زيارات الموقع — عروض الصيف",
+      "objective": "OUTCOME_TRAFFIC",
+      "status": "ACTIVE",
+      "deliveryTier": "DELIVERING_TODAY",
+      "deliveringInWindow": true,
+      "isCurrentlySpending": true,
+      "isDormantActive": false,
+      "lastSpendDate": "2026-08-06",
+      "windowDays": 30,
+      "spendWindowMinor": 360000,
+      "messagesWindow": 0,
+      "impressionsWindow": 240000,
+      "clicksWindow": 7200,
+      "purchasesWindow": 0,
+      "leadsWindow": 0,
+      "reachWindow": 96000,
+      "linkClicksWindow": 5100,
+      "landingPageViewsWindow": 3400,
+      "frequencyWindow": 2.5,
+      "resultsWindow": 5100,
+      "resultLabelAr": "النقرات على الرابط",
+      "efficiencyLabelAr": "تكلفة النقرة على الرابط",
+      "kpiFamily": "traffic",
+      "objectiveKpis": {
+        "family": "traffic",
+        "cards": [
+          {
+            "key": "link_clicks",
+            "labelAr": "النقرات على الرابط",
+            "value": 5100,
+            "display": "5,100",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "landing_page_views",
+            "labelAr": "مشاهدات صفحة الهبوط",
+            "value": 3400,
+            "display": "3,400",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "lpv_rate",
+            "labelAr": "نسبة النقرة إلى زيارة",
+            "value": 0.6666666666666666,
+            "display": "66.7%",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "ctr",
+            "labelAr": "معدل النقر",
+            "value": 3,
+            "display": "3.00%",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "cpc",
+            "labelAr": "تكلفة النقرة",
+            "value": 50,
+            "display": "50 IQD",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "cpm",
+            "labelAr": "تكلفة الألف ظهور",
+            "value": 1500,
+            "display": "1,500 IQD",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "frequency",
+            "labelAr": "معدل التكرار",
+            "value": 2.5,
+            "display": "2.50",
+            "approximate": false,
+            "priority": 3
+          },
+          {
+            "key": "spend",
+            "labelAr": "المبلغ المنفق",
+            "value": 360000,
+            "display": "360,000 IQD",
+            "approximate": false,
+            "priority": 2
+          }
+        ]
+      },
+      "purposeLabelAr": "زيارات",
+      "costPerResult": 70,
+      "ctrWindow": 3,
+      "dailyBudget": 12000,
+      "lifetimeBudget": null,
+      "spark": [
+        12000,
+        18000,
+        9000,
+        21000,
+        17000,
+        23000,
+        19000
+      ],
+      "health": 60,
+      "band": "good"
+    },
+    {
+      "id": "c5",
+      "metaId": "12005",
+      "externalCampaignId": "23847105",
+      "name": "استمارة عملاء — مطابخ",
+      "objective": "OUTCOME_LEADS",
+      "status": "ACTIVE",
+      "deliveryTier": "DORMANT_ACTIVE",
+      "deliveringInWindow": false,
+      "isCurrentlySpending": false,
+      "isDormantActive": true,
+      "lastSpendDate": "2026-08-06",
+      "windowDays": 30,
+      "spendWindowMinor": 540000,
+      "messagesWindow": 0,
+      "impressionsWindow": 190000,
+      "clicksWindow": 4300,
+      "purchasesWindow": 0,
+      "leadsWindow": 96,
+      "reachWindow": 84000,
+      "linkClicksWindow": 2600,
+      "landingPageViewsWindow": 1900,
+      "frequencyWindow": 2.2,
+      "resultsWindow": 96,
+      "resultLabelAr": "العملاء المحتملون",
+      "efficiencyLabelAr": "تكلفة العميل المحتمل",
+      "kpiFamily": "leads",
+      "objectiveKpis": {
+        "family": "leads",
+        "cards": [
+          {
+            "key": "leads",
+            "labelAr": "العملاء المحتملون",
+            "value": 96,
+            "display": "96",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "cost_per_lead",
+            "labelAr": "تكلفة العميل المحتمل",
+            "value": 5625,
+            "display": "5,625 IQD",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "link_clicks",
+            "labelAr": "النقرات على الرابط",
+            "value": 2600,
+            "display": "2,600",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "lead_rate",
+            "labelAr": "نسبة النقرة إلى عميل",
+            "value": 0.036923076923076927,
+            "display": "3.7%",
+            "approximate": false,
+            "priority": 1
+          },
+          {
+            "key": "ctr",
+            "labelAr": "معدل النقر",
+            "value": 2.26,
+            "display": "2.26%",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "cpc",
+            "labelAr": "تكلفة النقرة",
+            "value": 125,
+            "display": "125 IQD",
+            "approximate": false,
+            "priority": 2
+          },
+          {
+            "key": "frequency",
+            "labelAr": "معدل التكرار",
+            "value": 2.2,
+            "display": "2.20",
+            "approximate": false,
+            "priority": 3
+          },
+          {
+            "key": "spend",
+            "labelAr": "المبلغ المنفق",
+            "value": 540000,
+            "display": "540,000 IQD",
+            "approximate": false,
+            "priority": 2
+          }
+        ]
+      },
+      "purposeLabelAr": "عملاء محتملون",
+      "costPerResult": 5625,
+      "ctrWindow": 2.26,
+      "dailyBudget": 20000,
+      "lifetimeBudget": null,
+      "spark": [
+        12000,
+        18000,
+        9000,
+        21000,
+        17000,
+        23000,
+        19000
+      ],
+      "health": 60,
+      "band": "good"
+    }
+  ],
+  "insights": [
+    {
+      "date": "2026-07-01",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-02",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-03",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-04",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-05",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-06",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-07",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-08",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-09",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-10",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-11",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-12",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-13",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-14",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-15",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-16",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-17",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-18",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-19",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-20",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-21",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-22",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-23",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-24",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-25",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-26",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-27",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-28",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-29",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    },
+    {
+      "date": "2026-07-30",
+      "spend": 13000,
+      "impressions": 2500,
+      "reach": 1800,
+      "clicks": 65,
+      "messages": 5,
+      "ctr": 2.6,
+      "cpm": 5200,
+      "frequency": 1.4
+    }
+  ],
+  "recommendations": [
+    {
+      "id": "r1",
+      "actionCode": "FIX_MESSAGING_DESTINATION",
+      "priority": "CRITICAL",
+      "text": "تحقّق من رقم واتساب"
+    }
+  ]
 }

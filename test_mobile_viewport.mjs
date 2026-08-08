@@ -17,7 +17,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import http from 'node:http';
 import { readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { chromium, devices } from '/home/user/adlytic/node_modules/playwright/index.mjs';
+import { chromium, devices } from 'playwright';
 
 const DIR = new URL('./.mobile-pages/', import.meta.url);
 const WS = 'ws_x';

@@ -1,0 +1,96 @@
+{
+  "name": "mobile-screens",
+  "pattern": "parallel",
+  "rationale": "Phases 4-15 touch DIFFERENT page files and have objective, machine-checkable acceptance (the mobile viewport gate). Dependencies are absent, so a sequential chain would serialise work for no benefit and an orchestrator would add a planner that has nothing left to plan. Parallel fan-out is the smallest pattern that satisfies the requirement.",
+
+  "shared_constraint": {
+    "problem": "Every mobile task is tempted to edit the shared mobile system in src/web/layout.ts. Worktree isolation prevents working-copy collisions but NOT fan-in conflicts: four agents each adding a rule to the same @media block produces four conflicting diffs in the same hunk.",
+    "resolution": "The shared mobile system is FROZEN and owned by the integrator. Agents may only add page-scoped styles inside the file they own. An agent that believes it needs a shared-system change must report it as a finding instead of editing it.",
+    "enforced_by": "fan_in.preconditions.no_shared_css_edits"
+  },
+
+  "fan_out": {
+    "isolation": "worktree",
+    "concurrency": 4,
+    "tasks": [
+      {
+        "id": "campaign-cards",
+        "phases": ["4", "5"],
+        "owns": ["src/web/pages/campaignsPage.ts"],
+        "goal": "Replace desktop-derived campaign rows with objective-specific intelligence cards, and give campaign detail a progressive-disclosure order.",
+        "handoff_in": {
+          "audit_findings": ".mobile-pages/findings.json#campaigns",
+          "dto_contract": "DashboardDTO.objectiveKpis (analytics/objectiveKpiCards.ts)",
+          "measured_baseline": "campaigns: 4 controls <44px, 8 text nodes <12px, no overflow"
+        },
+        "handoff_out": {
+          "files_changed": "string[]",
+          "gate_result": "pass|fail",
+          "dto_gaps": "string[] — fields the UI needed that the DTO does not expose"
+        }
+      },
+      {
+        "id": "add-client-flow",
+        "phases": ["14"],
+        "owns": ["src/web/pages/addClientPage.ts"],
+        "goal": "Five-step mobile flow (ID, request, waiting, approved, syncing) with no internal terminology exposed.",
+        "handoff_in": {
+          "forbidden_vocabulary": ["System User", "Graph API", "access tier", "token", "adapter", "reconciliation", "orchestrator"],
+          "state_source": "GET /api/admin/onboarding/:id — ConnectionOnboarding states"
+        },
+        "handoff_out": {
+          "files_changed": "string[]",
+          "gate_result": "pass|fail",
+          "dto_gaps": "string[]"
+        }
+      },
+      {
+        "id": "dashboard-surface",
+        "phases": ["9", "10", "11", "15"],
+        "owns": ["src/web/pages/dashboardPage.ts", "src/web/pages/dashboard/sections/*"],
+        "merged_from": ["states-matrix", "filters-tables-charts"],
+        "merge_reason": "DESIGN CORRECTION, made during fan-out. The original config assigned these to src/web/pages/dashboard/sections/states.ts and filters.ts — neither file exists. Both bodies of work in fact live in dashboardPage.ts (3751 lines). Two agents owning one file is precisely the fan-in collision shared_constraint exists to prevent, so the parallel premise (independent subtasks) did not hold for this pair. Collapsed into one sequential agent rather than serialising a conflict at merge time.",
+        "goal": "Phase 15: explicit LOADING / EMPTY / ERROR / PARTIAL / INSUFFICIENT_DATA / OFFLINE states, where INSUFFICIENT_DATA reads as 'still collecting', never 'no data'. Phases 9-11: filter bottom sheet, per-table card-vs-scroll decision with stated reasoning, chart legibility at 320px.",
+        "handoff_in": {
+          "existing_semantics": "analytics/confidence.ts DataConfidence; funnel status INSUFFICIENT_DATA",
+          "rule": "Never invent a state the analytics layer does not report.",
+          "measured_baseline": "no table currently exceeds the viewport; decide per table on user intent, not width alone"
+        },
+        "handoff_out": {
+          "files_changed": "string[]",
+          "gate_result": "pass|fail",
+          "dto_gaps": "string[]",
+          "table_decisions": "Array<{table, decision: cards|columns|scroll, why}>"
+        }
+      }
+    ]
+  },
+
+  "fan_in": {
+    "agent": "integrator",
+    "preconditions": [
+      "npx tsc --noEmit passes",
+      "node test_mobile_viewport.mjs passes (0 overflow, 0 page errors, all 6 widths)",
+      "analytics suites green: golden_archetypes, analytics_semantics, result_semantics, funnel_intelligence, intelligence, analytics_architecture",
+      "no_shared_css_edits: git diff must not touch the frozen @media block in src/web/layout.ts",
+      "no frontend analytics: test_analytics_architecture must still pass its PART B check"
+    ],
+    "on_precondition_fail": "reject the branch, report the failing gate, do NOT merge partial work",
+    "output": "single integration branch + merged mobile report"
+  },
+
+  "budgets": {
+    "per_task_seconds": 2400,
+    "fan_in_seconds": 900,
+    "context_policy": "Each agent receives ONLY: its own page file, the audit findings for its route, the DTO contract it renders, and the mobile gate command. It does NOT receive the analytics workstream history — that is 6 phases of context irrelevant to rendering a card."
+  },
+
+  "failure_policy": {
+    "task_failure": "isolate — a failed task does not block the other three; report it in the final summary",
+    "retry": {
+      "max_attempts": 1,
+      "only_when": "gate failure is mechanical (tsc/overflow), not a design disagreement"
+    },
+    "partial_success": "acceptable — merge the passing branches, report the rest as remaining work"
+  }
+}
