@@ -91,8 +91,16 @@ check("empty spend → 0", out3.spendMinor === 0, out3.spendMinor);
 check("null impressions → 0", out3.impressions === 0, out3.impressions);
 check("garbage clicks → 0", out3.clicks === 0, out3.clicks);
 check("undefined ctr → null", out3.ctr === null, out3.ctr);
-check("multiple purchase action types summed (3+2=5)", out3.purchases === 5, out3.purchases);
-check("conversions falls back to purchases when no messages", out3.conversions === 5, out3.conversions);
+// UPDATED IN P3.5 — this assertion previously encoded the BUG as expected
+// behaviour: it summed `purchase` (3) with `offsite_conversion.fb_pixel_purchase`
+// (2) to 5, when those are the SAME 3 orders described at two granularities
+// (the pixel form is a subset of the canonical event). The row above therefore
+// represents 3 purchases, not 5.
+//
+// Overlapping representations are now PICKED, never summed — see
+// analytics/actionSemantics.ts and test_action_semantics.ts.
+check("overlapping purchase action types resolve ONCE (canonical 3, not 3+2)", out3.purchases === 3, out3.purchases);
+check("conversions falls back to purchases when no messages", out3.conversions === 3, out3.conversions);
 
 // Fixture 4: ROAS — revenue present, spend present
 const metaRow4: MetaInsightRow = {

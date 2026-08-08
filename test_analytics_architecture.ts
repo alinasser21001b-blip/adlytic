@@ -194,6 +194,32 @@ check('result definitions never point at the ambiguous column', async () => {
   }
 });
 
+console.log('\n── Rule 10: Meta actions resolve through the canonical resolver ──');
+
+check('no file sums a set of Meta action types', () => {
+  // The whole class of bug P3.5 removed. Meta's actions array describes one
+  // business event at several granularities, so summing a filtered set
+  // double-counts. Every family must PICK via analytics/actionSemantics.
+  const ALLOWED = new Set(['src/analytics/actionSemantics.ts']);
+  const offenders: string[] = [];
+  for (const { path, code } of FILES) {
+    if (ALLOWED.has(path)) continue;
+    // A local action-type Set paired with a summing loop is the signature.
+    const hasLocalSet = /(MESSAGE|PURCHASE|LEAD|LANDING_PAGE_VIEW|ACTION)_[A-Z_]*TYPES\s*=\s*new Set/.test(code);
+    const sumsActions = /total\s*\+=|sum\s*\+=/.test(code) && /action_type/.test(code);
+    if (hasLocalSet || sumsActions) offenders.push(path);
+  }
+  assert.deepEqual(offenders, [],
+    `these files build their own action-type vocabulary or sum actions — route them through resolveActionCount:\n        ${offenders.join('\n        ')}`);
+});
+
+check('every action family picks rather than sums', async () => {
+  const { allActionFamilies } = await import('./src/analytics/actionSemantics');
+  for (const f of allActionFamilies()) {
+    assert.equal(f.aggregationRule, 'PICK_FIRST_PRESENT', f.familyKey);
+  }
+});
+
 console.log('\n── Rule 5: three confidences stay separate ──');
 
 check('classification, data and benchmark confidence are distinct types', () => {

@@ -30,6 +30,11 @@
 import type { PrismaClient } from '@prisma/client';
 import { MetaClient, MetaInsightRow } from './metaClient';
 import type { BrainV2Inputs } from '../engine/AdlyticBrain';
+import {
+  ACTION_FAMILIES,
+  resolveActionCount,
+  type ActionRow,
+} from '../analytics/actionSemantics';
 import type {
   MarketBaseline,
   GoldStandardDNA,
@@ -400,24 +405,25 @@ function numField(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Meta packs results in actions[]. Mirrors insightMapper.MESSAGE_ACTION_TYPES. */
-const MESSAGE_ACTION_TYPES = new Set([
-  'onsite_conversion.messaging_conversation_started_7d',
-  'onsite_conversion.messaging_first_reply',
-  'messaging_conversation_started',
-]);
-
-interface MetaActionRow { action_type?: string; value?: string | number }
-
+/**
+ * Message count for AI context — resolved through the CANONICAL resolver.
+ *
+ * This function previously kept its own action-type set and SUMMED it, with a
+ * comment claiming it mirrored the mapper. It did not: it included
+ * `onsite_conversion.messaging_first_reply`, which the mapper deliberately
+ * excludes as a different funnel stage, and it summed rather than picked. So
+ * the AI assistant was fed roughly double the conversation count the dashboard
+ * showed for the same account — the 163-vs-87 production bug, still alive on
+ * this path after being fixed in the mapper.
+ *
+ * There is now exactly one definition of "a conversation", in
+ * analytics/actionSemantics.ts, and every consumer reads it.
+ */
 function sumMessageActions(actions: unknown): number {
-  if (!Array.isArray(actions)) return 0;
-  let total = 0;
-  for (const a of actions as MetaActionRow[]) {
-    if (a.action_type && MESSAGE_ACTION_TYPES.has(a.action_type)) {
-      total += numField(a.value);
-    }
-  }
-  return total;
+  return resolveActionCount(
+    Array.isArray(actions) ? (actions as ActionRow[]) : [],
+    ACTION_FAMILIES['messages']!,
+  ).value;
 }
 
 /**

@@ -14,6 +14,13 @@
 
 import type { MetaInsightRow } from "../services/metaClient";
 import { normalizeRanking, type MetaRanking } from "../knowledge/adRelevanceIntelligence";
+import {
+  ACTION_FAMILIES,
+  resolveActionCount,
+  resolveActionValuePairedTo,
+  resolveAction,
+  type ActionFamilyDef,
+} from "../analytics/actionSemantics";
 
 /** The neutral metric vocabulary every connector translates INTO. */
 export interface NormalizedInsight {
@@ -88,16 +95,26 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
 
   // Meta packs results inside actions: [{ action_type: "...", value: "..." }]
   const actions = Array.isArray(row.actions) ? (row.actions as ActionRow[]) : [];
-  // STRICT MESSAGES — see pickMessages() below. Do NOT sum the action set:
-  // `onsite_conversion.messaging_conversation_started_7d` and
-  // `onsite_conversion.messaging_first_reply` are two distinct events
-  // (a started conversation, then any reply within it). Adding them
-  // double-counts and produced a 163 vs Meta-Ads-Manager-reported 87 in
-  // production. We pick exactly ONE canonical action_type per row.
-  const messages = pickMessages(actions);
-  const landingPageViews = pickLandingPageViews(actions);
-  const purchases = sumActions(actions, PURCHASE_ACTION_TYPES);
-  const leads = sumActions(actions, LEAD_ACTION_TYPES);
+  // EVERY action-derived count goes through the canonical resolver.
+  //
+  // Meta's `actions` array is not a list of independent events — it describes
+  // the SAME business event at several granularities (canonical / umbrella /
+  // channel-specific) with no marker separating those from genuinely distinct
+  // events. Summing it therefore double-counts, which is exactly what
+  // happened here for messages (163 vs Ads Manager's 87), landing page views,
+  // purchases, leads AND revenue.
+  //
+  // See analytics/actionSemantics.ts for each family's preference order and
+  // the reasoning behind every rank.
+  const messagesResolved = resolveActionCount(actions, ACTION_FAMILIES['messages']!);
+  const lpvResolved = resolveActionCount(actions, ACTION_FAMILIES['landing_page_views']!);
+  const purchasesResolved = resolveActionCount(actions, ACTION_FAMILIES['purchases']!);
+  const leadsResolved = resolveActionCount(actions, ACTION_FAMILIES['leads']!);
+
+  const messages = messagesResolved.value;
+  const landingPageViews = lpvResolved.value;
+  const purchases = purchasesResolved.value;
+  const leads = leadsResolved.value;
   // LEGACY, FROZEN (see docs/ANALYTICS_RULES.md rule 4).
   //
   // This first-non-zero fallback is NOT a semantic decision: a sales campaign
@@ -116,9 +133,17 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   // migration completes. It will stop being written, then dropped.
   const conversions = messages || purchases || leads;
 
-  // Action values (revenue) — for ROAS when present
+  // Revenue — PAIRED to whichever representation won the purchase COUNT.
+  //
+  // Resolving value independently could match `omni_purchase` while the count
+  // matched `purchase`, giving a ROAS that divides omnichannel revenue by
+  // website orders. A correct count with a mismatched value is still a broken
+  // analytics system, so the two are resolved together by construction.
   const actionValues = Array.isArray(row.action_values) ? (row.action_values as ActionRow[]) : [];
-  const revenueMajor = sumActions(actionValues, PURCHASE_ACTION_TYPES);
+  const revenueResolved = resolveActionValuePairedTo(
+    actionValues, ACTION_FAMILIES['purchases']!, purchasesResolved.matchedType,
+  );
+  const revenueMajor = revenueResolved.value;
   const revenueMinor = Math.round(revenueMajor * opts.currencyMinorFactor);
   // Prefer Meta's own purchase_roas attribution when present; fall back to
   // computed value/spend ratio so we never lose a signal.
@@ -128,7 +153,11 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
 
   // Cost-per-action breakdowns — Meta returns per action_type, we surface the
   // most-relevant for our Phase 1 KPI (messaging conversations).
-  const costPerMessage = pickCostPerAction(row.cost_per_action_type, MESSAGE_ACTION_TYPES, opts.currencyMinorFactor);
+  // Cost per message — same family, same preference order, so the cost and
+  // the count always describe the same event representation.
+  const costPerMessage = pickCostPerActionForFamily(
+    row.cost_per_action_type, ACTION_FAMILIES['messages']!, opts.currencyMinorFactor,
+  );
 
   return {
     date,
@@ -173,31 +202,23 @@ export function mapAdRelevance(row: MetaInsightRow): NormalizedAdRelevance | nul
   };
 }
 
-// Prefer omni_purchase first — Meta often returns overlapping purchase_roas
-// entries (purchase + omni_purchase); summing them double-counts ROAS.
-const PURCHASE_ROAS_PREFERENCE: readonly string[] = [
-  "omni_purchase",
-  "purchase",
-  "offsite_conversion.fb_pixel_purchase",
-];
-
 /**
- * Meta returns `purchase_roas` as an array keyed by action_type. Pick the
- * first recognized purchase type (preference order) so overlapping entries
- * are not summed.
+ * Meta returns `purchase_roas` as an array keyed by action_type. Pick one —
+ * overlapping entries must never be summed.
+ *
+ * Resolves through the PURCHASES family's own preference order, deliberately.
+ * This picker previously preferred `omni_purchase` FIRST while the purchase
+ * COUNT preferred `purchase`, so a row carrying both reported an
+ * omni-scoped return against a website-scoped order count: two different
+ * universes divided by each other. Sharing one preference list makes that
+ * mismatch structurally impossible.
  */
 function pickPurchaseRoas(row: MetaInsightRow): number | null {
   const raw = row.purchase_roas;
   if (!Array.isArray(raw) || raw.length === 0) return null;
-  for (const preferred of PURCHASE_ROAS_PREFERENCE) {
-    for (const r of raw as ActionRow[]) {
-      if (r.action_type === preferred) {
-        const n = num(r.value);
-        if (Number.isFinite(n) && n > 0) return +n.toFixed(4);
-      }
-    }
-  }
-  return null;
+  const resolved = resolveAction(raw as ActionRow[], ACTION_FAMILIES['purchases']!);
+  if (resolved.matchedType === null || !(resolved.value > 0)) return null;
+  return +resolved.value.toFixed(4);
 }
 
 /**
@@ -253,92 +274,37 @@ export function mapMetaBreakdownInsight(
 }
 
 // ── action-type mappings ─────────────────────────────────────────────────
-// These constants are the ONLY place Meta's action-type vocabulary lives.
-// Each future platform supplies its own equivalent list; consumers see the
-// neutral fields above (messages / purchases / leads / conversions).
-
-// Canonical "a conversation was started" events ONLY. Used both by
-// pickMessages() (count) and pickCostPerAction() (cost/message). We
-// intentionally OMIT `onsite_conversion.messaging_first_reply` — that's a
-// different funnel stage and summing it with conversation-started inflated
-// the count ~1.9× in production (163 reported vs 87 in Meta Ads Manager).
-const MESSAGE_ACTION_TYPES = new Set([
-  "onsite_conversion.messaging_conversation_started_7d",
-  // Newer "Messaging connections" event — Ads Manager's primary result for
-  // many click-to-WhatsApp / welcome-message campaigns. Without it those
-  // campaigns report 0 messages here, which cascades into a WRONG purpose
-  // classification (messages campaign displayed as "تفاعل").
-  "onsite_conversion.total_messaging_connection",
-  // legacy:
-  "messaging_conversation_started",
-]);
-
-// Strict preference order for pickMessages — NEVER summed. The first
-// action_type present on the row wins; this guarantees parity with what Meta
-// Ads Manager itself reports as "Messaging conversations started" (falling
-// back to "Messaging connections" only when conversation-started is absent —
-// summing the two would double-count, since a connection includes the start).
-const MESSAGE_ACTION_PREFERENCE: readonly string[] = [
-  "onsite_conversion.messaging_conversation_started_7d",
-  "messaging_conversation_started",
-  "onsite_conversion.total_messaging_connection",
-];
-
-function pickMessages(actions: ActionRow[]): number {
-  for (const preferred of MESSAGE_ACTION_PREFERENCE) {
-    for (const a of actions) {
-      if (a.action_type === preferred) {
-        const n = num(a.value);
-        if (Number.isFinite(n) && n >= 0) return Math.round(n);
-      }
-    }
-  }
-  return 0;
-}
-// Meta's real landing-page-view signal. NEVER estimated from clicks: the
-// whole diagnostic value is the GAP between a click and an arrival.
 //
-// PICKED, never summed — same discipline as messages and purchase_roas.
-// Meta can return `landing_page_view` and `omni_landing_page_view` as
-// OVERLAPPING entries (omni includes the base event), and summing them
-// double-counts. First present in preference order wins.
-const LANDING_PAGE_VIEW_PREFERENCE: readonly string[] = [
-  "landing_page_view",
-  "omni_landing_page_view",
-];
+// The vocabulary itself now lives in analytics/actionSemantics.ts, which owns
+// the preference order and the overlap reasoning for every family. This file
+// keeps only the cost-per-action helper, because `cost_per_action_type` has
+// the same overlap hazard and must resolve through the SAME preference list
+// as the count it accompanies.
 
-function pickLandingPageViews(actions: ActionRow[]): number {
-  for (const preferred of LANDING_PAGE_VIEW_PREFERENCE) {
-    for (const a of actions) {
-      if (a.action_type === preferred) {
-        const n = num(a.value);
-        if (Number.isFinite(n) && n >= 0) return Math.round(n);
-      }
-    }
-  }
-  return 0;
+/**
+ * Pick the cost for a family's canonical representation, scaled to minor units.
+ *
+ * Walks the family's preference order so the cost and the count always
+ * describe the same event. Returns null when no representation is present.
+ */
+function pickCostPerActionForFamily(
+  raw: unknown,
+  family: ActionFamilyDef,
+  scale: number,
+): number | null {
+  if (!Array.isArray(raw)) return null;
+  const resolved = resolveAction(raw as ActionRow[], family);
+  if (resolved.matchedType === null || !(resolved.value > 0)) return null;
+  return +(resolved.value * scale).toFixed(4);
 }
-
-const PURCHASE_ACTION_TYPES = new Set([
-  "purchase",
-  "offsite_conversion.fb_pixel_purchase",
-  "omni_purchase",
-]);
-const LEAD_ACTION_TYPES = new Set([
-  "lead",
-  "leadgen.other",
-  "offsite_conversion.fb_pixel_lead",
-]);
 
 interface ActionRow { action_type?: string; value?: string | number }
 
-function sumActions(actions: ActionRow[], allowed: Set<string>): number {
-  let total = 0;
-  for (const a of actions) {
-    if (a.action_type && allowed.has(a.action_type)) total += num(a.value);
-  }
-  return total;
-}
+// `sumActions()` used to live here. It is deliberately GONE, not merely
+// unused: summing a filtered set of Meta action types is the defect P3.5
+// removed, and leaving the helper in place would invite the next author to
+// reach for it. Every action family now resolves through
+// analytics/actionSemantics.ts, which picks one representation per event.
 
 // ── primitives ───────────────────────────────────────────────────────────
 function num(v: unknown): number {

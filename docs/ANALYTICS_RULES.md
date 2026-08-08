@@ -233,3 +233,37 @@ Ad → Click → Conversation → Answered → Qualified → Order → Revenue
   diagnosis rather than rewriting it.
 
 No schema or interface added during P0–P5 may make this harder to reach.
+
+---
+
+## Rule 10 — Meta actions resolve through the canonical resolver
+
+`actions`, `action_values`, `cost_per_action_type` and `purchase_roas` are
+**never** summed over a filtered set of action types. Every business event
+resolves through `analytics/actionSemantics.ts`: **prefer → fallback → never
+sum overlapping representations.**
+
+**Why:** Meta's `actions` array is not a list of independent events. It
+describes the same business event at several granularities — canonical,
+umbrella (`omni_*`), channel-specific (`offsite_conversion.fb_pixel_*`) —
+mixed with genuinely different events, and nothing in the payload separates
+the two cases. Summing it double-counts. Adlytic shipped this defect four
+times: messages (163 vs Ads Manager's 87), landing page views, purchases, and
+revenue.
+
+**Why preference order rather than subtraction:** Meta publishes no
+authoritative containment lattice, so "subtract the overlap" would be guesswork
+dressed as precision. The standard we can verify is **parity with Ads
+Manager** — the client compares our number against the one Meta shows them, so
+the canonical representation is the one Meta itself reports.
+
+**Counts and values must agree.** Revenue resolves against the *same*
+`action_type` that won the count, so ROAS can never divide omni-scoped revenue
+by website-scoped orders. `purchase_roas` shares the same preference list for
+the same reason.
+
+**Enforced by:** a source scan that fails on any local action-type `Set` or any
+loop summing `action_type` outside the resolver; an invariant that every family
+declares `PICK_FIRST_PRESENT`; and `test_action_semantics.ts` (32 assertions
+across the ten fixture classes). `sumActions()` was deleted rather than left
+unused, so the next author cannot reach for it.
