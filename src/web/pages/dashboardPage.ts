@@ -33,10 +33,11 @@ import { renderKpisJs } from './dashboard/sections/kpis';
 import { renderIntelligenceJs } from './dashboard/sections/intelligence';
 import { renderIssuesJs } from './dashboard/sections/issues';
 import { renderDiagnosesJs } from './dashboard/sections/diagnoses';
+import { commandCenterStyles, renderCommandCenterJs } from './dashboard/sections/commandCenter';
 
 export function dashboardPage(): string {
   
-  const extraHead = dashboardStyles;
+  const extraHead = dashboardStyles + commandCenterStyles;
 
   const content = `
     <div class="loading-overlay" id="loading-state">
@@ -89,6 +90,9 @@ export function dashboardPage(): string {
     <div class="dash-state-strip" id="dash-state-strip" role="status" aria-live="polite"></div>
 
     <div id="dashboard-content" style="display:none;">
+
+      <!-- ═══ PHASE 3 COMMAND CENTER — status · change · problem · why · action ═══ -->
+      <section id="command-center" dir="rtl"></section>
 
       <!-- ═══ COMMAND BAR ═══ -->
       <div class="cmd-bar" id="cmd-bar">
@@ -1971,6 +1975,7 @@ export function dashboardPage(): string {
 
   // ── Advanced: KPI / Issues / Campaign table ─────────────────────────────
   ${renderKpisJs}
+  ${renderCommandCenterJs}
   ${renderIntelligenceJs}
   ${renderIssuesJs}
   ${renderDiagnosesJs}
@@ -3726,6 +3731,7 @@ export function dashboardPage(): string {
       // NOTE: kpis is already in scope from the declaration above. This block
       // previously re-declared it and re-ran renderMainMove, so the decision
       // card was built twice on every load — one wasted full render pass.
+      safeRender('commandCenter', function () { renderCommandCenter(dashData); });
       safeRender('bleedAlert', function () { renderBleedAlert(dashData); });
       safeRender('morningStory', function () { renderMorningStory(dashData); });
       safeRender('insightStrip', function () { renderInsightStrip(dashData); });
