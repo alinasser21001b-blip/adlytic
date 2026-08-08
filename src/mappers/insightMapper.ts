@@ -24,6 +24,14 @@ export interface NormalizedInsight {
   impressions: number;
   reach: number;
   clicks: number;
+  /**
+   * Clicks that opened the destination (site, WhatsApp, Messenger).
+   *
+   * Distinct from `clicks`, which also counts likes, comments, shares and
+   * photo expands. Reporting all-clicks as "traffic" overstates visits and
+   * understates cost-per-click against what Ads Manager shows by default.
+   */
+  linkClicks: number;
   uniqueClicks: number;
   messages: number;
   purchases: number;
@@ -64,6 +72,7 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   const impressions = int(row.impressions);
   const reach = int(row.reach);
   const clicks = int(row.clicks);
+  const linkClicks = int((row as Record<string, unknown>)["inline_link_clicks"]);
   const uniqueClicks = int(row.unique_clicks);
 
   // Meta packs results inside actions: [{ action_type: "...", value: "..." }]
@@ -99,7 +108,7 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   return {
     date,
     spendMinor,
-    impressions, reach, clicks, uniqueClicks,
+    impressions, reach, clicks, linkClicks, uniqueClicks,
     messages, purchases, leads, conversions,
     revenueMinor,
     ctr: nullableFloat(row.ctr),
