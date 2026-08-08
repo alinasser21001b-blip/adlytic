@@ -136,29 +136,6 @@ export function dashboardPage(): string {
       <!-- 0b ▸ Insight strip — forecast + best audience segment -->
       <section class="insight-strip" id="insight-strip" style="display:none;" dir="auto"></section>
 
-      <!-- 1 ▸ Financial hero cards -->
-      <section class="hero-grid" id="hero-grid">
-        <div class="hero-card" id="hero-30">
-          <div class="hero-label">30-Day Spend</div>
-          <div class="hero-value" id="hero-30-val">—</div>
-          <div class="hero-sub">Past 30 days</div>
-          <span class="hero-delta flat" id="hero-30-delta">→ —</span>
-        </div>
-        <div class="hero-card success" id="hero-7">
-          <div class="hero-label">7-Day Spend</div>
-          <div class="hero-value" id="hero-7-val">—</div>
-          <div class="hero-sub">Past 7 days</div>
-          <span class="hero-delta flat" id="hero-7-delta">→ —</span>
-        </div>
-        <div class="hero-card warning" id="hero-life">
-          <div class="hero-label">Lifetime Spend</div>
-          <div class="hero-value" id="hero-life-val">—</div>
-          <div class="hero-sub" id="hero-life-sub">Account history (90-day window)</div>
-          <span class="hero-delta flat">Account total</span>
-        </div>
-      </section>
-
-      <!-- 2 ▸ Executive Pulse Banner (Tier 1) -->
       <!-- ═══ EXECUTIVE PULSE ═══ -->
       <section id="exec-pulse-section" class="exec-pulse-banner healthy" style="display:none;" dir="auto">
         <div class="exec-pulse-main">
@@ -2084,6 +2061,8 @@ export function dashboardPage(): string {
     textEl.textContent = story.text;
     if (dateEl) dateEl.textContent = story.date || '';
     box.style.display = 'flex';
+  }
+
   // "Ask AI why" deep-link — hands the Main Move item's own title/campaign
   // straight to the /ai chat as a prefilled question (see aiPage.ts's ?q=
   // handling), instead of duplicating a root-cause explanation UI here.
@@ -2215,18 +2194,6 @@ export function dashboardPage(): string {
       ? '<div class="main-move-expect">📈 ' + escHtml(pa.expectation) + '</div>'
       : '';
 
-    var html = '<div class="main-move-primary ' + sevCls + '" dir="auto">'
-      + '<div class="main-move-tag">' + escHtml(lbl("Today's #1 priority", 'الأولوية الأولى اليوم')) + '</div>'
-      + '<div class="main-move-title">' + escHtml(primary.title) + '</div>'
-      + impactHtml
-      + costHtml
-      + evidenceHtml
-      + (why ? '<div class="main-move-why">' + escHtml(why) + '</div>' : '')
-      + expectationHtml
-      + '<div class="main-move-cta-row">'
-        + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText) + '</button>'
-        + '<span class="text-xs text-3">' + escHtml(lbl('Confidence', 'الثقة')) + ' ' + escHtml(String(primary.confidence)) + '%</span>'
-      + '</div>'
     // Signature card: headline + confidence, then the golden thread —
     // evidence/diagnosis flowing into the recommendation as one continuous
     // line of reasoning (see .thread in layout.ts). Every step here is real
@@ -2247,7 +2214,10 @@ export function dashboardPage(): string {
     var html = '<article class="diagnosis-card diagnosis-card--hero ' + sevCls + '" dir="auto">'
       + (badgeHtml ? '<div class="diagnosis-header">' + badgeHtml + '</div>' : '')
       + '<div class="diagnosis-headline">' + escHtml(primary.title) + '</div>'
+      + costHtml
+      + evidenceHtml
       + '<div class="thread"><div class="thread-steps">' + threadSteps + '</div></div>'
+      + expectationHtml
       + '<div class="main-move-cta-row diagnosis-cta-row">'
         + '<button class="main-move-cta' + ctaCls + '" type="button">' + escHtml(primary.buttonText || lbl('Do this task', 'نفّذ المهمة')) + '</button>'
         + '<a class="btn btn-secondary btn-sm" href="/ai?q=' + encodeURIComponent(mainMoveAiQuestion(primary)) + '">' + escHtml(lbl('Ask AI', 'اسأل المساعد')) + '</a>'
@@ -3456,7 +3426,6 @@ export function dashboardPage(): string {
       safeRender('morningStory', function () { renderMorningStory(dashData); });
       safeRender('insightStrip', function () { renderInsightStrip(dashData); });
       safeRender('mainMove', function () { renderMainMove(dashData, kpis); });
-      safeRender('spotlight', function () { renderSpotlight(dashData.bestCampaign, deriveOpportunity(dashData)); });
       safeRender('kpis', function () { renderKpis(kpis); });
       safeRender('predictions', function () { renderPredictions(dashData.predictions); });
       safeRender('aiRecs', function () { renderAIRecommendations(dashData.aiRecommendations); });
