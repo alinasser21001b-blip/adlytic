@@ -1740,8 +1740,27 @@ export const MOBILE_FLOORS_CSS = `
   input, select, textarea { min-height: 44px; font-size: 16px; }
   .settings-nav-item { min-height: 44px; }
 
+  /* — Overflow containment ——————————————————————————
+     .topbar-actions is flex-shrink:0 with no wrap. At 320px the action row
+     needs ~436px, and the dashboard — the only page that also renders the
+     pro/beginner toggle there — tipped 118px past the viewport. Every other
+     page stayed under only because it happens to carry fewer controls, so
+     this was one added button away from breaking anywhere.
+
+     It scrolls rather than wraps: wrapping produced a 171px sticky header,
+     which is 30% of a 780px screen once the bottom nav is counted. */
+  .topbar-actions {
+    min-width: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .topbar-actions::-webkit-scrollbar { display: none; }
+
   /* — Text floor ————————————————————————————————— */
   .nav-section-label, .sidebar-logo-tagline, .sidebar-footer-label,
+  .sidebar-user-email,
+  .mobile-nav-item span,
   .kpi-cmd-insight, .hero-sub, .text-xs,
   .auth-footer, .form-hint, .badge,
   .ws-hero-kicker, .ws-id-label, .ws-id-value,
