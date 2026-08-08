@@ -119,6 +119,39 @@ test explicitly forbids `sample?:`.
 
 ---
 
+## Rule 8 — Approximate results must remain approximate
+
+`engagement` and `app` derive their results from all-clicks. That is a proxy,
+not a measurement, and the flag must survive every hop of the pipeline.
+
+**Why:** converting `clicks → app installs` into a confident business result is
+the same class of error as `objective ?? 'messaging'` — a guess wearing the
+costume of a fact. Benchmarks, anomaly detection and recommendations must all be
+able to ask "is this measured?" without reaching back into definitions.
+
+**Enforced by:** `ResultDefinition.approximate`; `UnitSubtotal.approximate`,
+which is contagious within an outcome; `isApproximate()` on the aggregate; and
+`getDashboard` withholding an approximate single-unit count from the diagnosis
+entirely. Tests assert the flag survives aggregation and that mixing approximate
+with exact preserves both.
+
+---
+
+## Rule 9 — `unit` must not hide semantic differences
+
+A shared unit does not make two results interchangeable, and a shared *source
+column* certainly does not.
+
+**Why:** `traffic`, `engagement` and `app` all count `clicks`, but they mean
+site visits, social interactions and app installs. Aggregating by unit was safe
+only because today's units happen to be distinct — luck, not design.
+
+**Enforced by:** `aggregateMixedResults` keys on `businessOutcome`, not `unit`;
+`singleUnitResultKey` resolves by outcome; and an invariant test fails if any two
+definitions ever share a unit while meaning different outcomes.
+
+---
+
 ## Rule 7 — `NOT_APPLICABLE`, `INSUFFICIENT_DATA` and zero are distinct
 
 Three different facts that must never collapse into `0`:
@@ -155,6 +188,20 @@ in review as a semantic decision rather than an invisible side effect.
 ## Phase scope (current)
 
 **Completed:** P0 link clicks, P1 benchmark confidence, P2 result semantics.
+
+**P2 exit conditions — all met (2026-08-08):**
+
+| Condition | Evidence |
+|---|---|
+| `conversions` has zero analytics readers | code-only scan: 12 files, all legacy write / form field / prose |
+| `ResultDefinition` is the source of truth | every engine resolves results through it |
+| Mixed results cannot be flattened | `MixedResultTotal` has no cross-unit total field |
+| Result units are protected | aggregation keys on `businessOutcome` |
+| Business outcomes preserved | `resultKey ≠ businessOutcome ≠ unit`, all three stored |
+| Approximate results explicitly marked | `approximate` propagates and is contagious |
+| Unknown results remain unknown | `null` family yields `NOT_APPLICABLE`, never a guess |
+| All tests green | 24 suites; result-semantics 42, architecture 16 |
+| No P3 code introduced | funnel work is design-only |
 
 **Next, on approval:** P3 funnel intelligence, P4 objective-driven dashboard
 sections, P5 anomaly detection — in that order, and not before.

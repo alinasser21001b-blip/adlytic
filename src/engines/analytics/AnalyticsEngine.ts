@@ -193,7 +193,6 @@ export class AnalyticsEngine {
       ctr: r.ctr,
       cpm: r.cpm,
       frequency: r.frequency,
-      conversions: Number(r.conversions),
     }));
   }
 }

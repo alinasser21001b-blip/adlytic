@@ -324,7 +324,16 @@ export interface CampaignResultContribution {
 export function aggregateMixedResults(
   contributions: CampaignResultContribution[],
 ): MixedResultTotal {
-  const byUnit = new Map<ResultUnit, UnitSubtotal>();
+  // KEYED BY businessOutcome, NOT unit.
+  //
+  // A shared unit does NOT make two results interchangeable, and a shared
+  // source column certainly does not: traffic, engagement and app all count
+  // `clicks`, but they mean site visits, social interactions and app installs
+  // respectively. Grouping by unit happens to be safe with today's
+  // definitions only because their units are coincidentally distinct — keying
+  // on the business outcome makes it safe by construction, so a future
+  // definition that shares a unit can never be silently merged into another.
+  const byOutcome = new Map<BusinessOutcome, UnitSubtotal>();
   let totalSpendMinor = 0;
 
   for (const c of contributions) {
@@ -333,14 +342,17 @@ export function aggregateMixedResults(
     if (value.status !== 'OK') continue;   // unknown purpose: skipped, never guessed
     totalSpendMinor += spend;
 
-    const existing = byUnit.get(value.unit);
+    const existing = byOutcome.get(value.outcome);
     if (existing) {
       existing.count += value.count;
       existing.campaigns += 1;
       existing.spendMinor += spend;
+      // Approximation is CONTAGIOUS: one approximate contributor makes the
+      // whole subtotal approximate. Downstream consumers must limit their
+      // confidence accordingly — never present a proxy as a measured result.
       existing.approximate = existing.approximate || value.definition.approximate;
     } else {
-      byUnit.set(value.unit, {
+      byOutcome.set(value.outcome, {
         unit: value.unit,
         outcome: value.outcome,
         count: value.count,
@@ -353,7 +365,7 @@ export function aggregateMixedResults(
     }
   }
 
-  const units = [...byUnit.values()].sort((a, b) => b.spendMinor - a.spendMinor);
+  const units = [...byOutcome.values()].sort((a, b) => b.spendMinor - a.spendMinor);
   const top = units[0];
 
   return {
@@ -411,12 +423,40 @@ export function singleUnitCount(total: MixedResultTotal): number | null {
   return total.byUnit[0]!.count;
 }
 
-/** The stored column to count, when one unit governs the whole set. */
+/**
+ * The stored column to count, when ONE business outcome governs the whole set.
+ *
+ * Resolved by outcome rather than unit: three families read `clicks`, so a
+ * unit-based lookup could return the wrong definition's key the moment two
+ * definitions share a unit.
+ */
 export function singleUnitResultKey(total: MixedResultTotal): ResultMetricKey | null {
   if (total.byUnit.length !== 1) return null;
-  const unit = total.byUnit[0]!.unit;
-  const def = allResultDefinitions().find((d) => d.unit === unit);
+  const outcome = total.byUnit[0]!.outcome;
+  const def = allResultDefinitions().find((d) => d.businessOutcome === outcome);
   return def ? def.resultKey : null;
+}
+
+/**
+ * The full single-outcome subtotal — count PLUS its approximation status.
+ *
+ * Prefer this over `singleUnitCount` wherever the caller draws a conclusion:
+ * a count of 400 "app installs" that is really a click proxy must not be
+ * interpreted with the same confidence as 400 measured conversations.
+ */
+export function singleUnitResult(total: MixedResultTotal): UnitSubtotal | null {
+  return total.byUnit.length === 1 ? total.byUnit[0]! : null;
+}
+
+/**
+ * True when ANY contributing result is a proxy rather than a direct count.
+ *
+ * Propagates the approximation flag to consumers that only see the aggregate —
+ * benchmarks, anomaly detection and recommendations must all be able to ask
+ * "is this a measured result?" without reaching back to the definitions.
+ */
+export function isApproximate(total: MixedResultTotal): boolean {
+  return total.byUnit.some((u) => u.approximate);
 }
 
 /** Merchant-facing Arabic for per-unit subtotals: "84 محادثة · 12 طلب". */

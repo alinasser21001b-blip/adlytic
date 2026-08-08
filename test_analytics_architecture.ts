@@ -32,7 +32,25 @@ function walk(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-const FILES = walk(ROOT).map((p) => ({ path: relative(__dirname, p), src: readFileSync(p, 'utf8') }));
+const FILES = walk(ROOT).map((p) => {
+  const src = readFileSync(p, 'utf8');
+  return { path: relative(__dirname, p), src, code: stripComments(src) };
+});
+
+/**
+ * Remove comments so a rule counts CODE, not documentation.
+ *
+ * Without this, writing "// deprecated: do not read `conversions`" would trip
+ * the rule-4 ratchet — punishing the very act of documenting the freeze.
+ * Crude but sufficient: these rules only need occurrence counts.
+ */
+function stripComments(src: string): string {
+  return src
+    .replace(/\/\*[\s\S]*?\*\//g, '')   // block comments and JSDoc
+    .split('\n')
+    .map((l) => l.replace(/\/\/.*$/, ''))  // line comments
+    .join('\n');
+}
 
 console.log('\n── Rule 1: resolved purpose is the canonical classification ──');
 
@@ -106,35 +124,38 @@ check('no NEW consumer reads DailyStat.conversions', () => {
   // deprecation comments plus the legacy write kept for rollback safety.
   // These numbers only go DOWN. Raising one requires justifying why a new
   // reader of an ambiguous field is acceptable.
+  // MEASURED 2026-08-08 after P2, counting CODE ONLY (comments stripped).
+  //
+  // ZERO of these are analytics readers. Every engine that once branched on
+  // the ambiguous column now resolves results from the campaign's purpose.
+  // What remains is the legacy write, deprecated field declarations, an
+  // unrelated user-entered form field, and prose.
+  //
+  // These numbers only go DOWN. Raising one requires justifying why a new
+  // reader of an ambiguous field is acceptable.
   const FROZEN_BASELINE = new Map<string, number>([
-['src/adAssessor/assessService.ts', 3],
+    // Legacy write path — kept populated for rollback safety until the column
+    // is dropped in a later release (rule 6).
+    ['src/mappers/insightMapper.ts', 3],
+    ['src/repositories/dailyStatsRepo.ts', 4],
+    ['src/services/mockMeta.ts', 4],
+    // Deprecated field declarations, read by nothing.
+    ['src/engines/analytics/aggregate.ts', 1],
+    ['src/services/recommendation.service.ts', 1],
+    // NOT the DailyStat column: the ad assessor takes a "results" figure the
+    // user types into a form. Different concept, same word.
+    ['src/adAssessor/assessService.ts', 3],
     ['src/adAssessor/assessment-prompt.ts', 2],
     ['src/adAssessor/schemas.ts', 1],
-    ['src/analytics/accountResultKey.ts', 1],
-    ['src/analytics/resultSemantics.ts', 5],
-    ['src/api/server.ts', 4],
-    ['src/engines/analytics/AnalyticsEngine.ts', 2],
-    ['src/engines/analytics/aggregate.ts', 1],
-    ['src/engines/analytics/calculateResultsTrend.ts', 1],
-    ['src/engines/analytics/trend.ts', 2],
-    ['src/engines/intelligence/AdlyticIntelligenceSystem.ts', 4],
-    ['src/engines/recommendation/RecommendationEngine.ts', 1],
-    ['src/engines/rules/RulesEngine.ts', 1],
-    ['src/engines/rules/loadCampaignSignals.ts', 4],
-    ['src/mappers/insightMapper.ts', 4],
-    ['src/repositories/dailyStatsRepo.ts', 4],
-    ['src/services/agent/tools/checkSuspiciousActivity.ts', 2],
-    ['src/services/agent/tools/simulateBudgetShift.ts', 1],
-    ['src/services/getDashboard.ts', 2],
-    ['src/services/mockMeta.ts', 4],
-    ['src/services/recommendation.service.ts', 2],
-    ['src/services/v2ContextAssembler.ts', 2],
     ['src/web/pages/adAnalysisPage.ts', 5],
+    // Prose inside string literals (tool descriptions, privacy copy).
+    ['src/services/agent/tools/checkSuspiciousActivity.ts', 1],
+    ['src/services/agent/tools/simulateBudgetShift.ts', 1],
     ['src/web/pages/privacyPage.ts', 1],
   ]);
   const problems: string[] = [];
-  for (const { path, src } of FILES) {
-    const n = (src.match(/\bconversions\b/g) ?? []).length;
+  for (const { path, code } of FILES) {
+    const n = (code.match(/\bconversions\b/g) ?? []).length;
     if (n === 0) continue;
     const allowed = FROZEN_BASELINE.get(path);
     if (allowed === undefined) {
@@ -158,12 +179,8 @@ check('no code reintroduces a derived first-non-zero results fallback', () => {
   ];
   const ALLOWED = new Set(['src/mappers/insightMapper.ts']);
   const offenders: string[] = [];
-  for (const { path, src } of FILES) {
+  for (const { path, code } of FILES) {
     if (ALLOWED.has(path)) continue;
-    // Ignore comment lines — the pattern is quoted in documentation.
-    const code = src.split('\n')
-      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
-      .join('\n');
     if (PATTERNS.some((re) => re.test(code))) offenders.push(path);
   }
   assert.deepEqual(offenders, [],

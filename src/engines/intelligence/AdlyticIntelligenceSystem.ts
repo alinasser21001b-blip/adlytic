@@ -456,7 +456,6 @@ export class AdlyticIntelligenceSystem {
       // reading an unpopulated `purchases` would silently report zero results.
       purchases: Number(r.purchases),
       leads: Number(r.leads),
-      conversions: Number(r.conversions),   // deprecated; nothing branches on it
     }));
   }
 

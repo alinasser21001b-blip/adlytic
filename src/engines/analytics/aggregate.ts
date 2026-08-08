@@ -32,10 +32,11 @@ export interface DailyPoint {
   leads?: number;
   /**
    * @deprecated Ambiguous first-non-zero fallback of messages/purchases/leads
-   * (docs/ANALYTICS_RULES.md rule 4). Do not branch on it; resolve the result
-   * from the campaign's purpose instead.
+   * (docs/ANALYTICS_RULES.md rule 4). Nothing branches on it any more, and the
+   * engines no longer populate it — resolve the result from the campaign's
+   * purpose instead. Optional so it can be deleted once the column is dropped.
    */
-  conversions: number;
+  conversions?: number;
 }
 
 /** Sum a count field across the window. Missing values count as zero. */

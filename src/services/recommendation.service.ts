@@ -15,7 +15,21 @@ export interface MetricsSnapshot {
   roas?: number | null;
   spend?: number | null;
   impressions?: number | null;
+  /**
+   * @deprecated Ambiguous first-non-zero column (rule 4). Retained so old
+   * stored snapshots still deserialize; never read for a new comparison.
+   */
   conversions?: number | null;
+  /**
+   * Objective-aware result count at snapshot time, resolved from the entity's
+   * purpose. Paired with `resultOutcome` so a before/after comparison can
+   * refuse to compare two different business events.
+   */
+  results?: number | null;
+  /** The BusinessOutcome `results` counted, e.g. "qualified_conversations". */
+  resultOutcome?: string | null;
+  /** True when `results` is a proxy (engagement/app derive theirs from clicks). */
+  resultApproximate?: boolean | null;
   frequency?: number | null;
   /** Stable dashboard item id (issue:CODE, priority:ACTION, feed:DEDUPE_KEY). */
   itemKey?: string;
@@ -183,7 +197,24 @@ export class RecommendationService {
     before: MetricsSnapshot,
     after: MetricsSnapshot,
   ): number | null {
-    for (const key of ['roas', 'ctr', 'conversions'] as const) {
+    // Objective-aware result first, but ONLY when both snapshots counted the
+    // same business event. Comparing conversations-before to orders-after
+    // would produce a confident number about nothing — which is exactly what
+    // the old `conversions` comparison did whenever a campaign's dominant
+    // result type shifted between the two snapshots.
+    const sameOutcome =
+      before.resultOutcome != null && before.resultOutcome === after.resultOutcome;
+    if (sameOutcome) {
+      const b = before.results;
+      const a = after.results;
+      if (typeof b === 'number' && b > 0 && typeof a === 'number') {
+        return (a - b) / b;
+      }
+    }
+    // Fall back to delivery metrics, which are unit-stable across objectives.
+    // Deliberately does NOT fall back to `conversions`: a frozen ambiguous
+    // column must not decide whether a recommendation worked.
+    for (const key of ['roas', 'ctr'] as const) {
       const b = before[key];
       const a = after[key];
       if (typeof b === 'number' && b > 0 && typeof a === 'number') {

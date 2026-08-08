@@ -103,7 +103,6 @@ export async function loadCampaignSignalsBatch(
       frequency: r.frequency,
       purchases: Number(r.purchases),
       leads: Number(r.leads),
-      conversions: Number(r.conversions),
     });
     byCampaign.set(r.entityId, list);
   }

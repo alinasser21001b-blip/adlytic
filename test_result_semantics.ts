@@ -18,6 +18,8 @@ import {
   addResults,
   singleUnitCount,
   singleUnitResultKey,
+  singleUnitResult,
+  isApproximate,
   describeMixedAr,
   describeMixedEn,
   allResultDefinitions,
@@ -311,6 +313,157 @@ check('no result definition reads the ambiguous conversions column', () => {
     assert.notEqual(String(d.resultKey), 'conversions',
       `${d.family} must not depend on the frozen ambiguous column`);
   }
+});
+
+console.log('\n── 10. Approximate results MUST remain approximate ──');
+
+check('traffic clicks and engagement clicks are NOT the same business event', () => {
+  // Both read the SAME source column. The column does not determine meaning.
+  const traffic = resultFor('traffic');
+  const engagement = resultFor('engagement');
+  assert.equal(traffic.resultKey, 'clicks');
+  assert.equal(engagement.resultKey, 'clicks');
+  assert.notEqual(traffic.businessOutcome, engagement.businessOutcome);
+  assert.notEqual(traffic.unit, engagement.unit);
+  assert.equal(traffic.businessOutcome, 'site_visits');
+  assert.equal(engagement.businessOutcome, 'social_interactions');
+});
+
+check('app "installs" are clicks, and are marked approximate', () => {
+  const app = resultFor('app');
+  assert.equal(app.resultKey, 'clicks', 'we do not have a real install signal');
+  assert.equal(app.businessOutcome, 'app_installs');
+  assert.equal(app.approximate, true,
+    'a click proxy must never be presented as a measured install');
+});
+
+check('exact families are NOT marked approximate', () => {
+  for (const f of ['messaging', 'sales', 'leads', 'traffic', 'awareness'] as const) {
+    assert.equal(resultFor(f).approximate, false, `${f} should be an exact count`);
+  }
+});
+
+check('an approximate result stays flagged through aggregation', () => {
+  const t = aggregateMixedResults([
+    { family: 'app', rows: [{ clicks: 400 }], spendMinor: 100_000 },
+  ]);
+  assert.equal(t.byUnit[0]!.approximate, true);
+  assert.equal(isApproximate(t), true);
+  assert.equal(singleUnitResult(t)!.approximate, true);
+});
+
+check('mixing approximate with exact PRESERVES the approximation flag', () => {
+  const t = aggregateMixedResults([
+    { family: 'messaging', rows: msgRows, spendMinor: 800_000 },   // exact
+    { family: 'app', rows: [{ clicks: 400 }], spendMinor: 200_000 }, // approximate
+  ]);
+  assert.equal(isApproximate(t), true, 'one approximate contributor taints the whole');
+  const conv = t.byUnit.find((u) => u.outcome === 'qualified_conversations')!;
+  const inst = t.byUnit.find((u) => u.outcome === 'app_installs')!;
+  assert.equal(conv.approximate, false, 'the exact subtotal stays exact');
+  assert.equal(inst.approximate, true, 'the approximate subtotal stays approximate');
+});
+
+check('approximation is contagious WITHIN one outcome', () => {
+  const t = aggregateMixedResults([
+    { family: 'engagement', rows: [{ clicks: 100 }], spendMinor: 50_000 },
+    { family: 'engagement', rows: [{ clicks: 50 }], spendMinor: 50_000 },
+  ]);
+  assert.equal(t.byUnit.length, 1);
+  assert.equal(t.byUnit[0]!.approximate, true);
+});
+
+console.log('\n── 11. `unit` must not hide semantic differences ──');
+
+check('aggregation groups by businessOutcome, not by unit or source column', () => {
+  // Three families read `clicks`. If aggregation keyed on the column — or on a
+  // unit two definitions happened to share — they would silently merge into
+  // one meaningless number.
+  const t = aggregateMixedResults([
+    { family: 'traffic', rows: [{ clicks: 100 }], spendMinor: 100_000 },
+    { family: 'engagement', rows: [{ clicks: 200 }], spendMinor: 100_000 },
+    { family: 'app', rows: [{ clicks: 300 }], spendMinor: 100_000 },
+  ]);
+  assert.equal(t.byUnit.length, 3, 'three distinct business outcomes must stay separate');
+  const outcomes = t.byUnit.map((u) => u.outcome).sort();
+  assert.deepEqual(outcomes, ['app_installs', 'site_visits', 'social_interactions']);
+  assert.equal(t.byUnit.find((u) => u.outcome === 'site_visits')!.count, 100);
+  assert.equal(t.byUnit.find((u) => u.outcome === 'social_interactions')!.count, 200);
+  assert.equal(t.byUnit.find((u) => u.outcome === 'app_installs')!.count, 300);
+  assert.equal(singleUnitCount(t), null, 'no single number may represent all three');
+});
+
+check('no two definitions share a unit while meaning different outcomes', () => {
+  // Invariant. If this ever fails, aggregation is still safe (it keys on
+  // outcome) but the UNIT vocabulary has become misleading and needs a new
+  // member rather than a reused one.
+  const byUnit = new Map<string, Set<string>>();
+  for (const d of allResultDefinitions()) {
+    const set = byUnit.get(d.unit) ?? new Set<string>();
+    set.add(d.businessOutcome);
+    byUnit.set(d.unit, set);
+  }
+  for (const [unit, outcomes] of byUnit) {
+    assert.equal(outcomes.size, 1,
+      `unit "${unit}" is used for several outcomes (${[...outcomes].join(', ')}) — add a distinct unit`);
+  }
+});
+
+check('two results of the same unit but different outcomes never merge', () => {
+  const traffic = resolveResultTotal('traffic', [{ clicks: 10 }]);
+  const engagement = resolveResultTotal('engagement', [{ clicks: 10 }]);
+  assert.notEqual((traffic as any).outcome, (engagement as any).outcome);
+  // Different units today, so addResults rejects them outright.
+  assert.throws(() => addResults(traffic, engagement), /Illegal cross-purpose aggregation/);
+});
+
+console.log('\n── 12. dominant is not consumable by calculation ──');
+
+check('dominant carries no result key — it cannot drive a computation', () => {
+  const t = aggregateMixedResults(mixed);
+  assert.equal((t.dominant as any).resultKey, undefined,
+    'dominant must not expose what to count; only singleUnitResultKey may');
+  assert.equal((t.dominant as any).rows, undefined);
+  assert.equal((t.dominant as any).definition, undefined);
+});
+
+check('a mixed account gives calculation NOTHING, even though dominant exists', () => {
+  const t = aggregateMixedResults(mixed);
+  assert.ok(t.dominant, 'dominant exists for the headline');
+  assert.equal(singleUnitCount(t), null, 'but calculation gets null');
+  assert.equal(singleUnitResultKey(t), null);
+  assert.equal(singleUnitResult(t), null);
+});
+
+check('an approximate single result is withheld from calculation', () => {
+  const t = aggregateMixedResults([
+    { family: 'app', rows: [{ clicks: 400 }], spendMinor: 100_000 },
+  ]);
+  // singleUnitCount still returns the raw number, but the caller MUST consult
+  // the approximation flag — getDashboard withholds it from the diagnosis.
+  assert.equal(singleUnitResult(t)!.approximate, true);
+  assert.equal(isApproximate(t), true,
+    'consumers must be able to detect this without reaching into definitions');
+});
+
+console.log('\n── 13. Unknown purpose never yields a guessed result ──');
+
+check('a row full of data with an unknown purpose produces NOTHING', () => {
+  // The old failure mode: pick whichever field happens to be non-zero.
+  const rich = { messages: 50, purchases: 30, leads: 20, clicks: 500, impressions: 90000 };
+  const r = resolveResult(null, rich);
+  assert.equal(r.status, 'UNAVAILABLE');
+  assert.equal((r as any).reason, 'NOT_APPLICABLE');
+  assert.equal((r as any).count, undefined, 'no count may be produced at all');
+});
+
+check('unknown purpose does not fall back to the busiest field', () => {
+  const t = aggregateMixedResults([
+    { family: undefined, rows: [{ messages: 999, purchases: 5 }], spendMinor: 900_000 },
+  ]);
+  assert.equal(t.byUnit.length, 0);
+  assert.equal(t.dominant, null);
+  assert.equal(isApproximate(t), false);
 });
 
 console.log(`\n════ ${passed} passed, ${fail.length} failed ════`);

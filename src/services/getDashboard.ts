@@ -86,7 +86,8 @@ import {
   aggregateMixedResults,
   describeMixedAr,
   describeMixedEn,
-  singleUnitCount,
+  singleUnitResult,
+  isApproximate,
   type CampaignResultContribution,
 } from "../analytics/resultSemantics";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
@@ -146,6 +147,13 @@ export interface ResultBreakdownDTO {
   }>;
   /** True when more than one unit is present — the UI must not show one total. */
   mixed: boolean;
+  /**
+   * True when ANY contributing result is a proxy rather than a direct platform
+   * count (engagement and app both approximate results from all-clicks). The
+   * UI must disclose it, and no consumer may treat these as measured business
+   * outcomes.
+   */
+  approximate: boolean;
   /** HEADLINE FRAMING ONLY. Never sum into this; always render byUnit too. */
   dominant: { unit: string; outcome: string; count: number; spendShare: number } | null;
   /** Ready-to-render localized summary, e.g. "84 محادثة · 12 طلب". */
@@ -1037,6 +1045,10 @@ export async function getDashboard(
   // Deliberately NOT `dominant.count`: dominant is a display-only framing
   // helper for the headline, and using it here would silently discard the
   // other units — the same fabrication in better manners.
+  //
+  // Also null when the single result is APPROXIMATE (engagement/app derive
+  // theirs from all-clicks): a proxy must not drive a diagnosis as though it
+  // were a measured business outcome.
   const totalConversions = accountResultsSingleUnit ?? 0;
   const signals: Signals = {
     ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
@@ -1735,7 +1747,11 @@ async function buildResultBreakdown(
   adAccountId: string,
   prisma: PrismaClient,
   sinceDate: Date,
-): Promise<{ dto: ResultBreakdownDTO; singleUnitCount: number | null } | null> {
+): Promise<{
+  dto: ResultBreakdownDTO;
+  singleUnitCount: number | null;
+  singleUnitApproximate: boolean;
+} | null> {
   const campaigns = await prisma.campaign.findMany({
     where: { adAccountId },
     select: {
@@ -1809,11 +1825,20 @@ async function buildResultBreakdown(
       approximate: u.approximate,
     })),
     mixed: total.mixed,
+    approximate: isApproximate(total),
     dominant: total.dominant,
     displayAr: describeMixedAr(total),
     displayEn: describeMixedEn(total),
   };
-  return { dto, singleUnitCount: singleUnitCount(total) };
+  const single = singleUnitResult(total);
+  return {
+    dto,
+    // Approximation travels WITH the count so the diagnosis can limit its own
+    // confidence — an "app install" count derived from clicks must never drive
+    // a conclusion as though it were a measured install.
+    singleUnitCount: single && !single.approximate ? single.count : null,
+    singleUnitApproximate: single?.approximate ?? false,
+  };
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──
