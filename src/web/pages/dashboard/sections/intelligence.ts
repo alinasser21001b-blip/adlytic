@@ -29,11 +29,26 @@ export const renderIntelligenceJs = `
     NO_MATERIAL_BREAK: { ar: 'لا توجد مشكلة جوهرية',    cls: 'healthy' }
   };
 
+  /**
+   * INSUFFICIENT_DATA reads as STILL COLLECTING, never as "no data".
+   * The analytics layer distinguishes "we have not gathered enough yet" from
+   * "there is nothing here", and the merchant must read the same distinction:
+   * one means wait, the other means act.
+   */
   var CONFIDENCE_LABELS = {
-    HIGH:              { ar: 'ثقة عالية',       cls: 'high' },
-    MEDIUM:            { ar: 'ثقة متوسطة',      cls: 'medium' },
-    LOW:               { ar: 'ثقة منخفضة',      cls: 'low' },
-    INSUFFICIENT_DATA: { ar: 'بيانات غير كافية', cls: 'insufficient' }
+    HIGH:              { ar: 'ثقة عالية',   cls: 'high',   hint: '' },
+    MEDIUM:            { ar: 'ثقة متوسطة',  cls: 'medium', hint: '' },
+    LOW:               { ar: 'ثقة منخفضة',  cls: 'low',    hint: '' },
+    INSUFFICIENT_DATA: { ar: 'قيد التجميع', cls: 'insufficient',
+                         hint: 'لا تزال البيانات قيد التجميع — لم نصل بعد إلى حجم يسمح بالحكم' }
+  };
+
+  /** Arabic for the health facets. Presentation only — the keys stay canonical. */
+  var FACET_LABELS = {
+    primaryResult: 'النتيجة الأساسية',
+    funnelHealth:  'سلامة مسار العميل',
+    efficiency:    'كفاءة التكلفة',
+    delivery:      'الوصول والتفاعل'
   };
 
   var STAGE_LABELS = {
@@ -59,7 +74,22 @@ export const renderIntelligenceJs = `
   /** Confidence chip — uncertainty is never hidden. */
   function confidenceChip(confidence) {
     var c = CONFIDENCE_LABELS[confidence] || CONFIDENCE_LABELS.INSUFFICIENT_DATA;
-    return '<span class="conf-chip conf-' + c.cls + '">' + escHtml(c.ar) + '</span>';
+    var title = c.hint ? ' title="' + escHtml(c.hint) + '"' : '';
+    return '<span class="conf-chip conf-' + c.cls + '"' + title + '>' + escHtml(c.ar) + '</span>';
+  }
+
+  /**
+   * A section-level state row: a badge naming the state, plus one line saying
+   * what it means for the merchant. Used for 'collecting' — the render of the
+   * engine's own INSUFFICIENT_DATA. It is not a stand-in for zero (a real 0 is
+   * rendered as the number 0) and not a stand-in for an excluded facet (which
+   * carries its own "مستثنى" flag instead).
+   */
+  function stateRow(cls, label, note) {
+    return '<div class="dstate-row dstate-' + cls + '" dir="rtl">'
+      +   '<span class="dstate-badge">' + escHtml(label) + '</span>'
+      +   (note ? '<span class="dstate-note">' + escHtml(note) + '</span>' : '')
+      + '</div>';
   }
 
   /**
@@ -75,20 +105,34 @@ export const renderIntelligenceJs = `
       var s = stages[i];
       var label = STAGE_LABELS[s.stageKey] || s.stageKey;
       var isBreak = degradedStage && s.stageKey === degradedStage;
-      var count = (s.status === 'OK') ? s.count : (s.count != null ? s.count : null);
+      // The COUNT always travels, even when the RATIO is gated. A real zero
+      // renders as 0; only a genuinely absent count renders as —.
+      var count = s.count;
 
       if (i > 0) {
-        var ratioText, ratioCls;
+        var ratioText, ratioCls, ratioHint;
         if (s.status === 'OK' && s.ratioFromPrevious != null) {
           ratioText = fmtRatio(s.ratioFromPrevious);
           ratioCls = isBreak ? 'funnel-ratio broken' : 'funnel-ratio';
+          ratioHint = '';
+        } else if (s.reason === 'INSUFFICIENT_DATA') {
+          // Still collecting — the sample floor has not been reached yet.
+          ratioText = 'قيد التجميع';
+          ratioCls = 'funnel-ratio collecting';
+          ratioHint = 'لا تزال البيانات قيد التجميع لهذه الخطوة — النسبة تُنشر عند اكتمال العيّنة';
         } else {
-          ratioText = 'بيانات غير كافية';
+          // Reported UNKNOWN: a different state, and it must not read as a
+          // sample problem we are waiting out.
+          ratioText = 'غير متاحة';
           ratioCls = 'funnel-ratio gated';
+          ratioHint = 'النسبة غير متاحة لهذه الخطوة';
         }
         html += '<div class="funnel-connector">'
              +    '<span class="funnel-arrow">↓</span>'
-             +    '<span class="' + ratioCls + '">' + escHtml(ratioText) + '</span>'
+             +    '<span class="' + ratioCls + '"'
+             +      (ratioHint ? ' title="' + escHtml(ratioHint) + '"' : '') + '>'
+             +      escHtml(ratioText)
+             +    '</span>'
              +  '</div>';
       }
 
@@ -136,11 +180,16 @@ export const renderIntelligenceJs = `
     var p = PROBLEM_LABELS[intel.problemClass] || PROBLEM_LABELS.NO_MATERIAL_BREAK;
 
     if (intel.problemClass === 'NO_MATERIAL_BREAK') {
-      var quiet = intel.confidence === 'INSUFFICIENT_DATA'
-        ? 'لا توجد بيانات كافية بعد لإصدار تشخيص. سنخبرك فور توفرها.'
+      // Two different quiet states, and they must not read alike:
+      //   INSUFFICIENT_DATA → we have not measured enough YET (wait)
+      //   otherwise         → we measured, and nothing is broken (relax)
+      var collecting = intel.confidence === 'INSUFFICIENT_DATA';
+      var quiet = collecting
+        ? 'لا تزال البيانات قيد التجميع — لم نُصدر تشخيصاً بعد. سنخبرك فور اكتمالها.'
         : 'كل نسب القمع مستقرة. لا يوجد ما يستدعي التدخل الآن.';
-      return '<div class="diag-card healthy" dir="rtl">'
-           +   '<div class="diag-head"><span class="diag-title">' + escHtml(p.ar) + '</span>'
+      return '<div class="diag-card ' + (collecting ? 'collecting' : 'healthy') + '" dir="rtl">'
+           +   '<div class="diag-head"><span class="diag-title">'
+           +     escHtml(collecting ? 'لا يزال التشخيص قيد التجميع' : p.ar) + '</span>'
            +     confidenceChip(intel.confidence) + '</div>'
            +   '<div class="diag-body">' + escHtml(quiet) + '</div>'
            + '</div>';
@@ -201,19 +250,45 @@ export const renderIntelligenceJs = `
   function renderObjectiveHealth(h, labelAr, unknownNoteAr) {
     if (!h) return '';
     var healthLabel = labelAr || 'صحة الحساب';
+    // A withheld score is NOT a zero and NOT a bad score. The engine publishes
+    // score:null with confidence INSUFFICIENT_DATA when it refuses to judge,
+    // so that is exactly what is shown — no number, no band colour, no verdict.
     if (h.score == null) {
+      // The confidence chip already carries the state word; repeating it in a
+      // badge underneath just makes the same sentence twice.
       return '<div class="obj-health unknown" dir="rtl">'
-        +   '<div class="obj-health-label">' + escHtml(healthLabel) + '</div>'
-        +   '<div class="obj-health-value">غير متاح</div>'
-        +   '<div class="obj-health-note">' + escHtml(unknownNoteAr || 'لم نتمكن من تحديد هدف الحساب — لا نُصدر تقييماً مُخمّناً.') + '</div>'
+        +   '<div class="obj-health-head">'
+        +     '<span class="obj-health-label">' + escHtml(healthLabel) + '</span>'
+        +     confidenceChip(h.confidence)
+        +   '</div>'
+        // The caller may know WHY the score is withheld (the campaign
+        // inspector does: it passes the unresolved-objective wording). The
+        // dashboard does not — score:null covers both "objective unresolved"
+        // and "sample too thin", and the DTO carries no discriminator, so the
+        // default must be a sentence that is true in BOTH cases. The previous
+        // default asserted the objective was unresolved and was simply wrong
+        // half the time.
+        +   '<div class="obj-health-note">'
+        +     escHtml(unknownNoteAr
+        +       || 'لا نُصدر تقييماً قبل أن تكفي البيانات — لا يعني هذا أن حسابك سيّئ، بل أننا لم نقس بعد.')
+        +   '</div>'
         + '</div>';
     }
     var facets = (h.facets || []).map(function (f) {
+      var name = FACET_LABELS[f.key] || f.key;
       if (!f.applicable) {
-        return '<li class="facet excluded"><span class="facet-key">' + escHtml(f.key) + '</span>'
+        // Excluded from the score. Rendered WITHOUT a number so it can never
+        // be misread as a zero, and labelled "excluded" rather than "not
+        // applicable" because applicable:false covers BOTH "this metric does
+        // not apply to this objective" and "there is no baseline to compare
+        // against" — the DTO carries no discriminator, so the engine's own
+        // evidence line is left to say which one it is.
+        return '<li class="facet excluded">'
+          +    '<span class="facet-key">' + escHtml(name) + '</span>'
+          +    '<span class="facet-flag">مستثنى</span>'
           +    '<span class="facet-note">' + escHtml(f.evidence) + '</span></li>';
       }
-      return '<li class="facet"><span class="facet-key">' + escHtml(f.key) + '</span>'
+      return '<li class="facet"><span class="facet-key">' + escHtml(name) + '</span>'
         +    '<span class="facet-score">' + escHtml(String(f.score)) + '</span>'
         +    '<span class="facet-note">' + escHtml(f.evidence) + '</span></li>';
     }).join('');
@@ -247,8 +322,17 @@ export const renderIntelligenceJs = `
     if (intel) {
       parts.push(renderDiagnosisCard(intel, funnel));
       if (funnel) {
+        // The funnel's OWN status is reported, not re-derived. A funnel the
+        // engine refused to judge says so above the stages, and the stage
+        // counts stay visible underneath — they are real, only the verdict
+        // is withheld.
+        var funnelState = funnel.status === 'INSUFFICIENT_DATA'
+          ? stateRow('collecting', 'قيد التجميع',
+              'الأرقام أدناه حقيقية، لكن العيّنة لم تكفِ بعد للحكم على المسار.')
+          : '';
         parts.push('<div class="funnel-wrap">'
           + '<div class="funnel-title">مسار العميل</div>'
+          + funnelState
           + renderFunnel(funnel, intel.problemClass === 'EFFICIENCY' ? null : funnel.degradedStage)
           + '</div>');
       }

@@ -72,9 +72,21 @@ export function dashboardPage(): string {
       </div>
     </div>
 
+    <!-- ═══ STATE: ERROR ═══ -->
     <div id="error-state" style="display:none;">
-      <div class="alert alert-error" id="error-msg">An error occurred.</div>
+      <div class="alert alert-error">
+        <div style="flex:1;min-width:0;" id="error-msg">An error occurred.</div>
+        <button type="button" class="btn btn-primary btn-sm" id="error-retry-btn">إعادة المحاولة</button>
+      </div>
     </div>
+
+    <!-- ═══ STATE STRIP — OFFLINE · PARTIAL · INSUFFICIENT_DATA ═══
+         LOADING, EMPTY and ERROR own their own regions above; this strip
+         carries the three states that coexist WITH a rendered dashboard.
+         Every entry is either a browser fact (connectivity, a request that
+         failed) or a value the analytics layer reported verbatim. Nothing
+         here is inferred from the numbers. -->
+    <div class="dash-state-strip" id="dash-state-strip" role="status" aria-live="polite"></div>
 
     <div id="dashboard-content" style="display:none;">
 
@@ -212,6 +224,11 @@ export function dashboardPage(): string {
             </div>
             <div class="adv-panel-meta" id="pred-count-badge">—</div>
           </div>
+          <button type="button" class="filter-sheet-trigger" data-filter-group="pred-filters" aria-haspopup="dialog" hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h12M4.5 8h7M6.5 12h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span class="filter-sheet-trigger-label">الكل</span>
+            <span class="filter-sheet-trigger-caret">▾</span>
+          </button>
           <div class="section-filters" id="pred-filters"></div>
           <div id="predictions-grid" class="predictions-grid"></div>
         </div>
@@ -228,6 +245,11 @@ export function dashboardPage(): string {
             </div>
             <div class="adv-panel-meta" id="ai-recs-source-badge">—</div>
           </div>
+          <button type="button" class="filter-sheet-trigger" data-filter-group="ai-recs-filters" aria-haspopup="dialog" hidden>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M2 4h12M4.5 8h7M6.5 12h3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <span class="filter-sheet-trigger-label">الكل</span>
+            <span class="filter-sheet-trigger-caret">▾</span>
+          </button>
           <div class="section-filters" id="ai-recs-filters"></div>
           <div id="ai-recs-grid" class="ai-recs-grid"></div>
         </div>
@@ -418,6 +440,21 @@ export function dashboardPage(): string {
         </div>
       </div>
 
+      <!-- ═══ FILTER BOTTOM SHEET (phones) ═══
+           One sheet, reused by every filterable section. The inline tab row
+           stays the desktop control; on a phone it is replaced by a trigger
+           that opens this, so a filter is a full-width 48px row instead of a
+           cramped 24px chip in a wrapping strip. -->
+      <div class="filter-sheet" id="filter-sheet" style="display:none;" role="dialog" aria-modal="true" aria-labelledby="filter-sheet-title">
+        <div class="filter-sheet-backdrop" data-filter-sheet-close></div>
+        <div class="filter-sheet-panel" dir="rtl">
+          <div class="filter-sheet-grip" aria-hidden="true"></div>
+          <div class="filter-sheet-title" id="filter-sheet-title">تصفية</div>
+          <div class="filter-sheet-options" id="filter-sheet-options" role="group"></div>
+          <button type="button" class="filter-sheet-close" data-filter-sheet-close>إغلاق</button>
+        </div>
+      </div>
+
       <!-- ═══ AI FLOATING ACTION BUTTON ═══ -->
       <a class="ai-fab" href="/ai" id="ai-fab" title="اسأل المساعد الذكي">
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -503,7 +540,7 @@ export function dashboardPage(): string {
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-cpr"></canvas>
-                    <div class="chart-empty" id="chart-cpr-empty" style="display:none;">لا توجد تكلفة نتيجة في هذه الفترة</div>
+                    <div class="chart-empty" id="chart-cpr-empty" style="display:none;">لم تصلنا قراءات تكلفة نتيجة في هذه الفترة</div>
                   </div>
                 </div>
                 <div class="chart-card" id="adv-cpm-card">
@@ -513,7 +550,7 @@ export function dashboardPage(): string {
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-cpm"></canvas>
-                    <div class="chart-empty" id="chart-cpm-empty" style="display:none;">لا توجد بيانات CPM في هذه الفترة</div>
+                    <div class="chart-empty" id="chart-cpm-empty" style="display:none;">لم تصلنا قراءات CPM في هذه الفترة</div>
                   </div>
                 </div>
                 <div class="chart-card" id="adv-ctr-card">
@@ -523,7 +560,7 @@ export function dashboardPage(): string {
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-ctr"></canvas>
-                    <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لا توجد بيانات تفاعل في هذه الفترة</div>
+                    <div class="chart-empty" id="chart-ctr-empty" style="display:none;">لم تصلنا قراءات تفاعل في هذه الفترة</div>
                   </div>
                 </div>
                 <div class="chart-card" id="adv-freq-card">
@@ -533,7 +570,7 @@ export function dashboardPage(): string {
                   </div>
                   <div class="chart-canvas-wrap">
                     <canvas id="chart-frequency"></canvas>
-                    <div class="chart-empty" id="chart-frequency-empty" style="display:none;">لا توجد بيانات تكرار في هذه الفترة</div>
+                    <div class="chart-empty" id="chart-frequency-empty" style="display:none;">لم تصلنا قراءات تكرار في هذه الفترة</div>
                   </div>
                 </div>
               </div>
@@ -617,11 +654,41 @@ export function dashboardPage(): string {
     }
   }
 
+  // ── Chart legibility ────────────────────────────────────────────────────
+  //  Axis labels are text, and 10px text on a 320px phone is decoration, not
+  //  information. Canvas text escapes the DOM font-size floor, so the floor is
+  //  enforced here instead. Fewer x ticks as well: seven date labels across a
+  //  288px plot area overlap into a grey smear.
+  var CHART_AXIS_FONT_MIN = 12;
+  function chartAxisFont() {
+    return window.innerWidth <= 480 ? CHART_AXIS_FONT_MIN : 11;
+  }
+  function chartXTicks(preferred) {
+    var want = preferred || 7;
+    var w = window.innerWidth;
+    if (w <= 360) return Math.min(want, 3);
+    if (w <= 480) return Math.min(want, 4);
+    return want;
+  }
+
+  /** Re-apply the width-dependent axis settings to a live chart. */
+  function applyChartTypography(chart, preferredTicks) {
+    if (!chart || !chart.options || !chart.options.scales) return;
+    var size = chartAxisFont();
+    var x = chart.options.scales.x, y = chart.options.scales.y;
+    if (x && x.ticks) { x.ticks.font = { size: size, weight: '500' }; x.ticks.maxTicksLimit = chartXTicks(preferredTicks); }
+    if (y && y.ticks) { y.ticks.font = { size: size, weight: '500' }; }
+  }
+
   function resizeAllCharts() {
     Object.keys(chartInstances).forEach(function (id) {
       var canvas = document.getElementById(id);
       if (!canvas || !isElementVisible(canvas)) return;
-      try { chartInstances[id].resize(); } catch (e) {}
+      try {
+        applyChartTypography(chartInstances[id], chartInstances[id]._preferredXTicks);
+        chartInstances[id].resize();
+        chartInstances[id].update('none');
+      } catch (e) {}
     });
   }
 
@@ -699,6 +766,7 @@ export function dashboardPage(): string {
     if (chartInstances[canvasId]) {
       chartInstances[canvasId].data.labels = labels;
       chartInstances[canvasId].data.datasets = datasets;
+      applyChartTypography(chartInstances[canvasId], (opts && opts.maxTicks) || 7);
       chartInstances[canvasId].update('none');
       return chartInstances[canvasId];
     }
@@ -740,18 +808,19 @@ export function dashboardPage(): string {
             grid: { display: false },
             border: { display: false },
             ticks: {
-              color: 'rgba(148,163,184,0.5)',
-              maxTicksLimit: (opts && opts.maxTicks) || 7,
-              font: { size: 10, weight: '500' },
+              color: 'rgba(184,196,214,0.72)',
+              maxTicksLimit: chartXTicks(opts && opts.maxTicks),
+              font: { size: chartAxisFont(), weight: '500' },
               maxRotation: 0,
+              autoSkipPadding: 8,
             },
           },
           y: {
             grid: { color: 'rgba(255,255,255,0.035)', lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'rgba(148,163,184,0.5)',
-              font: { size: 10, weight: '500' },
+              color: 'rgba(184,196,214,0.72)',
+              font: { size: chartAxisFont(), weight: '500' },
               maxTicksLimit: 4,
             },
             beginAtZero: true,
@@ -769,6 +838,7 @@ export function dashboardPage(): string {
         },
       }
     });
+    chartInstances[canvasId]._preferredXTicks = (opts && opts.maxTicks) || 7;
     bindChartResize();
     return chartInstances[canvasId];
   }
@@ -860,6 +930,222 @@ export function dashboardPage(): string {
     document.getElementById('loading-state').style.display = 'none';
     document.getElementById('error-state').style.display = 'block';
     document.getElementById('error-msg').textContent = msg;
+  }
+
+  // ── THE STATE MATRIX ────────────────────────────────────────────────────
+  //
+  //  Six states, deliberately kept apart. Collapsing any two of them tells the
+  //  merchant something untrue about their account:
+  //
+  //    LOADING            #loading-state skeleton                (browser fact)
+  //    EMPTY              dashData.empty — no ad account yet     (DTO fact)
+  //    ERROR              the dashboard request failed           (browser fact)
+  //    OFFLINE            navigator.onLine === false             (browser fact)
+  //    PARTIAL            a secondary request or a section render failed —
+  //                       what IS on screen is correct, some of it is missing
+  //                                                              (browser fact)
+  //    INSUFFICIENT_DATA  intelligence.confidence, verbatim      (DTO fact)
+  //
+  //  INSUFFICIENT_DATA means STILL COLLECTING — we have not measured enough
+  //  YET. It is not "no data", it is not zero, and it is not NOT_APPLICABLE
+  //  (a facet the objective excludes on purpose). The analytics layer reports
+  //  those as three different things and this strip keeps them that way.
+  //
+  //  No state is invented here: OFFLINE and PARTIAL are things the browser
+  //  observed first-hand, everything else is copied off the DTO.
+  var DASH_STATE_DEFS = {
+    OFFLINE: {
+      cls: 'offline', icon: '⚡',
+      title: 'لا يوجد اتصال بالإنترنت',
+      body: 'ما تراه من آخر تحميل ناجح. سنحدّث الأرقام تلقائياً عند عودة الاتصال.'
+    },
+    PARTIAL: {
+      cls: 'partial', icon: '◐',
+      title: 'اللوحة محمّلة جزئياً',
+      body: 'تعذّر تحميل بعض الأقسام. ما هو معروض صحيح — الناقص هو ما لم يصل.',
+      action: 'إعادة المحاولة'
+    },
+    INSUFFICIENT_DATA: {
+      cls: 'collecting', icon: '⏳',
+      title: 'لا تزال البيانات قيد التجميع',
+      body: 'لم نُصدر حكماً على الأداء بعد — نحتاج فترة إنفاق أطول قبل أن نقارن بثقة. سنخبرك فور اكتمالها.'
+    }
+  };
+  // Render order = urgency order. OFFLINE first: it explains the other two.
+  var DASH_STATE_ORDER = ['OFFLINE', 'PARTIAL', 'INSUFFICIENT_DATA'];
+  var _dashStates = {};
+  var _failedSections = {};
+
+  /** Arabic counts single/dual/plural — "2 أقسام" is not a sentence. */
+  function sectionsAr(n) {
+    if (n === 1) return 'قسم واحد';
+    if (n === 2) return 'قسمان';
+    if (n <= 10) return n + ' أقسام';
+    return n + ' قسماً';
+  }
+
+  function setDashState(key, on) {
+    if (!DASH_STATE_DEFS[key]) return;
+    if (on) { _dashStates[key] = 1; } else { delete _dashStates[key]; }
+    renderDashStates();
+  }
+
+  function renderDashStates() {
+    var strip = document.getElementById('dash-state-strip');
+    if (!strip) return;
+    var html = '';
+    for (var i = 0; i < DASH_STATE_ORDER.length; i++) {
+      var key = DASH_STATE_ORDER[i];
+      if (!_dashStates[key]) continue;
+      var d = DASH_STATE_DEFS[key];
+      // PARTIAL says HOW partial. "Some of it is missing" without a number is
+      // the kind of vagueness that makes a merchant distrust the whole page.
+      var missing = (key === 'PARTIAL') ? Object.keys(_failedSections).length : 0;
+      var body = d.body + (missing > 0 ? ' (' + sectionsAr(missing) + ')' : '');
+      html += '<div class="dash-state dash-state-' + d.cls + '" data-state="' + key + '" dir="rtl">'
+        +   '<span class="dash-state-icon" aria-hidden="true">' + d.icon + '</span>'
+        +   '<div class="dash-state-body">'
+        +     '<div class="dash-state-title">' + escHtml(d.title) + '</div>'
+        +     '<div class="dash-state-text">' + escHtml(body) + '</div>'
+        +   '</div>'
+        +   (d.action
+              ? '<button type="button" class="dash-state-action" data-state-retry="' + key + '">'
+                + escHtml(d.action) + '</button>'
+              : '')
+        + '</div>';
+    }
+    strip.innerHTML = html;
+    strip.style.display = html ? 'grid' : 'none';
+  }
+
+  /** OFFLINE is a browser fact, so the browser is the only source for it. */
+  function wireConnectivityState() {
+    function sync() { setDashState('OFFLINE', navigator.onLine === false); }
+    window.addEventListener('offline', sync);
+    window.addEventListener('online', function () {
+      sync();
+      if (state.workspaceId) {
+        refreshDashboardData(state.workspaceId, { force: true }).catch(function () { /* silent */ });
+      }
+    });
+    sync();
+  }
+
+  /** Mark the dashboard PARTIAL, naming the piece that did not arrive. */
+  function markPartial(what) {
+    _failedSections[what] = 1;
+    setDashState('PARTIAL', true);
+  }
+  function clearPartial() {
+    _failedSections = {};
+    setDashState('PARTIAL', false);
+  }
+
+  function wireStateRetry() {
+    var strip = document.getElementById('dash-state-strip');
+    if (strip) {
+      strip.addEventListener('click', function (e) {
+        var btn = e.target.closest('[data-state-retry]');
+        if (!btn || !state.workspaceId) return;
+        clearPartial();
+        refreshDashboardData(state.workspaceId, { force: true }).catch(function () {
+          markPartial('refresh');
+        });
+      });
+    }
+    var errRetry = document.getElementById('error-retry-btn');
+    if (errRetry) {
+      errRetry.addEventListener('click', function () { window.location.reload(); });
+    }
+  }
+
+  // ── Filter bottom sheet (phones) ────────────────────────────────────────
+  //
+  //  The desktop control stays an inline tab row. A phone gets a trigger that
+  //  opens one shared sheet: filtering is a deliberate act with few options,
+  //  which is exactly what a sheet of full-width rows is for, and it removes
+  //  a wrapping strip of 24px-tall chips from the top of two sections.
+  //
+  //  The sheet is a VIEW over the existing tabs — it reads their labels and
+  //  clicks them — so filter state stays in one place.
+  var _filterSheetGroupId = null;
+
+  function filterSheetTabs(groupId) {
+    var group = document.getElementById(groupId);
+    if (!group) return [];
+    return Array.prototype.slice.call(group.querySelectorAll('.section-filter-tab'));
+  }
+
+  /** The tab's label and its count, read apart so "الكل" never renders "الكل12". */
+  function filterTabParts(tab) {
+    var countEl = tab.querySelector('.section-filter-count');
+    var count = countEl ? String(countEl.textContent || '').trim() : '';
+    var text = '';
+    for (var i = 0; i < tab.childNodes.length; i++) {
+      var n = tab.childNodes[i];
+      if (n.nodeType === 3) text += n.textContent;
+      else if (n.nodeType === 1 && !n.classList.contains('section-filter-count')) text += n.textContent;
+    }
+    return { text: text.replace(/\\s+/g, ' ').trim(), count: count };
+  }
+
+  function syncFilterTriggers() {
+    document.querySelectorAll('.filter-sheet-trigger').forEach(function (trigger) {
+      var groupId = trigger.getAttribute('data-filter-group');
+      var tabs = filterSheetTabs(groupId);
+      // One option is not a choice — no trigger, no sheet.
+      if (tabs.length < 2) { trigger.hidden = true; return; }
+      trigger.hidden = false;
+      var active = tabs.filter(function (t) { return t.classList.contains('active'); })[0] || tabs[0];
+      var labelEl = trigger.querySelector('.filter-sheet-trigger-label');
+      if (labelEl) labelEl.textContent = filterTabParts(active).text;
+    });
+  }
+
+  function openFilterSheet(groupId) {
+    var sheet = document.getElementById('filter-sheet');
+    var optionsEl = document.getElementById('filter-sheet-options');
+    var tabs = filterSheetTabs(groupId);
+    if (!sheet || !optionsEl || tabs.length < 2) return;
+    _filterSheetGroupId = groupId;
+    optionsEl.innerHTML = tabs.map(function (tab, idx) {
+      var isActive = tab.classList.contains('active');
+      var parts = filterTabParts(tab);
+      return '<button type="button" class="filter-sheet-option' + (isActive ? ' active' : '') + '"'
+        +   ' data-filter-index="' + idx + '" aria-pressed="' + (isActive ? 'true' : 'false') + '">'
+        +   '<span class="filter-sheet-option-label">' + escHtml(parts.text) + '</span>'
+        +   (parts.count ? '<span class="filter-sheet-option-count">' + escHtml(parts.count) + '</span>' : '')
+        +   '<span class="filter-sheet-option-check" aria-hidden="true">' + (isActive ? '✓' : '') + '</span>'
+        + '</button>';
+    }).join('');
+    sheet.style.display = 'block';
+    document.body.classList.add('sheet-open');
+  }
+
+  function closeFilterSheet() {
+    var sheet = document.getElementById('filter-sheet');
+    if (sheet) sheet.style.display = 'none';
+    document.body.classList.remove('sheet-open');
+    _filterSheetGroupId = null;
+  }
+
+  function wireFilterSheet() {
+    document.addEventListener('click', function (e) {
+      var trigger = e.target.closest('.filter-sheet-trigger');
+      if (trigger) { openFilterSheet(trigger.getAttribute('data-filter-group')); return; }
+      if (e.target.closest('[data-filter-sheet-close]')) { closeFilterSheet(); return; }
+      var option = e.target.closest('.filter-sheet-option');
+      if (option && _filterSheetGroupId) {
+        var tabs = filterSheetTabs(_filterSheetGroupId);
+        var tab = tabs[Number(option.getAttribute('data-filter-index'))];
+        closeFilterSheet();
+        // Click the real tab: the section's own handler owns the filtering.
+        if (tab) { tab.click(); syncFilterTriggers(); }
+      }
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') closeFilterSheet();
+    });
   }
 
   function formatLastUpdated(isoOrDate) {
@@ -3148,12 +3434,16 @@ export function dashboardPage(): string {
     var gen = ++refreshGeneration;
     refreshInFlight = true;
     try {
+      var partialThisPass = false;
       var results = await Promise.all([
         apiFetchWithTimeout('/api/dashboard/' + workspaceId, {}, opts.timeoutMs || 15000),
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, opts.timeoutMs || 15000).catch(function () { return []; }),
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, opts.timeoutMs || 15000).catch(function () { return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, opts.timeoutMs || 15000).catch(function () { partialThisPass = true; return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, opts.timeoutMs || 15000).catch(function () { partialThisPass = true; return []; }),
       ]);
       if (gen !== refreshGeneration) return null; // stale response
+      // A clean pass clears PARTIAL; applyDashboardData re-raises it if a
+      // section still throws. The banner tracks the CURRENT load, not history.
+      if (partialThisPass) { markPartial('refresh'); } else { clearPartial(); }
       var dashData = results[0];
       if (!dashData || dashData.empty) return dashData || null;
       if (dashData.error || dashData.code === 'DASHBOARD_TIMEOUT') {
@@ -3374,6 +3664,10 @@ export function dashboardPage(): string {
   function safeRender(sectionName, fn) {
     try { fn(); } catch (e) {
       console.error('[dashboard] ' + sectionName + ' render failed:', e);
+      // A section that threw is a PARTIAL dashboard, not a whole one. Saying
+      // so is the difference between "this is your account" and "this is most
+      // of your account".
+      markPartial('section:' + sectionName);
     }
   }
 
@@ -3442,6 +3736,19 @@ export function dashboardPage(): string {
       safeRender('aiRecs', function () { renderAIRecommendations(dashData.aiRecommendations); });
       safeRender('creativeHealth', function () { renderCreativeHealth(dashData.creativeHealth); });
       safeRender('weeklyReport', function () { renderWeeklyReport(dashData.weeklyReport); });
+
+      safeRender('stateMatrix', function () {
+        // INSUFFICIENT_DATA — copied off the reconciled verdict, never inferred.
+        // Absent intelligence is NOT insufficient data: it means the account
+        // has no single resolvable purpose, which is a different thing
+        // entirely and gets no banner.
+        setDashState(
+          'INSUFFICIENT_DATA',
+          !!(dashData.intelligence && dashData.intelligence.confidence === 'INSUFFICIENT_DATA')
+        );
+        // The tab rows were just rebuilt — refresh the phone triggers over them.
+        syncFilterTriggers();
+      });
 
       var last30 = recentAsc(insights, 30);
       var byDate = {};
@@ -3638,6 +3945,9 @@ export function dashboardPage(): string {
   async function init() {
     try {
       wireMainMoveActions();
+      wireConnectivityState();
+      wireStateRetry();
+      wireFilterSheet();
       var advDetails = document.querySelector('details.v2-advanced');
       if (advDetails) advDetails.addEventListener('toggle', renderAdvancedChartsIfOpen);
       startLoadingSafetyTimeout(5000);
@@ -3675,7 +3985,12 @@ export function dashboardPage(): string {
       }
       if (!workspaceId) {
         hideLoadingShowDashboard();
-        document.getElementById('kpi-grid').innerHTML = '<div class="empty-state"><div class="empty-icon">📂</div><div class="empty-title">No workspace found</div><div class="empty-text">Create or join a workspace to see your dashboard.</div></div>';
+        // EMPTY — there is nothing to show because nothing has been connected.
+        // Distinct from INSUFFICIENT_DATA: nothing is being collected either.
+        document.getElementById('kpi-grid').innerHTML =
+          '<div class="empty-state"><div class="empty-icon">📂</div>'
+          + '<div class="empty-title">' + lbl('No workspace found', 'لا توجد مساحة عمل') + '</div>'
+          + '<div class="empty-text">' + lbl('Create or join a workspace to see your dashboard.', 'أنشئ مساحة عمل أو انضم إلى واحدة لعرض لوحتك.') + '</div></div>';
         return;
       }
       state.workspaceId = workspaceId;
@@ -3705,10 +4020,12 @@ export function dashboardPage(): string {
           dashFetchFailed = e;
           return null;
         }),
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 15000).catch(function () { return []; }),
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 15000).catch(function () { return []; }),
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 15000).catch(function () { return null; }),
-        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 15000).catch(function () { return []; }),
+        // A secondary request that fails does not fail the page — it makes the
+        // page PARTIAL, and the merchant is told which way it is.
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/insights?days=90', {}, 15000).catch(function () { markPartial('insights'); return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/campaigns', {}, 15000).catch(function () { markPartial('campaigns'); return []; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId, {}, 15000).catch(function () { markPartial('workspace'); return null; }),
+        apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/issue-dates?days=30', {}, 15000).catch(function () { markPartial('issueDates'); return []; }),
       ]);
       var dashData = results[0];
 

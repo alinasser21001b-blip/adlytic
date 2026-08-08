@@ -2207,6 +2207,292 @@ export const dashboardStyles = `<style>
     .facet-key { min-width: 110px; color: var(--text-2, #bbb); }
     .facet-score { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 34px; }
     .facet-note { color: var(--text-3, #8a8a8a); }
-    .facet.excluded { opacity: .55; }
+    .facet.excluded { opacity: .72; }
     .facet.excluded .facet-note { font-style: italic; }
+    /* NOT_APPLICABLE is a label, never a number. A facet the objective
+       excludes must not be readable as a zero score. */
+    .facet-flag {
+      font-size: 12px; font-weight: 700; color: var(--text-3, #8a8a8a);
+      border: 1px dashed rgba(255,255,255,0.25); border-radius: 6px;
+      padding: 1px 8px; white-space: nowrap;
+    }
+
+    /* ═══ SECTION-LEVEL STATE ROWS ═══════════════════════════════════════
+       "still collecting" is not "no data", and neither is "not applicable".
+       Three states, three appearances, so they can never be read as one. */
+    .dstate-row {
+      display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+      margin: 0 0 10px;
+    }
+    .dstate-badge {
+      font-size: 12px; font-weight: 700; white-space: nowrap;
+      padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor;
+    }
+    .dstate-note { font-size: 12.5px; color: var(--text-3, #8a8a8a); line-height: 1.6; flex: 1; min-width: 150px; }
+    .dstate-collecting .dstate-badge { color: #7BAEC2; }
+    /* A gated ratio we are still gathering reads forward-looking, not broken. */
+    .funnel-ratio.collecting { color: #7BAEC2; font-style: normal; font-weight: 600; }
+    .diag-card.collecting { border-right-color: #7BAEC2; }
+
+    /* ═══ THE STATE STRIP — OFFLINE · PARTIAL · INSUFFICIENT_DATA ═══════ */
+    .dash-state-strip { display: none; gap: 8px; margin: 0 0 14px; }
+    .dash-state {
+      display: flex; align-items: flex-start; gap: 10px;
+      padding: 12px 14px; border-radius: 12px;
+      border: 1px solid rgba(255,255,255,0.12);
+      background: rgba(255,255,255,0.03);
+    }
+    .dash-state-icon { font-size: 16px; line-height: 1.4; flex-shrink: 0; }
+    .dash-state-body { flex: 1; min-width: 0; }
+    .dash-state-title { font-size: 13.5px; font-weight: 700; color: var(--text); }
+    .dash-state-text { font-size: 12.5px; line-height: 1.6; color: var(--text-2); margin-top: 3px; }
+    .dash-state-action {
+      flex-shrink: 0;
+      min-height: 44px; min-width: 44px; padding: 0 16px;
+      border-radius: 10px; cursor: pointer;
+      font-family: inherit; font-size: 13px; font-weight: 700;
+      color: var(--text); background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.16);
+    }
+    .dash-state-action:hover { background: rgba(255,255,255,0.11); }
+    /* OFFLINE reads neutral-grey: nothing is wrong with the account. */
+    .dash-state-offline { background: rgba(148,163,184,0.10); border-color: rgba(148,163,184,0.34); }
+    /* PARTIAL reads amber: something is missing, but what is shown is true. */
+    .dash-state-partial { background: rgba(217,160,63,0.10); border-color: rgba(217,160,63,0.40); }
+    /* COLLECTING reads calm blue: wait, do not act. Never red, never empty. */
+    .dash-state-collecting { background: rgba(123,174,194,0.10); border-color: rgba(123,174,194,0.36); }
+
+    /* ═══ FILTER BOTTOM SHEET (phones) ═══════════════════════════════════
+       The inline tab row is a desktop control. On a phone it becomes a
+       trigger over this sheet, so choosing a filter is a 48px row instead
+       of a 24px chip in a wrapping strip. */
+    .filter-sheet-trigger { display: none; }
+    .filter-sheet { position: fixed; inset: 0; z-index: 1200; }
+    .filter-sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+    .filter-sheet-panel {
+      position: absolute; inset-inline: 0; bottom: 0;
+      background: var(--surface, #17140f);
+      border-top: 1px solid rgba(255,255,255,0.10);
+      border-radius: 18px 18px 0 0;
+      padding: 6px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+      max-height: 80vh; overflow-y: auto;
+      box-shadow: 0 -12px 40px rgba(0,0,0,0.45);
+    }
+    .filter-sheet-grip { width: 42px; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.22); margin: 6px auto 14px; }
+    .filter-sheet-title { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 12px; }
+    .filter-sheet-options { display: grid; gap: 8px; }
+    .filter-sheet-option {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      width: 100%; min-height: 48px; padding: 0 14px;
+      border-radius: 12px; cursor: pointer; text-align: start;
+      font-family: inherit; font-size: 14px; font-weight: 600;
+      color: var(--text-2); background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .filter-sheet-option.active {
+      color: var(--accent-2); background: var(--accent-dim, rgba(217,167,89,0.12));
+      border-color: rgba(217,167,89,0.42);
+    }
+    .filter-sheet-option-label { flex: 1; min-width: 0; }
+    .filter-sheet-option-count {
+      font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px;
+      background: rgba(255,255,255,0.07); color: var(--text-3);
+    }
+    .filter-sheet-option.active .filter-sheet-option-count { background: rgba(217,167,89,0.2); color: var(--accent-2); }
+    .filter-sheet-option-check { font-size: 15px; font-weight: 800; min-width: 14px; text-align: center; }
+    .filter-sheet-close {
+      width: 100%; min-height: 48px; margin-top: 14px;
+      border-radius: 12px; cursor: pointer;
+      font-family: inherit; font-size: 14px; font-weight: 700;
+      color: var(--text); background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.14);
+    }
+    body.sheet-open { overflow: hidden; }
+
+    /* ════════════════════════════════════════════════════════════════════
+       PHONE PASS — touch targets and the 12px legibility floor.
+
+       Two rules, applied to what this page actually renders:
+         · every control the thumb can hit is at least 44x44 CSS px
+         · no text on a phone renders below 12px
+       Type that was decorative at 10px is not decorative at arm's length in
+       daylight; it is simply unread. Nothing is hidden to achieve either —
+       the layout gives up density instead.
+       ════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 768px) {
+
+      /* ── The topbar, which is why this page scrolled sideways ─────────
+         MEASURED: at 320px the shared topbar's action row needs 436px and
+         layout.ts pins it with flex-shrink:0 and no wrap, so the document
+         itself became 438px wide and the whole page could be dragged
+         horizontally. The dashboard is the only page that ALSO renders the
+         pro/beginner toggle in that row, which is the ~116px that pushes it
+         over — every other page fits, which is why the audit never saw this.
+
+         Fixed here, scoped to this page, because layout.ts is shared and
+         frozen. The proper fix is in layout.ts and is reported as such:
+         .topbar-actions must be allowed to shrink on phones.
+
+         Letting the row WRAP was the first fix and it worked, but it made a
+         171px sticky header — with the 60px bottom nav that is 30% of a
+         780px phone screen permanently spent on chrome. So the row scrolls
+         instead: the bar stays one line, every control keeps its full 44px,
+         and the overflow is contained inside a scroller rather than dragging
+         the whole document sideways. */
+      .topbar { padding: 0 10px; gap: 8px; }
+      .topbar-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .topbar-actions {
+        flex: 1 1 auto; min-width: 0;
+        flex-wrap: nowrap;
+        overflow-x: auto; overflow-y: hidden;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+      }
+      .topbar-actions::-webkit-scrollbar { display: none; }
+      /* Inside a scroller, nothing shrinks — a squeezed 18px-wide workspace
+         chip is not a control, it is a sliver. The row gets longer instead. */
+      .topbar-actions > * { flex-shrink: 0; }
+      .topbar-ws { flex: 0 0 auto; width: 150px; max-width: 150px; min-height: 44px; }
+      .topbar-ws-copy { min-width: 0; }
+      .mode-toggle { flex-shrink: 0; }
+      .mode-toggle-btn { min-height: 44px; display: inline-flex; align-items: center; font-size: 12px; }
+
+      /* ── Filters move into the sheet ─────────────────────────────────── */
+      .section-filters { display: none; }
+      .filter-sheet-trigger:not([hidden]) {
+        display: inline-flex; align-items: center; gap: 8px;
+        min-height: 44px; padding: 0 14px; margin-bottom: 12px;
+        border-radius: 12px; cursor: pointer;
+        font-family: inherit; font-size: 13px; font-weight: 700;
+        color: var(--text-2); background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.10);
+      }
+      .filter-sheet-trigger-caret { color: var(--text-3); }
+
+      /* ── Command bar ─────────────────────────────────────────────────── */
+      .mode-toggle { padding: 3px; }
+      .mode-btn {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 44px; padding: 0 16px; font-size: 13px;
+      }
+      .cmd-refresh-btn { width: 44px; height: 44px; }
+      .cmd-stat { font-size: 12px; min-height: 32px; padding: 4px 10px; }
+      .cmd-health-pill { font-size: 12px; }
+
+      /* ── Info buttons: a padded 44px hit area around a small glyph ────
+         The circle stays 24px so the label still reads as a label; the
+         transparent padding is what the thumb actually lands on. */
+      .kpi-cmd-top { flex-wrap: wrap; align-items: center; }
+      .hero-label {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 2px 4px;
+        font-size: 12px; flex: 1; min-width: 0;
+      }
+      .info-btn {
+        min-width: 44px; min-height: 44px; width: 44px; height: 44px;
+        font-size: 13px; border: none; border-radius: 50%;
+        background:
+          radial-gradient(circle at center,
+            rgba(255,255,255,0.07) 0 12px,
+            transparent 12px);
+        box-shadow: inset 0 0 0 1px transparent;
+      }
+      .info-btn:hover { background: radial-gradient(circle at center, var(--accent-dim) 0 12px, transparent 12px); }
+
+      /* ── Quick actions ───────────────────────────────────────────────── */
+      .qa-chip { min-height: 44px; padding: 0 14px; font-size: 13px; }
+      .qa-icon { font-size: 15px; }
+
+      /* ── Health gauge / executive pulse / creative health ─────────────── */
+      .hg-action-link { min-height: 44px; padding: 10px 12px; font-size: 13px; }
+      .hg-score-max, .hg-metric-lbl, .kpi-benchmark { font-size: 12px; }
+      .exec-pulse-cta {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 44px; padding: 0 14px; font-size: 13px;
+      }
+      .exec-pulse-score-lbl { font-size: 12px; }
+      .ch-cta { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; }
+
+      /* ── Main move (the decision card) ───────────────────────────────── */
+      .main-move-cta {
+        display: inline-flex; align-items: center; justify-content: center;
+        min-height: 44px; padding: 0 18px; font-size: 13.5px;
+      }
+      .main-move-tag, .main-move-sev-pill, .main-move-loop span,
+      .main-move-block-label, .main-move-benchmark, .main-move-benchmark-label,
+      .main-move-benchmark-verdict, .main-move-secondary-pri,
+      .main-move-evidence-chip { font-size: 12px; }
+
+      /* ── Section-level actions ───────────────────────────────────────── */
+      .section-empty-cta { min-height: 44px; padding: 0 14px; font-size: 13px; }
+      .active-meta { display: inline-flex; align-items: center; min-height: 44px; padding: 0 8px; font-size: 13px; }
+      .pred-action-btn, .ai-rec-action-btn {
+        width: 100%; justify-content: center;
+        min-height: 44px; padding: 0 14px; font-size: 13px;
+      }
+      .weekly-highlight-action, .weekly-brain-pill {
+        display: inline-flex; align-items: center;
+        min-height: 44px; padding: 0 14px; font-size: 13px;
+      }
+      .ai-fab { min-height: 44px; min-width: 44px; font-size: 12px; }
+      .btn-sm { min-height: 44px; }
+
+      /* ── The 12px floor, applied to every label this page renders ────── */
+      .hero-delta, .hero-sub, .ticker-freshness, .ticker-badge, .ticker-explain,
+      .ticker-header-title, .brain-box-icon, .brain-box-sub, .strategy-sev,
+      .strategy-body, .chart-panel-meta, .v2-section-kicker, .v2-action-meta,
+      .v2-recovery-conf, .adv-panel-kicker, .adv-panel-meta, .adv-pulse-label,
+      .adv-pulse-sub, .chart-card-sub, .kpi-bench, .kpi-cmd-insight,
+      .live-insight-badge, .live-insight-sub, .timeline-time,
+      .action-modal-step b, .pred-meta-row, .pred-type-tag, .pred-progress-label,
+      .pred-progress-val, .section-filter-count, .ai-rec-cat-label, .ai-rec-pri,
+      .ai-rec-conf-label, .ai-rec-campaign-tag, .weekly-source-badge,
+      .weekly-metric-label, .weekly-metric-prev, .weekly-rec-icon,
+      .highlight-tag, .weekly-highlight-stats, .morning-story-date,
+      .approx-tag, .diag-rec-label, .conf-chip, .section-filter-tab {
+        font-size: 12px;
+      }
+      .hero-grid-compact .hero-sub, .hero-grid-compact .hero-delta { font-size: 12px; }
+      /* These four are dashboard-only components whose rules happen to live in
+         the shared stylesheet. Raised here because layout.ts is frozen; the
+         definitions themselves want moving, which is reported separately. */
+      .diagnosis-confidence, .thread-step-label,
+      .status-strip-legend, .status-strip-item, .status-strip-note { font-size: 12px; }
+
+      /* ── The state strip stacks: the retry button gets a full row ─────── */
+      .dash-state { flex-wrap: wrap; }
+      .dash-state-action { width: 100%; }
+      /* Same for the ERROR and stale-token alerts — a squeezed 60px button in
+         a flex row is not a button anyone can hit. */
+      #error-state .alert, #stale-banner { flex-wrap: wrap; }
+      #error-state .btn, #stale-banner .btn { width: 100%; justify-content: center; }
+
+      /* ── Funnel and health facets — see the per-table notes below ─────── */
+      .funnel-stage { flex-wrap: wrap; gap: 4px 12px; padding: 10px 12px; }
+      .funnel-stage-label { font-size: 13px; flex: 1; min-width: 0; }
+      .funnel-stage-count { font-size: 18px; }
+      .funnel-connector { font-size: 12.5px; flex-wrap: wrap; }
+      .facet {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        align-items: center;
+        gap: 2px 8px;
+        padding: 8px 0;
+      }
+      .facet-key { min-width: 0; font-weight: 700; }
+      .facet-score { justify-self: end; }
+      .facet-flag { justify-self: end; }
+      .facet-note { grid-column: 1 / -1; font-size: 12px; line-height: 1.55; }
+      .result-chip { font-size: 14px; }
+      .result-chip b { font-size: 17px; }
+      .diag-title { font-size: 16px; }
+      .diag-rec-action { font-size: 14px; }
+    }
+
+    @media (max-width: 400px) {
+      /* Two 44px pills plus a 44px refresh button do not fit beside the
+         title at 320px — give the command row its own line. */
+      .cmd-bar-left { width: 100%; justify-content: flex-start; flex-wrap: wrap; }
+      .mode-toggle { flex: 1; }
+      .mode-btn { flex: 1; padding: 0 10px; }
+    }
   </style>`;
