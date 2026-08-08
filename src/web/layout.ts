@@ -1714,8 +1714,13 @@ export const MOBILE_FLOORS_CSS = `
   }
 
   /* Buttons and CTAs measured under the floor. */
+  /* .auth-submit is NOT a .btn and .auth-alt a is a bare anchor, so neither
+     was covered by any floor selector — measured 250x40 and 64x15 at all six
+     widths. Both are defined in authShared.ts; naming them here keeps the
+     fix in the shared system instead of a per-page override. */
   .btn, .submit-btn, .main-move-cta, .section-empty-cta,
-  .topbar-login, .topbar-register, .btn-reconnect {
+  .topbar-login, .topbar-register, .btn-reconnect,
+  .auth-submit, .auth-alt a {
     min-height: 44px;
     display: inline-flex; align-items: center; justify-content: center;
   }
@@ -3084,10 +3089,6 @@ export function layout(opts: {
   <title>${title} — Adlytic</title>
   <style>${SHARED_CSS}</style>
   ${extraHead}
-  <!-- Emitted after extraHead on purpose: the mobile floors must be the last
-       word in the cascade, so a page stylesheet cannot silently undercut a
-       44px target or a 12px text floor. -->
-  <style>${MOBILE_FLOORS_CSS}</style>
 </head>
 <body>
   <div id="toast-container"></div>
@@ -3135,6 +3136,15 @@ export function layout(opts: {
   </div>
   <script>${SHARED_JS}</script>
   ${scripts}
+  <!-- LAST IN DOCUMENT ORDER, and it has to be here rather than in <head>.
+       Pages emit their own style block inside the content string, which
+       lands in the body —
+       so a floors block in <head> loses to every page stylesheet at equal
+       specificity. That is not theoretical: .ws-hero-kicker, .ws-id-label and
+       .ws-id-value were all listed in the floors' 12px rule and /workspace
+       still measured them at 11 and 11.5px. Emitting the block after the
+       page's own styles is what actually makes it the last word. -->
+  <style>${MOBILE_FLOORS_CSS}</style>
 </body>
 </html>`;
 }
