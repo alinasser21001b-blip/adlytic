@@ -102,8 +102,37 @@ export const renderIntelligenceJs = `
     return html + '</div>';
   }
 
-  /** The diagnosis card. Wording is a template; the verdict is deterministic. */
-  function renderDiagnosisCard(intel, funnel) {
+  /**
+   * The recommendation block, on its own so a caller can place it apart from
+   * the diagnosis. Still pure projection: the action, its expected impact and
+   * the "no urgent action" case all arrive decided.
+   */
+  function renderRecommendationBlock(intel) {
+    if (intel && intel.recommendation) {
+      var r = intel.recommendation;
+      return '<div class="diag-rec">'
+        +   '<div class="diag-rec-label">الإجراء الموصى به</div>'
+        +   '<div class="diag-rec-action">' + escHtml(r.action) + '</div>'
+        +   '<div class="diag-rec-impact">المتوقع: ' + escHtml(r.expectedImpact) + '</div>'
+        + '</div>';
+    }
+    if (intel && !intel.alert) {
+      // A real break that is not unusual: say so rather than manufacture advice.
+      return '<div class="diag-rec muted">'
+        +   'الانخفاض حقيقي لكنه ضمن التقلب الطبيعي لهذا الحساب — لا إجراء عاجل.'
+        + '</div>';
+    }
+    return '';
+  }
+
+  /**
+   * The diagnosis card. Wording is a template; the verdict is deterministic.
+   *
+   * opts.withRecommendation === false leaves the recommendation out, for
+   * callers that render it as its own step further down the page.
+   */
+  function renderDiagnosisCard(intel, funnel, opts) {
+    var withRec = !(opts && opts.withRecommendation === false);
     var p = PROBLEM_LABELS[intel.problemClass] || PROBLEM_LABELS.NO_MATERIAL_BREAK;
 
     if (intel.problemClass === 'NO_MATERIAL_BREAK') {
@@ -124,20 +153,7 @@ export const renderIntelligenceJs = `
         + '</ul>';
     }
 
-    var recHtml = '';
-    if (intel.recommendation) {
-      var r = intel.recommendation;
-      recHtml = '<div class="diag-rec">'
-        +   '<div class="diag-rec-label">الإجراء الموصى به</div>'
-        +   '<div class="diag-rec-action">' + escHtml(r.action) + '</div>'
-        +   '<div class="diag-rec-impact">المتوقع: ' + escHtml(r.expectedImpact) + '</div>'
-        + '</div>';
-    } else if (!intel.alert) {
-      // A real break that is not unusual: say so rather than manufacture advice.
-      recHtml = '<div class="diag-rec muted">'
-        +   'الانخفاض حقيقي لكنه ضمن التقلب الطبيعي لهذا الحساب — لا إجراء عاجل.'
-        + '</div>';
-    }
+    var recHtml = withRec ? renderRecommendationBlock(intel) : '';
 
     var approxWarn = (funnel && funnel.approximateInvolved)
       ? '<div class="diag-approx">هذا التشخيص يعتمد على مؤشر تقريبي — تعامل معه كإشارة لا كحقيقة.</div>'
@@ -174,14 +190,22 @@ export const renderIntelligenceJs = `
       + '</div>';
   }
 
-  /** Objective-aware health: excluded facets are shown as excluded, not zero. */
-  function renderObjectiveHealth(h) {
+  /**
+   * Objective-aware health: excluded facets are shown as excluded, not zero.
+   *
+   * labelAr / unknownNoteAr exist only so the same renderer can title the
+   * score for an account or for a single campaign. The SCORE, its band, its
+   * confidence and every facet still arrive pre-computed — nothing here decides
+   * what is healthy.
+   */
+  function renderObjectiveHealth(h, labelAr, unknownNoteAr) {
     if (!h) return '';
+    var healthLabel = labelAr || 'صحة الحساب';
     if (h.score == null) {
       return '<div class="obj-health unknown" dir="rtl">'
-        +   '<div class="obj-health-label">صحة الحساب</div>'
+        +   '<div class="obj-health-label">' + escHtml(healthLabel) + '</div>'
         +   '<div class="obj-health-value">غير متاح</div>'
-        +   '<div class="obj-health-note">لم نتمكن من تحديد هدف الحساب — لا نُصدر تقييماً مُخمّناً.</div>'
+        +   '<div class="obj-health-note">' + escHtml(unknownNoteAr || 'لم نتمكن من تحديد هدف الحساب — لا نُصدر تقييماً مُخمّناً.') + '</div>'
         + '</div>';
     }
     var facets = (h.facets || []).map(function (f) {
@@ -195,7 +219,7 @@ export const renderIntelligenceJs = `
     }).join('');
     return '<div class="obj-health ' + escHtml(h.band) + '" dir="rtl">'
       +   '<div class="obj-health-head">'
-      +     '<span class="obj-health-label">صحة الحساب</span>'
+      +     '<span class="obj-health-label">' + escHtml(healthLabel) + '</span>'
       +     '<span class="obj-health-value">' + escHtml(String(h.score)) + '/100</span>'
       +     confidenceChip(h.confidence)
       +   '</div>'

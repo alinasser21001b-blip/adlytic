@@ -28,6 +28,26 @@ export function resolveCurrencyMinorFactor(
   return canonical;
 }
 
+/**
+ * Build the account's minor-unit money formatter.
+ *
+ * The analytics layer formats its own KPI card values (so currency rules live
+ * in one place, per `KpiSource.money`) and needs a function of exactly this
+ * shape. Mirrors the dashboard's long-standing local formatter: zero-decimal
+ * currencies render as integers, everything else to two decimals.
+ */
+export function moneyFormatterFor(
+  currency: string,
+  factor: number,
+): (minor: number) => string {
+  const curr = String(currency ?? "").trim().toUpperCase();
+  return (minor: number): string => {
+    if (!Number.isFinite(minor)) return `0 ${curr}`;
+    if (factor === 1) return `${Math.round(minor).toLocaleString("en-US")} ${curr}`;
+    return `${(minor / factor).toFixed(2)} ${curr}`;
+  };
+}
+
 /** True when the persisted factor disagrees with the currency's canonical factor. */
 export function currencyFactorNeedsHeal(currency: string, storedFactor: number): boolean {
   return currencyMinorFactorFor(currency) !== storedFactor;
