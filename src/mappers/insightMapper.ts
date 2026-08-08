@@ -95,7 +95,7 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   // double-counts and produced a 163 vs Meta-Ads-Manager-reported 87 in
   // production. We pick exactly ONE canonical action_type per row.
   const messages = pickMessages(actions);
-  const landingPageViews = sumActions(actions, LANDING_PAGE_VIEW_ACTION_TYPES);
+  const landingPageViews = pickLandingPageViews(actions);
   const purchases = sumActions(actions, PURCHASE_ACTION_TYPES);
   const leads = sumActions(actions, LEAD_ACTION_TYPES);
   // LEGACY, FROZEN (see docs/ANALYTICS_RULES.md rule 4).
@@ -297,10 +297,27 @@ function pickMessages(actions: ActionRow[]): number {
 }
 // Meta's real landing-page-view signal. NEVER estimated from clicks: the
 // whole diagnostic value is the GAP between a click and an arrival.
-const LANDING_PAGE_VIEW_ACTION_TYPES = new Set([
+//
+// PICKED, never summed — same discipline as messages and purchase_roas.
+// Meta can return `landing_page_view` and `omni_landing_page_view` as
+// OVERLAPPING entries (omni includes the base event), and summing them
+// double-counts. First present in preference order wins.
+const LANDING_PAGE_VIEW_PREFERENCE: readonly string[] = [
   "landing_page_view",
   "omni_landing_page_view",
-]);
+];
+
+function pickLandingPageViews(actions: ActionRow[]): number {
+  for (const preferred of LANDING_PAGE_VIEW_PREFERENCE) {
+    for (const a of actions) {
+      if (a.action_type === preferred) {
+        const n = num(a.value);
+        if (Number.isFinite(n) && n >= 0) return Math.round(n);
+      }
+    }
+  }
+  return 0;
+}
 
 const PURCHASE_ACTION_TYPES = new Set([
   "purchase",

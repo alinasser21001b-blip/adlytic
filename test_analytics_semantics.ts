@@ -213,6 +213,21 @@ check('landing page views come from the REAL Meta action, never from clicks', ()
   assert.ok(n.landingPageViews !== n.linkClicks, 'LPV must be independent of link clicks');
 });
 
+check('overlapping LPV action types are PICKED, never summed', () => {
+  // omni_landing_page_view includes landing_page_view. Summing the two
+  // double-counts — the same bug pattern the message counter fixed in
+  // production (163 reported vs 87 in Ads Manager).
+  const row: any = {
+    date_start: '2026-08-01', spend: '10', impressions: '1000', clicks: '50',
+    actions: [
+      { action_type: 'landing_page_view', value: '80' },
+      { action_type: 'omni_landing_page_view', value: '80' },
+    ],
+  };
+  assert.equal(mapMetaInsight(row, { currencyMinorFactor: 1 }).landingPageViews, 80,
+    'must be 80, not 160');
+});
+
 check('landing page views default to 0 when the action is absent', () => {
   const row: any = { date_start: '2026-08-01', spend: '10', impressions: '100', clicks: '5', actions: [] };
   assert.equal(mapMetaInsight(row, { currencyMinorFactor: 1 }).landingPageViews, 0);
