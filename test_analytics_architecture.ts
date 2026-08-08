@@ -322,6 +322,62 @@ check('the dashboard does not derive ratio metrics in the browser', () => {
     `frontend files deriving analytics ratios: ${offenders.join(', ')}`);
 });
 
+check('the frontend never sums results across purposes', () => {
+  // The bug this encodes, twice shipped:
+  //
+  //   (Number(d.messages) || 0) + (Number(d.purchases) || 0) + (Number(d.leads) || 0)
+  //
+  // Conversations, orders and leads are different UNITS. Their sum is not a
+  // quantity — an account with 84 conversations and 12 orders does not have
+  // 96 of anything. resultSemantics.ts makes this unrepresentable server-side
+  // (MixedResultTotal has no cross-unit total field), but nothing stopped the
+  // browser from re-deriving it from the raw per-type columns, and both the
+  // campaigns page and the dashboard did exactly that.
+  //
+  // Matches an addition chain that mixes any two distinct result counters,
+  // in either the daily (messages) or windowed (messagesWindow) naming.
+  const COUNTERS = ['messages', 'purchases', 'leads', 'conversations'];
+  const offenders: string[] = [];
+  for (const { path, code } of FILES) {
+    if (!/^src\/web\//.test(path)) continue;
+    // Strip comments so the explanations above (and in the fixed code) do not
+    // trip the rule that they document.
+    const stripped = code
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .replace(/(^|[^:])\/\/.*$/gm, '$1');
+    for (const a of COUNTERS) {
+      for (const b of COUNTERS) {
+        if (a === b) continue;
+        // Deliberately permissive between the two counters. The first version
+        // of this rule required the `+` to follow the counter almost directly
+        // and reported a false green against the very line it was written for:
+        //   (Number(row.messages) || 0) + (Number(row.purchases) || 0)
+        // The closing paren before `||` defeated it. An architecture test that
+        // passes on its own motivating example is worse than no test.
+        const re = new RegExp(
+          `${a}(Window)?\\b[^;\\n]{0,40}\\+[^;\\n]{0,40}${b}(Window)?\\b`,
+        );
+        if (re.test(stripped)) { offenders.push(`${path} (${a}+${b})`); }
+      }
+    }
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `frontend summing across result units: ${[...new Set(offenders)].join(', ')}`);
+});
+
+check('the frontend does not substitute another objective\'s counter as a fallback', () => {
+  // `return Number(c.messagesWindow) || 0` as the fallback for an unresolved
+  // result made a sales campaign report its conversation count as its result
+  // count. When the server declines to resolve a result, the answer is "—".
+  const offenders = FILES.filter(({ path, code }) => {
+    if (!/^src\/web\//.test(path)) return false;
+    const stripped = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    return /return\s+Number\([a-zA-Z_$][\w$]*\.(messages|purchases|leads)(Window)?\)\s*\|\|\s*0\s*;/.test(stripped);
+  }).map((f) => f.path);
+  assert.deepEqual(offenders, [],
+    `frontend falling back to a specific objective's counter: ${offenders.join(', ')}`);
+});
+
 check('the intelligence section renders the DTO without deciding anything', () => {
   const src = readFileSync(join(ROOT, 'web/pages/dashboard/sections/intelligence.ts'), 'utf8');
   // It may format (×100 for display) but must not threshold or compare counts.

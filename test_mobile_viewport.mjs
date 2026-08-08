@@ -24,6 +24,15 @@ const WS = 'ws_x';
 const WIDTHS = [320, 360, 375, 390, 414, 430];
 const TOUCH_MIN = 44;   // WCAG 2.5.5 / Apple HIG
 const FONT_MIN = 12;    // below this is unreadable on a phone
+/**
+ * Minimum visible characters in a route's content region.
+ *
+ * Set as a blank-screen tripwire, not a density rule. The thinnest legitimate
+ * screen here is an onboarding step (a heading, one line, one button), which
+ * clears this comfortably; the campaigns page rendering both its card view and
+ * its table view hidden scored ~0.
+ */
+const MIN_VISIBLE_TEXT = 40;
 
 const fullDto = JSON.parse(readFileSync(new URL('./tests/fixtures/mobile-dto.json', import.meta.url), 'utf8'));
 
@@ -172,7 +181,86 @@ const PROBE = `(() => {
 
   // 6. Density: how tall is the page, and how far to the first action?
   const firstBtn = document.querySelector('#dashboard-content button, #main-content button, main button, .btn');
+
+  // 7. USABLE PRIMARY CONTENT.
+  //
+  //     This exists because the gate passed a route that rendered NOTHING.
+  //     The campaigns view toggle defaulted to 'table', which set
+  //     .camp-table-only and hid #campaigns-cards with !important, while the
+  //     <=768px block hid #table-container. Both halves were off at once. The
+  //     page was valid HTML with zero horizontal overflow and no JS error, so
+  //     every check above was green while the merchant saw an empty screen.
+  //
+  //     Overflow and page errors measure whether the page is BROKEN. This
+  //     measures whether it SHOWS ANYTHING — a different question, and the one
+  //     that actually failed in production.
+  const isVisible = (el) => {
+    if (!el) return false;
+    const cs = getComputedStyle(el);
+    if (cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 1 && r.height > 1;
+  };
+
+  // Visible, non-whitespace text inside the main content region — chrome
+  // (topbar, bottom nav, sidebar) deliberately excluded, since a page whose
+  // only visible text is its own navigation has not rendered.
+  const contentRoot =
+    document.querySelector('#dashboard-content, #main-content, main, .page-content') || b;
+  let visibleTextLen = 0;
+  let visibleBlocks = 0;
+  contentRoot.querySelectorAll('*').forEach(el => {
+    if (el.closest('.mobile-bottom-nav, .topbar, .sidebar')) return;
+    if (!isVisible(el)) return;
+    const own = [...el.childNodes]
+      .filter(n => n.nodeType === 3)
+      .map(n => n.textContent.trim())
+      .join('');
+    if (own.length > 1) { visibleTextLen += own.length; visibleBlocks++; }
+  });
+
+  // Containers that declare themselves the primary content of a route. When a
+  // route ships several (cards view AND table view), at least one must be on.
+  const primarySelectors = [
+    '#campaigns-cards', '#table-container', '#campaigns-tbody',
+    '#dashboard-content', '#command-center', '#recs-list', '#insights-list',
+    '.mf-step', '.camp-card', '.rec-card',
+  ];
+  const primaryPresent = [];
+  const primaryVisible = [];
+  primarySelectors.forEach(sel => {
+    const els = [...document.querySelectorAll(sel)];
+    if (!els.length) return;
+    primaryPresent.push(sel);
+    if (els.some(isVisible)) primaryVisible.push(sel);
+  });
+  // Present in the DOM but every instance hidden = the campaign-list failure.
+  const primaryAllHidden = primaryPresent.filter(s => !primaryVisible.includes(s));
+
+  // A CTA that exists but cannot be tapped is worse than no CTA: the merchant
+  // is told an action is available and cannot reach it.
+  const invisibleCtas = [...document.querySelectorAll('button, .btn, [role=button]')]
+    .filter(el => el.offsetParent !== null ? false : getComputedStyle(el).position !== 'fixed')
+    .filter(el => (el.textContent || '').trim().length > 1)
+    .slice(0, 5)
+    .map(el => (el.id || el.className || el.tagName).toString().trim().slice(0, 34));
+
+  // Text clipped by a fixed-height box — content present but unreadable.
+  const clipped = [];
+  contentRoot.querySelectorAll('*').forEach(el => {
+    if (!isVisible(el)) return;
+    const cs = getComputedStyle(el);
+    if (cs.overflow !== 'hidden' && cs.overflowY !== 'hidden') return;
+    if (el.scrollHeight > el.clientHeight + 8 && el.clientHeight > 0 && el.children.length === 0) {
+      clipped.push((el.className || el.tagName).toString().trim().slice(0, 34)
+        + ' ' + el.clientHeight + '/' + el.scrollHeight);
+    }
+  });
+
   return {
+    visibleTextLen, visibleBlocks,
+    primaryPresent, primaryVisible, primaryAllHidden,
+    invisibleCtas, clipped: [...new Set(clipped)].slice(0, 5),
     vw, overflow: Math.max(0, overflow), widest,
     smallTargets: [...new Set(small)].slice(0, 8), smallCount: new Set(small).size,
     tinyText: [...tiny].slice(0, 6), tinyCount: tiny.size,
@@ -262,6 +350,10 @@ for (const [slug, byWidth] of Object.entries(findings)) {
   if ((w320.fixedEls||[]).length) console.log(`   fixed/sticky  : ${w320.fixedEls.join(' | ')}`);
   console.log(`   page height   : ${w320.pageHeight}px (${w320.screensToScroll} screens)   first action at ${w320.firstActionTop ?? '—'}px`);
   console.log(`   viewport meta : ${w320.viewportContent || 'MISSING'}   safe-area: ${w320.usesSafeArea ? 'yes' : 'NO'}`);
+  console.log(`   content       : ${w320.visibleTextLen ?? 0} chars in ${w320.visibleBlocks ?? 0} blocks`
+    + (w320.primaryVisible?.length ? `   visible: ${w320.primaryVisible.join(', ')}` : ''));
+  if (w320.primaryAllHidden?.length) console.log(`   ALL HIDDEN    : ${w320.primaryAllHidden.join(', ')}`);
+  if (w320.clipped?.length) console.log(`   clipped text  : ${w320.clipped.join(' | ')}`);
   if (w320.jsErrors) console.log(`   JS ERRORS     : ${w320.jsErrors.join(' | ')}`);
   console.log('');
 }
@@ -275,6 +367,25 @@ for (const [slug, byWidth] of Object.entries(findings)) {
     if (!f || f.error) { failures.push(`${slug}@${w}: ${f?.error ?? 'no measurement'}`); continue; }
     if (f.overflow > 1) failures.push(`${slug}@${w}: horizontal overflow +${f.overflow}px (${f.widest ?? '?'})`);
     if (f.jsErrors) failures.push(`${slug}@${w}: JS error — ${f.jsErrors[0]}`);
+
+    // ── Zero-content rendering ─────────────────────────────────────────
+    // The class of failure that shipped: valid HTML, no overflow, no JS
+    // error, and nothing on screen. These three checks are the reason this
+    // gate can now distinguish "not broken" from "actually shows something".
+
+    // A route that declares a primary container and hides every instance of
+    // it is the campaign-list bug exactly.
+    if (f.primaryAllHidden?.length) {
+      failures.push(`${slug}@${w}: primary content present but ALL HIDDEN — ${f.primaryAllHidden.join(', ')}`);
+    }
+    // A near-empty content region. The floor is deliberately low: this is
+    // meant to catch a blank screen, not to police page density.
+    if ((f.visibleTextLen ?? 0) < MIN_VISIBLE_TEXT) {
+      failures.push(`${slug}@${w}: only ${f.visibleTextLen ?? 0} chars of visible content (min ${MIN_VISIBLE_TEXT}) — route renders nothing usable`);
+    }
+    if (f.clipped?.length) {
+      failures.push(`${slug}@${w}: text clipped by a fixed-height box — ${f.clipped[0]}`);
+    }
   }
 }
 if (failures.length) {

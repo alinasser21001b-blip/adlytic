@@ -3464,6 +3464,19 @@ export function dashboardPage(): string {
       var endKey = (dashData.workspace && dashData.workspace.accountToday) || new Date().toISOString().slice(0, 10);
       var endParts = endKey.split('-').map(Number);
       var endMs = Date.UTC(endParts[0], endParts[1] - 1, endParts[2], 12);
+      // Which DailyStat column carries this account's results, from the
+      // server's P2 breakdown. dailyColumn is a semantic decision made in
+      // analytics/resultSemantics.ts — the browser only reads it.
+      //
+      // null when the account MIXES result units (84 conversations and 12
+      // orders are not 96 of anything) or when no breakdown resolved. Both
+      // are real states, and both mean "no single results line exists".
+      var rb = dashData && dashData.resultBreakdown;
+      var resultsUnitColumn =
+        rb && Array.isArray(rb.byUnit) && rb.byUnit.length === 1 && rb.byUnit[0].dailyColumn
+          ? rb.byUnit[0].dailyColumn
+          : null;
+
       var labels = [];
       var isoDates = [];
       var spendSeriesMajor = [];
@@ -3491,8 +3504,17 @@ export function dashboardPage(): string {
           var imp = Number(row.impressions) || 0;
           // Idle day → null (gap), not a fake crash to zero.
           spendSeriesMajor.push(spendMaj > 0 ? spendMaj : null);
-          var dayRes = (Number(row.messages) || 0) + (Number(row.purchases) || 0) + (Number(row.leads) || 0);
-          resultsSeries.push(dayRes > 0 ? dayRes : null);
+          // The day's result count for the account's SINGLE result unit.
+          //
+          // This used to be messages + purchases + leads. Conversations,
+          // orders and leads are different units; their sum is not a
+          // quantity. On a mixed account there is no one-line "results"
+          // series and no one cost-per-result, so both are withheld rather
+          // than fabricated — resultsUnitColumn is null in that case.
+          var dayRes = resultsUnitColumn
+            ? (Number(row[resultsUnitColumn]) || 0)
+            : null;
+          resultsSeries.push(dayRes != null && dayRes > 0 ? dayRes : null);
           if (imp <= 0) {
             ctrSeries.push(null);
             freqSeries.push(null);
@@ -3508,7 +3530,7 @@ export function dashboardPage(): string {
             // Recompute CPM in MAJOR — stored row.cpm is minor units.
             cpmSeries.push(Number.isFinite(spendMaj) ? (spendMaj / imp) * 1000 : null);
           }
-          cprSeries.push(dayRes > 0 && spendMaj > 0 ? spendMaj / dayRes : null);
+          cprSeries.push(dayRes != null && dayRes > 0 && spendMaj > 0 ? spendMaj / dayRes : null);
         }
       }
 
