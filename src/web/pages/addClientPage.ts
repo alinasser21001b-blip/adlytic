@@ -18,7 +18,7 @@
 //    GET  /api/admin/meta/discover-accounts     — secondary visibility table
 //
 //  Every server-provided string (account names, engine messages, blocked
-//  requirements, error text) is rendered through esc() — never interpolated raw.
+//  requirements, error text) is rendered through escHtml() — never interpolated raw.
 // ════════════════════════════════════════════════════════════════════════
 
 export function addClientPage(): string {
@@ -237,6 +237,96 @@ export function addClientPage(): string {
       background: rgba(199,122,31,0.08); color: var(--warning); margin-bottom: 14px; line-height: 1.8;
     }
     .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
+
+    /* ══════════════════════════════════════════════════════════════════════
+       MOBILE FLOW — five steps, one screen each.
+       ══════════════════════════════════════════════════════════════════════
+       A phone gets a different SHAPE of the same job, not a squeezed cockpit:
+       one question per screen, one action per screen, and never a word about
+       the machinery behind it.
+
+       Scoped entirely to this file. This page renders its own document and
+       does not consume src/web/layout.ts, so nothing below can reach the
+       shared MOBILE SYSTEM block — that stays the integrator's to own.
+       ══════════════════════════════════════════════════════════════════════ */
+    .mflow { display: none; }
+    @media (max-width: 760px) {
+      /* .app carries an inline display:flex once the admin gate clears, so the
+         phone shell has to out-specify it. */
+      body.mf-on .app { display: none !important; }
+      body.mf-on .mflow { display: flex; }
+    }
+    .mflow {
+      flex-direction: column;
+      min-height: 100vh;
+      min-height: 100dvh;   /* excludes the browser chrome that vh ignores */
+      width: 100%; max-width: 100%; overflow-x: hidden;
+    }
+    .mf-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 14px 18px; padding-top: calc(14px + env(safe-area-inset-top));
+      border-bottom: 1px solid var(--border); flex-shrink: 0;
+    }
+    .mf-brand { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
+    .mf-brand span { color: var(--accent); }
+    .mf-dots { display: flex; gap: 6px; flex-shrink: 0; }
+    .mf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+    .mf-dot.done { background: var(--success); }
+    .mf-dot.on   { background: var(--accent); transform: scale(1.35); }
+    .mf-dot.stop { background: var(--error); transform: scale(1.35); }
+
+    /* flex:1 0 auto pins the footer to the bottom on a short screen and lets a
+       long one grow past it, so the action is always the last thing reached. */
+    .mf-body { flex: 1 0 auto; padding: 28px 18px 22px; min-width: 0; }
+    .mf-icon { font-size: 38px; line-height: 1; margin-bottom: 16px; }
+    .mf-h { font-size: 22px; font-weight: 800; line-height: 1.55; margin-bottom: 10px; }
+    .mf-p { font-size: 15px; line-height: 1.95; color: var(--text-2); overflow-wrap: anywhere; }
+    .mf-note { font-size: 13px; line-height: 1.85; color: var(--text-3); margin-top: 14px; }
+    .mf-form { margin-top: 24px; }
+    .mf-label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+    .mf-chip {
+      display: inline-block; margin-top: 18px; padding: 9px 13px; border-radius: 10px;
+      background: var(--surface-2); border: 1px solid var(--border);
+      font-family: monospace; font-size: 14px; direction: ltr; unicode-bidi: embed;
+    }
+    .mf-input, .mf-select {
+      width: 100%; min-height: 52px;   /* ≥44px touch floor */
+      font-size: 16px;                 /* 16px: anything smaller makes iOS Safari zoom on focus */
+      padding: 12px 14px; border-radius: 12px;
+      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    }
+    .mf-input { direction: ltr; text-align: left; font-family: monospace; letter-spacing: 0.04em; }
+    .mf-input:focus, .mf-select:focus { outline: none; border-color: var(--accent); }
+    .mf-select { margin-bottom: 20px; }
+    .mf-err {
+      margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.8;
+      border: 1px solid rgba(226,96,79,0.4); background: rgba(226,96,79,0.08); color: var(--error);
+    }
+    .mf-spin {
+      width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent);
+      border-radius: 50%; animation: gate-spin 0.8s linear infinite; margin-bottom: 18px;
+    }
+    /* Sticky, not fixed: it keeps its place in the flow (so it can never sit on
+       top of the content) while staying reachable on a long screen. The bottom
+       offset is the height the on-screen keyboard covers — see mfKeyboardInset. */
+    .mf-foot {
+      position: sticky; bottom: var(--mf-kb, 0px); flex-shrink: 0;
+      background: var(--bg); border-top: 1px solid var(--border);
+      padding: 14px 18px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
+      display: flex; flex-direction: column; gap: 10px;
+    }
+    .mf-btn {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      width: 100%; min-height: 52px; border-radius: 13px;
+      font-size: 16px; font-weight: 800; border: 1px solid transparent; text-align: center;
+    }
+    .mf-btn-primary { background: var(--accent); color: #100E0D; }
+    .mf-btn-quiet { background: transparent; border-color: var(--border); color: var(--text-2); }
+    .mf-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .mf-ok { color: var(--success); }
+    .mf-warn { color: var(--warning); }
+    .mf-bad { color: var(--error); }
+    @media (prefers-reduced-motion: reduce) { .mf-spin { animation: none; } }
   </style>
 </head>
 <body>
@@ -385,6 +475,20 @@ export function addClientPage(): string {
   </div>
 </div>
 
+<!-- ════════════════════════════════════════════════════════════════════════
+     MOBILE FLOW — the phone shell. Empty until the admin gate clears; every
+     screen is painted by mfRender() from the same record the desktop cockpit
+     reads, driven by the same poll.
+     ════════════════════════════════════════════════════════════════════════ -->
+<div class="mflow" id="mflow" role="region" aria-label="ربط حساب عميل">
+  <header class="mf-top">
+    <div class="mf-brand">Ad<span>lytic</span></div>
+    <div class="mf-dots" id="mf-dots" aria-hidden="true"></div>
+  </header>
+  <main class="mf-body" id="mf-body" aria-live="polite"></main>
+  <footer class="mf-foot" id="mf-foot" style="display:none;"></footer>
+</div>
+
 <script>
 (function () {
   var POLL_MS = 10000;
@@ -396,7 +500,7 @@ export function addClientPage(): string {
     try { localStorage.removeItem('adlytic_token'); } catch (e) {}
     window.location.href = '/login';
   }
-  function esc(s) {
+  function escHtml(s) {
     return String(s == null ? '' : s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
@@ -411,6 +515,7 @@ export function addClientPage(): string {
     pollTimer: null,
     pollToken: 0,              // invalidates in-flight polls after a switch
     pollFailures: 0,
+    records: [],               // last onboarding list for the selected workspace
   };
 
   // ── Vocabulary (mirrors src/orchestrator/contracts.ts) ──────────────────
@@ -474,7 +579,7 @@ export function addClientPage(): string {
       101: ['مغلق', 'badge-err'],
     };
     var entry = map[status] || ['حالة ' + status, 'badge-muted'];
-    return '<span class="badge ' + entry[1] + '">' + esc(entry[0]) + '</span>';
+    return '<span class="badge ' + entry[1] + '">' + escHtml(entry[0]) + '</span>';
   }
 
   function pad2(n) { return (n < 10 ? '0' : '') + n; }
@@ -556,7 +661,7 @@ export function addClientPage(): string {
       }
       sel.innerHTML = '<option value="">— اختر مساحة عمل —</option>' + rows.map(function (w) {
         var label = w.name + (w.email ? ' — ' + w.email : '');
-        return '<option value="' + esc(w.id) + '">' + esc(label) + '</option>';
+        return '<option value="' + escHtml(w.id) + '">' + escHtml(label) + '</option>';
       }).join('');
     } catch (e) {
       if (isAuthError(e)) { showGateError('غير مصرّح.'); return; }
@@ -603,15 +708,15 @@ export function addClientPage(): string {
     var meta = stateMeta(ob.state);
     var live = !TERMINAL[ob.state] ? ' live' : '';
     var parts = [];
-    parts.push('<span class="state-pill ' + meta.cls + live + '"><span class="dot"></span>' + esc(meta.label) + '</span>');
-    parts.push('<span class="muted mono">' + esc(ob.externalAccountId || '') + '</span>');
+    parts.push('<span class="state-pill ' + meta.cls + live + '"><span class="dot"></span>' + escHtml(meta.label) + '</span>');
+    parts.push('<span class="muted mono">' + escHtml(ob.externalAccountId || '') + '</span>');
     if (ob.linkedAdAccountId) {
       parts.push('<span class="badge badge-ok">مرتبط بالمنصة</span>');
     }
     if (ob.completedAt) {
-      parts.push('<span class="muted">اكتمل: ' + esc(fmtTime(ob.completedAt)) + '</span>');
+      parts.push('<span class="muted">اكتمل: ' + escHtml(fmtTime(ob.completedAt)) + '</span>');
     } else {
-      parts.push('<span class="muted">بدأ: ' + esc(fmtTime(ob.createdAt)) + '</span>');
+      parts.push('<span class="muted">بدأ: ' + escHtml(fmtTime(ob.createdAt)) + '</span>');
     }
     document.getElementById('state-row').innerHTML = parts.join('');
   }
@@ -639,10 +744,10 @@ export function addClientPage(): string {
       else meta = 'لاحقاً';
       var target = step && step.targetState ? stateMeta(step.targetState).label : '';
       return '<li class="plan-step ' + cls + '">'
-        + '<span class="plan-dot">' + esc(mark) + '</span>'
+        + '<span class="plan-dot">' + escHtml(mark) + '</span>'
         + '<div style="flex:1;min-width:0;">'
-        + '<div class="plan-label">' + esc(step && step.label ? step.label : '—') + '</div>'
-        + '<div class="plan-meta">' + esc(meta) + (target ? ' · تنقل إلى: ' + esc(target) : '') + '</div>'
+        + '<div class="plan-label">' + escHtml(step && step.label ? step.label : '—') + '</div>'
+        + '<div class="plan-meta">' + escHtml(meta) + (target ? ' · تنقل إلى: ' + escHtml(target) : '') + '</div>'
         + '</div>'
         + '</li>';
     }).join('');
@@ -656,7 +761,7 @@ export function addClientPage(): string {
     if (ob.state === 'BLOCKED' && ob.blockedRequirement) {
       html += '<div class="callout callout-warn">'
         + '<div class="callout-title">⚠ الإجراء المطلوب لإتمام الربط</div>'
-        + '<div class="callout-text">' + esc(ob.blockedRequirement) + '</div>'
+        + '<div class="callout-text">' + escHtml(ob.blockedRequirement) + '</div>'
         + '</div>';
     } else if (ob.state === 'BLOCKED') {
       html += '<div class="callout callout-warn">'
@@ -668,28 +773,28 @@ export function addClientPage(): string {
     if (ob.state === 'FAILED') {
       html += '<div class="callout callout-err">'
         + '<div class="callout-title">✕ فشل الربط</div>'
-        + '<div class="callout-text">' + esc(ob.lastError || 'لم يسجّل المنسّق سبباً — راجع سجل الأحداث أدناه.') + '</div>'
+        + '<div class="callout-text">' + escHtml(ob.lastError || 'لم يسجّل المنسّق سبباً — راجع سجل الأحداث أدناه.') + '</div>'
         + '<div class="callout-actions"><span class="muted">يمكنك إعادة البدء لنفس الحساب من الأعلى بعد معالجة السبب.</span></div>'
         + '</div>';
     } else if (ob.lastError) {
       // Retryable error mid-flight — surfaced, but not as a terminal failure.
       html += '<div class="callout callout-err">'
         + '<div class="callout-title">آخر خطأ (قابل لإعادة المحاولة)</div>'
-        + '<div class="callout-text">' + esc(ob.lastError) + '</div>'
+        + '<div class="callout-text">' + escHtml(ob.lastError) + '</div>'
         + '</div>';
     }
 
     // 4 ── What the client must do.
     if (ob.state === 'WAITING_EXTERNAL_ACTION') {
-      var since = ob.waitingSince ? '<div class="muted" style="margin-top:8px;">بدأ الانتظار: ' + esc(fmtTime(ob.waitingSince)) + ' (' + esc(fmtRelative(ob.waitingSince)) + ')</div>' : '';
+      var since = ob.waitingSince ? '<div class="muted" style="margin-top:8px;">بدأ الانتظار: ' + escHtml(fmtTime(ob.waitingSince)) + ' (' + escHtml(fmtRelative(ob.waitingSince)) + ')</div>' : '';
       var nextCheck = ob.nextCheckAt
-        ? '<div class="muted" style="margin-top:6px;">التحقق التلقائي التالي: ' + esc(fmtTime(ob.nextCheckAt)) + ' (' + esc(fmtRelative(ob.nextCheckAt)) + ')</div>'
+        ? '<div class="muted" style="margin-top:6px;">التحقق التلقائي التالي: ' + escHtml(fmtTime(ob.nextCheckAt)) + ' (' + escHtml(fmtRelative(ob.nextCheckAt)) + ')</div>'
         : '';
       html += '<div class="callout callout-info">'
         + '<div class="callout-title">⏳ ما الذي يجب أن يفعله العميل الآن</div>'
         + '<div class="callout-text">'
         + 'أرسل للعميل طلب <strong>الوصول كشريك (Partner Access)</strong> على الحساب '
-        + '<span class="mono">' + esc(ob.externalAccountId || '') + '</span>، '
+        + '<span class="mono">' + escHtml(ob.externalAccountId || '') + '</span>، '
         + 'ثم يوافق العميل على الطلب من <strong>مدير الأعمال (Business Manager)</strong> الخاص به. '
         + 'بمجرّد الموافقة يتولّى Adlytic الباقي تلقائياً: الإسناد لمستخدم النظام، الربط، وأول مزامنة.'
         + '</div>'
@@ -703,7 +808,7 @@ export function addClientPage(): string {
     } else if (ob.nextCheckAt && !TERMINAL[ob.state]) {
       html += '<div class="callout callout-info">'
         + '<div class="callout-title">⏱ التحقق التلقائي</div>'
-        + '<div class="callout-text">التحقق التلقائي التالي: ' + esc(fmtTime(ob.nextCheckAt)) + ' (' + esc(fmtRelative(ob.nextCheckAt)) + ')</div>'
+        + '<div class="callout-text">التحقق التلقائي التالي: ' + escHtml(fmtTime(ob.nextCheckAt)) + ' (' + escHtml(fmtRelative(ob.nextCheckAt)) + ')</div>'
         + '</div>';
     }
 
@@ -730,19 +835,23 @@ export function addClientPage(): string {
       var kind = EVENT_KIND_META[ev.kind] || { label: String(ev.kind == null ? '—' : ev.kind), cls: 'badge-muted' };
       var states = '';
       if (ev.fromState || ev.toState) {
-        states = '<div class="tl-states">' + esc(ev.fromState || '—') + ' → ' + esc(ev.toState || '—') + '</div>';
+        states = '<div class="tl-states">' + escHtml(ev.fromState || '—') + ' → ' + escHtml(ev.toState || '—') + '</div>';
       }
-      var step = ev.stepId ? '<div class="tl-states">' + esc(ev.stepId) + '</div>' : '';
+      var step = ev.stepId ? '<div class="tl-states">' + escHtml(ev.stepId) + '</div>' : '';
       return '<div class="tl-item">'
-        + '<div class="tl-time">' + esc(fmtTime(ev.at)) + '</div>'
-        + '<div><span class="badge ' + kind.cls + '">' + esc(kind.label) + '</span></div>'
-        + '<div><div class="tl-msg">' + esc(ev.message || '') + '</div>' + states + step + '</div>'
+        + '<div class="tl-time">' + escHtml(fmtTime(ev.at)) + '</div>'
+        + '<div><span class="badge ' + kind.cls + '">' + escHtml(kind.label) + '</span></div>'
+        + '<div><div class="tl-msg">' + escHtml(ev.message || '') + '</div>' + states + step + '</div>'
         + '</div>';
     }).join('');
   }
 
   function renderOnboarding() {
     var ob = view.onboarding;
+    // The phone shell repaints on every state change too — same record, same
+    // poll, different shape. It renders even when there is no record yet,
+    // because "no record yet" is a real screen there (step 1).
+    mfRender();
     var progress = document.getElementById('progress-panel');
     var timeline = document.getElementById('timeline-panel');
     if (!ob) {
@@ -760,6 +869,333 @@ export function addClientPage(): string {
     renderPlan(ob);
     renderTimeline(view.timeline);
     markSelectedRow(ob.id);
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  //  MOBILE FLOW — five steps, one screen each
+  //
+  //  The cockpit above answers "what is the engine doing?". A phone asks a
+  //  smaller question — "what do I do next?" — so it gets five screens with
+  //  one thing on each:
+  //
+  //    1  معرّف الحساب      → متابعة
+  //    2  اطلب الوصول        → افتح Meta
+  //    3  بانتظار الموافقة   → تم إرسال الطلب + تحقّق تلقائي
+  //    4  تمت الموافقة       → تم ربط الحساب
+  //    5  المزامنة           → بدأت المزامنة → جاهز → افتح لوحة التحكم
+  //
+  //  Two states fall outside the ladder. BLOCKED becomes the ONE thing still
+  //  needed, said plainly. FAILED becomes an honest dead end with a way back.
+  //
+  //  It adds no poll of its own: renderOnboarding() calls mfRender(), so the
+  //  existing 10s loop drives both shells from one request.
+  // ════════════════════════════════════════════════════════════════════════
+  var MF_STEPS = 5;
+  var mf = {
+    workspaceId: '',   // resolved once (URL param, or the only workspace, or picked)
+    acct: '',          // survives a re-render while the user is typing
+    error: '',
+    lastStep: 1,       // where the dots sit when the flow stops on BLOCKED/FAILED
+    autoOpened: false,
+  };
+
+  /** Orchestrator state → screen. Numbers are the five steps; strings are the exits. */
+  function mfStep(ob) {
+    if (!ob) return 1;
+    switch (ob.state) {
+      case 'REQUEST_CREATED':         return 2;
+      case 'WAITING_EXTERNAL_ACTION': return 3;
+      case 'CONNECTING':
+      case 'VERIFYING':               return 4;
+      case 'SYNCING':
+      case 'READY':                   return 5;
+      case 'BLOCKED':                 return 'BLOCKED';
+      case 'FAILED':                  return 'FAILED';
+      default:                        return 1;
+    }
+  }
+
+  /**
+   * BLOCKED, in plain Arabic.
+   *
+   * The server's blockedRequirement is written for an operator standing in
+   * front of the cockpit: it names internal machinery by name. The phone gets
+   * one curated sentence chosen by the SHAPE of that requirement, and never
+   * the raw string — so nothing internal can leak into a customer-facing
+   * screen even when a new requirement is added server-side.
+   *
+   * Matching on prose is the weak part, and it is a symptom: the record has no
+   * machine-readable reason. A blockedCode field would replace this whole
+   * function with a lookup (reported as an API gap).
+   */
+  function mfBlockedText(ob) {
+    var raw = String((ob && ob.blockedRequirement) || '');
+    if (/META_SYSTEM_USER_TOKEN|على الخادم/.test(raw)) {
+      return 'الربط غير مُفعّل على الخادم بعد. تواصل مع فريق Adlytic لتفعيله، ثم أعد المحاولة.';
+    }
+    if (/إسناد|أسند|صلاحية|Business Settings/.test(raw)) {
+      return 'افتح إعدادات الحسابات الإعلانية لدى العميل، وامنح Adlytic صلاحية الاطلاع على أداء هذا الحساب، ثم اضغط «تحقّق الآن».';
+    }
+    return 'لم تكتمل الموافقة على الوصول إلى الحساب بعد. راجع طلب الوصول لدى Meta، ثم اضغط «تحقّق الآن».';
+  }
+
+  function mfRenderDots(step) {
+    var el = document.getElementById('mf-dots');
+    if (!el) return;
+    var stopped = (step === 'BLOCKED' || step === 'FAILED');
+    var at = stopped ? mf.lastStep : step;
+    var out = '';
+    for (var i = 1; i <= MF_STEPS; i++) {
+      var cls = i < at ? 'done' : (i === at ? (stopped ? 'stop' : 'on') : '');
+      out += '<span class="mf-dot ' + cls + '"></span>';
+    }
+    el.innerHTML = out;
+  }
+
+  function mfChip(ob) {
+    var acct = ob && ob.externalAccountId ? ob.externalAccountId : '';
+    return acct ? '<div class="mf-chip">' + escHtml(acct) + '</div>' : '';
+  }
+  function mfErrBlock() {
+    return mf.error ? '<div class="mf-err">' + escHtml(mf.error) + '</div>' : '';
+  }
+  var MF_OPEN_META =
+    '<a class="mf-btn mf-btn-primary" href="' + BM_URL + '" target="_blank" rel="noopener noreferrer">افتح Meta</a>';
+  var MF_CHECK_NOW =
+    '<button class="mf-btn mf-btn-quiet" id="mf-check">تحقّق الآن</button>';
+
+  function mfRender() {
+    var body = document.getElementById('mf-body');
+    var foot = document.getElementById('mf-foot');
+    if (!body || !foot) return;
+
+    var ob = view.onboarding;
+    var step = mfStep(ob);
+    if (typeof step === 'number') mf.lastStep = step;
+    mfRenderDots(step);
+
+    var html = '';
+    var footHtml = '';
+
+    if (step === 1) {
+      // ── 1 ── The only question that needs a keyboard. ──────────────────
+      // The picker only appears when the answer is genuinely a choice. A single
+      // workspace, or one named in the URL, is resolved silently — and when the
+      // list could not be loaded at all, the page's manual fallback is offered
+      // here too, so the phone is never a dead end the desktop can escape.
+      var wsHtml = '';
+      if (!mf.workspaceId) {
+        if (view.workspaces.length) {
+          wsHtml = '<label class="mf-label" for="mf-ws">عميل Adlytic</label>'
+            + '<select class="mf-select" id="mf-ws">'
+            + '<option value="">— اختر العميل —</option>'
+            + view.workspaces.map(function (w) {
+                return '<option value="' + escHtml(w.id) + '">'
+                  + escHtml(w.name + (w.email ? ' — ' + w.email : '')) + '</option>';
+              }).join('')
+            + '</select>';
+        } else if (view.workspaceMode === 'input') {
+          wsHtml = '<label class="mf-label" for="mf-ws-input">معرّف مساحة عمل العميل</label>'
+            + '<input class="mf-input mf-select" id="mf-ws-input" type="text" autocomplete="off"'
+            + ' autocapitalize="off" autocorrect="off" spellcheck="false" dir="ltr" placeholder="ws_…" />';
+        }
+      }
+      html = '<div class="mf-h">ابدأ ربط حساب العميل</div>'
+        + '<div class="mf-p">أدخل معرّف الحساب الإعلاني كما يظهر لدى العميل.</div>'
+        + '<div class="mf-form">'
+        + wsHtml
+        + '<label class="mf-label" for="mf-acct">معرّف الحساب الإعلاني</label>'
+        + '<input class="mf-input" id="mf-acct" type="text" inputmode="numeric" autocomplete="off"'
+        + ' autocapitalize="off" autocorrect="off" spellcheck="false" dir="ltr"'
+        + ' placeholder="1234567890" value="' + escHtml(mf.acct) + '" />'
+        + '<div class="mf-note">الأرقام وحدها تكفي — نكمل الباقي.</div>'
+        + '</div>'
+        + mfErrBlock();
+      footHtml = '<button class="mf-btn mf-btn-primary" id="mf-cta">متابعة</button>';
+
+    } else if (step === 2) {
+      // ── 2 ── Ask the client for access. ────────────────────────────────
+      html = '<div class="mf-icon">🔗</div>'
+        + '<div class="mf-h">اطلب الوصول إلى الحساب</div>'
+        + '<div class="mf-p">افتح Meta وأرسل طلب الوصول إلى هذا الحساب. نتابع الطلب من هنا نيابةً عنك.</div>'
+        + mfChip(ob);
+      footHtml = MF_OPEN_META + MF_CHECK_NOW;
+
+    } else if (step === 3) {
+      // ── 3 ── Sent. Nothing left to do but wait. ────────────────────────
+      var next = ob && ob.nextCheckAt
+        ? '<div class="mf-note">التحقق التالي ' + escHtml(fmtRelative(ob.nextCheckAt)) + '.</div>'
+        : '';
+      html = '<div class="mf-spin"></div>'
+        + '<div class="mf-h">تم إرسال الطلب</div>'
+        + '<div class="mf-p">بانتظار موافقة العميل. نتحقق تلقائياً — لا حاجة لأي إجراء منك الآن.</div>'
+        + mfChip(ob)
+        + next;
+      footHtml = MF_CHECK_NOW;
+
+    } else if (step === 4) {
+      // ── 4 ── Approved. ────────────────────────────────────────────────
+      html = '<div class="mf-icon mf-ok">✓</div>'
+        + '<div class="mf-h">تم ربط الحساب</div>'
+        + '<div class="mf-p">نجهّز الحساب الآن. تستغرق هذه الخطوة لحظات.</div>'
+        + mfChip(ob);
+      footHtml = '';
+
+    } else if (step === 5) {
+      // ── 5 ── Syncing, then ready. ─────────────────────────────────────
+      if (ob && ob.state === 'READY') {
+        html = '<div class="mf-icon mf-ok">✅</div>'
+          + '<div class="mf-h">اكتملت المزامنة</div>'
+          + '<div class="mf-p">أصبحت بيانات هذا الحساب متاحة في لوحة التحكم.</div>'
+          + mfChip(ob);
+        footHtml = '<a class="mf-btn mf-btn-primary" href="/dashboard">افتح لوحة التحكم</a>';
+      } else {
+        html = '<div class="mf-spin"></div>'
+          + '<div class="mf-h">بدأت المزامنة</div>'
+          + '<div class="mf-p">نسحب بيانات حملات هذا الحساب. قد تستغرق بضع دقائق — يمكنك إغلاق الصفحة.</div>'
+          + mfChip(ob);
+        footHtml = '';
+      }
+
+    } else if (step === 'BLOCKED') {
+      // ── Exit A ── One thing is missing. Say only that. ────────────────
+      html = '<div class="mf-icon mf-warn">⚠</div>'
+        + '<div class="mf-h">مطلوب خطوة واحدة</div>'
+        + '<div class="mf-p">' + escHtml(mfBlockedText(ob)) + '</div>'
+        + mfChip(ob);
+      footHtml = MF_OPEN_META + MF_CHECK_NOW;
+
+    } else {
+      // ── Exit B ── Honest dead end, with a way back. ───────────────────
+      html = '<div class="mf-icon mf-bad">✕</div>'
+        + '<div class="mf-h">تعذّر إكمال الربط</div>'
+        + '<div class="mf-p">لم نتمكن من إكمال ربط هذا الحساب. تأكّد من معرّف الحساب وابدأ من جديد، أو تواصل مع فريق Adlytic.</div>'
+        + mfChip(ob);
+      footHtml = '<button class="mf-btn mf-btn-primary" id="mf-restart">ابدأ من جديد</button>';
+    }
+
+    body.innerHTML = html;
+    foot.innerHTML = footHtml;
+    foot.style.display = footHtml ? '' : 'none';
+    mfWire();
+  }
+
+  /** Re-attach listeners — mfRender() replaces the nodes they were bound to. */
+  function mfWire() {
+    var acct = document.getElementById('mf-acct');
+    if (acct) {
+      acct.addEventListener('input', function () { mf.acct = this.value; });
+      acct.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); mfStart(); } });
+      // Belt to the sticky footer's braces: when the keyboard opens, put the
+      // action back on screen even if the browser reports no viewport inset.
+      acct.addEventListener('focus', function () {
+        setTimeout(function () {
+          var f = document.getElementById('mf-foot');
+          if (f && f.scrollIntoView) f.scrollIntoView({ block: 'nearest' });
+        }, 300);
+      });
+    }
+    var ws = document.getElementById('mf-ws') || document.getElementById('mf-ws-input');
+    if (ws) ws.addEventListener('change', function () { mf.error = ''; });
+
+    var cta = document.getElementById('mf-cta');
+    if (cta) cta.addEventListener('click', function () { mfStart(); });
+
+    var check = document.getElementById('mf-check');
+    if (check) check.addEventListener('click', function () { checkNow(); });
+
+    var restart = document.getElementById('mf-restart');
+    if (restart) restart.addEventListener('click', function () {
+      stopPolling();
+      view.onboarding = null;
+      view.timeline = [];
+      mf.acct = '';
+      mf.error = '';
+      renderOnboarding();
+    });
+  }
+
+  /**
+   * Step 1 → step 2. Reuses the same endpoint the cockpit posts to.
+   *
+   * Failures are reported as one plain sentence rather than the server's own
+   * message: that text is operator-facing and names internals.
+   */
+  async function mfStart() {
+    var ws = document.getElementById('mf-ws') || document.getElementById('mf-ws-input');
+    var workspaceId = mf.workspaceId || (ws ? (ws.value || '').trim() : '') || '';
+    var input = document.getElementById('mf-acct');
+    var accountId = input ? (input.value || '').trim() : '';
+    mf.acct = accountId;
+
+    if (!workspaceId) { mf.error = 'اختر العميل أولاً.'; mfRender(); return; }
+    if (!accountId)   { mf.error = 'أدخل معرّف الحساب الإعلاني.'; mfRender(); return; }
+    mf.error = '';
+
+    var btn = document.getElementById('mf-cta');
+    if (btn) { btn.disabled = true; btn.textContent = 'جارٍ الإرسال…'; }
+    try {
+      var res = await api('/api/admin/onboarding', {
+        method: 'POST',
+        body: { workspaceId: workspaceId, externalAccountId: accountId },
+      });
+      mf.workspaceId = workspaceId;
+      view.workspaceId = workspaceId;
+      loadOnboardingList(workspaceId);
+      if (res.onboarding && res.onboarding.id) await openOnboarding(res.onboarding.id);
+    } catch (e) {
+      if (isAuthError(e)) { showGateError('غير مصرّح.'); return; }
+      mf.error = 'تعذّر إرسال الطلب. تأكّد من معرّف الحساب وحاول مرة أخرى.';
+      mfRender();
+    } finally {
+      var b = document.getElementById('mf-cta');
+      if (b) { b.disabled = false; b.textContent = 'متابعة'; }
+    }
+  }
+
+  /**
+   * Pick the workspace without asking, when the answer is not a choice: an
+   * explicit ?workspaceId=, or the single workspace on the account. Otherwise
+   * step 1 grows a picker above the input.
+   */
+  function mfResolveWorkspace() {
+    var fromUrl = '';
+    try { fromUrl = new URLSearchParams(window.location.search).get('workspaceId') || ''; } catch (e) {}
+    if (fromUrl) mf.workspaceId = fromUrl;
+    else if (view.workspaces.length === 1) mf.workspaceId = view.workspaces[0].id;
+
+    if (!mf.workspaceId) { mfRender(); return; }
+    view.workspaceId = mf.workspaceId;
+    loadOnboardingList(mf.workspaceId).then(mfResumeActive);
+  }
+
+  /** Resume a connection already in flight rather than restarting at step 1. */
+  function mfResumeActive() {
+    if (mf.autoOpened) { mfRender(); return; }
+    mf.autoOpened = true;
+    var records = view.records || [];
+    for (var i = 0; i < records.length; i++) {
+      if (!TERMINAL[records[i].state]) { openOnboarding(records[i].id); return; }
+    }
+    mfRender();
+  }
+
+  /**
+   * The on-screen keyboard covers the bottom of the layout viewport but leaves
+   * its height unchanged, so a bottom-anchored action disappears under it.
+   * visualViewport reports what is actually visible; the difference is exactly
+   * how far the footer must lift.
+   */
+  function mfKeyboardInset() {
+    var vv = window.visualViewport;
+    if (!vv) return;
+    function apply() {
+      var inset = Math.max(0, window.innerHeight - vv.height - vv.offsetTop);
+      document.documentElement.style.setProperty('--mf-kb', Math.round(inset) + 'px');
+    }
+    vv.addEventListener('resize', apply);
+    vv.addEventListener('scroll', apply);
+    apply();
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -800,7 +1236,7 @@ export function addClientPage(): string {
         var el = document.getElementById('callouts');
         el.innerHTML = '<div class="callout callout-err">'
           + '<div class="callout-title">توقّف التحديث التلقائي</div>'
-          + '<div class="callout-text">' + esc(e.message || 'تعذّر الاتصال بالخادم.') + ' — اضغط «تحقق الآن» لإعادة المحاولة.</div>'
+          + '<div class="callout-text">' + escHtml(e.message || 'تعذّر الاتصال بالخادم.') + ' — اضغط «تحقق الآن» لإعادة المحاولة.</div>'
           + '</div>' + el.innerHTML;
         return;
       }
@@ -872,7 +1308,7 @@ export function addClientPage(): string {
       var el = document.getElementById('callouts');
       el.innerHTML = '<div class="callout callout-err">'
         + '<div class="callout-title">تعذّر التحقق</div>'
-        + '<div class="callout-text">' + esc(e.message || 'تعذّر الاتصال بالخادم.') + '</div>'
+        + '<div class="callout-text">' + escHtml(e.message || 'تعذّر الاتصال بالخادم.') + '</div>'
         + '</div>' + el.innerHTML;
       schedulePoll();
     } finally {
@@ -900,12 +1336,12 @@ export function addClientPage(): string {
     }
     el.innerHTML = records.map(function (r) {
       var meta = stateMeta(r.state);
-      return '<button class="ob-row" data-id="' + esc(r.id) + '">'
+      return '<button class="ob-row" data-id="' + escHtml(r.id) + '">'
         + '<span>'
-        + '<span class="mono" style="font-weight:700;">' + esc(r.externalAccountId || '') + '</span>'
-        + '<span class="muted" style="display:block;margin-top:4px;">بدأ: ' + esc(fmtTime(r.createdAt)) + '</span>'
+        + '<span class="mono" style="font-weight:700;">' + escHtml(r.externalAccountId || '') + '</span>'
+        + '<span class="muted" style="display:block;margin-top:4px;">بدأ: ' + escHtml(fmtTime(r.createdAt)) + '</span>'
         + '</span>'
-        + '<span class="badge ' + stateBadgeClass(r.state) + '">' + esc(meta.label) + '</span>'
+        + '<span class="badge ' + stateBadgeClass(r.state) + '">' + escHtml(meta.label) + '</span>'
         + '</button>';
     }).join('');
     var rows = el.querySelectorAll('.ob-row');
@@ -925,13 +1361,14 @@ export function addClientPage(): string {
     }
     try {
       var res = await api('/api/admin/onboarding?workspaceId=' + encodeURIComponent(workspaceId));
-      renderOnboardingList(res.onboardings || []);
+      view.records = res.onboardings || [];
+      renderOnboardingList(view.records);
     } catch (e) {
       if (isAuthError(e)) { showGateError('غير مصرّح.'); return; }
       var panel = document.getElementById('list-panel');
       panel.style.display = '';
       document.getElementById('ob-list').innerHTML =
-        '<div class="error-box" style="margin-bottom:0;">' + esc(e.message || 'تعذّر تحميل طلبات الربط.') + '</div>';
+        '<div class="error-box" style="margin-bottom:0;">' + escHtml(e.message || 'تعذّر تحميل طلبات الربط.') + '</div>';
     }
   }
 
@@ -953,15 +1390,15 @@ export function addClientPage(): string {
         ? '<span class="badge badge-ok">مرتبط</span>'
         : '<span class="badge badge-muted">غير مرتبط</span>';
       var wsHint = a.linked && a.linkedWorkspaceId
-        ? '<div class="muted mono" style="margin-top:4px;">' + esc(a.linkedWorkspaceId) + '</div>'
+        ? '<div class="muted mono" style="margin-top:4px;">' + escHtml(a.linkedWorkspaceId) + '</div>'
         : '';
       return '<tr>'
-        + '<td style="font-weight:700;">' + esc(a.name || '—') + '</td>'
-        + '<td class="mono muted">' + esc(a.id) + '</td>'
-        + '<td class="currency-cell">' + esc(currencyLabel(a.currency)) + '</td>'
+        + '<td style="font-weight:700;">' + escHtml(a.name || '—') + '</td>'
+        + '<td class="mono muted">' + escHtml(a.id) + '</td>'
+        + '<td class="currency-cell">' + escHtml(currencyLabel(a.currency)) + '</td>'
         + '<td>' + accountStatusBadge(a.accountStatus) + '</td>'
         + '<td>' + linked + wsHint + '</td>'
-        + '<td><button class="btn btn-secondary btn-sm use-acct" data-id="' + esc(a.id) + '">استخدم</button></td>'
+        + '<td><button class="btn btn-secondary btn-sm use-acct" data-id="' + escHtml(a.id) + '">استخدم</button></td>'
         + '</tr>';
     }).join('');
     var btns = tbody.querySelectorAll('.use-acct');
@@ -989,14 +1426,14 @@ export function addClientPage(): string {
         table.style.display = 'none';
         empty.style.display = 'none';
         statusEl.style.display = '';
-        statusEl.innerHTML = '<div class="info-box">مستخدم النظام غير مُهيّأ على الخادم: ' + esc(res.reason || 'META_SYSTEM_USER_TOKEN غير مضبوط.') + '</div>';
+        statusEl.innerHTML = '<div class="info-box">مستخدم النظام غير مُهيّأ على الخادم: ' + escHtml(res.reason || 'META_SYSTEM_USER_TOKEN غير مضبوط.') + '</div>';
         return;
       }
       if (res.error) {
         table.style.display = 'none';
         empty.style.display = 'none';
         statusEl.style.display = '';
-        statusEl.innerHTML = '<div class="error-box">تعذّر الاتصال بـ Meta: ' + esc(res.error) + '</div>';
+        statusEl.innerHTML = '<div class="error-box">تعذّر الاتصال بـ Meta: ' + escHtml(res.error) + '</div>';
         return;
       }
       if (res.businessName) {
@@ -1010,7 +1447,7 @@ export function addClientPage(): string {
         table.style.display = 'none';
         empty.style.display = 'none';
         statusEl.style.display = '';
-        statusEl.innerHTML = '<div class="error-box">' + esc(e.message || 'تعذّر تحميل الحسابات.') + '</div>';
+        statusEl.innerHTML = '<div class="error-box">' + escHtml(e.message || 'تعذّر تحميل الحسابات.') + '</div>';
       }
     }
   }
@@ -1023,6 +1460,10 @@ export function addClientPage(): string {
       var accessGate = document.getElementById('access-gate');
       if (accessGate) accessGate.classList.add('hidden');
       document.querySelector('.app').style.display = 'flex';
+      // Hands the phone shell over to CSS: on a narrow viewport this hides the
+      // cockpit and reveals the five-step flow. Nothing is decided in JS, so a
+      // rotate or a resize picks the right shell with no re-render.
+      document.body.classList.add('mf-on');
       document.getElementById('admin-email').textContent = me.email || (me.user && me.user.email) || '';
       return true;
     } catch (e) {
@@ -1069,9 +1510,11 @@ export function addClientPage(): string {
   window.addEventListener('beforeunload', stopPolling);
 
   if (!token()) { window.location.replace('/login'); return; }
+  mfKeyboardInset();
+  mfRender();                         // step 1 is on screen before any request lands
   ensureAdmin().then(function (ok) {
     if (!ok) return;
-    loadWorkspaces();
+    loadWorkspaces().then(mfResolveWorkspace);
     loadDiscover();
   });
 })();

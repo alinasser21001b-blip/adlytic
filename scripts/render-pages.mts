@@ -4,6 +4,12 @@ import { writeFileSync, mkdirSync } from 'node:fs';
 const OUT = new URL('../.mobile-pages/', import.meta.url).pathname;
 mkdirSync(OUT, { recursive: true });
 
+// Resolve the page modules relative to THIS script, not to an absolute checkout
+// path. The absolute form silently rendered the shared checkout's sources when
+// the script ran from a git worktree, so the audit measured code that was not
+// the code under change.
+const PAGES_DIR = new URL('../src/web/pages/', import.meta.url).pathname;
+
 const PAGES: Array<[string, string, string]> = [
   ['dashboard', 'dashboardPage', 'dashboardPage'],
   ['campaigns', 'campaignsPage', 'campaignsPage'],
@@ -21,7 +27,7 @@ const PAGES: Array<[string, string, string]> = [
 
 for (const [slug, file, fn] of PAGES) {
   try {
-    const mod = await import(`/home/user/adlytic/src/web/pages/${file}`);
+    const mod = await import(`${PAGES_DIR}${file}`);
     const render = mod[fn];
     if (typeof render !== 'function') { console.log(`skip ${slug}: no ${fn}`); continue; }
     const html = render();
