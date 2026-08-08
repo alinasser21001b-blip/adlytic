@@ -229,23 +229,35 @@ const PROBE = `(() => {
     if (own.length > 1) { visibleTextLen += own.length; visibleBlocks++; }
   });
 
-  // Containers that declare themselves the primary content of a route. When a
-  // route ships several (cards view AND table view), at least one must be on.
-  const primarySelectors = [
-    '#campaigns-cards', '#table-container', '#campaigns-tbody',
-    '#dashboard-content', '#command-center', '#recs-list', '#insights-list',
-    '.mf-step', '.camp-card', '.rec-card',
-  ];
+  // Containers that carry a route's primary content, grouped by ALTERNATIVE.
+  //
+  // Grouping is the whole subtlety. The campaigns route ships a card view AND
+  // a table view and deliberately shows only one — on a phone, cards. Treating
+  // each selector as an independent requirement flags that correct behaviour
+  // as a failure, which is what the first version of this check did.
+  //
+  // A group fails only when it is PRESENT in the DOM and every member of it is
+  // hidden. That is precisely the shipped bug (cards hidden by
+  // .camp-table-only, table hidden by the <=768px block, both off at once) and
+  // it stays green for any route that simply prefers one of its views.
+  const primaryGroups = {
+    campaigns: ['#campaigns-cards', '.camp-card', '#table-container', '#campaigns-tbody'],
+    dashboard: ['#dashboard-content', '#command-center'],
+    recommendations: ['#recs-list', '.rec-card'],
+    insights: ['#insights-list'],
+    onboarding: ['.mf-step'],
+  };
   const primaryPresent = [];
   const primaryVisible = [];
-  primarySelectors.forEach(sel => {
-    const els = [...document.querySelectorAll(sel)];
-    if (!els.length) return;
-    primaryPresent.push(sel);
-    if (els.some(isVisible)) primaryVisible.push(sel);
+  const primaryAllHidden = [];
+  Object.entries(primaryGroups).forEach(([name, sels]) => {
+    const present = sels.filter(s => document.querySelector(s));
+    if (!present.length) return;                       // route has no such group
+    primaryPresent.push(name + ':' + present.join('|'));
+    const shown = present.filter(s => [...document.querySelectorAll(s)].some(isVisible));
+    if (shown.length) primaryVisible.push(name + ':' + shown.join('|'));
+    else primaryAllHidden.push(name + ':' + present.join('|'));
   });
-  // Present in the DOM but every instance hidden = the campaign-list failure.
-  const primaryAllHidden = primaryPresent.filter(s => !primaryVisible.includes(s));
 
   // A CTA that exists but cannot be tapped is worse than no CTA: the merchant
   // is told an action is available and cannot reach it.
