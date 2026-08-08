@@ -125,10 +125,14 @@ console.log('\n── C. Post-click conversation collapse ──');
   const cur   = T({ impressions: 50_000, reach: 20_000, linkClicks: 900, messages: 30 });
   const d = diagnoseFunnel('messaging', cur, prior, FLAT_SPEND)!;
 
-  check('C: break is conversations, class CONVERSION', () => {
+  check('C: break is conversations, class POST_CLICK', () => {
+    // POST_CLICK rather than CONVERSION: the gap between a click and a started
+    // conversation is an ARRIVAL gap (chat never opened, welcome message never
+    // landed, nobody answered), and its remedies are destination-side. Leads
+    // and sales keep CONVERSION — there the visitor demonstrably arrived.
     assert.equal(d.status, 'BREAK_FOUND');
     assert.equal(d.degradedStage, 'conversations');
-    assert.equal(d.problemClass, 'CONVERSION');
+    assert.equal(d.problemClass, 'POST_CLICK');
   });
   check('C: upstream ratios are explicitly NOT material', () => {
     assert.equal(d.ratios.find((r) => r.stageKey === 'reach')!.material, false);

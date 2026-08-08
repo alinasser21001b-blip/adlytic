@@ -166,6 +166,7 @@ import {
 } from '../lib/objectiveKpis';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { resolveAccountResultKey } from '../analytics/accountResultKey';
+import { reconcileActionOverlap, summarizeReconcile } from '../lib/actionOverlapReconcile';
 import { allResultDefinitions } from '../analytics/resultSemantics';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
@@ -2283,6 +2284,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    * Body: { workspaceId, externalAccountId }. Idempotent by contract: a
    * double-click returns the existing in-flight record, never a duplicate.
    */
+  /**
+   * POST /api/admin/reconcile-actions — historical action-overlap repair.
+   *
+   * Replays the corrected mapper over stored `raw_insights`; makes ZERO Meta
+   * API calls. Bounded per request (default 500 rows, hard cap 5,000) and
+   * cursor-paginated, so it can never become an unbounded background job.
+   *
+   * DRY-RUN BY DEFAULT: `{ "apply": true }` is required to write. The report
+   * is identical either way, so an operator always sees the exact impact
+   * before committing to it.
+   */
+  app.post('/api/admin/reconcile-actions', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    let body: {
+      apply?: boolean; limit?: number; cursor?: string | null;
+      entityIds?: string[]; sinceDate?: string;
+    } = {};
+    try { body = await c.req.json(); } catch { /* empty body = dry run, defaults */ }
+
+    const report = await reconcileActionOverlap(prisma, {
+      limit: body.limit,
+      cursor: body.cursor ?? null,
+      entityIds: Array.isArray(body.entityIds) ? body.entityIds : undefined,
+      since: body.sinceDate ? new Date(body.sinceDate) : undefined,
+      dryRun: body.apply !== true,
+    });
+    console.log(`[admin:reconcile-actions] ${body.apply === true ? 'APPLY' : 'DRY-RUN'} ${summarizeReconcile(report)}`);
+    return c.json({ dryRun: body.apply !== true, ...report });
+  });
+
   app.post('/api/admin/onboarding', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);

@@ -2095,4 +2095,118 @@ export const dashboardStyles = `<style>
       background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
       color: var(--text-2, #bbb);
     }
+
+    /* ═══ P4 INTELLIGENCE SECTION ═══════════════════════════════════════
+       Presentation only. Every value rendered here was decided by the
+       analytics layer; these rules choose colour, not meaning. */
+    .intelligence-section { margin: 18px 0 22px; display: grid; gap: 14px; }
+
+    /* Per-unit results — a mixed account never gets one fabricated total. */
+    .result-breakdown {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    .result-breakdown-label { font-size: 12px; color: var(--text-3, #8a8a8a); margin-bottom: 8px; }
+    .result-chips { display: flex; flex-wrap: wrap; gap: 10px; }
+    .result-chip {
+      font-size: 15px; padding: 6px 14px; border-radius: 999px;
+      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+    }
+    .result-chip b { font-size: 18px; font-weight: 700; }
+    .result-mixed-note { margin-top: 9px; font-size: 12px; color: var(--text-3, #8a8a8a); line-height: 1.6; }
+    .approx-tag {
+      font-size: 10px; padding: 1px 6px; border-radius: 4px; vertical-align: middle;
+      background: rgba(177,149,214,0.15); border: 1px solid rgba(177,149,214,0.4); color: #b195d6;
+    }
+
+    /* Diagnosis card — one deterministic verdict, never hidden uncertainty. */
+    .diag-card {
+      border-radius: 14px; padding: 18px 20px;
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10);
+      border-right: 3px solid rgba(255,255,255,0.2);
+    }
+    .diag-card.is-alert { background: rgba(224,114,100,0.07); }
+    .diag-card.postclick, .diag-card.conversion { border-right-color: #7BAEC2; }
+    .diag-card.click { border-right-color: #E07264; }
+    .diag-card.delivery { border-right-color: #D9A03F; }
+    .diag-card.efficiency { border-right-color: #A0B266; }
+    .diag-card.healthy { border-right-color: #4FA88B; }
+    .diag-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
+    .diag-title { font-size: 18px; font-weight: 700; }
+    .diag-problem { font-size: 14px; color: var(--text-2, #bbb); margin-bottom: 10px; line-height: 1.7; }
+    .diag-body { font-size: 14px; color: var(--text-2, #bbb); line-height: 1.7; }
+    .diag-evidence { margin: 0 0 10px; padding-inline-start: 18px; display: grid; gap: 5px; }
+    .diag-evidence li { font-size: 13px; color: var(--text-2, #bbb); line-height: 1.65; }
+    .diag-approx {
+      font-size: 12px; color: #b195d6; margin-bottom: 10px;
+      padding: 7px 10px; border-radius: 8px; background: rgba(177,149,214,0.08);
+    }
+    .diag-rec {
+      margin-top: 12px; padding: 12px 14px; border-radius: 10px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    }
+    .diag-rec.muted { color: var(--text-3, #8a8a8a); font-size: 13px; line-height: 1.65; }
+    .diag-rec-label { font-size: 11px; letter-spacing: .06em; color: var(--text-3, #8a8a8a); margin-bottom: 5px; }
+    .diag-rec-action { font-size: 14.5px; font-weight: 600; line-height: 1.7; }
+    .diag-rec-impact { margin-top: 6px; font-size: 12.5px; color: var(--text-3, #8a8a8a); line-height: 1.6; }
+
+    /* Confidence chips — LOW and INSUFFICIENT must look different, not absent. */
+    .conf-chip {
+      font-size: 11px; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
+      border: 1px solid currentColor;
+    }
+    .conf-high { color: #4FA88B; }
+    .conf-medium { color: #D9A03F; }
+    .conf-low { color: #b195d6; }
+    .conf-insufficient { color: #8a8a8a; }
+
+    /* Funnel visualisation. */
+    .funnel-wrap {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 16px 18px;
+    }
+    .funnel-title { font-size: 12px; color: var(--text-3, #8a8a8a); margin-bottom: 12px; }
+    .funnel-viz { display: grid; gap: 0; }
+    .funnel-stage {
+      display: flex; align-items: center; justify-content: space-between; gap: 14px;
+      padding: 10px 14px; border-radius: 9px;
+      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+    }
+    .funnel-stage.is-break {
+      background: rgba(123,174,194,0.12); border-color: rgba(123,174,194,0.55);
+    }
+    .funnel-stage-label { font-size: 13.5px; color: var(--text-2, #bbb); }
+    .funnel-stage-count { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .funnel-connector {
+      display: flex; align-items: center; justify-content: center; gap: 8px;
+      padding: 5px 0; font-size: 12px;
+    }
+    .funnel-arrow { color: var(--text-3, #8a8a8a); }
+    .funnel-ratio { color: var(--text-2, #bbb); font-variant-numeric: tabular-nums; }
+    .funnel-ratio.broken { color: #E07264; font-weight: 700; }
+    .funnel-ratio.gated { color: #8a8a8a; font-style: italic; }
+
+    /* Objective-aware health — excluded facets read as excluded, not zero. */
+    .obj-health {
+      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 14px 16px;
+    }
+    .obj-health-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
+    .obj-health-label { font-size: 12px; color: var(--text-3, #8a8a8a); }
+    .obj-health-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .obj-health.critical .obj-health-value { color: #E07264; }
+    .obj-health.attention .obj-health-value { color: #D9A03F; }
+    .obj-health.good .obj-health-value,
+    .obj-health.excellent .obj-health-value { color: #4FA88B; }
+    .obj-health-note { font-size: 12.5px; color: var(--text-3, #8a8a8a); line-height: 1.6; }
+    .facet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+    .facet {
+      display: flex; align-items: baseline; gap: 10px; font-size: 12.5px;
+      padding: 5px 0; border-top: 1px solid rgba(255,255,255,0.05);
+    }
+    .facet-key { min-width: 110px; color: var(--text-2, #bbb); }
+    .facet-score { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 34px; }
+    .facet-note { color: var(--text-3, #8a8a8a); }
+    .facet.excluded { opacity: .55; }
+    .facet.excluded .facet-note { font-style: italic; }
   </style>`;

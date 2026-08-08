@@ -275,6 +275,60 @@ check('an inapplicable metric yields NOT_APPLICABLE, never 0', async () => {
   assert.equal((r as any).reason, 'NOT_APPLICABLE');
 });
 
+console.log('\n── PART D: the AI boundary ──');
+
+check('the AI layer does not classify campaign purpose', () => {
+  // The LLM may explain a classification; it may never make one. Only the
+  // semantic core calls the resolver.
+  const AI_PATHS = /^src\/services\/(ClaudeCMO|aiContextBuilder|aiContextBuilderV5|v2ContextAssembler|openai|ai\/|agent\/)/;
+  const offenders = FILES.filter(({ path, code }) =>
+    AI_PATHS.test(path) && /resolveCampaignPurpose\s*\(|objectiveKpiFamily\s*\(/.test(code),
+  ).map((f) => f.path);
+  assert.deepEqual(offenders, [], `AI-layer files classifying campaigns: ${offenders.join(', ')}`);
+});
+
+check('the AI layer does not choose the funnel stage or override the diagnosis', () => {
+  const AI_PATHS = /^src\/services\/(ClaudeCMO|aiContextBuilder|aiContextBuilderV5|v2ContextAssembler|openai|ai\/|agent\/)/;
+  const offenders = FILES.filter(({ path, code }) =>
+    AI_PATHS.test(path) && /(diagnoseFunnel|reconcileIntelligence|buildRecommendation|detectAnomaly)\s*\(/.test(code),
+  ).map((f) => f.path);
+  assert.deepEqual(offenders, [],
+    `AI-layer files invoking deterministic decision engines: ${offenders.join(', ')}`);
+});
+
+check('the deterministic engines never import an LLM provider', () => {
+  const offenders = FILES.filter(({ path, code }) =>
+    /^src\/analytics\//.test(path) &&
+    /(anthropic|openai|providerManager|messages\.create|chat\.completions)/i.test(code),
+  ).map((f) => f.path);
+  assert.deepEqual(offenders, [],
+    `analytics modules must be pure and deterministic: ${offenders.join(', ')}`);
+});
+
+console.log('\n── PART B: no analytics logic in the frontend ──');
+
+check('the dashboard does not derive ratio metrics in the browser', () => {
+  // CTR/CPC/CPM computed client-side is a second implementation the metric
+  // dictionary, applicability gates and confidence model cannot reach.
+  const PATTERNS = [
+    /clicks\s*\/\s*totals\.impressions/,
+    /clicks\s*\/\s*[a-zA-Z.]*[iI]mpressions\s*\)\s*\*\s*100/,
+    /spendMajor\s*\/\s*totals\.(clicks|impressions)/,
+  ];
+  const offenders = FILES.filter(({ path, code }) =>
+    /^src\/web\//.test(path) && PATTERNS.some((re) => re.test(code)),
+  ).map((f) => f.path);
+  assert.deepEqual(offenders, [],
+    `frontend files deriving analytics ratios: ${offenders.join(', ')}`);
+});
+
+check('the intelligence section renders the DTO without deciding anything', () => {
+  const src = readFileSync(join(ROOT, 'web/pages/dashboard/sections/intelligence.ts'), 'utf8');
+  // It may format (×100 for display) but must not threshold or compare counts.
+  assert.doesNotMatch(src, />\s*0\.\d+\s*\?/, 'no threshold comparisons in the render layer');
+  assert.match(src, /problemClass/, 'it renders the pre-computed class');
+});
+
 console.log('\n── Phase scope: no out-of-scope providers ──');
 
 check('no Google Ads / TikTok adapter was added during this phase', () => {

@@ -187,9 +187,10 @@ in review as a semantic decision rather than an invisible side effect.
 
 ## Phase scope (current)
 
-**Completed:** P0 link clicks, P1 benchmark confidence, P2 result semantics,
-P3 funnel intelligence (objective-aware funnels, landing-page views persisted,
-earliest-break diagnosis, material-degradation gating, `FunnelDiagnosis` DTO).
+**Completed — Analytics Intelligence v1:** P0 link clicks · P1 benchmark
+confidence · P2 result semantics · P3 funnel intelligence · P3.5 canonical
+action resolution · P4 objective-driven dashboard · P5 anomaly detection and
+intelligence reconciliation. Final architecture: `ANALYTICS_ARCHITECTURE_FINAL.md`.
 
 **P2 exit conditions — all met (2026-08-08):**
 
@@ -205,10 +206,10 @@ earliest-break diagnosis, material-degradation gating, `FunnelDiagnosis` DTO).
 | All tests green | 24 suites; result-semantics 42, architecture 16 |
 | No P3 code introduced | funnel work is design-only |
 
-**Next, on approval:** P4 objective-driven dashboard sections, P5 anomaly
-detection — in that order, and not before. P5 also reconciles the existing
-HIGH_FREQUENCY detector with the funnel's reach stage so two systems never
-describe the same phenomenon differently.
+**Next:** nothing in analytics. v1 is complete; further work is product or
+commercial. HIGH_FREQUENCY is reconciled — it is subordinated to the shared
+`FatigueSignal` and suppressed by the reconciler rather than emitting a second
+description of the same phenomenon.
 
 **Explicitly out of scope:** Google Ads or any additional provider, large UI
 redesigns, unrelated architecture work. Enforced by a test that fails if a

@@ -88,9 +88,17 @@ import {
   describeMixedEn,
   singleUnitResult,
   isApproximate,
+  resultFor,
   type CampaignResultContribution,
 } from "../analytics/resultSemantics";
 import { diagnoseFunnel, type FunnelDiagnosis } from "../analytics/funnel/diagnose";
+import { buildObjectiveKpiCards } from "../analytics/objectiveKpiCards";
+import { detectAnomaly } from "../analytics/intelligence/anomaly";
+import { reconcileIntelligence } from "../analytics/intelligence/hierarchy";
+import { scoreObjectiveHealth } from "../analytics/intelligence/objectiveHealth";
+import { buildRecommendation } from "../analytics/intelligence/recommend";
+import { classificationConfidenceFromReason, type ClassificationConfidence, type DataConfidence } from "../analytics/confidence";
+import type { ObjectiveKpiFamily } from "../lib/objectiveKpis";
 import { resolveAccountResultKey } from "../analytics/accountResultKey";
 import type { FunnelWindowTotals } from "../analytics/funnel/compute";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
@@ -294,12 +302,60 @@ export interface DashboardDTO {
    */
   resultBreakdown?: ResultBreakdownDTO;
   /**
+   * P4.2 — the KPI set THIS objective cares about, chosen by the analytics
+   * layer. The dashboard renders whatever arrives here; it does not hold a
+   * per-objective layout table of its own, so a new objective never requires
+   * a frontend change.
+   */
+  objectiveKpis?: {
+    family: string;
+    /** Ordered; index 0 is the headline result. */
+    cards: Array<{
+      key: string;
+      labelAr: string;
+      value: number | null;
+      display: string;
+      /** True when the number is a proxy — the UI must label it. */
+      approximate: boolean;
+      /** 1 = headline, 2 = supporting, 3 = context. */
+      priority: number;
+    }>;
+  };
+  /**
    * P3 — objective-aware funnel diagnosis for the account's single purpose.
    * Deterministic output of analytics/funnel; the UI renders it verbatim and
    * performs NO diagnosis logic of its own. Absent for mixed-purpose accounts
    * (no single funnel shape exists) and unresolvable purposes.
    */
   funnel?: import("../analytics/funnel/diagnose").FunnelDiagnosis;
+  /**
+   * P5 — the reconciled intelligence verdict: one problem class the whole
+   * system agrees on, with the layer that decided it and the actions
+   * downstream engines are forbidden to suggest. Deterministic; the AI layer
+   * may rephrase it but never alter it.
+   */
+  intelligence?: {
+    problemClass: string;
+    confidence: string;
+    decidedBy: string;
+    alert: boolean;
+    evidence: string[];
+    trace: Array<{ layer: string; conclusion: string }>;
+    anomaly: { significant: boolean; kind: string; confidence: string };
+    fatigue: {
+      frequency: number | null; severity: string; confidence: string;
+      corroboratingSignals: number; evidence: string[];
+    } | null;
+    health: {
+      score: number | null; band: string; confidence: string;
+      excludedFacets: string[];
+      facets: Array<{ key: string; score: number | null; weight: number; applicable: boolean; evidence: string }>;
+    };
+    recommendation: {
+      problem: string; evidence: string[]; severity: string; confidence: string;
+      actionCode: string; action: string; expectedImpact: string; targetStage: string | null;
+    } | null;
+  };
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
   /** Every active campaign with its window metrics, sorted by health desc. Powers
@@ -1521,7 +1577,34 @@ export async function getDashboard(
     bleedAlert,
     ...(morningStory && { morningStory }),
     resultBreakdown: accountResultBreakdown ?? undefined,
-    funnel: accountFunnel ?? undefined,
+    funnel: accountFunnel?.funnel ?? undefined,
+    objectiveKpis: accountFunnel
+      ? buildObjectiveKpiCards(accountFunnel.family, {
+          spendMinor: accountFunnel.windows.spendCur,
+          impressions: accountFunnel.windows.cur.impressions,
+          reach: accountFunnel.windows.cur.reach,
+          clicks: accountFunnel.windows.cur.clicks,
+          linkClicks: accountFunnel.windows.cur.linkClicks,
+          landingPageViews: accountFunnel.windows.cur.landingPageViews,
+          messages: accountFunnel.windows.cur.messages,
+          leads: accountFunnel.windows.cur.leads,
+          purchases: accountFunnel.windows.cur.purchases,
+          revenueMinor: accountFunnel.windows.revenueMinorCur,
+          ctr: accountFunnel.windows.ctrCur,
+          cpc: accountFunnel.windows.cpcCur,
+          cpm: accountFunnel.windows.cpmCur,
+          frequency: accountFunnel.windows.freqCur,
+          roas: accountFunnel.windows.roasCur,
+          money,
+        }) ?? undefined
+      : undefined,
+    intelligence: accountFunnel
+      ? buildIntelligence(
+          accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
+          accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
+          accountFunnel.resultApproximate,
+        )
+      : undefined,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
     campaigns: cards.all,
@@ -1868,7 +1951,14 @@ async function buildResultBreakdown(
 async function buildAccountFunnel(
   adAccountId: string,
   prisma: PrismaClient,
-): Promise<FunnelDiagnosis | null> {
+): Promise<{
+  funnel: FunnelDiagnosis | null;
+  family: ObjectiveKpiFamily | null;
+  windows: FunnelWindowContext;
+  classificationConfidence: ClassificationConfidence;
+  dataConfidence: DataConfidence;
+  resultApproximate: boolean;
+} | null> {
   const lagDays = 2, windowDays = 7;
   const now = new Date();
   const dayMs = 86_400_000;
@@ -1891,6 +1981,7 @@ async function buildAccountFunnel(
     select: {
       date: true, spend: true, impressions: true, reach: true, linkClicks: true,
       landingPageViews: true, messages: true, leads: true, purchases: true, clicks: true,
+      ctr: true, cpm: true, cpc: true, frequency: true, revenueMinor: true, roas: true,
     },
   });
   if (rows.length === 0) return null;
@@ -1901,9 +1992,22 @@ async function buildAccountFunnel(
   });
   const cur = zero(), pri = zero();
   let spendCur = 0, spendPri = 0;
+  let revCur = 0, revPri = 0;
+  // Impression-weighted rate accumulators — ratios are never averaged flat.
+  const rate = {
+    cur: { imp: 0, ctr: 0, cpm: 0, cpc: 0, freq: [] as number[] },
+    pri: { imp: 0, ctr: 0, cpm: 0, cpc: 0, freq: [] as number[] },
+  };
   for (const r of rows) {
     const inCurrent = r.date.getTime() >= currentSince.getTime();
     const t = inCurrent ? cur : pri;
+    const acc = inCurrent ? rate.cur : rate.pri;
+    const imp = Number(r.impressions);
+    acc.imp += imp;
+    if (r.ctr != null && imp > 0) acc.ctr += r.ctr * imp;
+    if (r.cpm != null && imp > 0) acc.cpm += r.cpm * imp;
+    if (r.cpc != null && imp > 0) acc.cpc += r.cpc * imp;
+    if (r.frequency != null) acc.freq.push(r.frequency);
     t.impressions += Number(r.impressions);
     // Reach maxes — not additive (same person on two days is one person).
     t.reach = Math.max(t.reach, Number(r.reach));
@@ -1913,7 +2017,8 @@ async function buildAccountFunnel(
     t.leads += Number(r.leads);
     t.purchases += Number(r.purchases);
     t.clicks += Number(r.clicks);
-    if (inCurrent) spendCur += Number(r.spend); else spendPri += Number(r.spend);
+    if (inCurrent) { spendCur += Number(r.spend); revCur += Number(r.revenueMinor); }
+    else { spendPri += Number(r.spend); revPri += Number(r.revenueMinor); }
   }
 
   // Supporting signals (NOT funnel stages): spend and cost per result.
@@ -1926,7 +2031,129 @@ async function buildAccountFunnel(
     costPerResultPriorMinor: resultPri > 0 ? spendPri / resultPri : null,
   };
 
-  return diagnoseFunnel(family, cur, pri, signals);
+  const funnel = diagnoseFunnel(family, cur, pri, signals);
+
+  const wavg = (a: typeof rate.cur, key: 'ctr' | 'cpm' | 'cpc') =>
+    a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;
+  const favg = (a: typeof rate.cur) =>
+    a.freq.length ? +(a.freq.reduce((x, y) => x + y, 0) / a.freq.length).toFixed(4) : null;
+
+  return {
+    funnel,
+    family,
+    windows: {
+      cur, pri, spendCur, spendPri,
+      ctrCur: wavg(rate.cur, 'ctr'), ctrPri: wavg(rate.pri, 'ctr'),
+      cpmCur: wavg(rate.cur, 'cpm'), cpmPri: wavg(rate.pri, 'cpm'),
+      cpcCur: wavg(rate.cur, 'cpc'), cpcPri: wavg(rate.pri, 'cpc'),
+      freqCur: favg(rate.cur), freqPri: favg(rate.pri),
+      costPerResultCur: signals.costPerResultCurrentMinor,
+      costPerResultPri: signals.costPerResultPriorMinor,
+      resultCur: resultCur, resultPri: resultPri,
+      revenueMinorCur: revCur, revenueMinorPri: revPri,
+      // ROAS from the window's own corrected revenue and spend — never a
+      // stored per-row value averaged across days.
+      roasCur: spendCur > 0 && revCur > 0 ? +(revCur / spendCur).toFixed(4) : null,
+    },
+    // The account resolved to exactly ONE family (checked above), so its
+    // classification is at least as strong as the campaign evidence allows.
+    classificationConfidence: 'CONFIRMED' as ClassificationConfidence,
+    // The window excludes the last 2 days for Meta attribution backfill, so
+    // the rows in it are settled.
+    dataConfidence: 'COMPLETE' as DataConfidence,
+    resultApproximate: resultFor(family).approximate,
+  };
+}
+
+/**
+ * Window context shared by the P4 KPI cards and the P5 intelligence layer.
+ * Computed ONCE from the funnel's own query — neither consumer re-reads the DB.
+ */
+interface FunnelWindowContext {
+  cur: FunnelWindowTotals;
+  pri: FunnelWindowTotals;
+  spendCur: number; spendPri: number;
+  ctrCur: number | null; ctrPri: number | null;
+  cpmCur: number | null; cpmPri: number | null;
+  cpcCur: number | null; cpcPri: number | null;
+  freqCur: number | null; freqPri: number | null;
+  costPerResultCur: number | null; costPerResultPri: number | null;
+  resultCur: number | null; resultPri: number | null;
+  revenueMinorCur: number; revenueMinorPri: number;
+  roasCur: number | null;
+}
+
+/**
+ * P5 — run the intelligence hierarchy over the account's funnel.
+ *
+ * Reuses the SAME window totals the funnel already computed, so this adds no
+ * extra database round-trips and no Meta calls.
+ */
+function buildIntelligence(
+  funnel: FunnelDiagnosis | null,
+  family: ObjectiveKpiFamily | null,
+  windows: FunnelWindowContext,
+  classificationConfidence: ClassificationConfidence,
+  dataConfidence: DataConfidence,
+  resultApproximate: boolean,
+) {
+  const { verdict, fatigue } = detectAnomaly({
+    funnel,
+    spendCurrentMinor: windows.spendCur,
+    spendPriorMinor: windows.spendPri,
+    impressionsCurrent: windows.cur.impressions,
+    impressionsPrior: windows.pri.impressions,
+    cpmCurrent: windows.cpmCur,
+    cpmPrior: windows.cpmPri,
+    fatigue: {
+      frequency: windows.freqCur, priorFrequency: windows.freqPri,
+      ctr: windows.ctrCur, priorCtr: windows.ctrPri,
+      cpc: windows.cpcCur, priorCpc: windows.cpcPri,
+      impressions: windows.cur.impressions,
+    },
+  });
+
+  const reconciled = reconcileIntelligence({
+    dataConfidence, classificationConfidence, funnel, anomaly: verdict, fatigue,
+  });
+
+  const health = scoreObjectiveHealth({
+    family,
+    primaryResultCurrent: windows.resultCur,
+    primaryResultPrior: windows.resultPri,
+    ctr: windows.ctrCur, ctrPrior: windows.ctrPri,
+    cpm: windows.cpmCur, cpmPrior: windows.cpmPri,
+    costPerResultCurrent: windows.costPerResultCur,
+    costPerResultPrior: windows.costPerResultPri,
+    impressions: windows.cur.impressions,
+    reconciled, fatigue, resultApproximate,
+  });
+
+  const recommendation = buildRecommendation(reconciled, family);
+
+  return {
+    problemClass: reconciled.problemClass,
+    confidence: reconciled.confidence,
+    decidedBy: reconciled.decidedBy,
+    alert: reconciled.alert,
+    evidence: reconciled.evidence,
+    trace: reconciled.trace,
+    anomaly: { significant: verdict.significant, kind: verdict.kind, confidence: verdict.confidence },
+    fatigue: fatigue.confidence === 'INSUFFICIENT_DATA' ? null : {
+      frequency: fatigue.frequency, severity: fatigue.severity,
+      confidence: fatigue.confidence, corroboratingSignals: fatigue.corroboratingSignals,
+      evidence: fatigue.evidence,
+    },
+    health: {
+      score: health.score, band: health.band, confidence: health.confidence,
+      excludedFacets: health.excludedFacets,
+      facets: health.facets.map((f) => ({
+        key: f.key, score: f.score, weight: f.weight,
+        applicable: f.applicable, evidence: f.evidence,
+      })),
+    },
+    recommendation,
+  };
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──

@@ -134,8 +134,15 @@ const CONVERSATIONS: FunnelStageDef = {
   confidenceLevel: 'exact',
   approximate: false,
   minDenominatorForRatio: 10,     // link clicks — but see TERMINAL_MIN_EVENTS too
-  breakClass: 'CONVERSION',
-  breakLabelAr: 'الناس تضغط ولا تبدأ محادثة',
+  // POST_CLICK, not CONVERSION. The gap between a click and a started
+  // conversation is an ARRIVAL gap — the chat never opened, the welcome
+  // message never landed, nobody answered — not a "they arrived and chose not
+  // to buy" gap. The remedies are destination-side (WhatsApp number, welcome
+  // message, response speed), which is what makes this class the right one.
+  // Contrast leads/sales, where the visitor demonstrably arrived and then did
+  // not complete: that is CONVERSION.
+  breakClass: 'POST_CLICK',
+  breakLabelAr: 'الناس تضغط ولا تصل إلى المحادثة',
 };
 
 const LANDING_PAGE_VIEWS: FunnelStageDef = {
