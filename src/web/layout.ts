@@ -1670,6 +1670,29 @@ const ICONS: Record<string, string> = {
  * the floor by test_mobile_viewport.mjs. This is not a speculative list —
  * when the gate reports a new offender, it gets added here, not to a page.
  */
+/**
+ * ══ CANONICAL BREAKPOINT SCALE ══════════════════════════════════════════
+ *
+ *   380px   small phone   — iPhone SE, older Androids
+ *   768px   phone         — the mobile/desktop boundary for this product
+ *   1024px  tablet
+ *
+ * MEASURED STATE, not aspiration: `src/web/` currently contains 17 distinct
+ * max-width breakpoints — 768, 760, 720, 700, 640, 600, 560, 520, 480, 400,
+ * 380, 800, 860, 900, 980, 1100 and one min-width:820. Several differ by
+ * 8px, which no device distinguishes; they accumulated per page rather than
+ * from a system.
+ *
+ * Consolidating them is a mechanical but wide change across 20 page files.
+ * It is deliberately NOT done in this pass: three agents are editing those
+ * files concurrently, and rewriting breakpoints underneath them would
+ * produce conflicts whose resolution nobody could review honestly. The
+ * tablet-range values (860-1100) also govern desktop layout, so moving them
+ * needs desktop regression evidence this pass does not have.
+ *
+ * Recorded here so the next pass consolidates toward one scale instead of
+ * adding an eighteenth value.
+ */
 export const MOBILE_FLOORS_CSS = `
 @media (max-width: 768px) {
   /* — Touch floor ————————————————————————————————— */
@@ -3065,7 +3088,7 @@ export function layout(opts: {
         </div>
         <div class="token-decrypt-banner-actions">
           <a id="token-decrypt-banner-cta" href="/workspace?connect=manual" class="btn-reconnect">إعادة ربط Meta</a>
-          <button type="button" class="token-decrypt-banner-dismiss" id="token-decrypt-banner-dismiss" title="Dismiss">×</button>
+          <button type="button" class="token-decrypt-banner-dismiss" id="token-decrypt-banner-dismiss" title="إغلاق" aria-label="إغلاق التنبيه">×</button>
         </div>
       </div>
       <div class="page-content">
