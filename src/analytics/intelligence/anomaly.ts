@@ -125,14 +125,26 @@ export function detectAnomaly(input: AnomalyInput): AnomalyResult {
   }
 
   // ── A break exists. Is its magnitude unusual? ──────────────────────────
+  //
+  // Two break kinds carry NO stage ratio and must be judged on their own terms
+  // rather than looked up and silently failing:
+  //
+  //   · impressions — the funnel ENTRY. `ratios` only holds stage[n]÷stage[n-1]
+  //     pairs, so it starts at reach; a lookup for 'impressions' finds nothing.
+  //     Judging it on a missing ratio made every entry-level DELIVERY break
+  //     report significant=false, suppressing the alert and the recommendation
+  //     for exactly the accounts whose spend had stopped buying reach.
+  //   · efficiency — a cost move, not a ratio move.
+  const isEntryDelivery = funnel.degradedStage === 'impressions';
+  const isEfficiency = funnel.problemClass === 'EFFICIENCY';
+
   const brokenRatio = funnel.ratios.find((r) => r.stageKey === funnel.degradedStage);
-  const change = brokenRatio?.relativeChange ?? null;
+  const change = isEntryDelivery
+    ? rel(input.impressionsCurrent, input.impressionsPrior)
+    : (brokenRatio?.relativeChange ?? null);
   const required = (brokenRatio?.requiredDrop ?? 0.15) * ANOMALY_MAGNITUDE_MULTIPLE;
   const magnitudeUnusual = change !== null && Math.abs(change) >= required;
 
-  // EFFICIENCY breaks carry no stage ratio — judge them on the cost move the
-  // funnel already validated rather than pretending a ratio exists.
-  const isEfficiency = funnel.problemClass === 'EFFICIENCY';
   const significant = isEfficiency ? true : magnitudeUnusual;
 
   const kind: AnomalyVerdict['kind'] =

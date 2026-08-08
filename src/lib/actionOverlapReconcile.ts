@@ -36,6 +36,7 @@
 
 import { EntityType, type PrismaClient } from '@prisma/client';
 import { mapMetaInsight } from '../mappers/insightMapper';
+import { resolveCurrencyMinorFactor } from './currency';
 import type { MetaInsightRow } from '../services/metaClient';
 
 /** Hard cap per invocation so a run can never become unbounded. */
@@ -157,24 +158,56 @@ export async function reconcileActionOverlap(
   // Latest fetch wins — ordered ascending, so later writes overwrite earlier.
   for (const r of raws) rawByKey.set(rawKey(r.entityType, r.entityId, r.date), r.rawJson);
 
-  // Currency factor per account, so the replayed revenue scales identically to
-  // the original write. Fetched once per batch, not per row.
-  const accountIds = [...new Set(stats.filter((s) => s.entityType === EntityType.ACCOUNT).map((s) => s.entityId))];
-  const campaignIds = [...new Set(stats.filter((s) => s.entityType === EntityType.CAMPAIGN).map((s) => s.entityId))];
-  const [accounts, campaigns] = await Promise.all([
+  // Currency factor per entity, resolved through the SAME helper the sync
+  // write path uses. Fetched once per batch, never per row.
+  //
+  // This must not guess. `resolveCurrencyMinorFactor` forces 1 for zero-decimal
+  // currencies (IQD, JPY, KRW) even when a stale 100 is persisted on the row —
+  // a naive `?? 100` fallback would replay IQD revenue 100× too large and
+  // write that inflation into daily_stats. Entities whose factor cannot be
+  // resolved are NOT reconciled at all (see the skip below): guessing a
+  // currency scale on a money column is exactly the fabrication this job
+  // exists to avoid.
+  const idsByType = (t: EntityType) =>
+    [...new Set(stats.filter((s) => s.entityType === t).map((s) => s.entityId))];
+  const accountIds = idsByType(EntityType.ACCOUNT);
+  const campaignIds = idsByType(EntityType.CAMPAIGN);
+  const adSetIds = idsByType(EntityType.AD_SET);
+  const adIds = idsByType(EntityType.AD);
+
+  const [accounts, campaigns, adSets, ads] = await Promise.all([
     accountIds.length
-      ? prisma.adAccount.findMany({ where: { id: { in: accountIds } }, select: { id: true, currencyMinorFactor: true } })
+      ? prisma.adAccount.findMany({ where: { id: { in: accountIds } }, select: { id: true, currency: true, currencyMinorFactor: true } })
       : Promise.resolve([]),
     campaignIds.length
       ? prisma.campaign.findMany({
           where: { id: { in: campaignIds } },
-          select: { id: true, adAccount: { select: { currencyMinorFactor: true } } },
+          select: { id: true, adAccount: { select: { currency: true, currencyMinorFactor: true } } },
+        })
+      : Promise.resolve([]),
+    adSetIds.length
+      ? prisma.adSet.findMany({
+          where: { id: { in: adSetIds } },
+          select: { id: true, campaign: { select: { adAccount: { select: { currency: true, currencyMinorFactor: true } } } } },
+        })
+      : Promise.resolve([]),
+    adIds.length
+      ? prisma.ad.findMany({
+          where: { id: { in: adIds } },
+          select: { id: true, adSet: { select: { campaign: { select: { adAccount: { select: { currency: true, currencyMinorFactor: true } } } } } } },
         })
       : Promise.resolve([]),
   ]);
+
   const factorByEntity = new Map<string, number>();
-  for (const a of accounts) factorByEntity.set(a.id, a.currencyMinorFactor);
-  for (const c of campaigns) factorByEntity.set(c.id, c.adAccount?.currencyMinorFactor ?? 100);
+  const put = (id: string, acct: { currency: string; currencyMinorFactor: number } | null | undefined) => {
+    if (!acct) return;   // unresolved → absent from the map → row is skipped
+    factorByEntity.set(id, resolveCurrencyMinorFactor(acct.currency, acct.currencyMinorFactor));
+  };
+  for (const a of accounts) put(a.id, a);
+  for (const c of campaigns) put(c.id, c.adAccount);
+  for (const a of adSets) put(a.id, a.campaign?.adAccount);
+  for (const a of ads) put(a.id, a.adSet?.campaign?.adAccount);
 
   for (const s of stats) {
     report.scanned++;
@@ -195,7 +228,20 @@ export async function reconcileActionOverlap(
     }
 
     try {
-      const factor = factorByEntity.get(s.entityId) ?? 100;
+      const factor = factorByEntity.get(s.entityId);
+      if (factor === undefined) {
+        // No resolvable currency for this entity — we cannot scale money
+        // correctly, so we do not touch the row at all.
+        report.skippedNoRaw++;
+        if (report.rows.length < maxDetail) {
+          report.rows.push({
+            dailyStatId: s.id, entityType: s.entityType, entityId: s.entityId,
+            date: dateStr, outcome: 'SKIPPED_NO_RAW',
+            error: 'currency factor unresolved — row left untouched',
+          });
+        }
+        continue;
+      }
       const replayed = mapMetaInsight(raw as MetaInsightRow, { currencyMinorFactor: factor });
 
       const stored: Record<Field, number> = {

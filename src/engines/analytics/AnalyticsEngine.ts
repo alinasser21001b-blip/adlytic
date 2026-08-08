@@ -187,6 +187,11 @@ export class AnalyticsEngine {
       date: r.date.toISOString().slice(0, 10),
       spend: Number(r.spend),
       messages: Number(r.messages),
+      // Per-purpose counters MUST be populated: resultKey selects one of these
+      // to sum, so a sales or leads entity reading an unpopulated column would
+      // silently report zero results and a null trend forever.
+      purchases: Number(r.purchases),
+      leads: Number(r.leads),
       impressions: Number(r.impressions),
       reach: Number(r.reach),
       clicks: Number(r.clicks),

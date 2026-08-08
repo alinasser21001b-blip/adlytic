@@ -1082,8 +1082,20 @@ select.form-input { cursor: pointer; }
      the html element (not body) so the sticky topbar's scroll container is
      unaffected. */
   html { overflow-x: hidden; }
-  .sidebar { transform: translateX(-100%); transition: transform var(--transition); z-index: 100; }
-  .sidebar.open { transform: translateX(0); }
+
+  /* OFF-CANVAS SIDEBAR — must not exist outside the viewport at all.
+     A position:fixed element's containing block is the VIEWPORT, not the html
+     box, so the html overflow-x:hidden above cannot clip it. Translating the
+     panel off-screen therefore left a real, draggable horizontal scroll area
+     (measured: 117px of sideways drag at 320px in RTL, where the panel is
+     pushed to the RIGHT). Arabic is the default locale, so that affected every
+     phone user.
+     Fix: the closed panel is display:none — no box, no overflow, on either
+     side. The slide is restored with a keyframe on open, so the animation is
+     unchanged while the geometry problem disappears. */
+  .sidebar { display: none; transition: none; z-index: 100; }
+  .sidebar.open { display: flex; animation: sidebarIn 0.24s cubic-bezier(0.32, 0.72, 0, 1); }
+  @keyframes sidebarIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
   .main { margin-left: 0; padding-bottom: 72px; min-width: 0; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
   .chart-grid { grid-template-columns: 1fr; }
@@ -1092,6 +1104,119 @@ select.form-input { cursor: pointer; }
   .camp-chart-grid { grid-template-columns: 1fr; }
   .page-content { padding: 14px 12px 24px; }
   .mobile-menu-btn { display: flex !important; }
+
+  /* ══ MOBILE SYSTEM ═══════════════════════════════════════════════════
+     One coherent layer, not a pile of per-element patches.
+
+     Two floors, applied everywhere rather than case by case:
+       · TOUCH  — 44x44 CSS px (WCAG 2.5.5 AA, Apple HIG). Measured 16
+         controls below it on the dashboard, the smallest 47x25.
+       · TEXT   — 12px. Measured 31 text nodes below it, the smallest 10px.
+         At 10px Arabic diacritics and digits are genuinely hard to read on a
+         phone, and Arabic is the default locale.
+
+     Targets are grown with padding and min-height rather than font-size, so
+     the visual scale is preserved while the tap area becomes reachable. */
+
+  /* — Touch floor ————————————————————————————————— */
+  /* Flex items default to min-width:auto, so they refuse to shrink below
+     their content. Raising the label to the 12px text floor made the five
+     Arabic labels wider than their 1/5 share and pushed the whole fixed nav
+     to 440px at a 320px viewport — reintroducing the horizontal drag this
+     system exists to remove. min-width:0 lets them share the row honestly;
+     the label truncates rather than the bar overflowing. */
+  /* The fixed bar sizes itself against the INITIAL containing block, which in
+     RTL had already been widened by overflow — so width:100% resolved to 438px
+     at a 320px viewport and the bar itself then sustained the overflow. Pin it
+     to the viewport explicitly so it can never participate in that loop. */
+  .mobile-bottom-nav {
+    left: 0; right: 0;
+    width: 100vw; max-width: 100vw;
+    box-sizing: border-box;
+  }
+  .mobile-nav-item {
+    min-height: 52px; justify-content: center;
+    min-width: 0; padding-inline: 2px;
+  }
+  /* Belt and braces: nothing in the shell may exceed the viewport. */
+  body, .app-shell, .main, .page-content { max-width: 100vw; overflow-x: clip; }
+  .mobile-nav-item span {
+    font-size: 12px;
+    max-width: 100%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+
+  .mode-toggle-btn { min-height: 44px; padding-inline: 14px; }
+  .mode-toggle { min-height: 44px; }
+
+  .ws-selector { min-height: 44px; }
+
+  /* Icon-only controls: keep the glyph small, grow the hit area around it. */
+  .info-btn,
+  .topbar-btn,
+  .icon-btn {
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* Tabs and chips are primary navigation on mobile — they must be tappable. */
+  .tab, .chip, .filter-chip, .seg-btn {
+    min-height: 44px;
+    display: inline-flex; align-items: center;
+    padding-inline: 10px;
+    min-width: 0;
+  }
+  /* Tab rows scroll inside themselves rather than widening the page. */
+  .tabs, .tab-row, .chip-row {
+    display: flex; flex-wrap: nowrap;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar, .tab-row::-webkit-scrollbar, .chip-row::-webkit-scrollbar { display: none; }
+
+  /* Inline text links used as actions (e.g. "switch account", measured 103x14)
+     need a real target without becoming a block. */
+  .switch-account-link,
+  .link-action { display: inline-block; padding: 14px 4px; min-height: 44px; }
+
+  /* Form controls: 16px font stops iOS Safari from zooming the viewport on
+     focus, which is the usual cause of "the page jumped and I lost my place". */
+  input, select, textarea {
+    min-height: 44px;
+    font-size: 16px;
+  }
+  .settings-nav-item { min-height: 44px; }
+
+  /* — Text floor ————————————————————————————————— */
+  .nav-section-label,
+  .sidebar-logo-tagline,
+  .sidebar-footer-label,
+  .kpi-cmd-insight,
+  .hero-sub,
+  .text-xs { font-size: 12px; }
+
+  /* — Density —————————————————————————————————————
+     Card padding tightens on the narrowest phones so content, not chrome,
+     owns the width. Applied by breakpoint rather than by !important. */
+  .card, .panel { padding: 14px; }
+}
+
+@media (max-width: 380px) {
+  /* 320–375px: the tightest real devices (iPhone SE, older Androids). */
+  .card, .panel, .page-content { padding-inline: 10px; }
+  .kpi-grid { grid-template-columns: 1fr; }
+  .result-chips { gap: 8px; }
+  .funnel-stage { padding: 9px 11px; }
+  .funnel-stage-count { font-size: 16px; }
+  .diag-title { font-size: 16px; }
+}
+
+@media (max-width: 768px) {
+  /* — Reduced motion is honoured for the new sidebar animation too — */
+  @media (prefers-reduced-motion: reduce) {
+    .sidebar.open { animation: none; }
+    [dir="rtl"] .sidebar.open { animation: none; }
+  }
   .topbar { padding: 0 12px; }
   .topbar-title { font-size: 14px; }
   .modal { max-width: calc(100vw - 24px) !important; margin: 12px auto !important; }
@@ -1232,8 +1357,10 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   .mode-toggle-btn { padding: 6px 10px; font-size: 11px; }
 }
 @media (max-width: 768px) {
-  [dir="rtl"] .sidebar { transform: translateX(100%); z-index: 100; }
-  [dir="rtl"] .sidebar.open { transform: translateX(0); }
+  /* RTL slides in from the right; same display-based hiding as above. */
+  [dir="rtl"] .sidebar { display: none; z-index: 100; }
+  [dir="rtl"] .sidebar.open { display: flex; animation: sidebarInRtl 0.24s cubic-bezier(0.32, 0.72, 0, 1); }
+  @keyframes sidebarInRtl { from { transform: translateX(100%); } to { transform: translateX(0); } }
   [dir="rtl"] .main { margin-right: 0; }
 }
 

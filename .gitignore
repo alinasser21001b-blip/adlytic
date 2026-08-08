@@ -42,3 +42,4 @@ platform/dist-tools/
 # Build output — Netlify builds this itself; committing it makes the repo
 # disagree with the deploy.
 platform/dist-web/
+.mobile-pages/
