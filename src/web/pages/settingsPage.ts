@@ -77,19 +77,23 @@ export function settingsPage(): string {
             <div id="profile-error" class="alert alert-error" style="display:none;"></div>
             <div class="settings-form-grid">
               <div class="form-group">
-                <label class="form-label">الاسم الكامل</label>
-                <input type="text" id="name-input" class="form-input" placeholder="اسمك الكامل">
+                <label class="form-label" for="name-input">الاسم الكامل</label>
+                <input type="text" id="name-input" class="form-input" placeholder="اسمك الكامل"
+                       autocomplete="name" inputmode="text" enterkeyhint="done"
+                       autocapitalize="words" spellcheck="false"
+                       aria-describedby="name-input-error">
+                <div class="field-error" id="name-input-error"></div>
               </div>
               <div class="form-group">
-                <label class="form-label">اللغة</label>
+                <label class="form-label" for="locale-input">اللغة</label>
                 <select id="locale-input" class="form-input">
                   <option value="EN">English</option>
                   <option value="AR">العربية (Arabic)</option>
                 </select>
               </div>
               <div class="form-group settings-form-full">
-                <label class="form-label">البريد الإلكتروني</label>
-                <input type="email" id="email-input" class="form-input" disabled>
+                <label class="form-label" for="email-input">البريد الإلكتروني</label>
+                <input type="email" id="email-input" class="form-input" disabled dir="ltr" autocomplete="email">
                 <div class="form-hint">تغيير البريد الإلكتروني يتطلب التحقق من الحساب.</div>
               </div>
             </div>
@@ -177,26 +181,42 @@ export function settingsPage(): string {
             <h3>تغيير كلمة المرور</h3>
             <p>استخدم كلمة مرور قوية لا تقل عن 8 أحرف</p>
           </div>
-          <div id="pw-success" class="alert alert-success" style="display:none;"></div>
-          <div id="pw-error" class="alert alert-error" style="display:none;"></div>
+          <div id="pw-success" class="alert alert-success" style="display:none;" role="status" aria-live="polite"></div>
+          <div id="pw-error" class="alert alert-error" style="display:none;" role="alert" aria-live="assertive"></div>
           <div class="settings-form-grid">
             <div class="form-group settings-form-full">
-              <label class="form-label">كلمة المرور الحالية</label>
-              <div class="input-with-icon">
-                <input type="password" id="pw-current" class="form-input" autocomplete="current-password">
+              <label class="form-label" for="pw-current">كلمة المرور الحالية</label>
+              <div class="pw-wrap">
+                <input type="password" id="pw-current" class="form-input" autocomplete="current-password"
+                       enterkeyhint="next" autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="pw-current-error">
+                <button type="button" class="pw-toggle" data-pw-for="pw-current" aria-controls="pw-current" aria-pressed="false">إظهار</button>
               </div>
+              <div class="field-error" id="pw-current-error"></div>
             </div>
             <div class="form-group">
-              <label class="form-label">كلمة المرور الجديدة</label>
-              <input type="password" id="pw-new" class="form-input" autocomplete="new-password">
+              <label class="form-label" for="pw-new">كلمة المرور الجديدة</label>
+              <div class="pw-wrap">
+                <input type="password" id="pw-new" class="form-input" autocomplete="new-password"
+                       enterkeyhint="next" autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="pw-new-error">
+                <button type="button" class="pw-toggle" data-pw-for="pw-new" aria-controls="pw-new" aria-pressed="false">إظهار</button>
+              </div>
               <div class="pw-strength-bar"><div class="pw-strength-fill" id="pw-strength-fill"></div></div>
+              <div class="field-error" id="pw-new-error"></div>
             </div>
             <div class="form-group">
-              <label class="form-label">تأكيد كلمة المرور</label>
-              <input type="password" id="pw-confirm" class="form-input" autocomplete="new-password">
+              <label class="form-label" for="pw-confirm">تأكيد كلمة المرور</label>
+              <div class="pw-wrap">
+                <input type="password" id="pw-confirm" class="form-input" autocomplete="new-password"
+                       enterkeyhint="done" autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="pw-confirm-error">
+                <button type="button" class="pw-toggle" data-pw-for="pw-confirm" aria-controls="pw-confirm" aria-pressed="false">إظهار</button>
+              </div>
+              <div class="field-error" id="pw-confirm-error"></div>
             </div>
           </div>
-          <div class="settings-actions"><button class="btn btn-primary" id="save-pw-btn">تحديث كلمة المرور</button></div>
+          <div class="settings-actions"><button class="btn btn-primary" id="save-pw-btn" type="button">تحديث كلمة المرور</button></div>
         </div>
         <div class="settings-card">
           <div class="settings-card-head">
@@ -580,6 +600,74 @@ export function settingsPage(): string {
   }
   .settings-danger-item-info { display: flex; align-items: flex-start; gap: 12px; }
   .settings-danger-item-info svg { flex-shrink: 0; color: var(--text-3); margin-top: 2px; }
+
+  /* ══ PHASE 13 — form behaviour on a phone ══════════════════════════════
+     Builds on MOBILE_FLOORS_CSS (44px targets, 16px inputs). Nothing here
+     re-declares those; it fixes what the floors cannot reach. */
+
+  /* Focus must be visible, not inferred from the caret. */
+  .form-input:focus-visible,
+  .settings-nav-item:focus-visible,
+  .settings-toggle:focus-within,
+  .btn:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  /* Password reveal: a real 44px target, inside the field padding. */
+  .pw-wrap { position: relative; }
+  .pw-wrap .form-input { padding-inline-start: 48px; }
+  .pw-toggle {
+    position: absolute; inset-inline-start: 4px; top: 50%;
+    transform: translateY(-50%);
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-3); font-size: 12px; font-weight: 700; border-radius: 8px;
+  }
+  .pw-toggle:active { color: var(--accent); }
+
+  /* Per-field validation: the message goes where the mistake is, because the
+     card-top alert is off-screen while the keyboard is open. */
+  .field-error { display: none; font-size: 12px; line-height: 1.5; color: var(--error); margin-top: 6px; }
+  .field-error.is-shown { display: block; }
+  .form-input[aria-invalid="true"] {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px rgba(226,96,79,0.12);
+  }
+
+  /* The toggle switch is 44x24 — wide enough, short enough to miss. Grow the
+     hit area without moving the track. */
+  .settings-toggle { min-height: 44px; display: inline-flex; align-items: center; }
+  .settings-toggle .toggle-track { top: 50%; transform: translateY(-50%); height: 24px; inset-inline: 0; bottom: auto; }
+
+  @media (max-width: 768px) {
+    /* A sticky side nav that has become a six-button wrapping grid would pin
+       a third of the screen in place while the panel below scrolls under it. */
+    .settings-nav { position: static; top: auto; }
+    .settings-card { padding: 16px 14px; }
+    .settings-profile-top { gap: 14px; margin-bottom: 20px; }
+    .settings-avatar-lg { width: 56px; height: 56px; font-size: 21px; }
+    .settings-actions { margin-top: 16px; }
+    /* A full-width primary action is easier to hit with a thumb and is never
+       pushed half-off the row by a long Arabic label. */
+    .settings-actions .btn { flex: 1 1 100%; }
+    .settings-shell { padding-bottom: env(safe-area-inset-bottom, 0px); }
+    .settings-toggle-desc { max-width: none; }
+    .settings-danger-item, .settings-session-row, .billing-alt-pay { gap: 12px; }
+    .settings-danger-item .btn, .settings-session-row .btn, .billing-alt-pay .btn { flex: 1 1 100%; }
+
+    /* — Text floor, restated here on purpose ———————————————————
+       MOBILE_FLOORS_CSS lives in <head>; a page's own <style> arrives with
+       the body and therefore wins on source order. Every selector below was
+       MEASURED under 12px by test_mobile_viewport on this page. */
+    .form-hint,
+    .settings-profile-joined,
+    .settings-meta-note,
+    .settings-account-id,
+    .settings-account-status,
+    .ws-stat-label { font-size: 12px; }
+  }
 </style>`;
 
   const scripts = `<script>
@@ -605,6 +693,61 @@ export function settingsPage(): string {
   document.getElementById('email-input').value = me.email || '';
   document.getElementById('locale-input').value = me.locale || 'AR';
 
+  // ── Phase 13: form plumbing shared by every panel on this page ────────
+  // Per-field messages, because the card-top alert is off-screen while a
+  // phone keyboard is open and the user is looking at the field they got
+  // wrong. aria-invalid drives both the red border and the focus target.
+  function fieldError(id, msg) {
+    var input = document.getElementById(id);
+    var slot  = document.getElementById(id + '-error');
+    if (!input || !slot) return;
+    if (msg) {
+      slot.textContent = msg;
+      slot.classList.add('is-shown');
+      input.setAttribute('aria-invalid', 'true');
+    } else {
+      slot.textContent = '';
+      slot.classList.remove('is-shown');
+      input.removeAttribute('aria-invalid');
+    }
+  }
+  function focusFirstInvalid(scopeSelector) {
+    var scope = scopeSelector ? document.querySelector(scopeSelector) : document;
+    var first = (scope || document).querySelector('.form-input[aria-invalid="true"]');
+    if (!first) return;
+    try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+    first.focus();
+  }
+  var isPhone = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+  document.querySelectorAll('.form-input').forEach(function (el) {
+    if (!el.id) return;
+    el.addEventListener('input', function () { fieldError(el.id, ''); });
+    // Keyboard-open reachability. The software keyboard covers the lower
+    // third of the screen; a field focused near the bottom leaves its own
+    // save button behind it. Centring the focused field keeps the action
+    // that follows it on screen. The delay lets the keyboard finish
+    // animating, otherwise the browser measures the pre-keyboard viewport.
+    if (!isPhone) return;
+    el.addEventListener('focus', function () {
+      setTimeout(function () {
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+      }, 250);
+    });
+  });
+
+  // Password reveal controls. The label says what the button will DO.
+  document.querySelectorAll('.pw-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pw = document.getElementById(btn.getAttribute('data-pw-for'));
+      if (!pw) return;
+      var reveal = pw.type === 'password';
+      pw.type = reveal ? 'text' : 'password';
+      btn.textContent = reveal ? 'إخفاء' : 'إظهار';
+      btn.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+      pw.focus();
+    });
+  });
+
   // Tab navigation
   document.querySelectorAll('.settings-nav-item').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -612,13 +755,25 @@ export function settingsPage(): string {
       btn.classList.add('active');
       document.querySelectorAll('.settings-panel').forEach(p => p.style.display = 'none');
       document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+      // On a phone the nav is a wrapping grid above the panel; switching tabs
+      // must bring the panel it revealed into view, not leave the user staring
+      // at the same buttons.
+      var panel = document.getElementById('tab-' + btn.dataset.tab);
+      if (panel && window.matchMedia && window.matchMedia('(max-width: 768px)').matches) {
+        try { panel.scrollIntoView({ block: 'start', behavior: 'smooth' }); } catch (e) {}
+      }
     });
   });
 
   // Profile save
   document.getElementById('save-profile-btn').addEventListener('click', async () => {
     const name = document.getElementById('name-input').value.trim();
-    if (!name) { toast('الاسم مطلوب', 'error'); return; }
+    fieldError('name-input', '');
+    if (!name) {
+      fieldError('name-input', 'الاسم مطلوب.');
+      focusFirstInvalid('#tab-profile');
+      return;
+    }
     try {
       await apiFetch('/api/auth/profile', { method: 'PATCH', body: JSON.stringify({ name }) });
       document.getElementById('profile-name-display').textContent = name;
@@ -642,9 +797,20 @@ export function settingsPage(): string {
     const errEl = document.getElementById('pw-error');
     const sucEl = document.getElementById('pw-success');
     errEl.style.display = sucEl.style.display = 'none';
-    if (!cur || !nw || !conf) { errEl.textContent = 'جميع الحقول مطلوبة'; errEl.style.display = 'flex'; return; }
-    if (nw !== conf) { errEl.textContent = 'كلمتا المرور غير متطابقتين'; errEl.style.display = 'flex'; return; }
-    if (nw.length < 8) { errEl.textContent = '8 أحرف على الأقل'; errEl.style.display = 'flex'; return; }
+    ['pw-current', 'pw-new', 'pw-confirm'].forEach(function (id) { fieldError(id, ''); });
+
+    var invalid = false;
+    if (!cur) { fieldError('pw-current', 'أدخل كلمة المرور الحالية.'); invalid = true; }
+    if (!nw) { fieldError('pw-new', 'أدخل كلمة المرور الجديدة.'); invalid = true; }
+    else if (nw.length < 8) { fieldError('pw-new', 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.'); invalid = true; }
+    if (!conf) { fieldError('pw-confirm', 'أعد كتابة كلمة المرور الجديدة.'); invalid = true; }
+    else if (nw && nw !== conf) { fieldError('pw-confirm', 'كلمتا المرور غير متطابقتين.'); invalid = true; }
+    if (invalid) {
+      errEl.textContent = 'راجع الحقول المعلّمة بالأحمر.';
+      errEl.style.display = 'flex';
+      focusFirstInvalid('#tab-security');
+      return;
+    }
     try {
       await apiFetch('/api/auth/password', { method: 'POST', body: JSON.stringify({ currentPassword: cur, newPassword: nw }) });
       sucEl.textContent = 'تم تحديث كلمة المرور.';

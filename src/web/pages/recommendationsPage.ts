@@ -1,8 +1,33 @@
 // ════════════════════════════════════════════════════════════════════════
-//  src/web/pages/recommendationsPage.ts
+//  src/web/pages/recommendationsPage.ts  —  PHASE 8 (mobile)
 //
-//  Recommendations with Meta-sourced benchmarks and evidence-backed advice.
-//  فهم → قرار → ��عل → تحقق
+//  Every recommendation on this page communicates five things, in this order:
+//
+//      problem · evidence · confidence · impact · action
+//
+//  ── WHAT CHANGED AND WHY ────────────────────────────────────────────────
+//  The previous version shipped a client-side dictionary of "Meta benchmarks"
+//  (CTR 0.9-2.0%, frequency 1.5-3.0, "response drops 30-50%") and printed it
+//  under a heading that read "معيار Meta". None of those numbers came from the
+//  account. A merchant reading "المعيار المتوقع: 0.9% – 2.0%" next to their own
+//  campaign has no way to know that figure was hard-coded in a browser bundle
+//  rather than measured. That is invented evidence, and it is now gone.
+//
+//  What replaces it: the deterministic analytics DTO. intelligence.recommendation
+//  already carries problem / evidence[] / severity / confidence / action /
+//  expectedImpact, computed server-side by the funnel diagnosis. It was being
+//  ignored by this page entirely. It is now the primary source.
+//
+//  When a recommendation arrives WITHOUT evidence (the flat
+//  /recommendations list and dashData.priorityAction both do), it is rendered
+//  honestly as "no measured evidence attached" — not decorated with a
+//  plausible-sounding number. See dtoGaps in the phase report.
+//
+//  ── THE RULE THIS FILE OBEYS ────────────────────────────────────────────
+//  No analytics logic. Nothing here computes a ratio, a delta, a cost-per-result
+//  or a threshold. Counting how many recommendations carry a given severity is
+//  bookkeeping, not analytics. Result counts are rendered per unit and never
+//  added together: 84 conversations plus 12 orders is not 96 of anything.
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
@@ -10,59 +35,46 @@ import { layout } from '../layout';
 export function recommendationsPage(): string {
   const content = `
 <div class="rec-page">
-  <div class="rec-hero">
+  <header class="rec-hero">
     <div class="rec-hero-content">
-      <div class="page-title rec-title">التوصيات الذكية</div>
-      <div class="page-subtitle rec-subtitle">تحليل مبني على معايير Meta الرسمية — كل توصية مدعومة بمصدر موثوق</div>
+      <h1 class="page-title rec-title">ما الذي يحتاج تدخلك</h1>
+      <p class="page-subtitle rec-subtitle">كل توصية مرتبطة بالدليل المقاس من حسابك — المشكلة، الدليل، الثقة، الأثر، ثم الإجراء.</p>
     </div>
-    <div class="rec-hero-actions">
-      <button class="btn btn-secondary btn-sm rec-refresh-btn" id="refresh-btn" type="button">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>
-        تحديث
-      </button>
-    </div>
-  </div>
+    <button class="btn btn-secondary btn-sm rec-refresh-btn" id="refresh-btn" type="button">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><path d="M21 2v6h-6"/><path d="M3 12a9 9 0 0115-6.7L21 8M3 22v-6h6"/><path d="M21 12a9 9 0 01-15 6.7L3 16"/></svg>
+      <span>تحديث</span>
+    </button>
+  </header>
 
-  <div class="rec-meta-banner" id="rec-meta-banner">
-    <div class="rec-meta-badge">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-      <span>مدعوم بمعايير Meta Ads 2026</span>
-    </div>
-    <div class="rec-meta-sources">
-      المصادر: Meta Business Help Center · Pengwing Benchmarks · Industry Standards
-    </div>
-  </div>
+  <!-- Measured context. Per-unit rows only — results of different kinds are
+       never added together. -->
+  <section class="rec-context" id="rec-context" style="display:none;" aria-label="نتائج حسابك">
+    <div class="rec-context-label">نتائج حسابك في الفترة</div>
+    <div class="rec-context-units" id="rec-context-units"></div>
+    <div class="rec-context-note" id="rec-context-note" style="display:none;"></div>
+  </section>
 
-  <div class="rec-stats-grid" id="rec-stats-grid">
-    <div class="rec-stat-card rec-stat-total">
-      <div class="rec-stat-icon">📋</div>
-      <div class="rec-stat-num" id="stat-total">—</div>
-      <div class="rec-stat-desc">إجمالي التوصيات</div>
+  <section class="rec-summary" id="rec-summary" aria-label="ملخص التوصيات">
+    <div class="rec-sum-item rec-sum-critical">
+      <span class="rec-sum-num" id="stat-critical">—</span>
+      <span class="rec-sum-desc">مستعجل</span>
     </div>
-    <div class="rec-stat-card rec-stat-urgent">
-      <div class="rec-stat-icon">🔴</div>
-      <div class="rec-stat-num" id="stat-critical">—</div>
-      <div class="rec-stat-desc">تحتاج تنفيذ فوري</div>
+    <div class="rec-sum-item rec-sum-high">
+      <span class="rec-sum-num" id="stat-high">—</span>
+      <span class="rec-sum-desc">مهم</span>
     </div>
-    <div class="rec-stat-card rec-stat-important">
-      <div class="rec-stat-icon">🟠</div>
-      <div class="rec-stat-num" id="stat-high">—</div>
-      <div class="rec-stat-desc">مهمة هذا الأسبوع</div>
+    <div class="rec-sum-item rec-sum-medium">
+      <span class="rec-sum-num" id="stat-medium">—</span>
+      <span class="rec-sum-desc">للمتابعة</span>
     </div>
-    <div class="rec-stat-card rec-stat-monitor">
-      <div class="rec-stat-icon">🟡</div>
-      <div class="rec-stat-num" id="stat-medium">—</div>
-      <div class="rec-stat-desc">للمتابعة</div>
+    <div class="rec-sum-item rec-sum-total">
+      <span class="rec-sum-num" id="stat-total">—</span>
+      <span class="rec-sum-desc">الإجمالي</span>
     </div>
-  </div>
-
-  <div class="rec-top-action" id="rec-top-action" style="display:none;">
-    <div class="rec-top-action-label">أهم خطوة الآن</div>
-    <div class="rec-top-action-text" id="stat-action">—</div>
-  </div>
+  </section>
 
   <div class="rec-controls">
-    <div class="tabs rec-tabs" id="severity-tabs">
+    <div class="tabs rec-tabs" id="severity-tabs" role="tablist">
       <button class="tab active" data-filter="all" type="button">الكل</button>
       <button class="tab" data-filter="CRITICAL" type="button">مستعجل</button>
       <button class="tab" data-filter="HIGH" type="button">مهم</button>
@@ -70,229 +82,238 @@ export function recommendationsPage(): string {
       <button class="tab" data-filter="LOW" type="button">معلومة</button>
     </div>
     <div class="search-wrap rec-search">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-      <input type="text" class="form-input search-input" id="search-input" placeholder="ابحث في التوصيات…" style="width:220px;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <label class="sr-only" for="search-input">ابحث في التوصيات</label>
+      <input type="search" class="form-input search-input" id="search-input" placeholder="ابحث في التوصيات…" enterkeyhint="search" autocomplete="off">
     </div>
   </div>
 
   <div id="issues-container">
-    <div class="loading-overlay"><div class="spinner"></div><div class="loading-text">جارٍ تحليل حملاتك…</div></div>
+    <div class="loading-overlay"><div class="spinner"></div><div class="loading-text">جارٍ قراءة تحليل حسابك…</div></div>
   </div>
 </div>
 
-<div id="rec-task-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeRecTaskModal()">
-  <div class="modal rec-modal-enhanced">
-    <div class="rec-modal-header">
-      <div class="rec-modal-icon">✓</div>
-      <div>
-        <div class="modal-title" id="rec-task-modal-title">طبّق المهمة</div>
-        <div class="modal-subtitle" id="rec-task-modal-sub">اتبع الخطوات في مدير إعلانات فيسبوك ثم أكّد.</div>
+<div id="rec-task-modal" class="modal-overlay rec-modal-overlay" style="display:none;" onclick="if(event.target===this) closeRecTaskModal()">
+  <div class="modal rec-modal-enhanced" role="dialog" aria-modal="true" aria-labelledby="rec-task-modal-title">
+    <div class="rec-modal-scroll">
+      <div class="rec-modal-header">
+        <div class="rec-modal-icon" aria-hidden="true">✓</div>
+        <div>
+          <div class="modal-title" id="rec-task-modal-title">تأكيد التنفيذ</div>
+          <div class="modal-subtitle" id="rec-task-modal-sub">اتبع الخطوة في مدير إعلانات Meta ثم أكّد.</div>
+        </div>
+      </div>
+      <div id="rec-task-modal-body" class="rec-modal-steps"></div>
+      <div class="rec-modal-tip">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
+        <span>سنراقب النتيجة ونعرض الفرق عند توفر بيانات كافية.</span>
       </div>
     </div>
-    <div id="rec-task-modal-steps" class="rec-modal-steps"></div>
-    <div class="rec-modal-tip">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg>
-      <span>سنراقب النتائج تلقائياً خلال ٧ أيام وننبّهك إذا تحسّن الأداء.</span>
-    </div>
-    <div class="modal-footer" style="gap:8px;">
+    <div class="modal-footer rec-modal-footer">
       <button type="button" class="btn btn-secondary btn-sm" id="rec-task-modal-cancel">إلغاء</button>
-      <button type="button" class="btn btn-primary btn-sm" id="rec-task-modal-confirm">نفّذت المهمة ✓</button>
+      <button type="button" class="btn btn-primary btn-sm" id="rec-task-modal-confirm">نفّذت الإجراء</button>
     </div>
   </div>
 </div>
 
 <style>
   .rec-page { direction: rtl; max-width: 960px; margin: 0 auto; }
+  .sr-only {
+    position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+    overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+  }
 
   .rec-hero {
     display: flex; align-items: flex-start; justify-content: space-between;
-    gap: 16px; flex-wrap: wrap; margin-bottom: 20px;
+    gap: 14px; flex-wrap: wrap; margin-bottom: 16px;
   }
-  .rec-title { font-family: var(--font-display); letter-spacing: -0.02em; }
-  .rec-subtitle { max-width: 420px; }
+  .rec-title { font-family: var(--font-display); letter-spacing: -0.02em; margin: 0; }
+  .rec-subtitle { max-width: 46ch; margin: 6px 0 0; }
   .rec-refresh-btn { display: inline-flex; align-items: center; gap: 6px; }
 
-  .rec-meta-banner {
-    display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; flex-wrap: wrap;
-    padding: 12px 18px; margin-bottom: 22px;
-    background: linear-gradient(135deg, rgba(24,119,242,0.06), rgba(24,119,242,0.02));
-    border: 1px solid rgba(24,119,242,0.18);
-    border-radius: 14px;
-  }
-  .rec-meta-badge {
-    display: inline-flex; align-items: center; gap: 8px;
-    font-size: 12.5px; font-weight: 700; color: #1877F2;
-  }
-  .rec-meta-sources {
-    font-size: 11px; color: var(--text-3); font-weight: 500;
-  }
-
-  .rec-stats-grid {
-    display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
-    margin-bottom: 18px;
-  }
-  @media (max-width: 720px) { .rec-stats-grid { grid-template-columns: repeat(2, 1fr); } }
-  .rec-stat-card {
+  /* ── Measured context strip ── */
+  .rec-context {
+    padding: 12px 14px; margin-bottom: 16px; border-radius: 14px;
     background: var(--surface); border: 1px solid var(--border);
-    border-radius: 16px; padding: 18px 16px; text-align: center;
-    position: relative; overflow: hidden;
   }
-  .rec-stat-card::before {
-    content: ''; position: absolute; inset: 0;
-    background: radial-gradient(ellipse at top, rgba(255,255,255,0.03), transparent);
-    pointer-events: none;
+  .rec-context-label {
+    font-size: 12px; font-weight: 800; color: var(--text-3);
+    letter-spacing: 0.02em; margin-bottom: 8px;
   }
-  .rec-stat-icon { font-size: 20px; margin-bottom: 6px; }
-  .rec-stat-num {
-    font-size: 28px; font-weight: 800; color: var(--text);
-    font-variant-numeric: tabular-nums; font-family: var(--font-display);
+  .rec-context-units { display: flex; flex-wrap: wrap; gap: 8px; }
+  .rec-unit-chip {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    padding: 7px 11px; border-radius: 999px;
+    background: var(--surface-2); border: 1px solid var(--border);
   }
-  .rec-stat-desc { font-size: 11.5px; color: var(--text-3); margin-top: 4px; font-weight: 600; }
-  .rec-stat-urgent .rec-stat-num { color: var(--critical, #d32f2f); }
-  .rec-stat-important .rec-stat-num { color: var(--error, #e65100); }
-  .rec-stat-monitor .rec-stat-num { color: var(--warning, #f9a825); }
+  .rec-unit-count {
+    font-size: 16px; font-weight: 800; color: var(--text);
+    font-variant-numeric: tabular-nums;
+  }
+  .rec-unit-label { font-size: 12px; color: var(--text-2); font-weight: 600; }
+  .rec-approx-tag {
+    font-size: 12px; font-weight: 700; color: var(--warning);
+    background: var(--warning-dim); border-radius: 6px; padding: 2px 6px;
+  }
+  .rec-context-note { font-size: 12px; color: var(--text-3); margin-top: 8px; line-height: 1.6; }
 
-  .rec-top-action {
-    padding: 14px 20px; margin-bottom: 20px;
-    background: linear-gradient(135deg, rgba(217,167,89,0.08), rgba(217,167,89,0.03));
-    border: 1px solid rgba(217,167,89,0.22); border-radius: 14px;
+  /* ── Severity summary ── */
+  .rec-summary {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px;
+    margin-bottom: 16px;
   }
-  .rec-top-action-label {
-    font-size: 11px; font-weight: 800; color: var(--accent-2);
-    margin-bottom: 4px; letter-spacing: 0.03em;
+  .rec-sum-item {
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+    padding: 12px 6px; border-radius: 14px; min-height: 62px;
+    background: var(--surface); border: 1px solid var(--border);
   }
-  .rec-top-action-text {
-    font-size: 14px; font-weight: 700; color: var(--text); line-height: 1.5;
+  .rec-sum-num {
+    font-size: 22px; font-weight: 800; color: var(--text);
+    font-variant-numeric: tabular-nums; font-family: var(--font-display); line-height: 1.1;
   }
+  .rec-sum-desc { font-size: 12px; color: var(--text-3); font-weight: 600; }
+  .rec-sum-critical .rec-sum-num { color: var(--critical, #d32f2f); }
+  .rec-sum-high .rec-sum-num { color: var(--error, #e65100); }
+  .rec-sum-medium .rec-sum-num { color: var(--warning, #f9a825); }
 
   .rec-controls {
     display: flex; align-items: center; justify-content: space-between;
-    gap: 12px; flex-wrap: wrap; margin-bottom: 20px;
+    gap: 10px; flex-wrap: wrap; margin-bottom: 16px;
   }
+  /* .tabs is width:fit-content globally; on a 320px phone five tabs at the
+     44px touch floor are wider than the viewport, so this row must be allowed
+     to shrink and scroll inside itself rather than widen the page. */
+  .rec-tabs {
+    flex: 1 1 auto; min-width: 0; width: auto; max-width: 100%;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
+  }
+  /* MEASURED: the gate reported "tab 41x44" — the 44px height floor applied
+     but the narrowest label ("الكل") left the tab 41px WIDE. A target must
+     clear 44 on both axes. */
+  .rec-tabs .tab { flex: 0 0 auto; min-width: 44px; justify-content: center; }
+  .rec-search { flex: 1 1 200px; min-width: 0; }
+  .rec-search .search-input { width: 100%; }
 
-  /* ── Recommendation Cards ── */
-  .rec-group { margin-bottom: 28px; }
+  /* ── Cards ── */
+  .rec-group { margin-bottom: 22px; }
   .rec-group-title {
-    display: flex; align-items: center; gap: 10px; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
     font-size: 12.5px; font-weight: 800; color: var(--text-2);
   }
   .rec-group-title::after { content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.06); }
 
   .rec-card {
     background: var(--surface); border: 1px solid rgba(255,255,255,0.07);
-    border-radius: 18px; padding: 22px 22px 18px; margin-bottom: 14px;
+    border-radius: 18px; padding: 16px 16px 14px; margin-bottom: 12px;
     border-inline-start: 4px solid var(--border);
-    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
     position: relative;
   }
-  .rec-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 12px 32px rgba(0,0,0,0.18);
-  }
-  .rec-card.is-done { opacity: 0.45; pointer-events: none; }
+  .rec-card.is-done { opacity: 0.5; }
 
-  .rec-card-header {
-    display: flex; align-items: flex-start; gap: 12px; margin-bottom: 14px;
+  .rec-card-top {
+    display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+    margin-bottom: 8px;
   }
   .rec-sev-badge {
-    font-size: 10.5px; font-weight: 800; padding: 4px 10px; border-radius: 999px;
-    white-space: nowrap; flex-shrink: 0; letter-spacing: 0.02em;
+    font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 999px;
+    white-space: nowrap; letter-spacing: 0.02em;
   }
-  .rec-card-title {
-    font-size: 15.5px; font-weight: 800; color: var(--text);
-    flex: 1; min-width: 0; line-height: 1.45;
+  .rec-conf {
+    font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+  }
+  .rec-conf.conf-high { color: var(--success); border-color: rgba(52,168,113,0.32); }
+  .rec-conf.conf-medium { color: var(--warning); border-color: rgba(199,122,31,0.32); }
+  .rec-conf.conf-low { color: var(--text-2); }
+  .rec-conf.conf-collecting { color: var(--accent-2); border-color: rgba(217,167,89,0.32); }
+
+  .rec-problem {
+    font-size: 16px; font-weight: 800; color: var(--text);
+    line-height: 1.45; margin-bottom: 10px;
   }
 
-  .rec-section { margin-bottom: 14px; }
-  .rec-section-label {
-    font-size: 10.5px; font-weight: 800; color: var(--accent-2);
-    margin-bottom: 5px; letter-spacing: 0.03em;
-    display: flex; align-items: center; gap: 6px;
+  .rec-block { margin-bottom: 10px; }
+  .rec-block-label {
+    font-size: 12px; font-weight: 800; color: var(--accent-2);
+    letter-spacing: 0.02em; margin-bottom: 4px;
+  }
+  .rec-evidence { margin: 0; padding: 0; list-style: none; }
+  .rec-evidence li {
+    font-size: 13.5px; color: var(--text); line-height: 1.65;
+    padding: 8px 11px; border-radius: 10px; margin-bottom: 6px;
+    background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
+    border-inline-start: 3px solid rgba(217,167,89,0.45);
+    overflow-wrap: anywhere;
+  }
+  .rec-evidence li:last-child { margin-bottom: 0; }
+  .rec-no-evidence {
+    font-size: 13px; color: var(--text-3); line-height: 1.6;
+    padding: 8px 11px; border-radius: 10px;
+    background: rgba(255,255,255,0.02); border: 1px dashed var(--border);
   }
 
-  .rec-benchmark-box {
-    background: rgba(24,119,242,0.05); border: 1px solid rgba(24,119,242,0.15);
-    border-radius: 12px; padding: 12px 14px; margin-bottom: 14px;
+  .rec-impact, .rec-action {
+    font-size: 13.5px; color: var(--text-2); line-height: 1.65;
+    overflow-wrap: anywhere;
   }
-  .rec-benchmark-label {
-    font-size: 10.5px; font-weight: 800; color: #1877F2;
-    margin-bottom: 6px; letter-spacing: 0.02em;
-    display: flex; align-items: center; gap: 6px;
+  .rec-action { color: var(--text); font-weight: 600; }
+  .rec-approx-note {
+    font-size: 12px; color: var(--warning); line-height: 1.6;
+    margin-bottom: 10px;
   }
-  .rec-benchmark-label svg { flex-shrink: 0; }
-  .rec-benchmark-text {
-    font-size: 12.5px; color: var(--text-2); line-height: 1.6;
-  }
-  .rec-benchmark-source {
-    font-size: 10.5px; color: var(--text-3); margin-top: 6px;
-    font-style: italic;
-  }
-
-  .rec-steps { margin: 0; padding-inline-start: 0; list-style: none; counter-reset: step; }
-  .rec-steps li {
-    counter-increment: step;
-    display: flex; align-items: flex-start; gap: 10px;
-    font-size: 13px; color: var(--text-2); line-height: 1.6;
-    margin-bottom: 8px; padding: 8px 12px;
-    background: rgba(255,255,255,0.02); border-radius: 10px;
-    border: 1px solid rgba(255,255,255,0.04);
-  }
-  .rec-steps li::before {
-    content: counter(step);
-    width: 22px; height: 22px; border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: rgba(217,167,89,0.16); color: var(--accent-2);
-    font-size: 11px; font-weight: 800; flex-shrink: 0;
-  }
-
-  .rec-expect-box {
-    font-size: 12.5px; color: var(--text-3); line-height: 1.6;
-    padding: 10px 14px; border-radius: 10px;
-    background: rgba(52,168,113,0.05); border: 1px solid rgba(52,168,113,0.15);
-    margin-bottom: 14px;
-    display: flex; align-items: flex-start; gap: 8px;
-  }
-  .rec-expect-box svg { flex-shrink: 0; margin-top: 2px; color: var(--success); }
 
   .rec-card-footer {
-    display: flex; gap: 8px; flex-wrap: wrap; padding-top: 4px;
-    border-top: 1px solid rgba(255,255,255,0.04); margin-top: 4px; padding-top: 12px;
+    display: flex; gap: 8px; flex-wrap: wrap;
+    border-top: 1px solid rgba(255,255,255,0.05); margin-top: 12px; padding-top: 12px;
   }
+  .rec-card-footer .btn { flex: 1 1 auto; }
 
-  /* ── Modal enhanced ── */
-  .rec-modal-enhanced { max-width: 500px; }
-  .rec-modal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 16px; }
+  /* ── Modal: usable with a keyboard open ── */
+  .rec-modal-enhanced { max-width: 500px; display: flex; flex-direction: column; }
+  .rec-modal-scroll { overflow-y: auto; min-height: 0; }
+  .rec-modal-header { display: flex; align-items: center; gap: 14px; margin-bottom: 14px; }
   .rec-modal-icon {
     width: 40px; height: 40px; border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     display: flex; align-items: center; justify-content: center;
     font-size: 18px; color: #1A1613; font-weight: 800; flex-shrink: 0;
   }
-  .rec-modal-steps { display: flex; flex-direction: column; gap: 10px; margin: 8px 0 16px; }
-  .rec-modal-step {
-    display: flex; gap: 10px; align-items: flex-start;
-    padding: 12px 14px; border-radius: 12px;
+  .rec-modal-steps { display: flex; flex-direction: column; gap: 10px; margin: 6px 0 14px; }
+  .rec-modal-line {
+    padding: 11px 13px; border-radius: 12px;
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.06);
-    font-size: 13px; color: var(--text-2); line-height: 1.55;
+    font-size: 13px; color: var(--text-2); line-height: 1.6;
   }
-  .rec-modal-step b {
-    width: 24px; height: 24px; border-radius: 50%;
-    display: inline-flex; align-items: center; justify-content: center;
-    background: rgba(217,167,89,0.16); color: var(--accent-2);
-    font-size: 11px; flex-shrink: 0;
-  }
+  .rec-modal-line b { color: var(--accent-2); display: block; font-size: 12px; margin-bottom: 3px; }
   .rec-modal-tip {
     display: flex; align-items: center; gap: 8px;
-    padding: 10px 14px; border-radius: 10px; margin-bottom: 16px;
+    padding: 10px 13px; border-radius: 10px;
     background: rgba(52,168,113,0.06); border: 1px solid rgba(52,168,113,0.15);
     font-size: 12px; color: var(--text-2);
   }
   .rec-modal-tip svg { flex-shrink: 0; color: var(--success); }
+  .rec-modal-footer { flex-shrink: 0; }
+  .rec-modal-footer .btn { flex: 1 1 auto; }
 
-  @media (max-width: 520px) {
-    .rec-card { padding: 16px 14px 14px; }
-    .rec-stats-grid { grid-template-columns: 1fr 1fr; }
+  @media (max-width: 768px) {
+    .rec-hero { gap: 10px; }
+    .rec-summary { grid-template-columns: repeat(4, 1fr); gap: 6px; }
+    .rec-sum-item { padding: 10px 4px; }
+    .rec-sum-num { font-size: 19px; }
+    .rec-card { padding: 14px 13px 12px; border-radius: 16px; }
+    .rec-problem { font-size: 15.5px; }
+    .rec-controls { gap: 8px; }
+
+    /* A centred dialog loses its footer behind the software keyboard. Dock it
+       to the bottom, cap it against the visual viewport, and keep the confirm
+       button pinned inside the sheet instead of below the fold. */
+    .rec-modal-overlay { align-items: flex-end; }
+    .rec-modal-enhanced {
+      max-width: 100%;
+      max-height: 88dvh;
+      border-radius: 20px 20px 0 0;
+      padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    }
   }
 </style>`;
 
@@ -315,323 +336,339 @@ export function recommendationsPage(): string {
   var wsNameEl = document.getElementById('ws-name');
   if (wsNameEl) wsNameEl.textContent = wsM?.workspace?.name || 'مساحة العمل';
 
-  let allIssues = [];
-  let recs = [];
   let dashData = null;
+  let flatRecs = [];
   let activeFilter = 'all';
   let pendingTask = null;
 
-  // ── Meta benchmark data for evidence-backed recommendations ──
-  var META_BENCHMARKS = {
-    LOW_CTR: {
-      metric: 'CTR',
-      standard: '0.9% – 2.0%',
-      source: 'Meta Business Help Center — معايير CTR حسب الهدف الإعلاني',
-      explanation: 'المعدل الطبيعي لنسبة النقر في إعلانات Meta يتراوح بين 0.9% و 2% حسب الهدف. أقل من ذلك يشير لضعف في التصميم أو الاستهداف.'
-    },
-    HIGH_CPM: {
-      metric: 'CPM',
-      standard: 'يعتمد على السوق والمنافسة',
-      source: 'Pengwing Meta Ads Benchmarks 2026 — متوسطات CPM الإقليمية',
-      explanation: 'ارتفاع CPM يعني أن المنافسة على جمهورك عالية أو أن Meta يقيّم إعلانك بجودة منخفضة.'
-    },
-    HIGH_FREQUENCY: {
-      metric: 'Frequency',
-      standard: '1.5 – 3.0 مرات',
-      source: 'Meta Business Help Center — إرشادات التكرار الإعلاني',
-      explanation: 'التكرار الصحي بين 1.5 و 3 مرات. فوق 5 مرات يُسبب إرهاق الجمهور وانخفاض الاستجابة بنسبة 30-50%.'
-    },
-    AUDIENCE_FATIGUE: {
-      metric: 'تراجع الأداء',
-      standard: 'انخفاض > 20% خلال 7 أيام',
-      source: 'Meta Ads Creative Best Practices 2026',
-      explanation: 'عندما يرى نفس الجمهور نفس التصميم ��ثيراً، تنخفض الاستجابة. Meta توصي بتجديد التصميمات كل 2-4 أسابيع.'
-    },
-    DECLINING_RESULTS: {
-      metric: 'اتجاه النتائج',
-      standard: 'مقارنة ٧ أيام بالفترة السابقة',
-      source: 'Meta Performance Insights — تحليل الاتجاهات',
-      explanation: 'تراجع مستمر لأكثر من أسبوع يستدعي مراجعة — Meta تنصح بعدم تغيير الحملة قبل خروجها من مرحلة التعلّم.'
-    },
-    RISING_COST_PER_RESULT: {
-      metric: 'CPA / Cost per Result',
-      standard: 'مقارنة بمتوسط الحساب',
-      source: 'Meta Ads Delivery System — آلية المزايد�� والتحسين',
-      explanation: 'ارتفاع التكلفة يحدث عند تشبّع ال��مهور أو زيادة المنافسة. Meta تقترح توسيع الاستهداف أو تحسين التصميم.'
-    },
-    BUDGET_BURNING_FAST: {
-      metric: 'معدل الإنفاق',
-      standard: 'الميزانية اليومية / 24 ساعة',
-      source: 'Meta Budget Optimization Guide',
-      explanation: 'إنفاق الميزانية بسرعة يعني أن Meta وجد فرصاً كثيرة — لكن قد لا تكون كلها ذات جودة عالية.'
-    },
-    LOW_REACH: {
-      metric: 'الوصول',
-      standard: 'حسب حجم ا��جمهور والميزانية',
-      source: 'Meta Audience Network — Reach Estimation',
-      explanation: 'وصول م��خفض يشير إلى جمهور ضيق جداً أو ميزانية غير كافية أو تكلفة وصول مرتفعة.'
-    },
-    STALLED_DELIVERY: {
-      metric: 'حالة التسليم',
-      standard: 'إنفاق منتظم يومياً',
-      source: 'Meta Ads Delivery Troubleshooting',
-      explanation: 'توقف التسليم يحدث بسبب: استنفاد الميزانية، مشاكل الفوترة، رفض الإعلان، أو جمهور صغير جداً.'
-    },
-  };
+  // ── Presentation vocabulary. Labels only: nothing here decides anything. ──
 
-  var ISSUE_TITLES = {
-    LOW_CTR: 'نسبة النقر أقل من المعيار المتوقع',
-    HIGH_CPM: 'تكلفة الوصول مرتفعة مقارنة بالمعدل',
-    HIGH_FREQUENCY: 'التكرار تجاوز الحد الصحي',
-    AUDIENCE_FATIGUE: 'إرهاق الجمهور — التصميم يحتاج تجديد',
-    DECLINING_RESULTS: 'النتائج في انخفاض مستمر',
-    BUDGET_BURNING_FAST: 'الميزانية تُستهلك أسرع من الطبيعي',
-    LOW_REACH: 'الوصول محدو�� — الجمهور ضيق',
-    RISING_COST_PER_RESULT: 'تكلفة النتيجة الواحدة ترتفع',
-    STALLED_DELIVERY: 'الحملة متوقفة عن التسليم',
-    CPMSG_PAUSE_BLEEDERS: 'حملات تخسر أكثر مما تفيد',
+  var SEVERITY = {
+    CRITICAL: { text: 'مستعجل',  color: 'var(--critical)', rank: 0 },
+    HIGH:     { text: 'مهم',      color: 'var(--error)',    rank: 1 },
+    MEDIUM:   { text: 'للمتابعة', color: 'var(--warning)',  rank: 2 },
+    LOW:      { text: 'معلومة',   color: 'var(--text-3)',   rank: 3 }
   };
-
-  var ISSUE_WHY = {
-    LOW_CTR: 'الناس يرون إعلانك لكن لا ينقرون — غالباً بسبب ضعف الصورة أو العنوان أو عدم ملاءمة الجمهور.',
-    HIGH_FREQUENCY: 'نفس الأشخاص يرون إعلانك أكثر من 3 مرات. بعد هذا الحد تنخفض الاستجابة بشكل ملحوظ حسب معايير Meta.',
-    AUDIENCE_FATIGUE: 'الجمهور أصبح مألوفاً مع تص��يمك. Meta توصي بتغيير التصميمات كل 2-4 أسابيع للحفاظ على الأداء.',
-    DECLINING_RESULTS: 'النتائج هذا الأسبوع أضعف من الأسبوع الماضي. إذا استمر التراجع أكثر من 7 أيام ��جب التدخل.',
-    RISING_COST_PER_RESULT: 'تد��ع أكثر مقابل كل نتيجة. هذا يحدث عند تشبّع الجمهور الحالي أو زيادة المنافسة في المزاد.',
-    HIGH_CPM: 'الوصول لنفس العدد أص��ح أغلى. Meta تقيّم جودة إعلانك — جودة أعلى = تكلفة أقل.',
-    BUDGET_BURNING_FAST: 'الميزانية تُصرف ��ي ساعات قليلة بدل توزيعها على اليوم كاملاً.',
-    LOW_REACH: 'إعلانك يصل لعدد قليل جداً. السبب غالباً: جمهور ضيق، ميزانية منخفضة، أو منافسة عالية.',
-    STALLED_DELIVERY: 'الحملة لا تعرض إعلاناتك. تحقق من: الميزانية، حالة الإعلان، والفوترة.',
-  };
-
-  var ISSUE_ACTION = {
-    LOW_CTR: 'غيّر صورة أو عنوان الإعلان الأضعف — اختبر نسخة واحدة فقط',
-    HIGH_FREQUENCY: 'أوقف الإعلان الأكثر تكراراً وأضف تصميماً جديداً',
-    AUDIENCE_FATIGUE: 'جدّد التصميم الرئيسي ووسّع الجمهور بجمهور مشاب�� (Lookalike)',
-    DECLINING_RESULTS: 'أوقف ��لأضعف أداءً وركّز ا��ميزانية على الأفضل',
-    RISING_COST_PER_RESULT: 'خفّض ميزانية الحملات الأغلى وأبقِ فقط على ما يحقق نتائج',
-    HIGH_CPM: 'وسّع الاستهداف قليلاً أو حسّن جودة التصميم لتقل��ل التكلفة',
-    BUDGET_BURNING_FAST: 'فعّل "توزيع الميزانية على اليوم" أو خفّ�� المبلغ اليومي',
-    LOW_REACH: 'وسّع الجمهور أو ارفع الميزانية تدريجياً (20% كل 3 أيام)',
-    STALLED_DELIVERY: 'تحقق من حالة الإعلان ورصيد الفوترة في مدير الإعلانات',
-  };
-
-  var ISSUE_EXPECT = {
-    LOW_CTR: 'راقب ��عد 3-5 أيام: هل ارتفعت نسبة النقر؟ الهدف الوصول إلى 0.9% على الأقل.',
-    HIGH_FREQUENCY: 'خلال 5-7 أيام يجب أن ينخفض التكرار ويتحسن التفاعل مع التصميم الجديد.',
-    AUDIENCE_FATIGUE: 'خلال ��سبوع راقب: هل تحسنت النتائج مع التصميم والجمهور الجديد؟',
-    DECLINING_RESULTS: 'بعد 48-72 ساعة: هل توقف التراجع؟ إذا استمر، جرّب تغيير الجمهور.',
-    RISING_COST_PER_RESULT: 'خلال 3-5 أيام: هل استقرت تكلفة النتيجة أو انخفضت؟',
-    HIGH_CPM: 'خلال أيام: ��ل انخفضت تكلفة الوصول بعد توسيع الاستهداف أو تحسين التصميم؟',
-    BUDGET_BURNING_FAST: 'خلال يومين: هل أصبح الإنفاق موزّعاً بشكل أفضل على اليوم؟',
-    LOW_REACH: 'خلال 3 أيام: هل زاد عدد الأشخاص الذين رأوا الإعلان؟',
-    STALLED_DELIVERY: 'خلال 24 ساعة: تأكد أن الحملة تنفق بشكل طبيعي.',
-  };
-
-  var ISSUE_STEPS = {
-    LOW_CTR: [
-      'افتح مدير الإعلانات وحدد الإعلان الأقل نقراً.',
-      'غيّر العنصر الأضعف فقط: الصورة أو الجملة الأولى (لا تغيّر كل شيء).',
-      'اترك التعديل يعمل 3-5 أيام قبل الحكم على النتائج.',
-    ],
-    HIGH_FREQUENCY: [
-      'حدد الإعلان الذي تكراره أعلى من 3 في مدير الإعلانات.',
-      'أوقفه و��ستبدله بتصميم جديد (صورة أو نص مختلف).',
-      'اختيارياً: وسّع الجمهور لتقليل تكرار الظهور لنفس الأشخاص.',
-    ],
-    AUDIENCE_FATIGUE: [
-      'جهّ�� تصميماً جديداً (صورة/فيديو/نص) يختلف بشكل واضح.',
-      'أضف جمهور��ً مشابهاً (Lookalike 1-3%) أو وسّع الجمهور الحالي.',
-      'فعّل التصميم الجديد ورا��ب الأداء لمدة أسبوع.',
-    ],
-    DECLINING_RESULTS: [
-      'قارن أداء حملات�� — حدد الأفضل والأضعف.',
-      'أوقف الأضعف أداءً أو خفّض ميزانيته.',
-      'ركّز الميزانية على ما يعمل — راجع بعد 3 أيام.',
-    ],
-    RISING_COST_PER_RESULT: [
-      'رتّب حملاتك حسب تكلفة النتيجة (من الأغلى للأرخص).',
-      'أوقف أو خفّض ميزانية الأغلى.',
-      'أبقِ الميزانية على الحملات ��ات التكلفة المقبولة.',
-    ],
-    HIGH_CPM: [
-      'راجع ��لاستهداف — هل الجمهور أقل من 100,000 شخص؟',
-      'جرّب توسيع العمر أو الموقع أو الاهتما��ات.',
-      'حسّن التصميم — إعلانات أعلى جودة تحصل على CPM أقل من Meta.',
-    ],
-    BUDGET_BURNING_FAST: [
-      'تأكد ��ن "توزيع الميزانية" مفعّل (Campaign Budget Optimization).',
-      'خفّض الميزانية اليومية 20-30%.',
-      'تأكد أن الحملات لا تتنافس على نفس الجمهور.',
-    ],
-  };
-
-  function simplifyText(text) {
-    if (!text) return '';
-    var t = String(text);
-    t = t.replace(/\\bCTR\\b/gi, 'نسبة النقر');
-    t = t.replace(/\\bCPM\\b/gi, 'تكلفة الوصول');
-    t = t.replace(/\\bCPC\\b/gi, 'تكلفة النقرة');
-    t = t.replace(/\\bCPA\\b/gi, 'تكلفة النتيجة');
-    t = t.replace(/\\bROAS\\b/gi, 'العائد على الإنفاق');
-    t = t.replace(/\\bfrequency\\b/gi, 'التكرار');
-    t = t.replace(/\\blookalike\\b/gi, 'جمهور مشابه');
-    t = t.replace(/\\bad set(s)?\\b/gi, 'مجموعة إعلانات');
-    t = t.replace(/\\bcreative(s)?\\b/gi, 'التصميم');
-    t = t.replace(/\\(Source:[^)]+\\)/gi, '');
-    if (/[A-Za-z]{4,}/.test(t) && !/[\\u0600-\\u06FF]/.test(t)) return '';
-    return t.replace(/\\s+/g, ' ').trim();
+  function severityOf(raw) {
+    var key = String(raw == null ? 'LOW' : raw).toUpperCase();
+    if (!SEVERITY[key]) key = 'LOW';
+    var s = SEVERITY[key];
+    return { key: key, text: s.text, color: s.color, rank: s.rank };
   }
 
-  function issueKey(issue) { return issue.code || issue.issueCode || ''; }
-
-  function severityLabel(sev) {
-    var s = String(sev || 'LOW').toUpperCase();
-    if (s === 'CRITICAL') return { text: 'مستعجل', color: 'var(--critical)', key: 'CRITICAL' };
-    if (s === 'HIGH') return { text: 'مهم', color: 'var(--error)', key: 'HIGH' };
-    if (s === 'MEDIUM') return { text: 'للمتابعة', color: 'var(--warning)', key: 'MEDIUM' };
-    return { text: 'معلومة', color: 'var(--text-3)', key: 'LOW' };
+  // INSUFFICIENT_DATA is NOT low confidence and NOT an error. It means the
+  // window has not produced enough signal yet, and it must read that way.
+  var CONFIDENCE = {
+    HIGH:              { text: 'الثقة: مرتفعة',  cls: 'conf-high' },
+    MEDIUM:            { text: 'الثقة: متوسطة',  cls: 'conf-medium' },
+    LOW:               { text: 'الثقة: منخفضة',  cls: 'conf-low' },
+    INSUFFICIENT_DATA: { text: 'لا تزال البيانات قيد التجميع', cls: 'conf-collecting' }
+  };
+  function confidenceOf(raw) {
+    var key = String(raw == null ? '' : raw).toUpperCase();
+    return CONFIDENCE[key] || null;
   }
 
-  function findRec(issue) {
-    var code = issueKey(issue);
-    return recs.find(function(r) {
-      var src = r.sourceIssuesJson;
-      return Array.isArray(src) && src.includes(code);
-    }) || null;
+  // The deterministic problem classes, as the merchant reads them.
+  var PROBLEM_HEADLINE = {
+    DELIVERY:          'مشكلة في الوصول',
+    CLICK:             'مشكلة في التصميم',
+    POST_CLICK:        'مشكلة بعد النقر',
+    CONVERSION:        'مشكلة في إتمام النتيجة',
+    EFFICIENCY:        'ارتفاع التكلفة',
+    NO_MATERIAL_BREAK: 'لا توجد مشكلة جوهرية'
+  };
+
+  /**
+   * Accepts only display-ready text: a string, or an array of strings.
+   *
+   * It deliberately REFUSES objects. dashData.issues[].evidence is typed
+   * Record<string, unknown> — an untyped bag with no display contract — and
+   * an earlier draft of this function turned it into the literal text
+   * "[object Object]" underneath a heading that said "الدليل". A card that
+   * shows nothing is honest; a card that shows garbage labelled as evidence
+   * is not.
+   */
+  function confidenceRatio(value) {
+    // AdviceTask.confidence is a 0-1 number, not the enum. Showing it as a
+    // percentage is formatting the DTO's own figure — no threshold, no
+    // bucketing, no judgement added in the browser.
+    if (value == null || !isFinite(Number(value))) return null;
+    return { text: 'الثقة: ' + Math.round(Number(value) * 100) + '٪', cls: '' };
   }
 
-  function buildTask(issue) {
-    var code = issueKey(issue);
-    var rec = findRec(issue);
-    var actionCode = rec && rec.actionCode ? rec.actionCode : null;
-    var title = ISSUE_TITLES[code] || simplifyText(issue.title) || 'ملاحظة على الحساب';
-    var why = ISSUE_WHY[code] || (Array.isArray(issue.causes) ? issue.causes.map(simplifyText).filter(Boolean).slice(0,2).join(' ') : 'راجع الحملة واتخذ خطوة.');
-    var action = ISSUE_ACTION[code] || 'افتح الحملات وطبّق تعديلاً واحداً واضحاً';
-    var steps = ISSUE_STEPS[code] || [action, 'طبّق التعديل في مدير إعلانات فيسبوك.', 'راجع النتيجة بعد بضعة أيام.'];
-    var expect = ISSUE_EXPECT[code] || 'راجع النتيجة خلال 3-7 أيام بعد تطبيق الخطوة.';
-    var benchmark = META_BENCHMARKS[code] || null;
-    var sev = severityLabel(issue.severity);
-    return {
-      itemKey: 'issue:' + (code || 'UNKNOWN'),
-      issueCode: code,
-      actionCode: actionCode,
-      severity: sev,
-      title: title,
-      why: why,
-      action: action,
-      steps: steps,
-      expect: expect,
-      benchmark: benchmark,
-      askAi: 'اشرح لي: ' + title + '. ما السبب، وماذا أفعل خطوة بخطوة، ومتى أراجع النتيجة؟',
-    };
+  function toEvidenceList(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) {
+      return value
+        .filter(function (e) { return typeof e === 'string'; })
+        .map(function (e) { return e.trim(); })
+        .filter(Boolean);
+    }
+    if (typeof value !== 'string') return [];
+    var one = value.trim();
+    return one ? [one] : [];
+  }
+
+  /**
+   * Build the display tasks. STRICTLY a projection of the DTO.
+   *
+   * Order of trust:
+   *   1. intelligence.recommendation — carries problem, evidence, confidence,
+   *      impact and action. This is the only fully-formed recommendation the
+   *      backend produces today.
+   *   2. dashData.merchantTasks[] — the AdviceTask contract
+   *      (lib/plainArabicAdvice.ts). Server-localized, and its "why" field is
+   *      the evidence narrative WITH the numbers in it when the task came
+   *      from diagnose(). Its confidence is a 0-1 number, shown as a
+   *      percentage: formatting, not a threshold.
+   *   3. dashData.issues[] — title / severity / causes[] / recommendations[],
+   *      all localized server-side. Its "evidence" field is an untyped
+   *      Record and has no display form, so it is NOT rendered (see dtoGaps);
+   *      "causes" is the localized evidence the merchant can read.
+   *   4. dashData.priorityAction — carries evidence[] and expectation when
+   *      the engine has them.
+   *   5. the flat /recommendations list — an action string and a priority,
+   *      and nothing else. Rendered WITHOUT evidence rather than with a
+   *      manufactured one.
+   */
+  function buildTasks() {
+    var out = [];
+    var seenActionCodes = {};
+    var seenIssueCodes = {};
+    var d = dashData || {};
+
+    var intel = d.intelligence;
+    var rec = intel && intel.recommendation;
+    if (rec) {
+      var headline = PROBLEM_HEADLINE[intel.problemClass] || null;
+      var evidence = toEvidenceList(rec.evidence);
+      if (!evidence.length) evidence = toEvidenceList(intel.evidence);
+      if (!evidence.length && d.funnel) evidence = toEvidenceList(d.funnel.evidence);
+      if (rec.actionCode) seenActionCodes[String(rec.actionCode)] = true;
+      out.push({
+        itemKey: 'intelligence:' + (rec.actionCode || intel.problemClass || 'REC'),
+        itemKind: 'issue',
+        actionCode: rec.actionCode || null,
+        severity: severityOf(rec.severity),
+        confidence: confidenceOf(rec.confidence),
+        headline: headline,
+        problem: rec.problem || headline || 'ملاحظة على الحساب',
+        evidence: evidence,
+        impact: rec.expectedImpact || '',
+        action: rec.action || '',
+        steps: [],
+        approximate: !!(d.funnel && d.funnel.approximateInvolved)
+      });
+    }
+
+    // 2. merchantTasks — the AdviceTask contract, already localized.
+    (Array.isArray(d.merchantTasks) ? d.merchantTasks : []).forEach(function (t) {
+      if (!t) return;
+      var key = String(t.actionCode || '');
+      if (key && seenActionCodes[key]) return;
+      if (key) seenActionCodes[key] = true;
+      if (t.issueCode) seenIssueCodes[String(t.issueCode)] = true;
+      out.push({
+        itemKey: t.itemKey || ('task:' + (t.actionCode || t.issueCode || 'TASK')),
+        itemKind: 'issue',
+        actionCode: t.actionCode || null,
+        severity: severityOf(t.severity),
+        confidence: confidenceRatio(t.confidence),
+        headline: null,
+        problem: t.title || 'ملاحظة على الحساب',
+        evidence: toEvidenceList(t.why),
+        impact: t.expect || '',
+        action: t.action || '',
+        steps: toEvidenceList(t.steps),
+        approximate: false
+      });
+    });
+
+    // 3. issues[] — causes[] is the localized evidence. The issue.evidence
+    //    field is an untyped Record with no display form: not shown.
+    (Array.isArray(d.issues) ? d.issues : []).forEach(function (issue, i) {
+      var code = String(issue.code || issue.issueCode || ('ISSUE_' + i));
+      if (seenIssueCodes[code]) return;
+      seenIssueCodes[code] = true;
+      var recs = toEvidenceList(issue.recommendations);
+      out.push({
+        itemKey: 'issue:' + code,
+        itemKind: 'issue',
+        actionCode: issue.actionCode || null,
+        severity: severityOf(issue.severity),
+        confidence: confidenceOf(issue.confidence),
+        headline: null,
+        problem: issue.title || 'ملاحظة على الحساب',
+        evidence: toEvidenceList(issue.causes),
+        impact: '',
+        action: recs[0] || '',
+        steps: recs.slice(1),
+        approximate: false
+      });
+    });
+
+    // 4. priorityAction — carries evidence[] and expectation when available.
+    var pa = d.priorityAction;
+    if (pa && pa.text && !seenActionCodes[String(pa.actionCode)]) {
+      seenActionCodes[String(pa.actionCode)] = true;
+      out.push({
+        itemKey: 'priority:' + (pa.actionCode || 'ACTION'),
+        itemKind: 'recommendation',
+        actionCode: pa.actionCode || null,
+        severity: severityOf(pa.priority),
+        confidence: null,
+        headline: null,
+        problem: pa.text,
+        evidence: toEvidenceList(pa.evidence),
+        impact: pa.expectation || pa.costDisplay || '',
+        action: pa.text,
+        steps: [],
+        approximate: false
+      });
+    }
+
+    flatRecs.forEach(function (r) {
+      var codeKey = String(r.actionCode || r.id || '');
+      if (seenActionCodes[codeKey]) return;
+      seenActionCodes[codeKey] = true;
+      out.push({
+        itemKey: 'rec:' + (r.id || r.actionCode || 'REC'),
+        itemKind: 'recommendation',
+        actionCode: r.actionCode || null,
+        severity: severityOf(r.priority || r.severity),
+        confidence: confidenceOf(r.confidence),
+        headline: null,
+        problem: r.text || r.title || 'توصية',
+        evidence: toEvidenceList(r.evidence),
+        impact: r.expectedImpact || '',
+        action: r.action || r.text || '',
+        steps: [],
+        approximate: false
+      });
+    });
+
+    return out;
+  }
+
+  function askAiQuestion(task) {
+    return 'اشرح لي: ' + (task.problem || '') + '. ما السبب، وما الخطوة العملية، ومتى أراجع النتيجة؟';
   }
 
   function renderCard(task) {
     var sev = task.severity;
-    var benchmarkHtml = '';
-    if (task.benchmark) {
-      benchmarkHtml = '<div class="rec-benchmark-box">'
-        + '<div class="rec-benchmark-label"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> معيار Meta</div>'
-        + '<div class="rec-benchmark-text">'
-        + '<strong>' + escHtml(task.benchmark.metric) + ':</strong> المعيار المتوقع: ' + escHtml(task.benchmark.standard)
-        + '<br>' + escHtml(task.benchmark.explanation)
-        + '</div>'
-        + '<div class="rec-benchmark-source">المصدر: ' + escHtml(task.benchmark.source) + '</div>'
-        + '</div>';
+    var head = task.headline
+      ? '<span class="rec-sev-badge" style="background:' + sev.color + '1a;color:' + sev.color + ';">' + escHtml(task.headline) + '</span>'
+      : '<span class="rec-sev-badge" style="background:' + sev.color + '1a;color:' + sev.color + ';">' + escHtml(sev.text) + '</span>';
+    var sevChip = task.headline
+      ? '<span class="rec-conf">' + escHtml(sev.text) + '</span>'
+      : '';
+    var confChip = task.confidence
+      ? '<span class="rec-conf ' + task.confidence.cls + '">' + escHtml(task.confidence.text) + '</span>'
+      : '';
+
+    var evidenceHtml;
+    if (task.evidence.length) {
+      evidenceHtml = '<ul class="rec-evidence">' + task.evidence.map(function (e) {
+        return '<li>' + escHtml(e) + '</li>';
+      }).join('') + '</ul>';
+    } else {
+      evidenceHtml = '<div class="rec-no-evidence">لم يُرفق دليل مقاس بهذه التوصية بعد — عاملها كاقتراح للمراجعة، لا كنتيجة تحليل.</div>';
     }
 
-    var stepsHtml = '<ol class="rec-steps">' + task.steps.map(function(s) {
-      return '<li><span>' + escHtml(s) + '</span></li>';
-    }).join('') + '</ol>';
+    var approxHtml = task.approximate
+      ? '<div class="rec-approx-note">يعتمد جزء من هذا التحليل على مؤشر تقريبي — تعامل معه كإشارة.</div>'
+      : '';
+
+    var impactHtml = task.impact
+      ? '<div class="rec-block"><div class="rec-block-label">الأثر المتوقع</div><div class="rec-impact">' + escHtml(task.impact) + '</div></div>'
+      : '';
+
+    var actionHtml = task.action
+      ? '<div class="rec-block"><div class="rec-block-label">الإجراء المقترح</div><div class="rec-action">' + escHtml(task.action) + '</div></div>'
+      : '';
 
     return '<article class="rec-card" style="border-inline-start-color:' + sev.color + ';" data-severity="' + escHtml(sev.key) + '" data-item-key="' + escHtml(task.itemKey) + '">'
-      + '<div class="rec-card-header">'
-      +   '<div class="rec-card-title">' + escHtml(task.title) + '</div>'
-      +   '<span class="rec-sev-badge" style="background:' + sev.color + '1a;color:' + sev.color + ';">' + escHtml(sev.text) + '</span>'
-      + '</div>'
-      + '<div class="thread"><div class="thread-steps">'
-      +   '<div class="thread-step"><div class="thread-step-label">لماذا هذا مهم؟</div>' + escHtml(task.why) + '</div>'
-      +   '<div class="thread-step thread-step--action"><div class="thread-step-label">الإجراء المطلوب</div>' + escHtml(task.action) + '</div>'
-      + '</div></div>'
-      + benchmarkHtml
-      + '<div class="rec-section"><div class="rec-section-label">الخطوات</div>' + stepsHtml + '</div>'
-      + '<div class="rec-expect-box"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg><span>' + escHtml(task.expect) + '</span></div>'
+      + '<div class="rec-card-top">' + head + sevChip + confChip + '</div>'
+      + '<h2 class="rec-problem">' + escHtml(task.problem) + '</h2>'
+      + '<div class="rec-block"><div class="rec-block-label">الدليل</div>' + evidenceHtml + '</div>'
+      + approxHtml
+      + impactHtml
+      + actionHtml
       + '<div class="rec-card-footer">'
-      +   '<button type="button" class="btn btn-primary btn-sm rec-do-btn" data-item-key="' + escHtml(task.itemKey) + '">نفّذت ✓</button>'
+      +   '<button type="button" class="btn btn-primary btn-sm rec-do-btn" data-item-key="' + escHtml(task.itemKey) + '">تحقّق</button>'
       +   '<button type="button" class="btn btn-secondary btn-sm rec-ignore-btn" data-item-key="' + escHtml(task.itemKey) + '">تجاهل</button>'
-      +   '<a class="btn btn-ghost btn-sm" href="/ai?q=' + encodeURIComponent(task.askAi || '') + '">اسأل المساعد الذكي</a>'
+      +   '<a class="btn btn-ghost btn-sm" href="/ai?q=' + encodeURIComponent(askAiQuestion(task)) + '">اسأل المساعد</a>'
       + '</div>'
       + '</article>';
   }
 
-  function allTasks() {
-    if (Array.isArray(dashData && dashData.merchantTasks) && dashData.merchantTasks.length) {
-      return dashData.merchantTasks.map(function(t) {
-        if (!t.benchmark && META_BENCHMARKS[t.issueCode]) t.benchmark = META_BENCHMARKS[t.issueCode];
-        return t;
-      });
+  /**
+   * Result context. One row per unit, exactly as the server broke them down.
+   * The server also ships a joined displayAr string; the per-unit chips here
+   * exist so a narrow phone can wrap them without a unit losing its count.
+   * Nothing is added across units.
+   */
+  function renderContext(d) {
+    var rb = d && d.resultBreakdown;
+    var host = document.getElementById('rec-context');
+    var unitsEl = document.getElementById('rec-context-units');
+    var noteEl = document.getElementById('rec-context-note');
+    if (!rb || !Array.isArray(rb.byUnit) || !rb.byUnit.length) {
+      host.style.display = 'none';
+      return;
     }
-    return (allIssues || []).map(buildTask);
+    unitsEl.innerHTML = rb.byUnit.map(function (u) {
+      var count = (u.count == null) ? '—' : Number(u.count).toLocaleString('en-US');
+      return '<span class="rec-unit-chip">'
+        + '<span class="rec-unit-count">' + escHtml(count) + '</span>'
+        + '<span class="rec-unit-label">' + escHtml(u.labelAr || u.unit || '') + '</span>'
+        + (u.approximate ? '<span class="rec-approx-tag">تقريبي</span>' : '')
+        + '</span>';
+    }).join('');
+    if (rb.mixed) {
+      noteEl.textContent = 'حسابك يشغّل أهدافاً مختلفة. النتائج معروضة كل نوع على حدة لأن جمعها لا يعطي رقماً له معنى.';
+      noteEl.style.display = 'block';
+    } else {
+      noteEl.style.display = 'none';
+    }
+    host.style.display = 'block';
   }
 
   function render() {
     var q = (document.getElementById('search-input').value || '').toLowerCase();
-    var tasks = allTasks();
+    var tasks = buildTasks();
 
     document.getElementById('stat-total').textContent = tasks.length;
-    var critCount = tasks.filter(function(i) { return (i.severity && i.severity.key || String(i.severity)).toUpperCase() === 'CRITICAL'; }).length;
-    var highCount = tasks.filter(function(i) { return (i.severity && i.severity.key || String(i.severity)).toUpperCase() === 'HIGH'; }).length;
-    var medCount = tasks.filter(function(i) { return (i.severity && i.severity.key || String(i.severity)).toUpperCase() === 'MEDIUM'; }).length;
-    document.getElementById('stat-critical').textContent = critCount;
-    document.getElementById('stat-high').textContent = highCount;
-    document.getElementById('stat-medium').textContent = medCount;
-
-    var topTask = tasks.slice().sort(function(a, b) {
-      var ra = a.severity && a.severity.key ? severityRank(a.severity.key) : severityRank(a.severity);
-      var rb = b.severity && b.severity.key ? severityRank(b.severity.key) : severityRank(b.severity);
-      return ra - rb;
-    })[0];
-    var actionEl = document.getElementById('rec-top-action');
-    if (topTask && topTask.action) {
-      document.getElementById('stat-action').textContent = topTask.action;
-      actionEl.style.display = 'block';
+    function countOf(key) {
+      return tasks.filter(function (t) { return t.severity.key === key; }).length;
     }
+    document.getElementById('stat-critical').textContent = countOf('CRITICAL');
+    document.getElementById('stat-high').textContent = countOf('HIGH');
+    document.getElementById('stat-medium').textContent = countOf('MEDIUM');
 
     if (activeFilter !== 'all') {
-      tasks = tasks.filter(function(i) {
-        var key = i.severity && i.severity.key ? i.severity.key : String(i.severity || '');
-        return key.toUpperCase() === activeFilter;
-      });
+      tasks = tasks.filter(function (t) { return t.severity.key === activeFilter; });
     }
     if (q) {
-      tasks = tasks.filter(function(t) {
-        return (t.title || '').toLowerCase().includes(q) || (t.action || '').toLowerCase().includes(q) || (t.why || '').toLowerCase().includes(q);
+      tasks = tasks.filter(function (t) {
+        return (t.problem || '').toLowerCase().includes(q)
+          || (t.action || '').toLowerCase().includes(q)
+          || (t.evidence.join(' ') || '').toLowerCase().includes(q);
       });
     }
-
-    tasks.sort(function(a, b) {
-      var ra = a.severity && a.severity.key ? severityRank(a.severity.key) : severityRank(a.severity);
-      var rb = b.severity && b.severity.key ? severityRank(b.severity.key) : severityRank(b.severity);
-      return ra - rb;
-    });
+    tasks.sort(function (a, b) { return a.severity.rank - b.severity.rank; });
 
     var container = document.getElementById('issues-container');
     if (!tasks.length) {
       container.innerHTML = '<div class="empty-state"><div class="empty-icon">✅</div><div class="empty-title">'
-        + (activeFilter === 'all' ? 'حسابك بحالة ممتازة — لا توجد توصيات الآن' : 'لا توجد توصيات في هذه الفئة')
-        + '</div><div class="empty-text">سنراقب حملاتك باستمرار وننبّهك عند وجود فرصة تحسين.</div></div>';
+        + (activeFilter === 'all' ? 'لا يوجد ما يحتاج تدخلك الآن' : 'لا توجد توصيات في هذه الفئة')
+        + '</div><div class="empty-text">نراقب حملاتك باستمرار، وننبّهك فور ظهور دليل يستدعي إجراءً.</div></div>';
       return;
     }
 
-    var urgent = tasks.filter(function(i) {
-      var key = i.severity && i.severity.key ? i.severity.key : String(i.severity || '');
-      return ['CRITICAL', 'HIGH'].includes(key.toUpperCase());
-    });
-    var later = tasks.filter(function(i) {
-      var key = i.severity && i.severity.key ? i.severity.key : String(i.severity || '');
-      return !['CRITICAL', 'HIGH'].includes(key.toUpperCase());
-    });
+    var urgent = tasks.filter(function (t) { return t.severity.rank <= 1; });
+    var later = tasks.filter(function (t) { return t.severity.rank > 1; });
 
     var html = '';
     if (urgent.length) {
@@ -645,19 +682,11 @@ export function recommendationsPage(): string {
     container.innerHTML = html;
   }
 
-  function severityRank(sev) {
-    var s = String(sev || '').toUpperCase();
-    if (s === 'CRITICAL') return 0;
-    if (s === 'HIGH') return 1;
-    if (s === 'MEDIUM') return 2;
-    return 3;
-  }
-
   function findTaskByKey(itemKey) {
-    return allTasks().find(function(t) { return t.itemKey === itemKey; }) || null;
+    return buildTasks().find(function (t) { return t.itemKey === itemKey; }) || null;
   }
 
-  window.closeRecTaskModal = function() {
+  window.closeRecTaskModal = function () {
     document.getElementById('rec-task-modal').style.display = 'none';
     pendingTask = null;
   };
@@ -666,11 +695,29 @@ export function recommendationsPage(): string {
     var task = findTaskByKey(itemKey);
     if (!task) return;
     pendingTask = task;
-    document.getElementById('rec-task-modal-title').textContent = task.action;
-    document.getElementById('rec-task-modal-sub').textContent = task.title;
-    document.getElementById('rec-task-modal-steps').innerHTML = (task.steps || []).map(function(s, idx) {
-      return '<div class="rec-modal-step"><b>' + (idx + 1) + '</b><span>' + escHtml(s) + '</span></div>';
-    }).join('');
+    document.getElementById('rec-task-modal-title').textContent = task.action || task.problem;
+    document.getElementById('rec-task-modal-sub').textContent = task.problem;
+    var lines = [];
+    if (task.evidence.length) {
+      lines.push('<div class="rec-modal-line"><b>الدليل</b>' + task.evidence.map(escHtml).join('<br>') + '</div>');
+    }
+    if (task.confidence) {
+      lines.push('<div class="rec-modal-line"><b>الثقة</b>' + escHtml(task.confidence.text) + '</div>');
+    }
+    if (task.impact) {
+      lines.push('<div class="rec-modal-line"><b>الأثر المتوقع</b>' + escHtml(task.impact) + '</div>');
+    }
+    if (task.action) {
+      lines.push('<div class="rec-modal-line"><b>الإجراء</b>' + escHtml(task.action) + '</div>');
+    }
+    // Steps arrive on the DTO (AdviceTask.steps / issue.recommendations). None
+    // are invented here: a task without steps simply shows none.
+    if (task.steps && task.steps.length) {
+      lines.push('<div class="rec-modal-line"><b>الخطوات</b>'
+        + task.steps.map(function (s, i) { return (i + 1) + '. ' + escHtml(s); }).join('<br>')
+        + '</div>');
+    }
+    document.getElementById('rec-task-modal-body').innerHTML = lines.join('');
     document.getElementById('rec-task-modal').style.display = 'flex';
   }
 
@@ -680,9 +727,9 @@ export function recommendationsPage(): string {
       body: JSON.stringify({
         action: action,
         itemKey: task.itemKey,
-        itemKind: 'issue',
+        itemKind: task.itemKind || 'issue',
         actionCode: task.actionCode || null,
-        title: task.title,
+        title: task.problem,
       }),
     });
   }
@@ -693,11 +740,11 @@ export function recommendationsPage(): string {
     if (btn) btn.disabled = true;
     try {
       await postAction('EXECUTED', pendingTask);
-      toast('تم تسجيل ال��همة — سنراقب النتائج خلال 7 أيام', 'success');
+      toast('تم تسجيل الإجراء — سنعرض الفرق عند توفر بيانات كافية', 'success');
       closeRecTaskModal();
       await loadData();
     } catch (e) {
-      toast(e.message || 'تعذّر تسجيل المهمة', 'error');
+      toast(e.message || 'تعذّر تسجيل الإجراء', 'error');
     } finally { if (btn) btn.disabled = false; }
   }
 
@@ -711,7 +758,7 @@ export function recommendationsPage(): string {
     } catch (e) { toast(e.message || 'تعذّر التجاهل', 'error'); }
   }
 
-  document.getElementById('issues-container').addEventListener('click', function(e) {
+  document.getElementById('issues-container').addEventListener('click', function (e) {
     var doBtn = e.target.closest('.rec-do-btn');
     if (doBtn) { openDoModal(doBtn.getAttribute('data-item-key')); return; }
     var igBtn = e.target.closest('.rec-ignore-btn');
@@ -722,15 +769,15 @@ export function recommendationsPage(): string {
 
   async function loadData() {
     document.getElementById('issues-container').innerHTML =
-      '<div class="loading-overlay"><div class="spinner"></div><div class="loading-text">جارٍ تحليل حملاتك بمعايير Meta���</div></div>';
+      '<div class="loading-overlay"><div class="spinner"></div><div class="loading-text">جارٍ قراءة تحليل حسابك…</div></div>';
     try {
       var results = await Promise.all([
         apiFetch('/api/dashboard/' + wsId),
         apiFetch('/api/workspaces/' + wsId + '/recommendations'),
       ]);
       dashData = results[0] || {};
-      recs = Array.isArray(results[1]) ? results[1] : [];
-      allIssues = Array.isArray(dashData.issues) ? dashData.issues : [];
+      flatRecs = Array.isArray(results[1]) ? results[1] : [];
+      renderContext(dashData);
       render();
     } catch (e) {
       document.getElementById('issues-container').innerHTML =
@@ -738,11 +785,11 @@ export function recommendationsPage(): string {
     }
   }
 
-  document.getElementById('severity-tabs').addEventListener('click', function(e) {
+  document.getElementById('severity-tabs').addEventListener('click', function (e) {
     var btn = e.target.closest('[data-filter]');
     if (!btn) return;
     activeFilter = btn.dataset.filter;
-    document.querySelectorAll('#severity-tabs .tab').forEach(function(t) { t.classList.toggle('active', t === btn); });
+    document.querySelectorAll('#severity-tabs .tab').forEach(function (t) { t.classList.toggle('active', t === btn); });
     render();
   });
   document.getElementById('search-input').addEventListener('input', render);
