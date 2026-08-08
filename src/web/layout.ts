@@ -1105,20 +1105,20 @@ select.form-input { cursor: pointer; }
   .page-content { padding: 14px 12px 24px; }
   .mobile-menu-btn { display: flex !important; }
 
-  /* ══ MOBILE SYSTEM ═══════════════════════════════════════════════════
-     One coherent layer, not a pile of per-element patches.
+  /* ══ MOBILE SYSTEM — STRUCTURE ═══════════════════════════════════════
+     Layout and overflow containment only.
 
-     Two floors, applied everywhere rather than case by case:
-       · TOUCH  — 44x44 CSS px (WCAG 2.5.5 AA, Apple HIG). Measured 16
-         controls below it on the dashboard, the smallest 47x25.
-       · TEXT   — 12px. Measured 31 text nodes below it, the smallest 10px.
-         At 10px Arabic diacritics and digits are genuinely hard to read on a
-         phone, and Arabic is the default locale.
+     The TOUCH and TEXT floors deliberately do NOT live here. They live in
+     MOBILE_FLOORS_CSS, which is emitted after every page's own <style>.
+     Reason, measured rather than assumed: layout() emits SHARED_CSS in
+     <head> and then the page's extraHead, so a page stylesheet always comes
+     later in the cascade. A .ws-selector min-height rule sat in this block
+     and never applied — the element is id="ws-selector" class="topbar-ws",
+     so the selector matched nothing at all; and .auth-footer's 11.5px in
+     AUTH_STYLES beat the shared 12px floor purely on source order. Two
+     different failures, one symptom: a shared rule that silently loses.
+     Emitting the floors last fixes both without a single !important. */
 
-     Targets are grown with padding and min-height rather than font-size, so
-     the visual scale is preserved while the tap area becomes reachable. */
-
-  /* — Touch floor ————————————————————————————————— */
   /* Flex items default to min-width:auto, so they refuse to shrink below
      their content. Raising the label to the 12px text floor made the five
      Arabic labels wider than their 1/5 share and pushed the whole fixed nav
@@ -1146,26 +1146,6 @@ select.form-input { cursor: pointer; }
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
 
-  .mode-toggle-btn { min-height: 44px; padding-inline: 14px; }
-  .mode-toggle { min-height: 44px; }
-
-  .ws-selector { min-height: 44px; }
-
-  /* Icon-only controls: keep the glyph small, grow the hit area around it. */
-  .info-btn,
-  .topbar-btn,
-  .icon-btn {
-    min-width: 44px; min-height: 44px;
-    display: inline-flex; align-items: center; justify-content: center;
-  }
-
-  /* Tabs and chips are primary navigation on mobile — they must be tappable. */
-  .tab, .chip, .filter-chip, .seg-btn {
-    min-height: 44px;
-    display: inline-flex; align-items: center;
-    padding-inline: 10px;
-    min-width: 0;
-  }
   /* Tab rows scroll inside themselves rather than widening the page. */
   .tabs, .tab-row, .chip-row {
     display: flex; flex-wrap: nowrap;
@@ -1173,27 +1153,6 @@ select.form-input { cursor: pointer; }
     scrollbar-width: none;
   }
   .tabs::-webkit-scrollbar, .tab-row::-webkit-scrollbar, .chip-row::-webkit-scrollbar { display: none; }
-
-  /* Inline text links used as actions (e.g. "switch account", measured 103x14)
-     need a real target without becoming a block. */
-  .switch-account-link,
-  .link-action { display: inline-block; padding: 14px 4px; min-height: 44px; }
-
-  /* Form controls: 16px font stops iOS Safari from zooming the viewport on
-     focus, which is the usual cause of "the page jumped and I lost my place". */
-  input, select, textarea {
-    min-height: 44px;
-    font-size: 16px;
-  }
-  .settings-nav-item { min-height: 44px; }
-
-  /* — Text floor ————————————————————————————————— */
-  .nav-section-label,
-  .sidebar-logo-tagline,
-  .sidebar-footer-label,
-  .kpi-cmd-insight,
-  .hero-sub,
-  .text-xs { font-size: 12px; }
 
   /* — Density —————————————————————————————————————
      Card padding tightens on the narrowest phones so content, not chrome,
@@ -1688,6 +1647,101 @@ const ICONS: Record<string, string> = {
   send: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`,
   menu: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>`,
 };
+
+/**
+ * ══ MOBILE FLOORS ═══════════════════════════════════════════════════════
+ * The touch and text floors for every phone surface, in ONE place.
+ *
+ * WHY THIS IS A SEPARATE CONSTANT rather than part of SHARED_CSS:
+ * SHARED_CSS is emitted in <head> before a page's own <style>. A floor
+ * declared there loses to any later page rule of equal specificity — which
+ * is exactly how `.auth-footer`'s 11.5px survived a 12px shared floor. This
+ * block is emitted AFTER page styles, so it wins on source order alone. No
+ * !important, no negative-margin compensation, no per-page override.
+ *
+ * TOUCH — 44x44 CSS px (WCAG 2.5.5 AA, Apple HIG).
+ * TEXT  — 12px. Arabic is the default locale and its diacritics and digits
+ *         are genuinely unreadable below that on a phone.
+ *
+ * Targets grow via padding and min-height, never font-size, so the visual
+ * scale is preserved while the tap area becomes reachable.
+ *
+ * Every selector below corresponds to a control or text node MEASURED under
+ * the floor by test_mobile_viewport.mjs. This is not a speculative list —
+ * when the gate reports a new offender, it gets added here, not to a page.
+ */
+export const MOBILE_FLOORS_CSS = `
+@media (max-width: 768px) {
+  /* — Touch floor ————————————————————————————————— */
+
+  /* Shell chrome. The workspace switcher is id="ws-selector" class="topbar-ws";
+     an earlier .ws-selector rule matched nothing and the control stayed
+     140x40 on every authenticated page. */
+  #ws-selector, .topbar-ws { min-height: 44px; }
+  .mode-toggle { min-height: 44px; }
+  .mode-toggle-btn, .mode-btn, .mode-quick-btn, .mode-adv-btn {
+    min-height: 44px; padding-inline: 14px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* Icon-only controls: keep the glyph small, grow the hit area around it. */
+  .info-btn, .topbar-btn, .icon-btn, .cmd-refresh-btn {
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* Buttons and CTAs measured under the floor. */
+  .btn, .submit-btn, .main-move-cta, .section-empty-cta,
+  .topbar-login, .topbar-register, .btn-reconnect {
+    min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+  }
+
+  /* Tabs and chips are primary navigation on a phone. */
+  .tab, .chip, .filter-chip, .seg-btn, .qa-chip {
+    min-height: 44px;
+    display: inline-flex; align-items: center;
+    padding-inline: 10px;
+    min-width: 0;
+  }
+
+  /* Inline text links used as actions need a real target without becoming
+     a block and breaking the sentence they sit in. */
+  .switch-account-link, .link-action, .hg-action-link {
+    display: inline-flex; align-items: center;
+    padding-block: 12px; min-height: 44px;
+  }
+
+  /* Form controls. 16px stops iOS Safari zooming the viewport on focus,
+     which is the usual cause of "the page jumped and I lost my place". */
+  input, select, textarea { min-height: 44px; font-size: 16px; }
+  .settings-nav-item { min-height: 44px; }
+
+  /* — Text floor ————————————————————————————————— */
+  .nav-section-label, .sidebar-logo-tagline, .sidebar-footer-label,
+  .kpi-cmd-insight, .hero-sub, .text-xs,
+  .auth-footer, .form-hint, .badge,
+  .ws-hero-kicker, .ws-id-label, .ws-id-value,
+  .camp-kpi-label, .status-strip-item,
+  .cc-meta, .cc-conf, .cc-unit-label { font-size: 12px; }
+
+  /* — Safe area ————————————————————————————————————
+     Bottom nav and any sticky footer clear the home indicator. */
+  .mobile-bottom-nav { padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .page-content { padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px)); }
+
+  /* — Hover independence ————————————————————————————
+     Nothing may reveal itself only on hover: a phone has no hover state. */
+  .hover-only { display: none; }
+}
+
+/* A coarse pointer is the real test, not width — a 1024px tablet still taps. */
+@media (pointer: coarse) {
+  .btn, .submit-btn, .tab, .chip, .icon-btn, .info-btn, .topbar-btn {
+    min-height: 44px;
+  }
+}
+`;
 
 // ── Shared JS (auth guard, toast, sidebar toggle) ───────────────────────
 export const SHARED_JS = `
@@ -2988,6 +3042,10 @@ export function layout(opts: {
   <title>${title} — Adlytic</title>
   <style>${SHARED_CSS}</style>
   ${extraHead}
+  <!-- Emitted after extraHead on purpose: the mobile floors must be the last
+       word in the cascade, so a page stylesheet cannot silently undercut a
+       44px target or a 12px text floor. -->
+  <style>${MOBILE_FLOORS_CSS}</style>
 </head>
 <body>
   <div id="toast-container"></div>

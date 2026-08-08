@@ -2,7 +2,7 @@
 //  src/web/pages/registerPage.ts  —  Registration page
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS } from '../layout';
+import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 import { AUTH_STYLES, logoSvg } from './authShared';
 
 export function registerPage(): string {
@@ -17,6 +17,7 @@ export function registerPage(): string {
   <style>
     ${SHARED_CSS}
     ${AUTH_STYLES}
+    ${MOBILE_FLOORS_CSS}
   </style>
 </head>
 <body>

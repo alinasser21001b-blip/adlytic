@@ -10,7 +10,7 @@
 //  user who initiated deletion from Facebook can see their tracking code.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS } from '../layout';
+import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 
 export function dataDeletionPage(confirmationCode?: string): string {
   const codeBlock = confirmationCode
@@ -44,6 +44,7 @@ export function dataDeletionPage(confirmationCode?: string): string {
     .legal-card a { color: var(--accent-2); }
     .legal-card code { background: var(--surface-2); border: 1px solid var(--border); border-radius: 4px; padding: 1px 6px; font-size: 12.5px; }
     .legal-footer { margin-top: 32px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+    ${MOBILE_FLOORS_CSS}
   </style>
 </head>
 <body>

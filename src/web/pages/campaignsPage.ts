@@ -1399,6 +1399,17 @@ export function campaignsPage(): string {
     if (canvas) canvas.style.display = show ? 'none' : '';
   }
 
+  /**
+   * A short explanation under a chart for why it is withheld. Used when the
+   * honest answer is "this number does not exist for this account" rather
+   * than "there is no data" — the two read very differently to a merchant.
+   */
+  function setChartNote(chartId, text) {
+    var host = document.getElementById(chartId + '-empty');
+    if (!host) return;
+    if (text) host.textContent = text;
+  }
+
   /** Calendar continuum with nulls for unsynced days — never invent continuity. */
   function toChartCalendar(insights, days) {
     var byDate = {};
@@ -1419,9 +1430,44 @@ export function campaignsPage(): string {
     return { labels: labels, isoDates: isoDates, rows: rows };
   }
 
-  function dayResults(d) {
-    if (!d) return null;
-    return (Number(d.messages) || 0) + (Number(d.purchases) || 0) + (Number(d.leads) || 0);
+  /**
+   * The account's result units, from the server's P2 breakdown.
+   *
+   * resultDailyColumn says which DailyStat column carries each unit's per-day
+   * count. The browser never decides that — the mapping is a semantic one and
+   * lives in analytics/resultSemantics.ts.
+   *
+   * Returns [] when the server exposed no breakdown, which is a real state
+   * (unresolvable purpose) and must render as "no result series", not as zero.
+   */
+  function accountResultUnits() {
+    var seen = Object.create(null);
+    var out = [];
+    (state.campaigns || []).forEach(function (c) {
+      if (!c || !c.resultUnit || !c.resultDailyColumn) return;  // unresolved purpose
+      if (seen[c.resultUnit]) return;
+      seen[c.resultUnit] = true;
+      out.push({
+        unit: c.resultUnit,
+        labelAr: c.resultUnitLabelAr || c.resultLabelAr || 'نتيجة',
+        dailyColumn: c.resultDailyColumn,
+        approximate: !!c.resultApproximate,
+      });
+    });
+    return out;
+  }
+
+  /**
+   * One day's count for ONE unit. There is deliberately no function that
+   * returns "the day's results" as a single number: this page shows an
+   * account that may mix objectives, and messages + purchases + leads is not
+   * a quantity. That sum used to feed both the results chart and the
+   * cost-per-result chart.
+   */
+  function dayUnitCount(d, unit) {
+    if (!d || !unit || !unit.dailyColumn) return null;
+    var v = Number(d[unit.dailyColumn]);
+    return Number.isFinite(v) ? v : null;
   }
 
   function updateCharts(insights) {
@@ -1447,14 +1493,38 @@ export function campaignsPage(): string {
       var maj = (Number(d.spend) || 0) / state.minorFactor;
       return maj > 0 ? maj : null;
     });
-    var resultsData = rows.map(function (d) {
-      if (!d) return null;
-      var r = dayResults(d);
-      return r != null && r > 0 ? r : null;
+    // One series per result unit the account actually has. A mixed account
+    // gets two lines (conversations, orders) — never one line of their sum.
+    var units = accountResultUnits();
+    var RESULT_COLORS = [
+      ['#2DD4BF', [45, 212, 191]],
+      ['#F59E0B', [245, 158, 11]],
+      ['#A78BFA', [167, 139, 250]],
+    ];
+    var resultSeries = units.map(function (u, i) {
+      var color = RESULT_COLORS[i % RESULT_COLORS.length];
+      return {
+        unit: u,
+        label: u.labelAr || 'نتيجة',
+        approximate: !!u.approximate,
+        color: color[0],
+        rgb: color[1],
+        data: rows.map(function (d) {
+          var v = dayUnitCount(d, u);
+          return v != null && v > 0 ? v : null;
+        }),
+      };
     });
+
+    // Cost per result across DIFFERENT units has no defined value: dividing
+    // spend by (conversations + orders) prices a quantity that does not exist.
+    // On a mixed account the chart is withheld and says why, rather than
+    // printing a confident wrong number.
+    var cprMixed = units.length > 1;
+    var cprUnit = units.length === 1 ? units[0] : null;
     var cprData = rows.map(function (d) {
-      if (!d) return null;
-      var results = dayResults(d);
+      if (!d || !cprUnit) return null;
+      var results = dayUnitCount(d, cprUnit);
       if (results == null || results <= 0) return null;
       var spendMaj = (Number(d.spend) || 0) / state.minorFactor;
       if (!(spendMaj > 0)) return null;
@@ -1538,27 +1608,37 @@ export function campaignsPage(): string {
       upsertLine('spendChart', 'chart-spend', spendDatasets);
     }
 
-    var hasResultsData = resultsData.some(function (v) { return v != null && v > 0; });
-    showChartEmpty('chart-results', !hasResultsData);
-    if (hasResultsData) {
-      upsertLine('resultsChart', 'chart-results', [{
-        label: 'النتائج',
-        data: resultsData,
-        borderColor: '#2DD4BF',
-        _rgb: [45, 212, 191],
-        _fmt: 'int',
-        fill: true, tension: 0.35,
-        spanGaps: false,
-        pointBackgroundColor: '#2DD4BF',
-      }]);
+    var activeResultSeries = resultSeries.filter(function (s) {
+      return s.data.some(function (v) { return v != null && v > 0; });
+    });
+    showChartEmpty('chart-results', activeResultSeries.length === 0);
+    if (activeResultSeries.length) {
+      upsertLine('resultsChart', 'chart-results', activeResultSeries.map(function (s) {
+        return {
+          label: s.label + (s.approximate ? ' (تقريبي)' : ''),
+          data: s.data,
+          borderColor: s.color,
+          _rgb: s.rgb,
+          _fmt: 'int',
+          // Stacked fills would read as a combined total, which is the exact
+          // thing these separate series exist to avoid.
+          fill: activeResultSeries.length === 1,
+          tension: 0.35,
+          spanGaps: false,
+          pointBackgroundColor: s.color,
+        };
+      }));
     }
 
-    var hasCprData = cprData.some(function (v) { return v != null && v > 0; });
+    var hasCprData = !cprMixed && cprData.some(function (v) { return v != null && v > 0; });
     showChartEmpty('chart-cpr', !hasCprData);
+    setChartNote('chart-cpr', cprMixed
+      ? 'هذا الحساب يجمع أهدافاً مختلفة — لا توجد تكلفة نتيجة واحدة له. اطّلع على التكلفة داخل كل حملة.'
+      : '');
     if (hasCprData) {
       upsertLine('cprChart', 'chart-cpr', [{
-        label: 'تكلفة النتيجة',
-        _tipLabel: 'تكلفة النتيجة',
+        label: 'تكلفة ' + (cprUnit && cprUnit.labelAr ? cprUnit.labelAr : 'النتيجة'),
+        _tipLabel: 'تكلفة ' + (cprUnit && cprUnit.labelAr ? cprUnit.labelAr : 'النتيجة'),
         data: cprData,
         borderColor: '#60A5FA',
         _rgb: [96, 165, 250],
@@ -1660,11 +1740,37 @@ export function campaignsPage(): string {
     return Number(c.costPerResult) * factor;
   }
 
+  /**
+   * The campaign's result count, or null when the server could not resolve one.
+   *
+   * There is deliberately NO messagesWindow fallback. It made a sales
+   * campaign's result count read as its conversation count whenever the
+   * server declined to resolve a result — silently answering a question the
+   * analytics layer had explicitly refused to answer. When the purpose is
+   * unknown the honest output is "—", not another objective's number.
+   */
   function resultsCount(c) {
     if (c.resultsWindow != null && Number.isFinite(Number(c.resultsWindow))) {
       return Number(c.resultsWindow);
     }
-    return Number(c.messagesWindow) || 0;
+    return null;
+  }
+
+  /** Render helper: a null result count is "—", never 0. */
+  function resultsDisplay(c) {
+    var n = resultsCount(c);
+    return n == null ? '—' : fmtNum(n, 0);
+  }
+
+  /**
+   * The totals cell: per-unit subtotals joined by "·", e.g. "84 محادثة · 12 طلب".
+   * Mirrors resultBreakdown.displayAr from the server. One number here would be
+   * a cross-purpose total, which has no correct value.
+   */
+  function totalsResultsText(byLabel) {
+    var labels = Object.keys(byLabel);
+    if (!labels.length) return '—';
+    return labels.map(function (l) { return fmtNum(byLabel[l], 0) + ' ' + l; }).join(' · ');
   }
 
   function matchesStatusFilter(c, filter) {
@@ -2025,7 +2131,12 @@ export function campaignsPage(): string {
       cardsEl.innerHTML = campaigns.map(renderCampaignCard).join('');
     }
 
-    var totSpend = 0, totResults = 0;
+    // Spend is one currency, so it sums. Results are NOT one quantity: this
+    // table mixes objectives, so conversations, orders and leads are kept in
+    // separate buckets keyed by the campaign's own result label. Summing them
+    // would print "96 results" for 84 conversations plus 12 orders.
+    var totSpend = 0;
+    var resultsByLabel = Object.create(null);
     tbody.innerHTML = campaigns.map(function(c) {
       // Campaign.dailyBudget / lifetimeBudget are BigInt minor units in the
       // schema. They came through bigintReplacer as plain Numbers but still
@@ -2035,7 +2146,11 @@ export function campaignsPage(): string {
         : (c.lifetimeBudget != null ? fmtCurrencyMinor(c.lifetimeBudget) + ' (إجمالي)' : '—');
       var spendMinor = Number(c.spendWindowMinor) || 0;
       totSpend += spendMinor;
-      totResults += resultsCount(c);
+      var rc = resultsCount(c);
+      if (rc != null) {
+        var lbl = c.resultLabelAr || 'نتيجة';
+        resultsByLabel[lbl] = (resultsByLabel[lbl] || 0) + rc;
+      }
       var barPct = maxSpend > 0 ? Math.max(2, Math.round((spendMinor / maxSpend) * 100)) : 0;
       var cost = costPerResultMinor(c);
       return '<tr>'
@@ -2046,7 +2161,7 @@ export function campaignsPage(): string {
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(spendMinor)) + '</span>'
         +   (maxSpend > 0 ? '<div class="spend-bar"><i style="width:' + barPct + '%"></i></div>' : '') + '</td>'
         + '<td class="spark-cell"><canvas width="192" height="52" data-spark="' + escAttr(JSON.stringify(c.spark || [])) + '"></canvas></td>'
-        + '<td class="cell-num">' + escHtml(fmtNum(resultsCount(c), 0)) + '</td>'
+        + '<td class="cell-num">' + escHtml(resultsDisplay(c)) + '</td>'
         + '<td class="cell-num">' + (cost != null ? escHtml(fmtCurrencyMinor(cost)) : '—') + '</td>'
         + '<td class="cell-num">' + (c.ctrWindow != null ? escHtml(fmtNum(c.ctrWindow, 2)) + '%' : '—') + '</td>'
         + '<td class="cell-num">' + escHtml(budget) + '</td>'
@@ -2068,7 +2183,7 @@ export function campaignsPage(): string {
         + '<td colspan="2" class="tot-label">الإجمالي · ' + campaigns.length + ' حملة · آخر ' + state.days + ' يوماً</td>'
         + '<td class="cell-spend"><span class="num">' + escHtml(fmtCurrencyMinor(totSpend)) + '</span></td>'
         + '<td></td>'
-        + '<td class="cell-num">' + escHtml(fmtNum(totResults, 0)) + '</td>'
+        + '<td class="cell-num">' + escHtml(totalsResultsText(resultsByLabel)) + '</td>'
         + '<td colspan="4"></td>'
         + '</tr>';
     }

@@ -89,6 +89,7 @@ import {
   singleUnitResult,
   isApproximate,
   resultFor,
+  allResultDefinitions,
   type CampaignResultContribution,
 } from "../analytics/resultSemantics";
 // P3/P4/P5 pipeline — shared with the campaign inspector so an account and a
@@ -155,6 +156,18 @@ export interface ResultBreakdownDTO {
     labelEn: string;
     /** True when the count is a proxy rather than a direct platform count. */
     approximate: boolean;
+    /**
+     * The DailyStat column carrying this unit's per-day count
+     * ("messages" | "purchases" | "leads" | "clicks" | "impressions").
+     *
+     * Exists so a chart can draw ONE SERIES PER UNIT without the browser
+     * deciding which column means "a result". That decision is semantic and
+     * belongs to resultSemantics.ts. The campaigns page previously computed
+     * `messages + purchases + leads` per day and plotted the sum as
+     * "results" — adding conversations to orders to leads, the exact
+     * fabrication ResultUnit exists to make impossible.
+     */
+    dailyColumn: string;
   }>;
   /** True when more than one unit is present — the UI must not show one total. */
   mixed: boolean;
@@ -1816,6 +1829,22 @@ function buildSteadyStateSummary(input: {
 }
 
 /**
+ * Which DailyStat column carries a given result unit's per-day count.
+ *
+ * Derived from the result definitions rather than hand-written, so a new
+ * family cannot introduce a unit the charts silently cannot plot. Every
+ * definition sharing a unit also shares its resultKey (that is what makes
+ * them one unit), so the first match is the answer.
+ */
+function dailyColumnForUnit(unit: string): string {
+  const def = allResultDefinitions().find((d) => d.unit === unit);
+  // A unit always originates from a definition, so this is unreachable in
+  // practice. Returning the unit name rather than guessing a column keeps a
+  // future mismatch visibly wrong instead of quietly plotting the wrong data.
+  return def ? def.resultKey : unit;
+}
+
+/**
  * Per-unit result subtotals for the account window.
  *
  * Resolves each campaign's purpose from its own evidence (objective + ad-set
@@ -1894,6 +1923,7 @@ async function buildResultBreakdown(
   const total = aggregateMixedResults(contributions);
   if (total.byUnit.length === 0) return null;
 
+
   const dto: ResultBreakdownDTO = {
     byUnit: total.byUnit.map((u) => ({
       unit: u.unit,
@@ -1903,6 +1933,7 @@ async function buildResultBreakdown(
       labelAr: u.labelAr,
       labelEn: u.labelEn,
       approximate: u.approximate,
+      dailyColumn: dailyColumnForUnit(u.unit),
     })),
     mixed: total.mixed,
     approximate: isApproximate(total),

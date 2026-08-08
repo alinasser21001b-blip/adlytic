@@ -5,7 +5,7 @@
 //  not connected a Meta ad account yet. Wires into the existing OAuth flow.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS } from '../layout';
+import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 
 export function welcomePage(): string {
   return `<!DOCTYPE html>
@@ -135,6 +135,7 @@ export function welcomePage(): string {
       font-size: 13px; color: var(--text-2);
     }
     [dir="rtl"] .welcome-benefit { text-align: right; }
+    ${MOBILE_FLOORS_CSS}
   </style>
 </head>
 <body>

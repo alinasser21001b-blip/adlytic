@@ -167,7 +167,17 @@ import {
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { resolveAccountResultKey } from '../analytics/accountResultKey';
 import { reconcileActionOverlap, summarizeReconcile } from '../lib/actionOverlapReconcile';
-import { allResultDefinitions } from '../analytics/resultSemantics';
+import { allResultDefinitions, resultFor } from '../analytics/resultSemantics';
+
+/**
+ * The result definition for a purpose family, or null when the family is
+ * unresolved. `resultFor` requires a family by design (rule 3: UNKNOWN is
+ * first-class and must not be guessed at), so this wrapper carries the
+ * "we do not know" case to the wire instead of inventing a default.
+ */
+function resultDefFor(family: unknown) {
+  return family ? resultFor(family as Parameters<typeof resultFor>[0]) : null;
+}
 import { classificationConfidenceFromReason } from '../analytics/confidence';
 // P4.2 / P3 / P5 — the objective's own KPI set, funnel diagnosis, health and
 // recommendation. Same deterministic engines the dashboard uses; the campaign
@@ -2961,6 +2971,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
           kpiFamily: kpiSpec.family,
+          // The result's UNIT and the DailyStat column carrying its per-day
+          // count. Both are semantic decisions owned by resultSemantics.ts.
+          // Without them the charts had to guess, and the guess was
+          // `messages + purchases + leads` — conversations added to orders.
+          // `null` when the purpose is unresolved: the caller must render
+          // "—", never substitute another objective's number.
+          resultUnit: resultDefFor(kpiSpec.family)?.unit ?? null,
+          resultUnitLabelAr: resultDefFor(kpiSpec.family)?.labelAr ?? null,
+          resultDailyColumn: resultDefFor(kpiSpec.family)?.resultKey ?? null,
+          resultApproximate: resultDefFor(kpiSpec.family)?.approximate ?? false,
           linkClicksWindow: linkClicks,
           landingPageViewsWindow: landingPageViews,
           frequencyWindow: frequency,

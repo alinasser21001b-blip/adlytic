@@ -7,7 +7,7 @@
 //  read-only access, no advertising targeting, no model training, no resale.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS } from '../layout';
+import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 
 export function privacyPage(): string {
   return `<!DOCTYPE html>
@@ -33,6 +33,7 @@ export function privacyPage(): string {
     .legal-card strong { color: var(--text); font-weight: 600; }
     .legal-card a { color: var(--accent-2); }
     .legal-footer { margin-top: 32px; font-size: 12.5px; color: var(--text-3); text-align: center; }
+    ${MOBILE_FLOORS_CSS}
   </style>
 </head>
 <body>

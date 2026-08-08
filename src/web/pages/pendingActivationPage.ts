@@ -5,7 +5,7 @@
 //  Only actions: contact support via WhatsApp, or logout.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS } from '../layout';
+import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 
 export function pendingActivationPage(): string {
   return `<!DOCTYPE html>
@@ -38,6 +38,7 @@ export function pendingActivationPage(): string {
     #error-msg { display: none; margin-bottom: 16px; text-align: left; }
     .logout-link { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--text-3); cursor: pointer; background: none; border: none; }
     .logout-link:hover { color: var(--text-2); }
+    ${MOBILE_FLOORS_CSS}
   </style>
 </head>
 <body>
