@@ -205,8 +205,18 @@ const PROBE = `(() => {
   // Visible, non-whitespace text inside the main content region — chrome
   // (topbar, bottom nav, sidebar) deliberately excluded, since a page whose
   // only visible text is its own navigation has not rendered.
+  //
+  // The root must be a VISIBLE candidate, not merely the first match.
+  // add-client ships two <main> elements — the desktop shell's (hidden on a
+  // phone, 0x0) and the mobile flow's #mf-body — and querySelector returns
+  // the hidden one, which scored this fully-working page at 0 characters
+  // across all six widths. Picking the first DOM match is exactly the kind
+  // of "technically true, completely wrong" measurement this whole check
+  // exists to prevent, so it falls back to the body rather than trusting a
+  // container that is not on screen.
   const contentRoot =
-    document.querySelector('#dashboard-content, #main-content, main, .page-content') || b;
+    [...document.querySelectorAll('#dashboard-content, #main-content, .page-content, main')]
+      .find(isVisible) || b;
   let visibleTextLen = 0;
   let visibleBlocks = 0;
   contentRoot.querySelectorAll('*').forEach(el => {
