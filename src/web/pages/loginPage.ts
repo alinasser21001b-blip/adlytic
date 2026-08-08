@@ -5,6 +5,102 @@
 import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 import { AUTH_STYLES, logoSvg } from './authShared';
 
+/**
+ * PHASE 13 — auth form behaviour on a phone.
+ *
+ * Shared by /login and /register (registerPage imports it from here). It is
+ * emitted AFTER MOBILE_FLOORS_CSS so it can build on the 44px / 16px floors
+ * rather than fight them: nothing below re-declares input font-size or
+ * min-height, it only fixes what the floors cannot reach.
+ *
+ * Three real failures on a phone, each addressed once:
+ *
+ *   1. THE SUBMIT BUTTON DISAPPEARS. .auth-page is min-height:100vh with the
+ *      form vertically centred. Open the keyboard and the visual viewport
+ *      halves, but 100vh does not — so the card stays centred against the
+ *      FULL height and its lower half, including the submit button, sits
+ *      behind the keyboard with nothing to scroll to. Anchoring to the top on
+ *      short viewports makes the button reachable by scrolling.
+ *   2. THE ERROR IS ABOVE THE FOLD YOU ARE LOOKING AT. A single alert at the
+ *      top of the card is off-screen while the keyboard is open and the user
+ *      is looking at the field they just got wrong. Per-field messages put
+ *      the message where the mistake is.
+ *   3. NO VISIBLE FOCUS. The floors do not style focus. A 3px accent ring
+ *      plus :focus-visible on the buttons makes the caret position obvious.
+ */
+export const AUTH_FORM_MOBILE_CSS = `
+/* Focus is a state the user must be able to SEE, not infer from the caret. */
+.form-input:focus-visible,
+.auth-submit:focus-visible,
+.pw-toggle:focus-visible,
+.auth-alt a:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* Password field + reveal control. The control is a real 44px target inside
+   the field's padding, not an 18px glyph overlapping the text. */
+.pw-wrap { position: relative; }
+.pw-wrap .form-input { padding-inline-start: 48px; }
+.pw-toggle {
+  position: absolute; inset-inline-start: 4px; top: 50%;
+  transform: translateY(-50%);
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent; border: none; cursor: pointer;
+  color: var(--text-3); font-size: 12px; font-weight: 700;
+  border-radius: 8px;
+}
+.pw-toggle:active { color: var(--accent); }
+
+/* Per-field validation. Hidden until a field actually fails. */
+.field-error {
+  display: none;
+  font-size: 12px; line-height: 1.5; color: var(--error);
+  margin-top: 6px;
+}
+.field-error.is-shown { display: block; }
+.form-input[aria-invalid="true"] {
+  border-color: var(--error);
+  box-shadow: 0 0 0 3px rgba(226,96,79,0.12);
+}
+
+/* The banner alerts announce themselves and stay legible at the text floor. */
+#error-msg, #success-msg { font-size: 13px; }
+
+/* MEASURED, not assumed. test_mobile_viewport reported the primary CTA at
+   250x40 and the "create an account" link at 64x15 on every phone width.
+   MOBILE_FLOORS_CSS never reaches either: the submit is .auth-submit (not
+   .btn) and the link is a bare <a> inside .auth-alt. Both are the single most
+   important target on their screen. */
+.auth-submit { min-height: 44px; }
+.auth-alt a {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; padding-inline: 8px;
+}
+
+@media (max-width: 900px) {
+  /* Safe area: the card must clear the home indicator when the page is
+     scrolled to the bottom. */
+  .auth-form-side {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  }
+}
+
+/* Keyboard open (or a short phone in landscape): stop centring, start at the
+   top, and let the page scroll to the submit button. dvh tracks the visual
+   viewport where it is supported; the 100vh above it remains the fallback. */
+@media (max-height: 640px) {
+  .auth-page { min-height: auto; }
+  .auth-form-side { align-items: flex-start; padding-top: 20px; }
+  .auth-mobile-logo { margin-bottom: 18px; }
+  .auth-card-header { margin-bottom: 18px; }
+}
+@supports (height: 100dvh) {
+  .auth-page { min-height: 100dvh; }
+}
+`;
+
 export function loginPage(): string {
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -18,6 +114,7 @@ export function loginPage(): string {
     ${SHARED_CSS}
     ${AUTH_STYLES}
     ${MOBILE_FLOORS_CSS}
+    ${AUTH_FORM_MOBILE_CSS}
   </style>
 </head>
 <body>
@@ -79,23 +176,32 @@ export function loginPage(): string {
             <p class="auth-subtitle">سجّل الدخول إلى حسابك</p>
           </div>
 
-          <div id="error-msg" class="alert alert-error"></div>
-          <div id="success-msg" class="alert alert-success"></div>
+          <div id="error-msg" class="alert alert-error" role="alert" aria-live="assertive"></div>
+          <div id="success-msg" class="alert alert-success" role="status" aria-live="polite"></div>
 
-          <form id="login-form">
+          <form id="login-form" novalidate>
             <div class="form-group">
               <label class="form-label" for="email">البريد الإلكتروني</label>
               <div class="input-wrap">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 7l-10 6L2 7"/></svg>
-                <input type="email" id="email" class="form-input has-icon" placeholder="you@company.com" required autocomplete="email" dir="ltr">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 7l-10 6L2 7"/></svg>
+                <input type="email" id="email" class="form-input has-icon" placeholder="you@company.com" required
+                       autocomplete="email" inputmode="email" enterkeyhint="next"
+                       autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="email-error" dir="ltr">
               </div>
+              <div class="field-error" id="email-error"></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="password">كلمة المرور</label>
-              <div class="input-wrap">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                <input type="password" id="password" class="form-input has-icon" placeholder="••••••••" required autocomplete="current-password" dir="ltr">
+              <div class="input-wrap pw-wrap">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="password" class="form-input has-icon" placeholder="••••••••" required
+                       autocomplete="current-password" enterkeyhint="go"
+                       autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="password-error" dir="ltr">
+                <button type="button" class="pw-toggle" id="pw-toggle" aria-controls="password" aria-pressed="false">إظهار</button>
               </div>
+              <div class="field-error" id="password-error"></div>
             </div>
             <button type="submit" class="auth-submit" id="submit-btn">
               <span id="btn-text">تسجيل الدخول</span>
@@ -138,10 +244,59 @@ export function loginPage(): string {
     const btnSpin = document.getElementById('btn-spinner');
     const btn     = document.getElementById('submit-btn');
 
+    // ── Per-field validation ────────────────────────────────────────────
+    // The banner alert sits at the top of the card. With the keyboard open on
+    // a phone it is off-screen while the user stares at the field they got
+    // wrong, so every failure is ALSO written next to its own input, the
+    // input is marked aria-invalid, and the first offender is focused and
+    // scrolled into the visible band.
+    function fieldError(id, msg) {
+      var input = document.getElementById(id);
+      var slot  = document.getElementById(id + '-error');
+      if (!input || !slot) return;
+      if (msg) {
+        slot.textContent = msg;
+        slot.classList.add('is-shown');
+        input.setAttribute('aria-invalid', 'true');
+      } else {
+        slot.textContent = '';
+        slot.classList.remove('is-shown');
+        input.removeAttribute('aria-invalid');
+      }
+    }
+    function clearFieldErrors() {
+      ['email', 'password'].forEach(function (id) { fieldError(id, ''); });
+    }
+    function focusFirstInvalid() {
+      var first = document.querySelector('.form-input[aria-invalid="true"]');
+      if (!first) return;
+      try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+      first.focus();
+    }
+
+    ['email', 'password'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function () { fieldError(id, ''); });
+    });
+
+    // Reveal control: a 44px target, and its label says what it will DO.
+    var pwToggle = document.getElementById('pw-toggle');
+    if (pwToggle) {
+      pwToggle.addEventListener('click', function () {
+        var pw = document.getElementById('password');
+        var reveal = pw.type === 'password';
+        pw.type = reveal ? 'text' : 'password';
+        pwToggle.textContent = reveal ? 'إخفاء' : 'إظهار';
+        pwToggle.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+        pw.focus();
+      });
+    }
+
     function showError(msg) {
       errEl.textContent = msg;
       errEl.style.display = 'flex';
       sucEl.style.display = 'none';
+      try { errEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
     }
     function showSuccess(msg) {
       sucEl.textContent = msg;
@@ -159,7 +314,15 @@ export function loginPage(): string {
       e.preventDefault();
       const email    = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showError('يرجى ملء جميع الحقول.'); return; }
+
+      clearFieldErrors();
+      var invalid = false;
+      if (!email) { fieldError('email', 'أدخل بريدك الإلكتروني.'); invalid = true; }
+      else if (email.indexOf('@') < 1 || email.indexOf('.', email.indexOf('@')) < 0) {
+        fieldError('email', 'صيغة البريد الإلكتروني غير صحيحة.'); invalid = true;
+      }
+      if (!password) { fieldError('password', 'أدخل كلمة المرور.'); invalid = true; }
+      if (invalid) { showError('راجع الحقول المعلّمة بالأحمر.'); focusFirstInvalid(); return; }
 
       setLoading(true);
       errEl.style.display = 'none';
@@ -248,7 +411,13 @@ export function loginPage(): string {
       }
     });
 
-    document.getElementById('email').focus();
+    // Autofocus only where a keyboard is already present. On a phone,
+    // focusing on load throws the software keyboard up over the page before
+    // the merchant has seen it, and on iOS also zooms and re-anchors the
+    // scroll position.
+    if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+      document.getElementById('email').focus();
+    }
   </script>
 </body>
 </html>`;

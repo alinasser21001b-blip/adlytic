@@ -4,6 +4,10 @@
 
 import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
 import { AUTH_STYLES, logoSvg } from './authShared';
+// Phase 13: the auth-form mobile behaviour (keyboard, focus ring, per-field
+// errors, reveal control, safe area) lives with /login and is shared here so
+// the two auth screens cannot drift apart.
+import { AUTH_FORM_MOBILE_CSS } from './loginPage';
 
 export function registerPage(): string {
   return `<!DOCTYPE html>
@@ -18,6 +22,7 @@ export function registerPage(): string {
     ${SHARED_CSS}
     ${AUTH_STYLES}
     ${MOBILE_FLOORS_CSS}
+    ${AUTH_FORM_MOBILE_CSS}
   </style>
 </head>
 <body>
@@ -78,30 +83,43 @@ export function registerPage(): string {
             <p class="auth-subtitle">ابدأ بتحليل إعلاناتك بالذكاء الاصطناعي</p>
           </div>
 
-          <div id="error-msg" class="alert alert-error"></div>
-          <div id="success-msg" class="alert alert-success"></div>
+          <div id="error-msg" class="alert alert-error" role="alert" aria-live="assertive"></div>
+          <div id="success-msg" class="alert alert-success" role="status" aria-live="polite"></div>
 
-          <form id="register-form">
+          <form id="register-form" novalidate>
             <div class="form-group">
               <label class="form-label" for="name">الاسم الكامل</label>
               <div class="input-wrap">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
-                <input type="text" id="name" class="form-input has-icon" placeholder="علي أحمد" autocomplete="name">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+                <input type="text" id="name" class="form-input has-icon" placeholder="علي أحمد"
+                       autocomplete="name" inputmode="text" enterkeyhint="next"
+                       autocapitalize="words" spellcheck="false"
+                       aria-describedby="name-error">
               </div>
+              <div class="field-error" id="name-error"></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="email">البريد الإلكتروني</label>
               <div class="input-wrap">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 7l-10 6L2 7"/></svg>
-                <input type="email" id="email" class="form-input has-icon" placeholder="you@company.com" required autocomplete="email" dir="ltr">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="3"/><path d="M22 7l-10 6L2 7"/></svg>
+                <input type="email" id="email" class="form-input has-icon" placeholder="you@company.com" required
+                       autocomplete="email" inputmode="email" enterkeyhint="next"
+                       autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="email-error" dir="ltr">
               </div>
+              <div class="field-error" id="email-error"></div>
             </div>
             <div class="form-group">
               <label class="form-label" for="password">كلمة المرور</label>
-              <div class="input-wrap">
-                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                <input type="password" id="password" class="form-input has-icon" placeholder="8 أحرف على الأقل" required autocomplete="new-password" minlength="8" dir="ltr">
+              <div class="input-wrap pw-wrap">
+                <svg class="input-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                <input type="password" id="password" class="form-input has-icon" placeholder="8 أحرف على الأقل" required
+                       autocomplete="new-password" minlength="8" enterkeyhint="go"
+                       autocapitalize="none" autocorrect="off" spellcheck="false"
+                       aria-describedby="password-error" dir="ltr">
+                <button type="button" class="pw-toggle" id="pw-toggle" aria-controls="password" aria-pressed="false">إظهار</button>
               </div>
+              <div class="field-error" id="password-error">كلمة المرور يجب أن تكون 8 أحرف على الأقل.</div>
             </div>
             <button type="submit" class="auth-submit" id="submit-btn">
               <span id="btn-text">إنشاء حساب</span>
@@ -144,10 +162,51 @@ export function registerPage(): string {
     const btnSpin = document.getElementById('btn-spinner');
     const btn     = document.getElementById('submit-btn');
 
+    // ── Per-field validation (see AUTH_FORM_MOBILE_CSS for why) ─────────
+    function fieldError(id, msg) {
+      var input = document.getElementById(id);
+      var slot  = document.getElementById(id + '-error');
+      if (!input || !slot) return;
+      if (msg) {
+        slot.textContent = msg;
+        slot.classList.add('is-shown');
+        input.setAttribute('aria-invalid', 'true');
+      } else {
+        slot.classList.remove('is-shown');
+        input.removeAttribute('aria-invalid');
+      }
+    }
+    function clearFieldErrors() {
+      ['name', 'email', 'password'].forEach(function (id) { fieldError(id, ''); });
+    }
+    function focusFirstInvalid() {
+      var first = document.querySelector('.form-input[aria-invalid="true"]');
+      if (!first) return;
+      try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+      first.focus();
+    }
+    ['name', 'email', 'password'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) el.addEventListener('input', function () { fieldError(id, ''); });
+    });
+
+    var pwToggle = document.getElementById('pw-toggle');
+    if (pwToggle) {
+      pwToggle.addEventListener('click', function () {
+        var pw = document.getElementById('password');
+        var reveal = pw.type === 'password';
+        pw.type = reveal ? 'text' : 'password';
+        pwToggle.textContent = reveal ? 'إخفاء' : 'إظهار';
+        pwToggle.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+        pw.focus();
+      });
+    }
+
     function showError(msg) {
       errEl.textContent = msg;
       errEl.style.display = 'flex';
       sucEl.style.display = 'none';
+      try { errEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); } catch (e) {}
     }
     function setLoading(on) {
       btn.disabled = on;
@@ -161,8 +220,17 @@ export function registerPage(): string {
       const name     = document.getElementById('name').value.trim();
       const email    = document.getElementById('email').value.trim();
       const password = document.getElementById('password').value;
-      if (!email || !password) { showError('البريد الإلكتروني وكلمة المرور مطلوبان.'); return; }
-      if (password.length < 8) { showError('كلمة المرور يجب أن تكون 8 أحرف على الأقل.'); return; }
+      clearFieldErrors();
+      var invalid = false;
+      if (!email) { fieldError('email', 'أدخل بريدك الإلكتروني.'); invalid = true; }
+      else if (email.indexOf('@') < 1 || email.indexOf('.', email.indexOf('@')) < 0) {
+        fieldError('email', 'صيغة البريد الإلكتروني غير صحيحة.'); invalid = true;
+      }
+      if (!password) { fieldError('password', 'أدخل كلمة مرور.'); invalid = true; }
+      else if (password.length < 8) {
+        fieldError('password', 'كلمة المرور يجب أن تكون 8 أحرف على الأقل.'); invalid = true;
+      }
+      if (invalid) { showError('راجع الحقول المعلّمة بالأحمر.'); focusFirstInvalid(); return; }
 
       setLoading(true);
       errEl.style.display = 'none';
@@ -194,7 +262,10 @@ export function registerPage(): string {
       }
     });
 
-    document.getElementById('name').focus();
+    // Autofocus only where a keyboard is already present — see /login.
+    if (window.matchMedia && window.matchMedia('(pointer: fine)').matches) {
+      document.getElementById('name').focus();
+    }
   </script>
 </body>
 </html>`;

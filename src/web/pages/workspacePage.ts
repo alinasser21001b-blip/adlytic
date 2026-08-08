@@ -25,28 +25,41 @@ export function workspacePage(): string {
   </section>
 
   <!-- Manual token modal -->
-  <div id="manual-token-modal" class="modal-overlay" style="display:none;">
-    <div class="modal">
-      <div class="modal-title">ربط Meta يدوياً</div>
-      <div class="modal-subtitle">أدخل رمز الوصول ومعرّف الحساب من أدوات Meta. يُفضَّل الربط بنقرة واحدة عند توفره.</div>
-      <div id="manual-reason" class="alert alert-warning" style="display:none;margin-bottom:12px;font-size:12.5px;"></div>
-      <div id="manual-error" class="alert alert-error" style="display:none;"></div>
-      <div class="form-group">
-        <label class="form-label">رمز الوصول</label>
-        <input type="password" id="manual-token" class="form-input" placeholder="EAABwzLixnjYBO...">
+  <div id="manual-token-modal" class="modal-overlay ws-modal-overlay" style="display:none;">
+    <div class="modal ws-modal" role="dialog" aria-modal="true" aria-labelledby="manual-modal-title">
+      <div class="ws-modal-scroll">
+        <div class="modal-title" id="manual-modal-title">ربط Meta يدوياً</div>
+        <div class="modal-subtitle">أدخل رمز الوصول ومعرّف الحساب من أدوات Meta. يُفضَّل الربط بنقرة واحدة عند توفره.</div>
+        <div id="manual-reason" class="alert alert-warning" style="display:none;margin-bottom:12px;" role="status"></div>
+        <div id="manual-error" class="alert alert-error" style="display:none;" role="alert" aria-live="assertive"></div>
+        <div class="form-group">
+          <label class="form-label" for="manual-token">رمز الوصول</label>
+          <div class="pw-wrap">
+            <input type="password" id="manual-token" class="form-input" placeholder="EAABwzLixnjYBO..."
+                   autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
+                   enterkeyhint="next" dir="ltr" aria-describedby="manual-token-error">
+            <button type="button" class="pw-toggle" data-pw-for="manual-token" aria-controls="manual-token" aria-pressed="false">إظهار</button>
+          </div>
+          <div class="field-error" id="manual-token-error"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="manual-account-id">معرّف الحساب الإعلاني</label>
+          <input type="text" id="manual-account-id" class="form-input" placeholder="act_123456789"
+                 autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false"
+                 enterkeyhint="next" dir="ltr" aria-describedby="manual-account-id-error">
+          <div class="field-error" id="manual-account-id-error"></div>
+          <div class="form-hint">انسخه كما هو من Meta — يبدأ بـ act_ ثم أرقام.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="manual-account-name">اسم الحساب (اختياري)</label>
+          <input type="text" id="manual-account-name" class="form-input" placeholder="حساب نشاطي التجاري"
+                 autocomplete="organization" inputmode="text" enterkeyhint="done" autocapitalize="words">
+        </div>
+        <p style="font-size:12.5px;color:var(--text-2);margin:0 0 12px;">تُكتشف العملة تلقائياً من حساب Meta.</p>
       </div>
-      <div class="form-group">
-        <label class="form-label">معرّف الحساب الإعلاني</label>
-        <input type="text" id="manual-account-id" class="form-input" placeholder="act_123456789">
-      </div>
-      <div class="form-group">
-        <label class="form-label">اسم الحساب (اختياري)</label>
-        <input type="text" id="manual-account-name" class="form-input" placeholder="حساب نشاطي التجاري">
-      </div>
-      <p style="font-size:12.5px;color:var(--text-2);margin:0 0 12px;">تُكتشف العملة تلقائياً من حساب Meta.</p>
-      <div class="modal-footer">
-        <button class="btn btn-secondary" id="manual-cancel">إلغاء</button>
-        <button class="btn btn-primary" id="manual-confirm">ربط الحساب</button>
+      <div class="modal-footer ws-modal-footer">
+        <button class="btn btn-secondary" id="manual-cancel" type="button">إلغاء</button>
+        <button class="btn btn-primary" id="manual-confirm" type="button">ربط الحساب</button>
       </div>
     </div>
   </div>
@@ -64,11 +77,14 @@ export function workspacePage(): string {
     <div id="ws-info-form" style="display:none;">
       <div class="ws-identity-grid">
         <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label">اسم مساحة العمل</label>
-          <input type="text" id="ws-name-input" class="form-input" placeholder="مساحة عملي">
+          <label class="form-label" for="ws-name-input">اسم مساحة العمل</label>
+          <input type="text" id="ws-name-input" class="form-input" placeholder="مساحة عملي"
+                 autocomplete="organization" inputmode="text" enterkeyhint="done"
+                 autocapitalize="words" aria-describedby="ws-name-input-error">
+          <div class="field-error" id="ws-name-input-error"></div>
         </div>
         <div class="form-group" style="margin-bottom:0;">
-          <label class="form-label">الخطة</label>
+          <label class="form-label" for="ws-plan-input">الخطة</label>
           <input type="text" id="ws-plan-input" class="form-input" disabled style="opacity:0.55;">
         </div>
       </div>
@@ -104,26 +120,32 @@ export function workspacePage(): string {
 </div>
 
 <!-- Invite modal -->
-<div id="invite-modal" class="modal-overlay" style="display:none;">
-  <div class="modal">
-    <div class="modal-title">دعوة عضو</div>
-    <div class="modal-subtitle">أدخل بريد مستخدم موجود في Adlytic.</div>
-    <div id="invite-error" class="alert alert-error" style="display:none;"></div>
-    <div class="form-group">
-      <label class="form-label">البريد الإلكتروني</label>
-      <input type="email" id="invite-email" class="form-input" placeholder="colleague@company.com">
+<div id="invite-modal" class="modal-overlay ws-modal-overlay" style="display:none;">
+  <div class="modal ws-modal" role="dialog" aria-modal="true" aria-labelledby="invite-modal-title">
+    <div class="ws-modal-scroll">
+      <div class="modal-title" id="invite-modal-title">دعوة عضو</div>
+      <div class="modal-subtitle">أدخل بريد مستخدم موجود في Adlytic.</div>
+      <div id="invite-error" class="alert alert-error" style="display:none;" role="alert" aria-live="assertive"></div>
+      <div class="form-group">
+        <label class="form-label" for="invite-email">البريد الإلكتروني</label>
+        <input type="email" id="invite-email" class="form-input" placeholder="colleague@company.com"
+               autocomplete="email" inputmode="email" enterkeyhint="send"
+               autocapitalize="none" autocorrect="off" spellcheck="false"
+               dir="ltr" aria-describedby="invite-email-error">
+        <div class="field-error" id="invite-email-error"></div>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="invite-role">الدور</label>
+        <select id="invite-role" class="form-input">
+          <option value="VIEWER">مشاهد — قراءة فقط</option>
+          <option value="MANAGER">مدير — إدارة الحملات</option>
+          <option value="OWNER">مالك — صلاحيات كاملة</option>
+        </select>
+      </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">الدور</label>
-      <select id="invite-role" class="form-input">
-        <option value="VIEWER">مشاهد — قراءة فقط</option>
-        <option value="MANAGER">مدير — إدارة الحملات</option>
-        <option value="OWNER">مالك — صلاحيات كاملة</option>
-      </select>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" id="invite-cancel">إلغاء</button>
-      <button class="btn btn-primary" id="invite-confirm">إرسال الدعوة</button>
+    <div class="modal-footer ws-modal-footer">
+      <button class="btn btn-secondary" id="invite-cancel" type="button">إلغاء</button>
+      <button class="btn btn-primary" id="invite-confirm" type="button">إرسال الدعوة</button>
     </div>
   </div>
 </div>
@@ -207,6 +229,79 @@ export function workspacePage(): string {
     font-size: 13px; color: var(--text);
   }
   .ws-role-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+
+  /* The member list is a real <table> with five columns. At 320px it is wider
+     than the viewport, and a table that widens the PAGE is the horizontal
+     drag this whole mobile pass exists to remove. Give it its own scroll
+     container so the table scrolls and the page does not. */
+  .ws-table-scroll {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  .ws-member-table { min-width: 460px; }
+
+  /* ══ PHASE 13 — form behaviour on a phone ══════════════════════════════
+     Builds on MOBILE_FLOORS_CSS (44px targets, 16px inputs). */
+
+  .form-input:focus-visible,
+  .btn:focus-visible,
+  .pw-toggle:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  .pw-wrap { position: relative; }
+  .pw-wrap .form-input { padding-inline-start: 48px; }
+  .pw-toggle {
+    position: absolute; inset-inline-start: 4px; top: 50%;
+    transform: translateY(-50%);
+    min-width: 44px; min-height: 44px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: transparent; border: none; cursor: pointer;
+    color: var(--text-3); font-size: 12px; font-weight: 700; border-radius: 8px;
+  }
+  .pw-toggle:active { color: var(--accent); }
+
+  .field-error { display: none; font-size: 12px; line-height: 1.5; color: var(--error); margin-top: 6px; }
+  .field-error.is-shown { display: block; }
+  .form-input[aria-invalid="true"] {
+    border-color: var(--error);
+    box-shadow: 0 0 0 3px rgba(226,96,79,0.12);
+  }
+  .form-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; line-height: 1.5; }
+
+  /* A dialog whose confirm button is behind the keyboard is a dead end. Cap
+     the sheet against the visual viewport, scroll its body, and keep the
+     footer pinned inside the sheet. */
+  .ws-modal { display: flex; flex-direction: column; max-height: 88dvh; }
+  .ws-modal-scroll { overflow-y: auto; min-height: 0; }
+  .ws-modal-footer { flex-shrink: 0; margin-top: 16px; }
+
+  @media (max-width: 768px) {
+    .ws-modal-overlay { align-items: flex-end; }
+    .ws-modal {
+      border-radius: 20px 20px 0 0;
+      padding: 18px 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    }
+    .ws-modal-footer { gap: 8px; }
+    .ws-modal-footer .btn { flex: 1 1 auto; }
+    .ws-panel { padding: 15px 14px 14px; }
+    .ws-panel-head .btn, .ws-danger-row .btn { flex: 1 1 100%; }
+    .ws-hero-actions .btn, .ws-account-actions .btn { flex: 1 1 auto; }
+    .ws-page { padding-bottom: env(safe-area-inset-bottom, 0px); }
+
+    /* — Text floor, restated here on purpose ———————————————————
+       MOBILE_FLOORS_CSS lives in <head>; a page's own <style> arrives with
+       the body and therefore wins on source order — which is exactly why
+       .ws-hero-kicker / .ws-id-label / .ws-id-value were still measured at
+       11px despite already being listed in the shared floors. */
+    .ws-hero-kicker,
+    .ws-id-label,
+    .ws-id-value,
+    .ws-status-pill,
+    .ws-member-table th { font-size: 12px; }
+  }
 </style>`;
 
   const scripts = `<script>
@@ -231,6 +326,57 @@ export function workspacePage(): string {
       .replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/'/g,'&#39;')
       .replace(/</g,'&lt;').replace(/>/g,'&gt;');
   }
+
+  // ── Phase 13: form plumbing ───────────────────────────────────────────
+  // Every message goes next to the field that produced it. Both dialogs on
+  // this page are sheets on a phone: their top-of-sheet alert is scrolled out
+  // of view the moment the keyboard opens.
+  function fieldError(id, msg) {
+    var input = document.getElementById(id);
+    var slot  = document.getElementById(id + '-error');
+    if (!input || !slot) return;
+    if (msg) {
+      slot.textContent = msg;
+      slot.classList.add('is-shown');
+      input.setAttribute('aria-invalid', 'true');
+    } else {
+      slot.textContent = '';
+      slot.classList.remove('is-shown');
+      input.removeAttribute('aria-invalid');
+    }
+  }
+  function focusFirstInvalid(scopeSelector) {
+    var scope = scopeSelector ? document.querySelector(scopeSelector) : document;
+    var first = (scope || document).querySelector('.form-input[aria-invalid="true"]');
+    if (!first) return;
+    try { first.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+    first.focus();
+  }
+  var isPhone = window.matchMedia && window.matchMedia('(max-width: 768px)').matches;
+  document.querySelectorAll('.form-input').forEach(function (el) {
+    if (!el.id) return;
+    el.addEventListener('input', function () { fieldError(el.id, ''); });
+    // Keyboard-open reachability: centre the focused field so the action
+    // below it (save / connect / invite) is not left behind the keyboard.
+    // The delay lets the keyboard finish animating before we measure.
+    if (!isPhone) return;
+    el.addEventListener('focus', function () {
+      setTimeout(function () {
+        try { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); } catch (e) {}
+      }, 250);
+    });
+  });
+  document.querySelectorAll('.pw-toggle').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pw = document.getElementById(btn.getAttribute('data-pw-for'));
+      if (!pw) return;
+      var reveal = pw.type === 'password';
+      pw.type = reveal ? 'text' : 'password';
+      btn.textContent = reveal ? 'إخفاء' : 'إظهار';
+      btn.setAttribute('aria-pressed', reveal ? 'true' : 'false');
+      pw.focus();
+    });
+  });
 
   function roleLabel(role) {
     if (role === 'OWNER') return 'مالك';
@@ -431,6 +577,7 @@ export function workspacePage(): string {
       return;
     }
     document.getElementById('members-container').innerHTML = \`
+      <div class="ws-table-scroll">
       <table class="ws-member-table">
         <thead><tr>
           <th>العضو</th><th>البريد</th><th>الدور</th><th>انضم</th>\${canManage?'<th>إجراءات</th>':''}
@@ -452,7 +599,8 @@ export function workspacePage(): string {
             </td>\` : ''}
           </tr>\`).join('')}
         </tbody>
-      </table>\`;
+      </table>
+      </div>\`;
 
     document.querySelectorAll('.change-role-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
@@ -487,7 +635,12 @@ export function workspacePage(): string {
 
   document.getElementById('save-ws-btn').addEventListener('click', async () => {
     const name = document.getElementById('ws-name-input').value.trim();
-    if (!name) { toast('الاسم مطلوب','error'); return; }
+    fieldError('ws-name-input', '');
+    if (!name) {
+      fieldError('ws-name-input', 'اسم مساحة العمل مطلوب.');
+      focusFirstInvalid();
+      return;
+    }
     try {
       await apiFetch('/api/workspaces/' + wsId, {method:'PATCH', body: JSON.stringify({name})});
       document.getElementById('ws-name').textContent = name;
@@ -512,9 +665,15 @@ export function workspacePage(): string {
   document.getElementById('invite-confirm').addEventListener('click', async () => {
     const email = document.getElementById('invite-email').value.trim();
     const role  = document.getElementById('invite-role').value;
+    fieldError('invite-email', '');
     if (!email) {
-      document.getElementById('invite-error').textContent='البريد مطلوب';
-      document.getElementById('invite-error').style.display='flex';
+      fieldError('invite-email', 'أدخل بريد العضو.');
+      focusFirstInvalid('#invite-modal');
+      return;
+    }
+    if (email.indexOf('@') < 1 || email.indexOf('.', email.indexOf('@')) < 0) {
+      fieldError('invite-email', 'صيغة البريد الإلكتروني غير صحيحة.');
+      focusFirstInvalid('#invite-modal');
       return;
     }
     try {
@@ -558,9 +717,15 @@ export function workspacePage(): string {
     const name = document.getElementById('manual-account-name').value.trim();
     const errEl = document.getElementById('manual-error');
     errEl.style.display = 'none';
-    if (!accessToken || !externalAccountId) {
-      errEl.textContent = 'رمز الوصول ومعرّف الحساب مطلوبان';
+    fieldError('manual-token', '');
+    fieldError('manual-account-id', '');
+    var invalid = false;
+    if (!accessToken) { fieldError('manual-token', 'رمز الوصول مطلوب.'); invalid = true; }
+    if (!externalAccountId) { fieldError('manual-account-id', 'معرّف الحساب مطلوب.'); invalid = true; }
+    if (invalid) {
+      errEl.textContent = 'راجع الحقول المعلّمة بالأحمر.';
       errEl.style.display = 'flex';
+      focusFirstInvalid('#manual-token-modal');
       return;
     }
     const confirmBtn = document.getElementById('manual-confirm');
