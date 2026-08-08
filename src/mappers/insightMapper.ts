@@ -86,9 +86,22 @@ export function mapMetaInsight(row: MetaInsightRow, opts: MapOptions): Normalize
   const messages = pickMessages(actions);
   const purchases = sumActions(actions, PURCHASE_ACTION_TYPES);
   const leads = sumActions(actions, LEAD_ACTION_TYPES);
-  // "conversions" is intentionally objective-agnostic: whichever result the
-  // campaign optimized for. We default to messages since that's our Phase 1
-  // primary KPI; future objectives can refine this without leaking Meta names.
+  // LEGACY, FROZEN (see docs/ANALYTICS_RULES.md rule 4).
+  //
+  // This first-non-zero fallback is NOT a semantic decision: a sales campaign
+  // that also received page messages reports `messages` here, because messages
+  // is evaluated first. One column, a different meaning per row, no record of
+  // which — which made summing it across an account add conversations to
+  // purchases to leads as though they were one quantity.
+  //
+  // Nothing may branch on this value any more. Result meaning now comes from
+  // analytics/resultSemantics.ts, which reads the per-type columns below
+  // (messages / purchases / leads / clicks / impressions) under the campaign's
+  // resolved purpose. Those have always been stored separately and correctly,
+  // which is why no backfill was required.
+  //
+  // Still written so the column stays populated for rollback safety while the
+  // migration completes. It will stop being written, then dropped.
   const conversions = messages || purchases || leads;
 
   // Action values (revenue) — for ROAS when present

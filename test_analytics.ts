@@ -91,9 +91,12 @@ console.log("\n── Frequency trend ──");
 console.log("\n── Results trend ──");
 {
   // Furniture: messages 42 → 28 ≈ -33.3%
-  const prior = days(7, { conversions: 6 }); // 7×6 = 42
-  const current = days(7, { conversions: 4 }); // 7×4 = 28
-  const t = calculateResultsTrend(current, prior);
+  // The result KEY is now explicit: calculateResultsTrend no longer sums the
+  // ambiguous `conversions` column, it counts the metric the campaign's
+  // resolved purpose actually measures (P2 result semantics).
+  const prior = days(7, { messages: 6 }); // 7×6 = 42
+  const current = days(7, { messages: 4 }); // 7×4 = 28
+  const t = calculateResultsTrend(current, prior, 'messages');
   check("42 → 28 ≈ -33.3%", t !== null && Math.abs(t - (-0.3333)) < 0.001, t);
 }
 {
@@ -170,6 +173,9 @@ const fixtureRows = (() => {
   const rows: any[] = [];
   function row(date: string, ctr: number, msgs: number, freq: number) {
     return {
+      // entityId is required now that the engine resolves the account's result
+      // unit from its campaigns' own daily rows.
+      entityId: "camp_1",
       date: new Date(date),
       spend: 13000n, impressions: 2500n, reach: 1800n, clicks: 65n,
       messages: BigInt(msgs), purchases: 0n, leads: 0n, conversions: BigInt(msgs),
@@ -189,7 +195,20 @@ const fixtureRows = (() => {
 })();
 
 const trendStore = new Map<string, any>();
+// The engine now resolves the account's result unit from its campaigns before
+// computing a results trend — it must never sum conversations with orders. A
+// single messaging campaign keeps this fixture's story intact (messages ARE
+// this account's results) while exercising the real resolution path.
+const fixtureCampaigns = [{
+  id: "camp_1",
+  objective: "MESSAGES",
+  adSets: [{ optimizationGoal: "CONVERSATIONS", destinationType: "WHATSAPP" }],
+}];
 const mockPrisma: any = {
+  campaign: {
+    findMany: async () => { calls.push({ table: "campaigns", op: "read" }); return fixtureCampaigns; },
+    findUnique: async () => { calls.push({ table: "campaigns", op: "read" }); return fixtureCampaigns[0]; },
+  },
   dailyStat: {
     findMany: async ({ where }: any) => {
       calls.push({ table: "daily_stats", op: "read", where });
@@ -253,8 +272,12 @@ async function main() {
 
   // Cordon
   const tables = new Set(calls.map(c => c.table));
-  check("engine only touched daily_stats (read) + metric_trends (write)",
-    tables.size === 2 && tables.has("daily_stats") && tables.has("metric_trends"),
+  // Reads now legitimately include `campaigns`: resolving the account's result
+  // unit requires knowing its campaigns' purposes. The cordon has always been
+  // about WRITES — the sentinels below still prove nothing was written outside
+  // metric_trends.
+  check("engine only touched daily_stats + campaigns (read) and metric_trends (write)",
+    tables.size === 3 && tables.has("daily_stats") && tables.has("campaigns") && tables.has("metric_trends"),
     [...tables]);
   check("metric_trends got exactly one upsert",
     calls.filter(c => c.table === "metric_trends").length === 1);

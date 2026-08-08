@@ -23,6 +23,18 @@ export interface DailyPoint {
   ctr: number | null;           // %
   cpm: number | null;           // minor units per 1000 impressions
   frequency: number | null;
+  /**
+   * Per-purpose result counters. Kept as separate fields so a caller can count
+   * the RIGHT result for a campaign's objective — see analytics/resultSemantics.
+   * Optional because older call sites populate only what they need.
+   */
+  purchases?: number;
+  leads?: number;
+  /**
+   * @deprecated Ambiguous first-non-zero fallback of messages/purchases/leads
+   * (docs/ANALYTICS_RULES.md rule 4). Do not branch on it; resolve the result
+   * from the campaign's purpose instead.
+   */
   conversions: number;
 }
 

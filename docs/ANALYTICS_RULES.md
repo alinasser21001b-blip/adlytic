@@ -69,9 +69,19 @@ which. **No new code may read it** until P2 replaces it with an objective-aware
 **Why:** a foundation you cannot interpret is worse than no foundation. Every
 new consumer deepens the dependency and raises the cost of fixing it.
 
-**Enforced by:** a ratchet holding a measured per-file usage baseline (22 files,
-taken 2026-08-08). Any new file, or any growth in an existing file's count,
-fails the build. P2 drives these numbers down and shrinks the map with them.
+**Enforced by:** a ratchet holding a measured per-file usage baseline. Any new
+file, or any growth in an existing file's count, fails the build.
+
+**P2 status: the field no longer drives analytics meaning.** Every engine that
+branched on it now resolves the result from the campaign's purpose
+(`analytics/resultSemantics.ts`). The remaining references are deprecation
+comments plus the legacy write kept for rollback safety — the column is still
+populated, but nothing reads it to decide anything. A second fitness test
+forbids reintroducing the fallback expression itself (`messages || purchases`,
+`messages ?? conversions`) anywhere outside the frozen mapper line.
+
+Counts only go DOWN from here. Raising one requires justifying why a new reader
+of an ambiguous field is acceptable.
 
 ---
 
@@ -144,8 +154,10 @@ in review as a semantic decision rather than an invisible side effect.
 
 ## Phase scope (current)
 
-**In scope:** P0 link clicks, P1 benchmark confidence, then P2 result semantics
-after design approval.
+**Completed:** P0 link clicks, P1 benchmark confidence, P2 result semantics.
+
+**Next, on approval:** P3 funnel intelligence, P4 objective-driven dashboard
+sections, P5 anomaly detection — in that order, and not before.
 
 **Explicitly out of scope:** Google Ads or any additional provider, large UI
 redesigns, unrelated architecture work. Enforced by a test that fails if a

@@ -118,12 +118,19 @@ export function gateCostBenchmark(sample: BenchmarkSample): BenchmarkGate {
  */
 export function classificationConfidenceFromReason(
   reason: string | null | undefined,
+  /**
+   * Additive evidence metadata from the resolver — a second independent signal
+   * agreed. It can only RAISE reported confidence for an objective-only
+   * decision; it never changes which family was chosen (rule 1, and the
+   * `corroborated` contract in campaignPurpose.ts).
+   */
+  corroborated = false,
 ): ClassificationConfidence {
   const r = String(reason || '');
   if (r.startsWith('destination:')) return 'CONFIRMED';
   if (r.startsWith('optimization_goal')) return 'CONFIRMED';
   if (r.startsWith('evidence:')) return 'EVIDENCE';
-  if (r.startsWith('objective:')) return 'INFERRED';
+  if (r.startsWith('objective:')) return corroborated ? 'CONFIRMED' : 'INFERRED';
   return 'UNKNOWN';
 }
 

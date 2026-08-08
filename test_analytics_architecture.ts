@@ -100,24 +100,32 @@ check('no NEW consumer reads DailyStat.conversions', () => {
   // fails when the count grows, so the ambiguity cannot spread further.
   // MEASURED on 2026-08-08, not guessed. The ratchet only has to hold the
   // line; P2 will drive these numbers down and this map shrinks with them.
+  // MEASURED 2026-08-08 after the P2 migration. Down from the pre-P2 baseline
+  // in the migrated engines (getDashboard 3→2, AnalyticsEngine 4→2,
+  // calculateResultsTrend 3→1, insightMapper 5→4). What remains is largely
+  // deprecation comments plus the legacy write kept for rollback safety.
+  // These numbers only go DOWN. Raising one requires justifying why a new
+  // reader of an ambiguous field is acceptable.
   const FROZEN_BASELINE = new Map<string, number>([
-    ['src/adAssessor/assessService.ts', 3],
+['src/adAssessor/assessService.ts', 3],
     ['src/adAssessor/assessment-prompt.ts', 2],
     ['src/adAssessor/schemas.ts', 1],
+    ['src/analytics/accountResultKey.ts', 1],
+    ['src/analytics/resultSemantics.ts', 5],
     ['src/api/server.ts', 4],
-    ['src/engines/analytics/AnalyticsEngine.ts', 4],
+    ['src/engines/analytics/AnalyticsEngine.ts', 2],
     ['src/engines/analytics/aggregate.ts', 1],
-    ['src/engines/analytics/calculateResultsTrend.ts', 3],
+    ['src/engines/analytics/calculateResultsTrend.ts', 1],
     ['src/engines/analytics/trend.ts', 2],
     ['src/engines/intelligence/AdlyticIntelligenceSystem.ts', 4],
     ['src/engines/recommendation/RecommendationEngine.ts', 1],
     ['src/engines/rules/RulesEngine.ts', 1],
-    ['src/engines/rules/loadCampaignSignals.ts', 3],
-    ['src/mappers/insightMapper.ts', 5],
+    ['src/engines/rules/loadCampaignSignals.ts', 4],
+    ['src/mappers/insightMapper.ts', 4],
     ['src/repositories/dailyStatsRepo.ts', 4],
     ['src/services/agent/tools/checkSuspiciousActivity.ts', 2],
     ['src/services/agent/tools/simulateBudgetShift.ts', 1],
-    ['src/services/getDashboard.ts', 3],
+    ['src/services/getDashboard.ts', 2],
     ['src/services/mockMeta.ts', 4],
     ['src/services/recommendation.service.ts', 2],
     ['src/services/v2ContextAssembler.ts', 2],
@@ -136,6 +144,37 @@ check('no NEW consumer reads DailyStat.conversions', () => {
     }
   }
   assert.deepEqual(problems, [], '\n        ' + problems.join('\n        '));
+});
+
+check('no code reintroduces a derived first-non-zero results fallback', () => {
+  // The exact anti-pattern P2 removed: `messages || purchases || leads` or
+  // `messages ?? conversions`, which silently made "results" mean whichever
+  // counter happened to be non-zero first. Only the frozen legacy write in the
+  // mapper may keep the original expression.
+  const PATTERNS = [
+    /messages\s*\|\|\s*purchases/,
+    /messages\s*\?\?\s*r?\.?conversions/,
+    /conversions\s*\?\?\s*0\s*\)/,
+  ];
+  const ALLOWED = new Set(['src/mappers/insightMapper.ts']);
+  const offenders: string[] = [];
+  for (const { path, src } of FILES) {
+    if (ALLOWED.has(path)) continue;
+    // Ignore comment lines — the pattern is quoted in documentation.
+    const code = src.split('\n')
+      .filter((l) => !l.trim().startsWith('//') && !l.trim().startsWith('*'))
+      .join('\n');
+    if (PATTERNS.some((re) => re.test(code))) offenders.push(path);
+  }
+  assert.deepEqual(offenders, [],
+    `a derived results fallback reappeared in: ${offenders.join(', ')}`);
+});
+
+check('result definitions never point at the ambiguous column', async () => {
+  const { allResultDefinitions } = await import('./src/analytics/resultSemantics');
+  for (const d of allResultDefinitions()) {
+    assert.notEqual(String(d.resultKey), 'conversions', `${d.family} reads the frozen column`);
+  }
 });
 
 console.log('\n── Rule 5: three confidences stay separate ──');

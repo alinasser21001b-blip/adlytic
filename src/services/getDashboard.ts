@@ -81,6 +81,14 @@ import {
   upgradeGenericNarration,
 } from "../lib/insightQualityGate";
 import type { Signals } from "../engines/rules/types";
+import { resolveCampaignPurpose } from "../lib/campaignPurpose";
+import {
+  aggregateMixedResults,
+  describeMixedAr,
+  describeMixedEn,
+  singleUnitCount,
+  type CampaignResultContribution,
+} from "../analytics/resultSemantics";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
@@ -118,6 +126,33 @@ function getStandalonePrisma(): PrismaClient {
 }
 
 // ── The public shape. This is the contract every consumer codes against. ──
+/**
+ * Per-unit result subtotals for an account.
+ *
+ * Deliberately has NO single cross-unit total field: no correct value exists,
+ * so the type makes the fabrication unrepresentable rather than merely
+ * discouraged (see analytics/resultSemantics.ts).
+ */
+export interface ResultBreakdownDTO {
+  byUnit: Array<{
+    unit: string;
+    outcome: string;
+    count: number;
+    campaigns: number;
+    labelAr: string;
+    labelEn: string;
+    /** True when the count is a proxy rather than a direct platform count. */
+    approximate: boolean;
+  }>;
+  /** True when more than one unit is present — the UI must not show one total. */
+  mixed: boolean;
+  /** HEADLINE FRAMING ONLY. Never sum into this; always render byUnit too. */
+  dominant: { unit: string; outcome: string; count: number; spendShare: number } | null;
+  /** Ready-to-render localized summary, e.g. "84 محادثة · 12 طلب". */
+  displayAr: string;
+  displayEn: string;
+}
+
 export interface DashboardDTO {
   /** Present and true only when the workspace has no ad account yet. */
   empty?: true;
@@ -237,6 +272,16 @@ export interface DashboardDTO {
   audienceInsight?: { text: string } | null;
   /** Red banner: today is spending with zero results (vs a producing norm). */
   bleedAlert?: { text: string } | null;
+  /**
+   * Results broken down BY UNIT, never flattened into one number.
+   *
+   * An account running messaging and sales campaigns has no single result
+   * count: 84 conversations and 12 orders are different quantities. `byUnit`
+   * carries the honest subtotals; `dominant` exists only so the headline can
+   * lead with the purpose that owns most of the spend, and must never be
+   * summed into or used as a stand-in for the rest.
+   */
+  resultBreakdown?: ResultBreakdownDTO;
   bestCampaign: CampaignCard | null;
   worstCampaign: CampaignCard | null;
   /** Every active campaign with its window metrics, sorted by health desc. Powers
@@ -965,15 +1010,34 @@ export async function getDashboard(
     }
   }
 
+  // 7a-bis. Per-unit result subtotals. Computed here rather than alongside the
+  // later enrichment stages because the diagnosis below depends on it: it needs
+  // a result count in ONE coherent unit, not a cross-unit sum.
+  const accountResults = await buildResultBreakdown(account.id, prisma, sinceDate)
+    .catch(() => null);
+  const accountResultBreakdown = accountResults?.dto ?? null;
+  const accountResultsSingleUnit = accountResults?.singleUnitCount ?? null;
+
   // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
   const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
     issueCode: d.issueCode,
     severity: d.severity,
     evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
   }));
-  // Align currentResults with RulesEngine.buildSignals (sum of conversions),
-  // not messages — so diagnose() evidence matches what detectors persisted.
-  const totalConversions = sum(daily, "conversions");
+  // Account-level results, in ONE coherent unit or not at all.
+  //
+  // Previously this summed `conversions`, adding conversations to purchases to
+  // leads as though they were one quantity, and fed that straight into
+  // diagnose(). Now: when the account runs a single purpose — the overwhelming
+  // majority of Adlytic's accounts — we count that purpose's own result. When
+  // it genuinely mixes purposes, there IS no single result count, so we pass 0
+  // and let the detectors lean on delivery signals instead of a fabricated
+  // total. The per-unit detail travels separately on `resultBreakdown`.
+  //
+  // Deliberately NOT `dominant.count`: dominant is a display-only framing
+  // helper for the headline, and using it here would silently discard the
+  // other units — the same fabrication in better manners.
+  const totalConversions = accountResultsSingleUnit ?? 0;
   const signals: Signals = {
     ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
     cpmTrend: (latestTrend as any)?.cpmTrend ?? null,
@@ -1431,6 +1495,7 @@ export async function getDashboard(
     audienceInsight,
     bleedAlert,
     ...(morningStory && { morningStory }),
+    resultBreakdown: accountResultBreakdown ?? undefined,
     bestCampaign: cards.best,
     worstCampaign: cards.worst,
     campaigns: cards.all,
@@ -1656,6 +1721,99 @@ function buildSteadyStateSummary(input: {
     mainMoveNarrative,
     insights,
   };
+}
+
+/**
+ * Per-unit result subtotals for the account window.
+ *
+ * Resolves each campaign's purpose from its own evidence (objective + ad-set
+ * optimization goals + destination types) and groups results by UNIT, so
+ * conversations are never added to orders. Campaigns whose purpose cannot be
+ * determined are skipped rather than guessed at (rule 3).
+ */
+async function buildResultBreakdown(
+  adAccountId: string,
+  prisma: PrismaClient,
+  sinceDate: Date,
+): Promise<{ dto: ResultBreakdownDTO; singleUnitCount: number | null } | null> {
+  const campaigns = await prisma.campaign.findMany({
+    where: { adAccountId },
+    select: {
+      id: true,
+      objective: true,
+      adSets: { select: { optimizationGoal: true, destinationType: true } },
+    },
+  });
+  if (campaigns.length === 0) return null;
+
+  const rows = await prisma.dailyStat.findMany({
+    where: {
+      entityType: EntityType.CAMPAIGN,
+      entityId: { in: campaigns.map((c) => c.id) },
+      date: { gte: sinceDate },
+    },
+    select: {
+      entityId: true, spend: true, messages: true, purchases: true,
+      leads: true, clicks: true, impressions: true,
+    },
+  });
+  if (rows.length === 0) return null;
+
+  const byCampaign = new Map<string, typeof rows>();
+  for (const r of rows) {
+    const list = byCampaign.get(r.entityId) ?? [];
+    list.push(r);
+    byCampaign.set(r.entityId, list);
+  }
+
+  const contributions: CampaignResultContribution[] = [];
+  for (const c of campaigns) {
+    const campaignRows = byCampaign.get(c.id);
+    if (!campaignRows || campaignRows.length === 0) continue;
+
+    // Window totals feed the resolver's guarded evidence rung.
+    let msgs = 0, clks = 0, spend = 0;
+    for (const r of campaignRows) {
+      msgs += Number(r.messages);
+      clks += Number(r.clicks);
+      spend += Number(r.spend);
+    }
+    const purpose = resolveCampaignPurpose({
+      objective: c.objective,
+      optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: c.adSets.map((a) => a.destinationType),
+      messagesWindow: msgs,
+      clicksWindow: clks,
+    });
+    contributions.push({
+      family: purpose.family,
+      spendMinor: spend,
+      rows: campaignRows.map((r) => ({
+        messages: r.messages, purchases: r.purchases, leads: r.leads,
+        clicks: r.clicks, impressions: r.impressions,
+      })),
+    });
+  }
+
+  const total = aggregateMixedResults(contributions);
+  if (total.byUnit.length === 0) return null;
+
+  const dto: ResultBreakdownDTO = {
+    byUnit: total.byUnit.map((u) => ({
+      unit: u.unit,
+      outcome: u.outcome,
+      count: u.count,
+      campaigns: u.campaigns,
+      labelAr: u.labelAr,
+      labelEn: u.labelEn,
+      approximate: u.approximate,
+    })),
+    mixed: total.mixed,
+    dominant: total.dominant,
+    displayAr: describeMixedAr(total),
+    displayEn: describeMixedEn(total),
+  };
+  return { dto, singleUnitCount: singleUnitCount(total) };
 }
 
 // ── Campaign cards: 30d window aggregates + latest health score. ──
