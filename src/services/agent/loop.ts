@@ -25,6 +25,7 @@ import { AiMessageRole, Prisma, type PrismaClient, type Locale } from '@prisma/c
 import type { ToolResult } from './envelope';
 import type { ToolHandler } from './dispatcher';
 import { ToolDispatcher } from './dispatcher';
+import { logToolCall } from './telemetry';
 import { buildAgentToolHandlers } from './tools';
 import { handlersToAIToolDefs } from './agentTools';
 import { buildSystemPrompt } from './prompts';
@@ -137,6 +138,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   const dispatcher = new ToolDispatcher(
     handlers as unknown as ToolHandler<unknown, unknown>[],
     { prisma, workspaceId, userId },
+    { onCall: logToolCall },
   );
   const toolDefs = handlersToAIToolDefs(handlers as unknown as ToolHandler<unknown, unknown>[]);
 

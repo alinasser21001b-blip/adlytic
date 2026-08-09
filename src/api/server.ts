@@ -42,6 +42,7 @@ import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { CSS_ASSETS } from '../web/layout';
+import { logToolCall } from '../services/agent/telemetry';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
@@ -3990,7 +3991,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     const { ToolDispatcher } = await import('../services/agent/dispatcher');
     const { buildAgentToolHandlers } = await import('../services/agent/tools');
-    const dispatcher = new ToolDispatcher(buildAgentToolHandlers(), { prisma, workspaceId, userId });
+    const dispatcher = new ToolDispatcher(buildAgentToolHandlers(), { prisma, workspaceId, userId }, { onCall: logToolCall });
     const result = await dispatcher.dispatch('get_creative_performance', {
       campaignId, date: dateParam, metric: 'spend', limit: 3,
     });

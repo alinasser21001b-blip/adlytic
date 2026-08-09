@@ -1,0 +1,89 @@
+/* Adlytic — Daylight tokens v1.0.0-draft · 2026-08-09
+   Light theme, RTL-first. Names are semantic so a dark ramp can be added
+   by overriding this block under [data-theme="dark"] with no markup change. */
+:root {
+  /* ── surface ─────────────────────────────────────── */
+  --ad-ground: #F2F7F4;
+  --ad-surface: #FFFFFF;
+  --ad-raised: #E8F0EA;
+  --ad-hover: #E8F0EA;
+  --ad-border: #D8E4DC;
+  --ad-border-strong: #C7D8CE;
+
+  /* ── text ────────────────────────────────────────── */
+  --ad-text: #0B1F19;            /* 15.8:1 */
+  --ad-text-muted: #4A5F57;      /* 6.4:1  */
+  --ad-text-faint: #5F7268;      /* 4.8:1  — smallest legal text colour */
+  --ad-nontext-grey: #7C8F87;    /* 3.2:1  — NON-TEXT ONLY */
+
+  /* ── brand ───────────────────────────────────────── */
+  --ad-brand: #0E4034;           /* 9.9:1  */
+  --ad-brand-hover: #0B1F19;
+  --ad-brand-active: #082A22;
+  --ad-signal: #C8F26B;          /* only on --ad-brand ground, once per screen */
+
+  /* ── semantic (data meaning only) ────────────────── */
+  --ad-good: #17714F;            /* 5.6:1 text */
+  --ad-good-fill: #1D8A63;       /* bars/fills only */
+  --ad-attention: #B4552F;       /* 4.5:1 */
+  --ad-bad: #A32B1E;             /* 6.7:1 */
+  --ad-critical: #A32B1E;
+  --ad-info: #3E6C8A;            /* 5.2:1 — INSUFFICIENT_DATA, never a warning */
+
+  /* ── data-viz series (identity, never health) ────── */
+  --ad-series-1: #0E4034;
+  --ad-series-2: #4A6FA5;
+  --ad-series-3: #7B4B7E;
+  --ad-series-4: #B8873B;
+  --ad-series-5: #5F8A7D;
+  --ad-series-6: #8C6A5D;
+  --ad-gridline: #D8E4DC;
+  --ad-benchmark: #0B1F19;
+  --ad-hatch: repeating-linear-gradient(135deg, #F2F7F4 0 7px, #E8F0EA 7px 14px);
+
+  /* ── type ────────────────────────────────────────── */
+  --ad-font-display: 'IBM Plex Sans Arabic', system-ui, sans-serif;
+  --ad-font-text: 'Readex Pro', system-ui, sans-serif;
+  --ad-size-display: 46px;
+  --ad-size-h1: 36px;
+  --ad-size-h2: 28px;
+  --ad-size-h3: 22px;
+  --ad-size-h4: 18px;
+  --ad-size-body-lg: 16px;
+  --ad-size-body: 14px;
+  --ad-size-body-sm: 13px;
+  --ad-size-caption: 12px;       /* FLOOR — nothing smaller exists */
+  --ad-size-metric: 30px;
+  --ad-size-metric-sm: 20px;
+  --ad-size-input: 16px;         /* MIN — below this iOS zooms on focus */
+
+  /* ── spacing / radius ────────────────────────────── */
+  --ad-space-1: 4px;
+  --ad-space-2: 8px;
+  --ad-space-3: 12px;
+  --ad-space-4: 20px;
+  --ad-space-5: 32px;
+  --ad-space-6: 52px;
+  --ad-radius-block: 0;
+  --ad-radius-unit: 12px;
+  --ad-radius-pill: 999px;
+
+  /* ── motion ──────────────────────────────────────── */
+  --ad-ease: cubic-bezier(.2, .8, .2, 1);
+  --ad-dur-touch: 120ms;
+  --ad-dur-panel: 200ms;
+  --ad-dur-value: 420ms;
+
+  /* ── a11y ────────────────────────────────────────── */
+  --ad-focus-ring: 2px solid #0E4034;
+  --ad-focus-offset: 2px;
+  --ad-touch-min: 44px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --ad-dur-touch: 0ms; --ad-dur-panel: 0ms; --ad-dur-value: 0ms; }
+}
+
+/* No shadow tokens exist by design. Elevation = surface tint + 1px border.
+   The shipped dark theme's 1px white inset highlight has no light-ground
+   equivalent and was removed rather than approximated. */

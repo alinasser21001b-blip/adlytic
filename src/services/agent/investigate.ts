@@ -19,6 +19,7 @@
 import type { PrismaClient } from '@prisma/client';
 import type { ToolHandler } from './dispatcher';
 import { ToolDispatcher } from './dispatcher';
+import { logToolCall } from './telemetry';
 import { buildAgentToolHandlers } from './tools';
 import { postCheckReply, buildRetryNudge } from './postcheck';
 import { buildDeterministicInvestigationNarratives } from './investigateNarratives';
@@ -77,6 +78,7 @@ export async function investigateCampaign(args: {
   const dispatcher = new ToolDispatcher(
     handlers as unknown as ToolHandler<unknown, unknown>[],
     { prisma, workspaceId, userId },
+    { onCall: logToolCall },
   );
 
   const [details, anomaly, audienceAge, placement, creative, hourly, pixel] = await Promise.all([
