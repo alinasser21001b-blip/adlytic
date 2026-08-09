@@ -81,6 +81,23 @@ const server = http.createServer((req, res) => {
   const json = (c, o) => { res.writeHead(c, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
   const slug = url.replace(/^\//, '') || 'dashboard';
 
+  // FONTS. This was missing for the whole life of this gate — Tajawal 404'd
+  // too — which means every measurement before now was taken against
+  // system-ui fallback metrics, not the product's real typeface. Arabic sets
+  // at a different width in Readex Pro than in a system sans, so touch
+  // targets, text widths and overflow were all being measured on the wrong
+  // font. Serving them makes the numbers describe the shipped product.
+  if (url.startsWith('/fonts/') && url.endsWith('.woff2')) {
+    try {
+      const buf = readFileSync(new URL('../public' + url, DIR));
+      res.writeHead(200, { 'content-type': 'font/woff2' });
+      return res.end(buf);
+    } catch {
+      res.writeHead(404);
+      return res.end('');
+    }
+  }
+
   // The shared stylesheets are LINKED now, not inlined. If this 404s, every
   // page measures unstyled and the gate reports enormous fake overflow — a
   // harness failure that looks exactly like a catastrophic product failure.
