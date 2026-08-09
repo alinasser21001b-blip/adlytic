@@ -149,7 +149,11 @@ const PROBE = `(() => {
     let best = 0;
     document.querySelectorAll('*').forEach(el => {
       const r = el.getBoundingClientRect();
-      const over = (r.right - vw);
+      // BOTH directions. This app is dir="rtl", where overflow hangs off the
+      // LEFT edge as a negative x — checking only rect.right named the
+      // culprit as null on a real 344px overflow and sent the investigation
+      // looking for a fixed-position element that did not exist.
+      const over = Math.max(r.right - vw, -r.left);
       if (over > best && r.width > 0 && getComputedStyle(el).position !== 'fixed') {
         best = over;
         widest = (el.tagName.toLowerCase()
@@ -344,11 +348,18 @@ for (const { key, slug, ob } of CASES) {
   OB_STATE = ob;
   findings[key] = {};
   for (const width of WIDTHS) {
-    const ctx = await browser.newContext({
-      viewport: { width, height: 780 },
-      deviceScaleFactor: 3, isMobile: true, hasTouch: true,
-      userAgent: devices['iPhone 13'].userAgent,
-    });
+    // Phone widths get a real phone profile. The breakpoint probes are
+    // laptop widths, so they get a laptop profile — an iPhone user-agent at
+    // 899px with deviceScaleFactor 3 is not a device that exists, and
+    // measuring one produces failures nobody can act on.
+    const isPhone = PHONE_WIDTHS.includes(width);
+    const ctx = await browser.newContext(isPhone
+      ? {
+          viewport: { width, height: 780 },
+          deviceScaleFactor: 3, isMobile: true, hasTouch: true,
+          userAgent: devices['iPhone 13'].userAgent,
+        }
+      : { viewport: { width, height: 800 } });
     const page = await ctx.newPage();
     const errors = [];
     page.on('pageerror', e => errors.push(e.message.slice(0, 80)));

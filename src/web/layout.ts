@@ -346,6 +346,15 @@ input, select, textarea { font-family: inherit; }
 /* ── Main area ───────────────────────────────────────────────────── */
 .main {
   flex: 1;
+  /* A flex item defaults to min-width:auto and REFUSES to shrink below its
+     content. .main only got min-width:0 inside the <=768px block, so between
+     769px and ~1300px it stayed as wide as its widest child and hung off the
+     edge: the AI page measured 1008px inside a 900px viewport, overflowing
+     344px. In RTL that overflow goes LEFT, which is why it went unnoticed —
+     every overflow detector here was checking rect.right only.
+     Same root cause as the bottom-nav labels earlier; it belongs here, not
+     in one breakpoint. */
+  min-width: 0;
   margin-left: var(--sidebar-w);
   display: flex;
   flex-direction: column;
