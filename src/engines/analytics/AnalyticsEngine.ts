@@ -121,6 +121,7 @@ export class AnalyticsEngine {
             where: { id: entityId },
             select: {
               objective: true,
+              messagingCtaAds: true,
               adSets: { select: { optimizationGoal: true, destinationType: true } },
             },
           });
@@ -138,6 +139,7 @@ export class AnalyticsEngine {
               messagesWindow: evMsgs,
               clicksWindow: evClicks,
               linkClicksWindow: evLink,
+              messagingCtaAds: meta.messagingCtaAds,
             }).family).resultKey;
           }
         } else if (entityType === EntityType.ACCOUNT) {

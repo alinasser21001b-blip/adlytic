@@ -96,6 +96,7 @@ export async function runBrainOrchestrator(
             externalCampaignId: true,
             name: true,
             objective: true,
+            messagingCtaAds: true,
             dailyBudget: true,
           },
         },
@@ -315,6 +316,7 @@ async function loadRawDataForCampaigns(
       externalCampaignId: true,
       name: true,
       objective: true,
+      messagingCtaAds: true,
       adSets: { select: { optimizationGoal: true, destinationType: true } },
     },
   });
@@ -339,6 +341,7 @@ async function loadRawDataForCampaigns(
       messagesWindow: Number(r.messages),
       clicksWindow: Number(r.clicks),
       linkClicksWindow: Number((r as any).linkClicks ?? 0),
+      messagingCtaAds: c.messagingCtaAds,
     });
     // Pass the RESOLVED family straight through. Converting it back into a
     // synthetic objective string ('MESSAGES', 'OUTCOME_AWARENESS', …) just so

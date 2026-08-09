@@ -212,4 +212,49 @@ const lowRatio = resolveCampaignPurpose({
 });
 assert.equal(lowRatio.family, 'engagement');
 
+// ── The metadata rung: creative CTA buttons ─────────────────────────────
+//
+// Meta permits destination_type UNSET and POST_ENGAGEMENT optimization on a
+// genuine click-to-message campaign. In that metadata gap, the ad's own CTA
+// button (WHATSAPP_MESSAGE etc.) is the remaining piece of REAL metadata,
+// counted at sync time into Campaign.messagingCtaAds. It outranks the
+// statistical rung and needs no volume guard.
+
+// Ads carry chat buttons → messaging, even with ZERO conversations yet.
+// This is the launch-day case the statistical rung can never catch: a
+// brand-new campaign has no volumes, but its buttons already say what it is.
+const ctaOnly = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 0,
+  clicksWindow: 0,
+  linkClicksWindow: 0,
+  messagingCtaAds: 4,
+});
+assert.equal(ctaOnly.family, 'messaging',
+  'ads whose buttons open a chat ARE a messaging campaign from day one');
+assert.ok(ctaOnly.reason.startsWith('creative_cta:'),
+  'the reason must say metadata decided, not statistics');
+
+// CTA metadata does NOT override strong non-engagement optimization: a REACH
+// campaign whose ads happen to carry a message button is still bought and
+// measured as reach.
+const reachWithCta = resolveCampaignPurpose({
+  objective: 'OUTCOME_AWARENESS',
+  optimizationGoals: ['REACH'],
+  messagingCtaAds: 2,
+});
+assert.equal(reachWithCta.family, 'awareness');
+
+// messagingCtaAds = 0 grants no signal — the statistical rung still guards.
+const noCta = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 2,
+  clicksWindow: 500,
+  linkClicksWindow: 40,
+  messagingCtaAds: 0,
+});
+assert.equal(noCta.family, 'engagement');
+
 console.log('test_campaign_purpose: ok');

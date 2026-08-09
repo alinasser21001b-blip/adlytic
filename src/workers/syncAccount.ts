@@ -29,6 +29,7 @@ import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { advisoryLockId } from "../lib/advisoryLock";
 import { freezeCampaign } from "../lib/campaignFreeze";
+import { MESSAGING_CTA_TYPES, resolveCampaignPurpose } from "../lib/campaignPurpose";
 import {
   mapMetaEntityStatus,
   resolveCampaignStatusFromMeta,
@@ -697,6 +698,13 @@ export class SyncAccountWorker {
     let localAdSets = 0;
     let localAds = 0;
     let localCreatives = 0;
+    // Chat-opening CTA buttons among this campaign's ads — a synced fact
+    // persisted on the Campaign row so purpose resolution can read real
+    // creative metadata without joining three tables per request. Meta
+    // permits destination_type UNSET + POST_ENGAGEMENT optimization on a
+    // genuine click-to-message campaign; when both are silent, the ad's own
+    // button is the remaining authoritative signal.
+    let messagingCtaAds = 0;
 
     for (const rawAdSet of metaAdSets) {
       const norm = mapMetaAdSet(rawAdSet);
@@ -787,6 +795,10 @@ export class SyncAccountWorker {
           }
         }
 
+        if (MESSAGING_CTA_TYPES.has((adNorm.creative?.callToActionType ?? '').toUpperCase())) {
+          messagingCtaAds++;
+        }
+
         await this.prisma.ad.upsert({
           where: {
             adSetId_externalAdId: {
@@ -813,6 +825,11 @@ export class SyncAccountWorker {
         localAds++;
       }
     }
+
+    await this.prisma.campaign.update({
+      where: { id: camp.id },
+      data: { messagingCtaAds },
+    });
 
     return { localAdSets, localAds, localCreatives };
   }
@@ -865,6 +882,114 @@ export class SyncAccountWorker {
       creativesUpserted: localCreatives,
       insightRows: localRows,
     };
+  }
+
+  /**
+   * SELF-HEALING CLASSIFICATION METADATA.
+   *
+   * The permanent fix for the 2026-08-09 misclassification, at its root.
+   * Four live click-to-message campaigns rendered as "engagement" and were
+   * priced per interaction, because their ad-set metadata had never synced
+   * and classification fell through to a statistical ratio guess.
+   *
+   * The principle this encodes: WHEN CLASSIFICATION RESTS ON A GUESS, FETCH
+   * THE AUTHORITY — never settle for the guess. After every sync, any
+   * spending campaign whose resolved purpose is either
+   *
+   *   · "messaging", but decided by the statistical evidence rung
+   *     (correct answer, heuristic basis — upgrade it to a metadata basis), or
+   *   · "engagement", while real attributed conversations exist
+   *     (ambiguous — the metadata must arbitrate)
+   *
+   * gets its ad-sets, ads and creatives discovered on demand, which persists
+   * destinationType / optimizationGoal / messagingCtaAds. From the next read
+   * onward, classification rests on synced Meta metadata and the heuristic
+   * rung never fires for that campaign again.
+   *
+   * Bounded to HEAL_MAX_PER_SYNC campaigns per run: discovery costs Meta API
+   * budget (code-17 ceiling), and a healthy account converges in one or two
+   * cycles anyway. Campaigns whose metadata is already present are never
+   * re-fetched by this path — if synced metadata says "engagement", it IS
+   * engagement, and re-asking Meta would burn budget to hear the same answer.
+   */
+  async healClassificationMetadata(
+    adAccountId: string,
+    opts: { since?: Date } = {},
+  ): Promise<{ examined: number; healed: number }> {
+    const HEAL_MAX_PER_SYNC = 5;
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
+    const tag = `[healClassification:${acct.externalAccountId}]`;
+    const since = opts.since ?? new Date(Date.now() - 30 * 86400 * 1000);
+
+    const campaigns = await this.prisma.campaign.findMany({
+      where: { adAccountId },
+      select: {
+        id: true,
+        name: true,
+        objective: true,
+        messagingCtaAds: true,
+        adSets: { select: { optimizationGoal: true, destinationType: true } },
+      },
+    });
+    if (campaigns.length === 0) return { examined: 0, healed: 0 };
+
+    const windows = await this.prisma.dailyStat.groupBy({
+      by: ['entityId'],
+      where: {
+        entityType: EntityType.CAMPAIGN,
+        entityId: { in: campaigns.map((c) => c.id) },
+        date: { gte: since },
+        spend: { gt: 0n },
+      },
+      _sum: { messages: true, clicks: true, linkClicks: true },
+    });
+    const windowById = new Map(windows.map((w) => [w.entityId, w]));
+
+    let examined = 0;
+    let healed = 0;
+    for (const c of campaigns) {
+      if (healed >= HEAL_MAX_PER_SYNC) break;
+      const w = windowById.get(c.id);
+      if (!w) continue;                       // no spend in window — not merchant-facing now
+      examined++;
+
+      const purpose = resolveCampaignPurpose({
+        objective: c.objective,
+        optimizationGoals: c.adSets.map((a) => a.optimizationGoal),
+        destinationTypes: c.adSets.map((a) => a.destinationType),
+        messagesWindow: Number(w._sum.messages ?? 0),
+        clicksWindow: Number(w._sum.clicks ?? 0),
+        linkClicksWindow: Number(w._sum.linkClicks ?? 0),
+        messagingCtaAds: c.messagingCtaAds,
+      });
+
+      const decidedByGuess = purpose.reason.startsWith('evidence:');
+      const ambiguous =
+        purpose.family === 'engagement' && Number(w._sum.messages ?? 0) >= 3;
+      if (!decidedByGuess && !ambiguous) continue;
+
+      // Metadata already present and it still came down to a guess? Then the
+      // metadata genuinely says nothing more — re-fetching cannot help.
+      const hasMetadata =
+        c.messagingCtaAds > 0 ||
+        c.adSets.some((a) => a.destinationType != null || a.optimizationGoal != null);
+      if (hasMetadata && !decidedByGuess) continue;
+
+      try {
+        const r = await this.discoverCampaignOnDemand(adAccountId, c.id);
+        healed++;
+        console.log(
+          `${tag} "${c.name}" classification rested on ${decidedByGuess ? 'a statistical guess' : 'ambiguous evidence'} ` +
+          `(${purpose.reason}) — discovered ${r.adSetsUpserted} ad-sets, ${r.adsUpserted} ads, ` +
+          `${r.creativesUpserted} creatives so the next read classifies from metadata`,
+        );
+      } catch (e) {
+        const msg = e instanceof MetaApiError ? `Meta ${e.status}: ${e.message}` : e instanceof Error ? e.message : String(e);
+        console.error(`${tag} discovery for "${c.name}" failed (non-fatal) — ${msg}`);
+      }
+    }
+    if (healed > 0) console.log(`${tag} healed ${healed}/${examined} examined campaign(s)`);
+    return { examined, healed };
   }
 
   async syncAdSetsAndAds(
@@ -1556,6 +1681,16 @@ export class SyncAccountWorker {
           ? `Meta ${e.status}: ${e.message}`
           : e instanceof Error ? e.message : String(e);
         console.error(`${tag} syncAdSetsAndAds FAILED (non-fatal) — ${msg}`);
+      }
+
+      // Self-healing: any spending campaign whose classification rests on a
+      // statistical guess gets its authoritative metadata fetched now, so the
+      // guess is retired by the next read. Non-fatal and API-budget-bounded.
+      try {
+        await this.healClassificationMetadata(adAccountId, { since });
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.error(`${tag} healClassificationMetadata FAILED (non-fatal) — ${msg}`);
       }
 
       // Pass D — ad-level daily stats (feeds T6 get_creative_performance).

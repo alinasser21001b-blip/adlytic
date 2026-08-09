@@ -83,6 +83,7 @@ export async function loadCampaignSignalsBatch(
     select: {
       id: true,
       objective: true,
+      messagingCtaAds: true,
       adSets: { select: { optimizationGoal: true, destinationType: true } },
     },
   });
@@ -136,6 +137,7 @@ export async function loadCampaignSignalsBatch(
       messagesWindow: windowMessages,
       clicksWindow: windowClicks,
       linkClicksWindow: windowLinkClicks,
+      messagingCtaAds: meta?.messagingCtaAds ?? 0,
     });
     const resultDef = resultFor(purpose.family);
     purposeById.set(campaignId, { family: purpose.family, resultKey: resultDef.resultKey });

@@ -55,6 +55,20 @@ export interface CampaignPurposeInput {
    * priced per interaction instead of per conversation.
    */
   linkClicksWindow?: number | null;
+  /**
+   * Campaign.messagingCtaAds — how many of the campaign's ads carry a CTA
+   * button that opens a chat (WHATSAPP_MESSAGE / MESSAGE_PAGE / SEND_MESSAGE
+   * / INSTAGRAM_DIRECT). A SYNCED FACT counted from creative metadata at
+   * discovery time, not an inference.
+   *
+   * This is a METADATA rung, above the statistical evidence rung: Meta
+   * permits destination_type to be UNSET and optimization to read
+   * POST_ENGAGEMENT on a genuine click-to-message campaign, and in that gap
+   * the ad's own button is the only remaining piece of real metadata saying
+   * what the ad does. Metadata needs no volume guard — the statistical rung
+   * exists only for when metadata like this is absent too.
+   */
+  messagingCtaAds?: number | null;
 }
 
 export interface CampaignPurpose {
@@ -114,6 +128,20 @@ function pickMessagingDestination(
   }
   return null;
 }
+
+/**
+ * Creative CTA button types that open a chat. THE semantic definition —
+ * the sync worker counts against this exact set when it persists
+ * Campaign.messagingCtaAds, so the counter and the rung that reads it can
+ * never disagree about what "a messaging button" means.
+ */
+export const MESSAGING_CTA_TYPES = new Set([
+  'WHATSAPP_MESSAGE',
+  'MESSAGE_PAGE',
+  'SEND_MESSAGE',
+  'INSTAGRAM_MESSAGE',
+  'INSTAGRAM_DIRECT',
+]);
 
 /** Optimization goals that mean "this is a messaging / conversations campaign". */
 const MESSAGING_OPT_GOALS = new Set([
@@ -273,6 +301,18 @@ export function resolveCampaignPurpose(input: CampaignPurposeInput): CampaignPur
   //
   // The all-clicks ratio survives only as the fallback when link clicks were
   // never synced, because a wrong-but-strict guard beats no guard at all.
+  // METADATA rung: the campaign landed on "engagement" but its ads carry
+  // chat-opening CTA buttons. That is Meta's own creative metadata — the ad
+  // literally says "أرسل رسالة" — so it outranks any ratio heuristic and
+  // needs no volume guard. Placed BEFORE the evidence rung deliberately:
+  // when this fires, classification rests on synced fact, and the
+  // statistical rung below never has to guess.
+  if (family === 'engagement' && (Number(input.messagingCtaAds) || 0) > 0) {
+    family = 'messaging';
+    reason = `creative_cta:messagingAds=${Number(input.messagingCtaAds)}`;
+    reasonAr = 'أزرار إعلانات هذه الحملة تفتح محادثة — تُقاس بالرسائل لا بالتفاعل';
+  }
+
   if (family === 'engagement') {
     const messages = Number(input.messagesWindow) || 0;
     const clicks = Number(input.clicksWindow) || 0;

@@ -45,6 +45,7 @@ export async function resolveAccountResultKey(
     select: {
       id: true,
       objective: true,
+      messagingCtaAds: true,
       adSets: { select: { optimizationGoal: true, destinationType: true } },
     },
   });
@@ -82,6 +83,7 @@ export async function resolveAccountResultKey(
         messagesWindow: w.messages,
         clicksWindow: w.clicks,
         linkClicksWindow: w.linkClicks,
+        messagingCtaAds: c.messagingCtaAds,
       }).family,
     );
   }

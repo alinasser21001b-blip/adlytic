@@ -165,6 +165,7 @@ export class RecommendationEngine {
           where: { id: entityId },
           select: {
             objective: true,
+            messagingCtaAds: true,
             adSets: { select: { optimizationGoal: true, destinationType: true } },
           },
         });
@@ -178,6 +179,7 @@ export class RecommendationEngine {
             messagesWindow: wMsgs,
             clicksWindow: wClicks,
             linkClicksWindow: wLink,
+            messagingCtaAds: meta.messagingCtaAds,
           }).family).resultKey;
         }
       } else {

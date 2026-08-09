@@ -251,6 +251,14 @@ model Campaign {
   metaEffectiveStatus String?      @map("meta_effective_status")
   dailyBudget         BigInt?      @map("daily_budget")
   lifetimeBudget      BigInt?      @map("lifetime_budget")
+  /// Count of this campaign's ads whose creative CTA button opens a chat
+  /// (WHATSAPP_MESSAGE / MESSAGE_PAGE / SEND_MESSAGE / INSTAGRAM_MESSAGE).
+  /// A SYNCED FACT counted at discovery time from AdCreative.callToActionType
+  /// — never inferred. Exists because Meta permits destination_type to be
+  /// UNSET on a click-to-message ad set, and when it is, the ad's own button
+  /// is the only remaining piece of REAL metadata saying what the ad does.
+  /// 0 means "none found or not yet discovered" and grants no signal.
+  messagingCtaAds     Int          @default(0) @map("messaging_cta_ads")
   createdAt           DateTime     @default(now()) @map("created_at")
   updatedAt           DateTime     @updatedAt @map("updated_at")
   adSets              AdSet[]

@@ -1929,6 +1929,7 @@ export async function resolveAccountResultColumns(
     select: {
       id: true,
       objective: true,
+      messagingCtaAds: true,
       adSets: { select: { optimizationGoal: true, destinationType: true } },
     },
   });
@@ -1955,6 +1956,7 @@ export async function resolveAccountResultColumns(
       messagesWindow: Number(w?._sum.messages ?? 0),
       clicksWindow: Number(w?._sum.clicks ?? 0),
       linkClicksWindow: Number(w?._sum.linkClicks ?? 0),
+      messagingCtaAds: c.messagingCtaAds,
     });
     // An unresolved purpose contributes nothing. It is NOT folded into a
     // default family — that fabrication is what this whole layer removed.
@@ -1995,6 +1997,7 @@ async function buildResultBreakdown(
     select: {
       id: true,
       objective: true,
+      messagingCtaAds: true,
       adSets: { select: { optimizationGoal: true, destinationType: true } },
     },
   });
@@ -2040,6 +2043,7 @@ async function buildResultBreakdown(
       messagesWindow: msgs,
       clicksWindow: clks,
       linkClicksWindow: lclk,
+      messagingCtaAds: c.messagingCtaAds,
     });
     contributions.push({
       family: purpose.family,

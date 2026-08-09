@@ -91,8 +91,35 @@ check('the campaign sync derives objective only from the Meta payload', () => {
   // object, with no purpose resolution anywhere near the write.
   assert.match(sync!.src, /const objective = mc\["objective"\]/,
     "campaign sync must read Meta's own objective verbatim");
-  assert.doesNotMatch(sync!.src, /resolveCampaignPurpose/,
-    'the sync write path must never persist an inferred family into the raw objective column');
+
+  // The original form of this rule banned resolveCampaignPurpose from the
+  // file outright. Its actual invariant is narrower: the sync may never
+  // PERSIST an inferred value. The self-healing pass legitimately RESOLVES
+  // purpose — to detect a classification resting on a guess and fetch the
+  // authoritative metadata instead — and that is reading, not writing.
+  //
+  // So the enforced boundary is now the write path itself: no prisma write
+  // payload may reference the resolver's output. What the sync writes stays
+  // raw Meta data plus counted facts (messagingCtaAds is a COUNT of synced
+  // CTA values, not an inference).
+  const src = sync!.src;
+  const usesResolver = /resolveCampaignPurpose/.test(src);
+  if (usesResolver) {
+    // Every `purpose.` reference must be reads for control flow / logging —
+    // never inside a data: block. Approximate the check by asserting no
+    // write payload line mentions the resolver's result or a family value.
+    const writePayloads = src.match(/data:\s*\{[^}]*\}/g) ?? [];
+    for (const w of writePayloads) {
+      assert.doesNotMatch(w, /purpose|family|resolveCampaignPurpose/,
+        `a sync write payload references resolved purpose: ${w.slice(0, 80)}`);
+    }
+    // And the resolver may live ONLY inside the self-healing pass.
+    const outsideHealer = src
+      .replace(/async healClassificationMetadata[\s\S]*?\n  \}\n/, '')
+      .replace(/^import[\s\S]*?from "\.\.\/lib\/campaignPurpose";$/m, '');
+    assert.doesNotMatch(outsideHealer, /resolveCampaignPurpose/,
+      'purpose resolution in the sync is confined to healClassificationMetadata');
+  }
 });
 
 console.log('\n── Rule 3: UNKNOWN is a first-class state ──');
@@ -376,6 +403,34 @@ check('the frontend does not substitute another objective\'s counter as a fallba
   }).map((f) => f.path);
   assert.deepEqual(offenders, [],
     `frontend falling back to a specific objective's counter: ${offenders.join(', ')}`);
+});
+
+check('every purpose resolution that passes volume evidence passes ALL of it', () => {
+  // The 2026-08-09 misclassification had two enabling causes. One was the
+  // guard's denominator; the other was structural: call sites passed
+  // messagesWindow and clicksWindow but not linkClicksWindow, because
+  // nothing forced a new call site to supply the full evidence set. A
+  // resolver rung can only weigh what it is handed — a site that hands it
+  // half the evidence silently reintroduces the bug for every campaign it
+  // classifies.
+  //
+  // Rule: any resolveCampaignPurpose call that supplies messagesWindow must
+  // also supply linkClicksWindow and messagingCtaAds. Metadata-only calls
+  // (no volumes at all) are exempt — they classify from objective/goals
+  // alone and the rung correctly never fires.
+  const offenders: string[] = [];
+  for (const { path, code } of FILES) {
+    if (!/\.(ts)$/.test(path) || path.includes('campaignPurpose')) continue;
+    const calls = code.split('resolveCampaignPurpose({').slice(1);
+    for (const call of calls) {
+      const body = call.slice(0, call.indexOf('})'));
+      if (!/messagesWindow/.test(body)) continue;
+      if (!/linkClicksWindow/.test(body)) offenders.push(`${path} (missing linkClicksWindow)`);
+      if (!/messagingCtaAds/.test(body)) offenders.push(`${path} (missing messagingCtaAds)`);
+    }
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `purpose resolution with partial evidence: ${[...new Set(offenders)].join(', ')}`);
 });
 
 check('the intelligence section renders the DTO without deciding anything', () => {

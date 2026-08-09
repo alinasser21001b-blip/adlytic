@@ -2920,6 +2920,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           messagesWindow: messages,
           clicksWindow: clicks,
           linkClicksWindow: linkClicks,
+          messagingCtaAds: camp.messagingCtaAds,
         });
         const kpiSpec = purpose.kpi;
         const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
@@ -3268,6 +3269,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       messagesWindow: messagesN,
       clicksWindow: clicksN,
       linkClicksWindow: Number(linkClicksW),
+      messagingCtaAds: campaign.messagingCtaAds,
     });
     const kpiSpec = purpose.kpi;
     const purposeKey = purposeToObjectiveKey(purpose.family, campaign.objective);

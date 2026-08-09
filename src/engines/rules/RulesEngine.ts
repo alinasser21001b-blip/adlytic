@@ -132,6 +132,7 @@ export class RulesEngine {
         where: { id: entityId },
         select: {
           objective: true,
+          messagingCtaAds: true,
           adSets: { select: { optimizationGoal: true, destinationType: true } },
         },
       });
@@ -145,6 +146,7 @@ export class RulesEngine {
           messagesWindow: wMsgs,
           clicksWindow: wClicks,
           linkClicksWindow: wLink,
+          messagingCtaAds: meta.messagingCtaAds,
         }).family;
       }
     }
