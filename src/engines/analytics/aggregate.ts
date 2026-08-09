@@ -20,6 +20,8 @@ export interface DailyPoint {
   impressions: number;
   reach: number;
   clicks: number;
+  /** inline_link_clicks — evidence denominator for purpose resolution. */
+  linkClicks?: number;
   ctr: number | null;           // %
   cpm: number | null;           // minor units per 1000 impressions
   frequency: number | null;

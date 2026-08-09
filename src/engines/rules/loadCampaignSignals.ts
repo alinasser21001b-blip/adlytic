@@ -122,7 +122,12 @@ export async function loadCampaignSignalsBatch(
     // the two can never disagree.
     let windowMessages = 0;
     let windowClicks = 0;
-    for (const p of current) { windowMessages += p.messages; windowClicks += p.clicks; }
+    let windowLinkClicks = 0;
+    for (const p of current) {
+      windowMessages += p.messages;
+      windowClicks += p.clicks;
+      windowLinkClicks += Number((p as any).linkClicks ?? 0);
+    }
     const meta = campaignRows.find((c) => c.id === campaignId);
     const purpose = resolveCampaignPurpose({
       objective: meta?.objective ?? null,
@@ -130,6 +135,7 @@ export async function loadCampaignSignalsBatch(
       destinationTypes: (meta?.adSets ?? []).map((a) => a.destinationType),
       messagesWindow: windowMessages,
       clicksWindow: windowClicks,
+      linkClicksWindow: windowLinkClicks,
     });
     const resultDef = resultFor(purpose.family);
     purposeById.set(campaignId, { family: purpose.family, resultKey: resultDef.resultKey });

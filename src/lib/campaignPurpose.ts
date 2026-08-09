@@ -45,6 +45,16 @@ export interface CampaignPurposeInput {
    * the soft rule requires messages to be meaningful relative to clicks.
    */
   clicksWindow?: number | null;
+  /**
+   * inline_link_clicks for the window — the PREFERRED denominator for the
+   * evidence guard. On a click-to-message campaign the link click IS the
+   * chat open, so messages/linkClicks is high (a real account measured 78%).
+   * All-clicks counts every like, photo expand and profile tap, which buried
+   * real messaging campaigns: 606 all-clicks demanded 122 messages to flip,
+   * and campaigns with ~100 attributed conversations stayed "engagement",
+   * priced per interaction instead of per conversation.
+   */
+  linkClicksWindow?: number | null;
 }
 
 export interface CampaignPurpose {
@@ -250,15 +260,31 @@ export function resolveCampaignPurpose(input: CampaignPurposeInput): CampaignPur
   // Evidence rung: the campaign landed on "engagement" (vague ODAX shell, or a
   // POST_ENGAGEMENT ad set on a click-to-message campaign whose destination
   // wasn't synced yet) but its ACTUAL results are messaging conversations.
-  // Guard: messages must be meaningful — at least 3 AND at least 20% of clicks
-  // — so a boosted post with two incidental page messages never flips.
+  //
+  // Guard: messages must be meaningful — at least 3 AND at least 20% of the
+  // right denominator. That denominator is LINK clicks when we have them: on
+  // a click-to-message campaign the link click IS the chat open (a real
+  // account measured 179 conversations from 229 link clicks — 78%). The old
+  // guard compared against ALL clicks, which counts every like, photo expand
+  // and profile tap, so a campaign with 606 all-clicks needed 122 messages
+  // to flip and real messaging campaigns with ~100 attributed conversations
+  // stayed "engagement" — priced per interaction instead of per conversation,
+  // in production, on live merchant accounts.
+  //
+  // The all-clicks ratio survives only as the fallback when link clicks were
+  // never synced, because a wrong-but-strict guard beats no guard at all.
   if (family === 'engagement') {
     const messages = Number(input.messagesWindow) || 0;
     const clicks = Number(input.clicksWindow) || 0;
-    const meaningful = messages >= 3 && (clicks <= 0 || messages >= clicks * 0.2);
+    const linkClicks = Number(input.linkClicksWindow) || 0;
+    const meaningful =
+      messages >= 3 &&
+      (linkClicks > 0
+        ? messages >= linkClicks * 0.2
+        : clicks <= 0 || messages >= clicks * 0.2);
     if (meaningful) {
       family = 'messaging';
-      reason = `evidence:messages=${messages},clicks=${clicks}`;
+      reason = `evidence:messages=${messages},linkClicks=${linkClicks},clicks=${clicks}`;
       reasonAr = 'نتائج الحملة الفعلية محادثات رسائل — صُنّفت كحملة رسائل';
     }
   }

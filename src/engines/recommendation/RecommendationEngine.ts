@@ -169,14 +169,15 @@ export class RecommendationEngine {
           },
         });
         if (meta) {
-          let wMsgs = 0, wClicks = 0;
-          for (const r of daily as any[]) { wMsgs += Number(r.messages); wClicks += Number(r.clicks); }
+          let wMsgs = 0, wClicks = 0, wLink = 0;
+          for (const r of daily as any[]) { wMsgs += Number(r.messages); wClicks += Number(r.clicks); wLink += Number(r.linkClicks ?? 0); }
           resultKey = resultFor(resolveCampaignPurpose({
             objective: meta.objective,
             optimizationGoals: meta.adSets.map((a) => a.optimizationGoal),
             destinationTypes: meta.adSets.map((a) => a.destinationType),
             messagesWindow: wMsgs,
             clicksWindow: wClicks,
+            linkClicksWindow: wLink,
           }).family).resultKey;
         }
       } else {

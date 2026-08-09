@@ -1941,7 +1941,7 @@ export async function resolveAccountResultColumns(
       entityId: { in: campaigns.map((c) => c.id) },
       date: { gte: sinceDate },
     },
-    _sum: { messages: true, clicks: true },
+    _sum: { messages: true, clicks: true, linkClicks: true },
   });
   const windowByCampaign = new Map(windows.map((w) => [w.entityId, w]));
 
@@ -1954,6 +1954,7 @@ export async function resolveAccountResultColumns(
       destinationTypes: c.adSets.map((a) => a.destinationType),
       messagesWindow: Number(w?._sum.messages ?? 0),
       clicksWindow: Number(w?._sum.clicks ?? 0),
+      linkClicksWindow: Number(w?._sum.linkClicks ?? 0),
     });
     // An unresolved purpose contributes nothing. It is NOT folded into a
     // default family — that fabrication is what this whole layer removed.
@@ -2007,7 +2008,7 @@ async function buildResultBreakdown(
     },
     select: {
       entityId: true, spend: true, messages: true, purchases: true,
-      leads: true, clicks: true, impressions: true,
+      leads: true, clicks: true, linkClicks: true, impressions: true,
     },
   });
   if (rows.length === 0) return null;
@@ -2025,10 +2026,11 @@ async function buildResultBreakdown(
     if (!campaignRows || campaignRows.length === 0) continue;
 
     // Window totals feed the resolver's guarded evidence rung.
-    let msgs = 0, clks = 0, spend = 0;
+    let msgs = 0, clks = 0, lclk = 0, spend = 0;
     for (const r of campaignRows) {
       msgs += Number(r.messages);
       clks += Number(r.clicks);
+      lclk += Number(r.linkClicks);
       spend += Number(r.spend);
     }
     const purpose = resolveCampaignPurpose({
@@ -2037,6 +2039,7 @@ async function buildResultBreakdown(
       destinationTypes: c.adSets.map((a) => a.destinationType),
       messagesWindow: msgs,
       clicksWindow: clks,
+      linkClicksWindow: lclk,
     });
     contributions.push({
       family: purpose.family,

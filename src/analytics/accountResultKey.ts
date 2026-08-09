@@ -56,14 +56,15 @@ export async function resolveAccountResultKey(
       entityId: { in: campaigns.map((c) => c.id) },
       date: until ? { gte: since, lte: until } : { gte: since },
     },
-    select: { entityId: true, messages: true, clicks: true, spend: true },
+    select: { entityId: true, messages: true, clicks: true, linkClicks: true, spend: true },
   });
 
-  const windowByCampaign = new Map<string, { messages: number; clicks: number; spend: number }>();
+  const windowByCampaign = new Map<string, { messages: number; clicks: number; linkClicks: number; spend: number }>();
   for (const r of rows) {
-    const acc = windowByCampaign.get(r.entityId) ?? { messages: 0, clicks: 0, spend: 0 };
+    const acc = windowByCampaign.get(r.entityId) ?? { messages: 0, clicks: 0, linkClicks: 0, spend: 0 };
     acc.messages += Number(r.messages);
     acc.clicks += Number(r.clicks);
+    acc.linkClicks += Number(r.linkClicks);
     acc.spend += Number(r.spend);
     windowByCampaign.set(r.entityId, acc);
   }
@@ -80,6 +81,7 @@ export async function resolveAccountResultKey(
         destinationTypes: c.adSets.map((a) => a.destinationType),
         messagesWindow: w.messages,
         clicksWindow: w.clicks,
+        linkClicksWindow: w.linkClicks,
       }).family,
     );
   }

@@ -149,4 +149,67 @@ assert.notEqual(
   'conversations-optimized engagement must not use clicks as results',
 );
 
+// ── The production misclassification of 2026-08-09 ──────────────────────
+//
+// Live merchant screenshots showed four click-to-message campaigns labelled
+// "تفاعل" and priced per interaction. Their ad-set metadata had not synced
+// (no destination, no CONVERSATIONS goal), so classification fell to the
+// evidence rung — whose guard compared messages against ALL clicks. All-
+// clicks counts every like, photo expand and profile tap, so a campaign with
+// ~100 attributed conversations against 606 all-clicks needed 122 messages
+// to flip, and stayed "engagement".
+//
+// The correct denominator is LINK clicks: on click-to-message ads the link
+// click IS the chat open. The same account's correctly-classified campaign
+// measured 179 conversations from 229 link clicks — 78%.
+
+// The shipped failure, with the real proportions: flips on link clicks.
+const prodMisclassified = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],   // synced, but wrong signal
+  destinationTypes: [],                     // NOT synced — the whole problem
+  messagesWindow: 100,
+  clicksWindow: 606,
+  linkClicksWindow: 150,
+});
+assert.equal(prodMisclassified.family, 'messaging',
+  '100 conversations from 150 link clicks IS a messaging campaign, whatever all-clicks says');
+assert.ok(prodMisclassified.reason.includes('linkClicks'),
+  'the reason must record which denominator decided');
+
+// Same campaign WITHOUT link clicks synced: the all-clicks fallback keeps the
+// old strict behaviour. 100/606 < 20% → stays engagement. Wrong-but-strict
+// beats flipping on a denominator we do not have.
+const noLinkClicks = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 100,
+  clicksWindow: 606,
+  linkClicksWindow: 0,
+});
+assert.equal(noLinkClicks.family, 'engagement');
+
+// The guard still guards: a boosted post with plenty of link clicks and two
+// incidental messages must NOT flip.
+const boostedWithLinks = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 2,
+  clicksWindow: 500,
+  linkClicksWindow: 40,
+});
+assert.equal(boostedWithLinks.family, 'engagement',
+  'two incidental messages never make a boosted post a messaging campaign');
+
+// And low-ratio real link traffic stays engagement too: 5 messages from 200
+// link clicks is a page that happens to get messages, not a chat funnel.
+const lowRatio = resolveCampaignPurpose({
+  objective: 'OUTCOME_ENGAGEMENT',
+  optimizationGoals: ['POST_ENGAGEMENT'],
+  messagesWindow: 5,
+  clicksWindow: 300,
+  linkClicksWindow: 200,
+});
+assert.equal(lowRatio.family, 'engagement');
+
 console.log('test_campaign_purpose: ok');

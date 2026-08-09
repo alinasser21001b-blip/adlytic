@@ -338,6 +338,7 @@ async function loadRawDataForCampaigns(
       destinationTypes: c.adSets.map((a) => a.destinationType),
       messagesWindow: Number(r.messages),
       clicksWindow: Number(r.clicks),
+      linkClicksWindow: Number((r as any).linkClicks ?? 0),
     });
     // Pass the RESOLVED family straight through. Converting it back into a
     // synthetic objective string ('MESSAGES', 'OUTCOME_AWARENESS', …) just so

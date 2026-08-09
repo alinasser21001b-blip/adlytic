@@ -100,39 +100,54 @@ export class AnalyticsEngine {
       ok: false,
     };
 
-    // Which counter carries "results" for this entity? Resolved from the
-    // campaign's own purpose, or across the account's delivering campaigns.
-    // Null when the account mixes purposes — the trend is then null rather
-    // than a sum of conversations and orders (see accountResultKey.ts).
-    let resultKey: ResultMetricKey | null = null;
     try {
-      if (entityType === EntityType.CAMPAIGN) {
-        const meta = await this.prisma.campaign.findUnique({
-          where: { id: entityId },
-          select: {
-            objective: true,
-            adSets: { select: { optimizationGoal: true, destinationType: true } },
-          },
-        });
-        if (meta) {
-          resultKey = resultFor(resolveCampaignPurpose({
-            objective: meta.objective,
-            optimizationGoals: meta.adSets.map((a) => a.optimizationGoal),
-            destinationTypes: meta.adSets.map((a) => a.destinationType),
-          }).family).resultKey;
-        }
-      } else if (entityType === EntityType.ACCOUNT) {
-        resultKey = (await resolveAccountResultKey(
-          this.prisma, entityId, dateOnly(priorSince), dateOnly(currentUntil),
-        )).resultKey;
-      }
-    } catch {
-      resultKey = null;   // degrade to no result trend, never to a wrong one
-    }
-
-    try {
-      // Single DB read: union of both windows, fetched once
+      // Single DB read: union of both windows, fetched once. Loaded BEFORE
+      // purpose resolution on purpose: the resolver's guarded evidence rung
+      // needs window volumes (messages / clicks / linkClicks), and this
+      // engine used to resolve without them — the one caller in the codebase
+      // that could misclassify a click-to-message campaign the other nine
+      // call sites classified correctly, because it alone withheld the
+      // evidence the rung exists to weigh.
       const points = await this.loadPoints(entityType, entityId, priorSince, currentUntil);
+
+      // Which counter carries "results" for this entity? Resolved from the
+      // campaign's own purpose, or across the account's delivering campaigns.
+      // Null when the account mixes purposes — the trend is then null rather
+      // than a sum of conversations and orders (see accountResultKey.ts).
+      let resultKey: ResultMetricKey | null = null;
+      try {
+        if (entityType === EntityType.CAMPAIGN) {
+          const meta = await this.prisma.campaign.findUnique({
+            where: { id: entityId },
+            select: {
+              objective: true,
+              adSets: { select: { optimizationGoal: true, destinationType: true } },
+            },
+          });
+          if (meta) {
+            let evMsgs = 0, evClicks = 0, evLink = 0;
+            for (const p of points) {
+              evMsgs += p.messages;
+              evClicks += p.clicks;
+              evLink += Number(p.linkClicks ?? 0);
+            }
+            resultKey = resultFor(resolveCampaignPurpose({
+              objective: meta.objective,
+              optimizationGoals: meta.adSets.map((a) => a.optimizationGoal),
+              destinationTypes: meta.adSets.map((a) => a.destinationType),
+              messagesWindow: evMsgs,
+              clicksWindow: evClicks,
+              linkClicksWindow: evLink,
+            }).family).resultKey;
+          }
+        } else if (entityType === EntityType.ACCOUNT) {
+          resultKey = (await resolveAccountResultKey(
+            this.prisma, entityId, dateOnly(priorSince), dateOnly(currentUntil),
+          )).resultKey;
+        }
+      } catch {
+        resultKey = null;   // degrade to no result trend, never to a wrong one
+      }
       const current = points.filter(p => p.date >= ymd(currentSince) && p.date <= ymd(currentUntil));
       const prior = points.filter(p => p.date >= ymd(priorSince) && p.date <= ymd(priorUntil));
 
@@ -195,6 +210,7 @@ export class AnalyticsEngine {
       impressions: Number(r.impressions),
       reach: Number(r.reach),
       clicks: Number(r.clicks),
+      linkClicks: Number(r.linkClicks ?? 0),
       ctr: r.ctr,
       cpm: r.cpm,
       frequency: r.frequency,

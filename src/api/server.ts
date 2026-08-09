@@ -2919,6 +2919,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           destinationTypes: (camp.adSets ?? []).map((a) => a.destinationType),
           messagesWindow: messages,
           clicksWindow: clicks,
+          linkClicksWindow: linkClicks,
         });
         const kpiSpec = purpose.kpi;
         const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
@@ -3200,6 +3201,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let spendMinor   = 0n;
     let impressions  = 0n;
     let clicks       = 0n;
+    let linkClicksW  = 0n;
     let messages     = 0n;
     let purchases    = 0n;
     let leads        = 0n;
@@ -3210,6 +3212,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       spendMinor   += d.spend;
       impressions  += d.impressions;
       clicks       += d.clicks;
+      linkClicksW  += d.linkClicks;
       messages     += d.messages;
       purchases    += d.purchases;
       leads        += d.leads;
@@ -3264,6 +3267,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       destinationTypes: campaign.adSets.map((a) => a.destinationType),
       messagesWindow: messagesN,
       clicksWindow: clicksN,
+      linkClicksWindow: Number(linkClicksW),
     });
     const kpiSpec = purpose.kpi;
     const purposeKey = purposeToObjectiveKey(purpose.family, campaign.objective);
