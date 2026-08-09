@@ -5,7 +5,7 @@
 //  Only actions: contact support via WhatsApp, or logout.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
+import { BASE_CSS_PATH, FLOORS_CSS_PATH } from '../layout';
 
 export function pendingActivationPage(): string {
   return `<!DOCTYPE html>
@@ -15,8 +15,8 @@ export function pendingActivationPage(): string {
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta name="theme-color" content="#100E0D">
   <title>بانتظار التفعيل — Adlytic</title>
+  <link rel="stylesheet" href="${BASE_CSS_PATH}">
   <style>
-    ${SHARED_CSS}
     body { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: var(--bg); padding: 24px 16px; }
     .auth-wrap { width: 100%; max-width: 440px; }
     .auth-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; justify-content: center; }
@@ -38,8 +38,8 @@ export function pendingActivationPage(): string {
     #error-msg { display: none; margin-bottom: 16px; text-align: left; }
     .logout-link { display: inline-block; margin-top: 8px; font-size: 13px; color: var(--text-3); cursor: pointer; background: none; border: none; }
     .logout-link:hover { color: var(--text-2); }
-    ${MOBILE_FLOORS_CSS}
   </style>
+  <link rel="stylesheet" href="${FLOORS_CSS_PATH}">
 </head>
 <body>
   <div class="auth-wrap">

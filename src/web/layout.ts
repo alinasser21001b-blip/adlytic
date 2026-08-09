@@ -1515,7 +1515,7 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   .gate-grid { grid-template-columns: 1fr !important; }
   .diagnosis-grid { grid-template-columns: 1fr; }
 }
-@media (max-width: 480px) {
+@media (max-width: 560px) {
   .modal { max-width: calc(100vw - 32px); margin: 16px; }
 }
 
@@ -1789,6 +1789,40 @@ export const MOBILE_FLOORS_CSS = `
   }
 }
 `;
+
+// ════════════════════════════════════════════════════════════════════════
+//  CACHEABLE STYLESHEETS
+//
+//  SHARED_CSS and MOBILE_FLOORS_CSS were inlined into every page: ~73KB of
+//  byte-identical CSS re-sent on every navigation, 999KB across the 12
+//  rendered routes, none of it cacheable because it lived inside the HTML.
+//  A merchant on a phone paid for it again on every page change.
+//
+//  They are now served as two files with content-hashed URLs, so they cache
+//  immutably and a deploy that changes them changes the URL.
+//
+//  TWO files, not one, and that split is load-bearing: the floors must come
+//  after each page's own <style>, which layout() emits in the body. A single
+//  stylesheet in <head> would lose the cascade exactly as the inline version
+//  did — .ws-hero-kicker sat in the 12px rule and still rendered at 11px.
+//  So base goes in <head> and floors link at the end of <body>.
+// ════════════════════════════════════════════════════════════════════════
+
+/** Short, stable content hash — cache key only, not a security digest. */
+function cssHash(s: string): string {
+  let h = 5381;
+  for (let i = 0; i < s.length; i++) h = ((h * 33) ^ s.charCodeAt(i)) >>> 0;
+  return h.toString(36);
+}
+
+export const BASE_CSS_PATH = `/assets/base-${cssHash(SHARED_CSS)}.css`;
+export const FLOORS_CSS_PATH = `/assets/floors-${cssHash(MOBILE_FLOORS_CSS)}.css`;
+
+/** Served by the /assets/* route. Keyed by the same paths exported above. */
+export const CSS_ASSETS: Record<string, string> = {
+  [BASE_CSS_PATH]: SHARED_CSS,
+  [FLOORS_CSS_PATH]: MOBILE_FLOORS_CSS,
+};
 
 // ── Shared JS (auth guard, toast, sidebar toggle) ───────────────────────
 export const SHARED_JS = `
@@ -3087,7 +3121,7 @@ export function layout(opts: {
   <link rel="manifest" href="/manifest.json">
   <link rel="apple-touch-icon" href="/icons/icon-192.svg">
   <title>${title} — Adlytic</title>
-  <style>${SHARED_CSS}</style>
+  <link rel="stylesheet" href="${BASE_CSS_PATH}">
   ${extraHead}
 </head>
 <body>
@@ -3144,7 +3178,7 @@ export function layout(opts: {
        .ws-id-value were all listed in the floors' 12px rule and /workspace
        still measured them at 11 and 11.5px. Emitting the block after the
        page's own styles is what actually makes it the last word. -->
-  <style>${MOBILE_FLOORS_CSS}</style>
+  <link rel="stylesheet" href="${FLOORS_CSS_PATH}">
 </body>
 </html>`;
 }

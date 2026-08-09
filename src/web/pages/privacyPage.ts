@@ -7,7 +7,7 @@
 //  read-only access, no advertising targeting, no model training, no resale.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
+import { BASE_CSS_PATH, FLOORS_CSS_PATH } from '../layout';
 
 export function privacyPage(): string {
   return `<!DOCTYPE html>
@@ -16,8 +16,8 @@ export function privacyPage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Privacy Policy — Adlytic</title>
+  <link rel="stylesheet" href="${BASE_CSS_PATH}">
   <style>
-    ${SHARED_CSS}
     body { min-height: 100vh; background: var(--bg); }
     .legal-wrap { max-width: 780px; margin: 0 auto; padding: 48px 20px 80px; }
     .legal-logo { display: flex; align-items: center; gap: 10px; margin-bottom: 32px; }
@@ -33,8 +33,8 @@ export function privacyPage(): string {
     .legal-card strong { color: var(--text); font-weight: 600; }
     .legal-card a { color: var(--accent-2); }
     .legal-footer { margin-top: 32px; font-size: 12.5px; color: var(--text-3); text-align: center; }
-    ${MOBILE_FLOORS_CSS}
   </style>
+  <link rel="stylesheet" href="${FLOORS_CSS_PATH}">
 </head>
 <body>
   <div class="legal-wrap">

@@ -303,7 +303,7 @@ body {
   .auth-card { padding: 28px 22px 24px; }
 }
 
-@media (max-width: 400px) {
+@media (max-width: 380px) {
   .auth-card { border-radius: 14px; padding: 24px 18px 20px; }
   .auth-title { font-size: 20px; }
   .auth-submit { padding: 12px 20px; font-size: 14px; }

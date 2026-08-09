@@ -463,7 +463,7 @@ export function settingsPage(): string {
   .ws-stats-row {
     display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px;
   }
-  @media (max-width: 600px) { .ws-stats-row { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 640px) { .ws-stats-row { grid-template-columns: repeat(2, 1fr); } }
   .ws-stat-item {
     text-align: center; padding: 16px 8px;
     background: var(--surface-2); border-radius: var(--radius);
@@ -518,7 +518,7 @@ export function settingsPage(): string {
 
   .settings-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   .settings-form-full { grid-column: 1 / -1; }
-  @media (max-width: 520px) { .settings-form-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 560px) { .settings-form-grid { grid-template-columns: 1fr; } }
   .form-hint { font-size: 11.5px; color: var(--text-3); margin-top: 6px; }
   .settings-actions { margin-top: 22px; display: flex; gap: 10px; flex-wrap: wrap; }
 

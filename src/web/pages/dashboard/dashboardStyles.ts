@@ -20,7 +20,7 @@ export const dashboardStyles = `<style>
 
     /* Premium spend hero cards */
     .hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
-    @media (max-width: 800px) { .hero-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .hero-grid { grid-template-columns: 1fr; } }
     .hero-card {
       position: relative;
       background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, var(--surface) 45%, var(--surface-2) 100%);
@@ -144,7 +144,7 @@ export const dashboardStyles = `<style>
       display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
     }
     .ticker-tooltip { display: none; }
-    @media (max-width: 980px) { .ticker-track { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1024px) { .ticker-track { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .ticker-track { grid-template-columns: 1fr; } }
 
     /* AI Context Strip — structured account snapshot tiles */
@@ -168,7 +168,7 @@ export const dashboardStyles = `<style>
       margin-bottom: 22px;
       align-items: stretch;
     }
-    @media (max-width: 1000px) { .split-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 1024px) { .split-grid { grid-template-columns: 1fr; } }
     .split-grid.chart-only { grid-template-columns: 1fr; }
     .brain-box {
       background:
@@ -384,7 +384,7 @@ export const dashboardStyles = `<style>
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
     }
-    @media (max-width: 720px) {
+    @media (max-width: 768px) {
       .adv-pulse-grid { grid-template-columns: 1fr; }
     }
     .adv-pulse-card {
@@ -409,7 +409,7 @@ export const dashboardStyles = `<style>
     @media (max-width: 900px) {
       .adv-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 520px) {
+    @media (max-width: 560px) {
       .adv-kpi-grid { grid-template-columns: 1fr; }
     }
 
@@ -417,10 +417,10 @@ export const dashboardStyles = `<style>
       grid-template-columns: repeat(3, minmax(0, 1fr));
       margin-bottom: 0;
     }
-    @media (max-width: 1100px) {
+    @media (max-width: 1024px) {
       .adv-chart-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     }
-    @media (max-width: 700px) {
+    @media (max-width: 768px) {
       .adv-chart-grid { grid-template-columns: 1fr; }
     }
     .chart-card-sub {
@@ -435,7 +435,7 @@ export const dashboardStyles = `<style>
       grid-template-columns: 1fr;
       margin-bottom: 0;
     }
-    @media (min-width: 820px) {
+    @media (min-width: 769px) {
       .adv-shell .diagnosis-grid {
         grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
       }
@@ -518,7 +518,7 @@ export const dashboardStyles = `<style>
       direction: rtl;
     }
     @media (max-width: 900px) { .kpi-command-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 520px) { .kpi-command-grid { grid-template-columns: 1fr; gap: 10px; } }
+    @media (max-width: 560px) { .kpi-command-grid { grid-template-columns: 1fr; gap: 10px; } }
     .kpi-cmd-card {
       position: relative;
       background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, var(--surface) 45%, var(--surface-2) 100%);
@@ -583,7 +583,7 @@ export const dashboardStyles = `<style>
       transition: opacity 0.25s;
     }
     .kpi-cmd-insight:empty { display: none; }
-    @media (max-width: 520px) {
+    @media (max-width: 560px) {
       .kpi-cmd-card { padding: 14px 16px 12px; }
       .kpi-cmd-card .hero-value { font-size: 24px; }
     }
@@ -619,7 +619,7 @@ export const dashboardStyles = `<style>
       gap: 10px;
       padding: 12px 14px 14px;
     }
-    @media (max-width: 980px) { .live-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 1024px) { .live-insights-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
     @media (max-width: 560px) { .live-insights-grid { grid-template-columns: 1fr; } }
     .live-insight-card {
       display: flex; flex-direction: column; gap: 8px;
@@ -731,7 +731,7 @@ export const dashboardStyles = `<style>
     }
     .skeleton-gauge { height: 140px; margin-bottom: 16px; border-radius: 20px; }
     .skeleton-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
-    @media (max-width: 800px) { .skeleton-hero-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .skeleton-hero-grid { grid-template-columns: 1fr; } }
     .skeleton-hero { height: 112px; }
     .skeleton-chart { height: 280px; margin-bottom: 16px; }
     .skeleton-cards-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -1296,7 +1296,7 @@ export const dashboardStyles = `<style>
       .weekly-brain-pill { font-size: 11px; padding: 5px 10px; }
     }
 
-    @media (max-width: 480px) {
+    @media (max-width: 560px) {
       /* One clean column of large, readable numbers — no cramped 2-up. */
       .hero-grid { grid-template-columns: 1fr; gap: 10px; }
       .hero-card { padding: 16px 18px; }
@@ -1341,7 +1341,7 @@ export const dashboardStyles = `<style>
       grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
       gap: 12px;
     }
-    @media (max-width: 720px) { .predictions-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .predictions-grid { grid-template-columns: 1fr; } }
     .pred-card {
       display: flex; flex-direction: column; gap: 0;
       border-radius: 16px;
@@ -1464,7 +1464,7 @@ export const dashboardStyles = `<style>
       grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
       gap: 12px;
     }
-    @media (max-width: 720px) { .ai-recs-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .ai-recs-grid { grid-template-columns: 1fr; } }
     .ai-rec-card {
       border-radius: 16px;
       border: 1px solid rgba(255,255,255,0.07);
@@ -2507,7 +2507,7 @@ export const dashboardStyles = `<style>
       .diag-rec-action { font-size: 14px; }
     }
 
-    @media (max-width: 400px) {
+    @media (max-width: 380px) {
       /* Two 44px pills plus a 44px refresh button do not fit beside the
          title at 320px — give the command row its own line. */
       .cmd-bar-left { width: 100%; justify-content: flex-start; flex-wrap: wrap; }

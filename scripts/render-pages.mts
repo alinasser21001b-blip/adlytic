@@ -38,3 +38,13 @@ for (const [slug, file, fn] of PAGES) {
     console.log(`FAIL ${slug}: ${e.message.slice(0, 80)}`);
   }
 }
+
+// The pages now LINK the shared stylesheets instead of inlining them, so the
+// audit harness has to serve them too. Without this every rendered page would
+// measure unstyled, and the gate would report spectacular fake overflow.
+const { CSS_ASSETS } = await import(`${PAGES_DIR}../layout`);
+mkdirSync(`${OUT}/assets`, { recursive: true });
+for (const [urlPath, css] of Object.entries(CSS_ASSETS as Record<string, string>)) {
+  writeFileSync(`${OUT}${urlPath}`, css, 'utf8');
+  console.log(`wrote ${urlPath} (${(css.length / 1024).toFixed(0)} KB)`);
+}

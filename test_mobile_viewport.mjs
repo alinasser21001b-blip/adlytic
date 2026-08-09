@@ -21,7 +21,17 @@ import { chromium, devices } from 'playwright';
 
 const DIR = new URL('./.mobile-pages/', import.meta.url);
 const WS = 'ws_x';
-const WIDTHS = [320, 360, 375, 390, 414, 430];
+// Real phone widths, plus one probe just inside each canonical breakpoint.
+//
+// The phone widths are the product requirement. The breakpoint probes exist
+// because every media query above 430px was previously UNVERIFIED by this
+// gate — consolidating 19 ad-hoc breakpoints onto a scale would have been a
+// change nothing could check. 379/559/639/767/899/1023 each sit one pixel
+// inside a canonical boundary, which is where an off-by-one or a newly
+// overlapping rule shows up.
+const PHONE_WIDTHS = [320, 360, 375, 390, 414, 430];
+const BREAKPOINT_PROBES = [379, 559, 639, 767, 899, 1023];
+const WIDTHS = [...PHONE_WIDTHS, ...BREAKPOINT_PROBES];
 const TOUCH_MIN = 44;   // WCAG 2.5.5 / Apple HIG
 const FONT_MIN = 12;    // below this is unreadable on a phone
 /**
@@ -70,6 +80,20 @@ const server = http.createServer((req, res) => {
   const url = (req.url || '').split('?')[0];
   const json = (c, o) => { res.writeHead(c, { 'content-type': 'application/json' }); res.end(JSON.stringify(o)); };
   const slug = url.replace(/^\//, '') || 'dashboard';
+
+  // The shared stylesheets are LINKED now, not inlined. If this 404s, every
+  // page measures unstyled and the gate reports enormous fake overflow — a
+  // harness failure that looks exactly like a catastrophic product failure.
+  if (url.startsWith('/assets/') && url.endsWith('.css')) {
+    try {
+      const css = readFileSync(new URL('.' + url, DIR), 'utf8');
+      res.writeHead(200, { 'content-type': 'text/css; charset=utf-8' });
+      return res.end(css);
+    } catch {
+      res.writeHead(500);
+      return res.end('/* MISSING: run scripts/render-pages.mts first */');
+    }
+  }
 
   try {
     const html = readFileSync(new URL(`${slug}.html`, DIR), 'utf8');

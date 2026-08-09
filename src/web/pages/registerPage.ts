@@ -2,7 +2,7 @@
 //  src/web/pages/registerPage.ts  —  Registration page
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
+import { BASE_CSS_PATH, FLOORS_CSS_PATH } from '../layout';
 import { AUTH_STYLES, logoSvg } from './authShared';
 // Phase 13: the auth-form mobile behaviour (keyboard, focus ring, per-field
 // errors, reveal control, safe area) lives with /login and is shared here so
@@ -18,12 +18,12 @@ export function registerPage(): string {
   <meta name="theme-color" content="#100E0D">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>إنشاء حساب — Adlytic</title>
+  <link rel="stylesheet" href="${BASE_CSS_PATH}">
   <style>
-    ${SHARED_CSS}
     ${AUTH_STYLES}
-    ${MOBILE_FLOORS_CSS}
     ${AUTH_FORM_MOBILE_CSS}
   </style>
+  <link rel="stylesheet" href="${FLOORS_CSS_PATH}">
 </head>
 <body>
   <div id="toast-container"></div>

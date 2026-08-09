@@ -118,7 +118,7 @@ export function addClientPage(): string {
       border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
       background: linear-gradient(145deg, rgba(217,167,89,0.05), var(--surface));
     }
-    @media (max-width: 760px) { .sidebar { display: none; } }
+    @media (max-width: 768px) { .sidebar { display: none; } }
     .field {
       background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
       padding: 9px 12px; color: var(--text); min-width: 0;
@@ -126,7 +126,7 @@ export function addClientPage(): string {
     .field:focus { outline: none; border-color: rgba(217,167,89,0.55); }
     select.field { cursor: pointer; }
     .form-grid { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; align-items: end; }
-    @media (max-width: 860px) { .form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; } }
     .form-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-3); margin-bottom: 6px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
@@ -196,7 +196,7 @@ export function addClientPage(): string {
     .tl-time { color: var(--text-3); font-size: 11.5px; direction: ltr; text-align: right; unicode-bidi: embed; }
     .tl-msg { color: var(--text-2); line-height: 1.75; }
     .tl-states { color: var(--text-3); font-size: 11px; margin-top: 3px; direction: ltr; text-align: right; unicode-bidi: embed; }
-    @media (max-width: 700px) { .tl-item { grid-template-columns: 1fr; gap: 4px; } .tl-time { text-align: right; } }
+    @media (max-width: 768px) { .tl-item { grid-template-columns: 1fr; gap: 4px; } .tl-time { text-align: right; } }
 
     /* ── Onboarding list rows ───────────────────────────────────────────── */
     .ob-row {
@@ -250,7 +250,7 @@ export function addClientPage(): string {
        shared MOBILE SYSTEM block — that stays the integrator's to own.
        ══════════════════════════════════════════════════════════════════════ */
     .mflow { display: none; }
-    @media (max-width: 760px) {
+    @media (max-width: 768px) {
       /* .app carries an inline display:flex once the admin gate clears, so the
          phone shell has to out-specify it. */
       body.mf-on .app { display: none !important; }

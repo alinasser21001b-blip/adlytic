@@ -90,7 +90,7 @@ export function adminConsolePage(): string {
     .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
-    @media (max-width: 980px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .sidebar { display: none; } }
+    @media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .sidebar { display: none; } }
     .kpi {
       padding: 16px; border-radius: 12px; border: 1px solid var(--border);
       background: linear-gradient(145deg, rgba(217,167,89,0.06), var(--surface));
@@ -139,7 +139,7 @@ export function adminConsolePage(): string {
     }
     .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
     .form-group { display: flex; flex-direction: column; gap: 6px; }
     .form-group label { font-size: 12px; font-weight: 700; color: var(--text-2); }
     .form-group.full { grid-column: 1 / -1; }

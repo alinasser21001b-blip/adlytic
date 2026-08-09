@@ -41,6 +41,7 @@ import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
 import { serveStatic } from '@hono/node-server/serve-static';
+import { CSS_ASSETS } from '../web/layout';
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
@@ -499,6 +500,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.use('/fonts/*', async (c, next) => {
     await next();
     c.header('Cache-Control', 'public, max-age=31536000, immutable');
+  });
+
+  // Shared stylesheets, extracted from the page HTML. ~73KB of byte-identical
+  // CSS used to be inlined into every page (999KB across the 12 routes) and
+  // re-sent on every navigation because it lived inside the document. The URL
+  // carries a content hash, so this can be immutable: a CSS change produces a
+  // new path rather than needing a cache bust.
+  app.get('/assets/:file{.+\\.css}', (c) => {
+    const css = CSS_ASSETS['/assets/' + c.req.param('file')];
+    if (!css) return c.notFound();
+    c.header('Content-Type', 'text/css; charset=utf-8');
+    c.header('Cache-Control', 'public, max-age=31536000, immutable');
+    return c.body(css);
   });
 
   // PWA assets: manifest, service worker, icons

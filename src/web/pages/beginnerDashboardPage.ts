@@ -114,7 +114,7 @@ export function beginnerDashboardPage(): string {
 
     /* ── Metric cards ── */
     .bgn-metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 18px; }
-    @media (max-width: 760px) { .bgn-metric-grid { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .bgn-metric-grid { grid-template-columns: 1fr; } }
     .bgn-metric-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 16px; padding: 18px 16px;
@@ -163,7 +163,7 @@ export function beginnerDashboardPage(): string {
 
     /* ── Mini cards ── */
     .bgn-mini-cards { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 20px; }
-    @media (max-width: 760px) { .bgn-mini-cards { grid-template-columns: 1fr; } }
+    @media (max-width: 768px) { .bgn-mini-cards { grid-template-columns: 1fr; } }
     .bgn-mini-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: 14px; padding: 14px 16px;
@@ -304,7 +304,7 @@ export function beginnerDashboardPage(): string {
       display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
       margin-top: 4px;
     }
-    @media (max-width: 600px) { .bgn-quick-links { grid-template-columns: 1fr; } }
+    @media (max-width: 640px) { .bgn-quick-links { grid-template-columns: 1fr; } }
     .bgn-quick-link {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       padding: 12px 14px; border-radius: 12px;

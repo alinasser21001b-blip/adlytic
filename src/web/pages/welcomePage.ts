@@ -5,7 +5,7 @@
 //  not connected a Meta ad account yet. Wires into the existing OAuth flow.
 // ════════════════════════════════════════════════════════════════════════
 
-import { SHARED_CSS, MOBILE_FLOORS_CSS } from '../layout';
+import { BASE_CSS_PATH, FLOORS_CSS_PATH } from '../layout';
 
 export function welcomePage(): string {
   return `<!DOCTYPE html>
@@ -14,8 +14,8 @@ export function welcomePage(): string {
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Welcome — Adlytic</title>
+  <link rel="stylesheet" href="${BASE_CSS_PATH}">
   <style>
-    ${SHARED_CSS}
     body {
       display: flex; align-items: center; justify-content: center;
       min-height: 100vh; background: var(--bg);
@@ -135,8 +135,8 @@ export function welcomePage(): string {
       font-size: 13px; color: var(--text-2);
     }
     [dir="rtl"] .welcome-benefit { text-align: right; }
-    ${MOBILE_FLOORS_CSS}
   </style>
+  <link rel="stylesheet" href="${FLOORS_CSS_PATH}">
 </head>
 <body>
   <div id="toast-container"></div>

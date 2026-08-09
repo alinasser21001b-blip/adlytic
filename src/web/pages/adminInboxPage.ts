@@ -160,7 +160,7 @@ export function adminInboxPage(): string {
     .toast.ok { border-color: rgba(52,168,113,0.4); }
     .toast.err { border-color: rgba(226,96,79,0.4); color: #ffb4a8; }
     .check-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
-    @media (max-width: 980px) {
+    @media (max-width: 1024px) {
       .sidebar { display: none; }
       .ticket-list { width: 100%; }
       .context-panel { display: none !important; }
