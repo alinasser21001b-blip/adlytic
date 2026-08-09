@@ -23,8 +23,8 @@ export const dashboardStyles = `<style>
     @media (max-width: 768px) { .hero-grid { grid-template-columns: 1fr; } }
     .hero-card {
       position: relative;
-      background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, var(--surface) 45%, var(--surface-2) 100%);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(160deg, var(--surface-2) 0%, var(--surface) 45%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
       border-radius: 18px;
       padding: 18px 20px 16px;
       overflow: hidden;
@@ -36,7 +36,7 @@ export const dashboardStyles = `<style>
       background: linear-gradient(180deg, var(--accent), transparent);
       opacity: 0.85; pointer-events: none;
     }
-    .hero-card:hover { border-color: rgba(217,167,89,0.35); box-shadow: 0 10px 28px rgba(0,0,0,0.22), var(--shadow-inner-glow); transform: translateY(-3px); }
+    .hero-card:hover { border-color: var(--accent-glow); box-shadow: none; transform: translateY(-3px); }
     .hero-card.success::before { background: linear-gradient(180deg, var(--success), transparent); }
     .hero-card.warning::before { background: linear-gradient(180deg, var(--warning), transparent); }
     .hero-label { font-size: 11px; font-weight: 700; letter-spacing: 0.04em; color: var(--text-3); }
@@ -57,30 +57,30 @@ export const dashboardStyles = `<style>
     }
     .hero-delta.up   { color: var(--success); background: var(--success-dim); }
     .hero-delta.down { color: var(--error);   background: var(--error-dim); }
-    .hero-delta.flat { color: var(--text-3);  background: rgba(255,255,255,0.04); }
+    .hero-delta.flat { color: var(--text-3);  background: var(--surface-2); }
 
     /* AI Monitor — readable signal grid (replaces scrolling marquee) */
     .ticker-wrap {
       position: relative;
       background:
-        linear-gradient(165deg, rgba(217,167,89,0.05), transparent 40%),
+        linear-gradient(165deg, var(--accent-dim), transparent 40%),
         var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 18px;
       padding: 0;
       margin-bottom: 18px;
       overflow: hidden;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
     }
     .ticker-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 12px 16px 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--border);
     }
     .ticker-header-left { display: flex; align-items: center; gap: 8px; }
     .ticker-live-dot {
       width: 8px; height: 8px; border-radius: 50%; background: var(--success);
-      box-shadow: 0 0 0 4px rgba(52,168,113,0.14);
+      box-shadow: none;
       animation: ticker-pulse 2s ease-in-out infinite;
     }
     @keyframes ticker-pulse { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.45; transform: scale(0.88); } }
@@ -88,7 +88,7 @@ export const dashboardStyles = `<style>
     .ticker-freshness {
       font-size: 11px; color: var(--text-3); display: flex; align-items: center; gap: 6px;
       padding: 3px 9px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border); background: var(--border);
       font-variant-numeric: tabular-nums;
     }
     .ticker-freshness-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--success); flex-shrink: 0; }
@@ -107,21 +107,21 @@ export const dashboardStyles = `<style>
       min-width: 0;
       font-size: 13px; color: var(--text);
       padding: 12px 13px; border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.06);
-      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
       transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
       cursor: default; position: relative;
     }
     .ticker-item:hover {
-      border-color: rgba(217,167,89,0.28);
-      background: rgba(217,167,89,0.05);
+      border-color: var(--accent-glow);
+      background: var(--accent-dim);
       transform: translateY(-1px);
     }
     .ticker-item-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
     .ticker-icon {
       width: 28px; height: 28px; border-radius: 9px;
       display: grid; place-items: center;
-      background: rgba(217,167,89,0.1); color: var(--accent-2);
+      background: var(--accent-dim); color: var(--accent-2);
       font-size: 13px; flex-shrink: 0;
     }
     .ticker-dot  { display: none; }
@@ -132,7 +132,7 @@ export const dashboardStyles = `<style>
     .ticker-badge.cat-strategy { color: var(--accent-2); background: var(--accent-dim); }
     .ticker-badge.cat-alert { color: var(--warning); background: rgba(199,122,31,0.12); }
     .ticker-badge.cat-performance { color: var(--success); background: rgba(52,168,113,0.1); }
-    .ticker-badge.cat-insight { color: var(--text-2); background: rgba(255,255,255,0.05); }
+    .ticker-badge.cat-insight { color: var(--text-2); background: var(--surface-2); }
     .ticker-text {
       font-size: 13px; font-weight: 700; color: var(--text);
       line-height: 1.35; letter-spacing: -0.01em;
@@ -172,19 +172,19 @@ export const dashboardStyles = `<style>
     .split-grid.chart-only { grid-template-columns: 1fr; }
     .brain-box {
       background:
-        linear-gradient(165deg, rgba(217,167,89,0.04), transparent 38%),
+        linear-gradient(165deg, var(--accent-dim), transparent 38%),
         var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 18px;
       padding: 16px 16px 14px;
       display: flex; flex-direction: column; gap: 10px;
       max-height: 420px; overflow-y: auto;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
     }
     .brain-box-head {
       display: flex; align-items: center; gap: 10px;
       padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--border);
     }
     .brain-box-icon {
       width: 30px; height: 30px; border-radius: 10px;
@@ -197,19 +197,19 @@ export const dashboardStyles = `<style>
     .brain-box-sub {
       font-size: 11px; color: var(--text-3); margin-inline-start: auto;
       padding: 3px 9px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border); background: var(--border);
       font-variant-numeric: tabular-nums;
     }
     .strategy-card {
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.06);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 12px;
       padding: 12px 13px;
       display: flex; flex-direction: column; gap: 6px;
       border-inline-start: 3px solid transparent;
       transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
     }
-    .strategy-card:hover { background: rgba(255,255,255,0.035); transform: translateX(-2px); }
+    .strategy-card:hover { background: var(--surface-2); transform: translateX(-2px); }
     .strategy-card.high     { border-inline-start-color: var(--warning); }
     .strategy-card.critical { border-inline-start-color: var(--error); }
     .strategy-card.medium   { border-inline-start-color: var(--accent); }
@@ -218,7 +218,7 @@ export const dashboardStyles = `<style>
     .strategy-title { font-size: 13px; font-weight: 750; color: var(--text); line-height: 1.35; }
     .strategy-sev {
       font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 999px;
-      white-space: nowrap; flex-shrink: 0; color: var(--text-3); background: rgba(255,255,255,0.04);
+      white-space: nowrap; flex-shrink: 0; color: var(--text-3); background: var(--surface-2);
     }
     .strategy-card.critical .strategy-sev { color: var(--error); background: var(--error-dim); }
     .strategy-card.high .strategy-sev { color: var(--warning); background: rgba(199,122,31,0.1); }
@@ -232,21 +232,21 @@ export const dashboardStyles = `<style>
 
     .chart-panel {
       background: var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 18px;
       padding: 18px 18px 16px;
       display: block;
       align-self: stretch;
       overflow: hidden;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .chart-panel:hover { border-color: rgba(255,255,255,0.12); box-shadow: var(--shadow-lg), var(--shadow-inner-glow); }
+    .chart-panel:hover { border-color: var(--border); box-shadow: none; }
     .chart-panel-head {
       display: flex; align-items: center; justify-content: space-between;
       margin-bottom: 12px; gap: 10px;
       padding-bottom: 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--border);
     }
     .chart-panel-title { font-family: var(--font-display); font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -0.01em; }
     .chart-panel-meta  { font-size: 11.5px; color: var(--text-3); font-variant-numeric: tabular-nums; }
@@ -292,7 +292,7 @@ export const dashboardStyles = `<style>
     .v2-action-row { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-bottom: 1px solid var(--border); }
     .v2-action-row:last-child { border-bottom: none; }
     .v2-action-priority { width: 28px; height: 28px; border-radius: 8px; background: var(--surface-2); border: 1px solid var(--border); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: var(--text-2); flex-shrink: 0; }
-    .v2-action-row[data-pri="1"] .v2-action-priority { background: var(--accent-dim); color: var(--accent-2); border-color: rgba(217,167,89,0.35); }
+    .v2-action-row[data-pri="1"] .v2-action-priority { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent-glow); }
     .v2-action-body { flex: 1; min-width: 0; }
     .v2-action-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 3px; }
     .v2-action-decision { font-size: 12.5px; color: var(--text-2); }
@@ -320,9 +320,9 @@ export const dashboardStyles = `<style>
 
     .v2-advanced {
       margin-top: 8px;
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 18px;
-      background: rgba(255,255,255,0.015);
+      background: var(--surface-2);
       overflow: hidden;
     }
     .v2-advanced summary {
@@ -333,7 +333,7 @@ export const dashboardStyles = `<style>
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       font-size: 14px; font-weight: 800; color: var(--text);
     }
-    .v2-advanced[open] summary { border-bottom-color: rgba(255,255,255,0.06); }
+    .v2-advanced[open] summary { border-bottom-color: var(--border); }
     .v2-advanced summary::-webkit-details-marker { display: none; }
     .v2-advanced summary::after { content: '▾'; color: var(--text-3); transition: transform 0.2s; flex-shrink: 0; }
     .v2-advanced[open] summary::after { transform: rotate(180deg); }
@@ -352,16 +352,16 @@ export const dashboardStyles = `<style>
     }
     .adv-panel {
       background:
-        linear-gradient(175deg, rgba(255,255,255,0.015) 0%, transparent 40%),
+        linear-gradient(175deg, var(--surface-2) 0%, transparent 40%),
         var(--surface);
-      border: 1px solid rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
       border-radius: 18px;
       padding: 20px 20px 18px;
       width: 100%;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
-    .adv-panel:hover { border-color: rgba(255,255,255,0.12); box-shadow: 0 6px 24px rgba(0,0,0,0.15), var(--shadow-inner-glow); }
+    .adv-panel:hover { border-color: var(--border); box-shadow: none; }
     .adv-panel-head {
       display: flex; align-items: flex-start; justify-content: space-between;
       gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
@@ -375,7 +375,7 @@ export const dashboardStyles = `<style>
     .adv-panel-meta {
       font-size: 11.5px; color: var(--text-3);
       padding: 4px 10px; border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.06); background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border); background: var(--border);
       font-variant-numeric: tabular-nums;
     }
 
@@ -388,8 +388,8 @@ export const dashboardStyles = `<style>
       .adv-pulse-grid { grid-template-columns: 1fr; }
     }
     .adv-pulse-card {
-      background: rgba(255,255,255,0.025);
-      border: 1px solid rgba(255,255,255,0.06);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 14px;
       padding: 14px 14px 12px;
       min-width: 0;
@@ -454,9 +454,9 @@ export const dashboardStyles = `<style>
       padding: 12px 16px;
       margin-bottom: 16px;
       background: var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 16px;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
       direction: rtl;
     }
     .cmd-bar-right { display: flex; align-items: center; gap: 10px; }
@@ -465,8 +465,8 @@ export const dashboardStyles = `<style>
       display: inline-flex; align-items: center; gap: 6px;
       padding: 5px 12px; border-radius: 999px;
       font-size: 11.5px; font-weight: 700;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
       color: var(--text);
       white-space: nowrap;
     }
@@ -477,15 +477,15 @@ export const dashboardStyles = `<style>
       width: 7px; height: 7px; border-radius: 50%;
       background: var(--text-3); flex-shrink: 0;
     }
-    .cmd-health-pill.healthy .cmd-health-dot { background: var(--success); box-shadow: 0 0 0 3px rgba(52,168,113,0.15); }
+    .cmd-health-pill.healthy .cmd-health-dot { background: var(--success); box-shadow: none; }
     .cmd-health-pill.warning .cmd-health-dot { background: var(--warning); }
     .cmd-health-pill.critical .cmd-health-dot { background: var(--error); animation: blink-pulse 1.6s infinite; }
     .cmd-stat {
       display: inline-flex; align-items: center; gap: 5px;
       font-size: 12px; font-weight: 600; color: var(--text-2);
       padding: 4px 10px; border-radius: 999px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
     }
@@ -493,12 +493,12 @@ export const dashboardStyles = `<style>
     .cmd-refresh-btn {
       width: 32px; height: 32px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       color: var(--text-2); cursor: pointer;
       transition: background 0.15s, border-color 0.15s, transform 0.15s;
     }
-    .cmd-refresh-btn:hover { background: var(--accent-dim); border-color: rgba(217,167,89,0.35); color: var(--accent-2); }
+    .cmd-refresh-btn:hover { background: var(--accent-dim); border-color: var(--accent-glow); color: var(--accent-2); }
     .cmd-refresh-btn:active { transform: scale(0.92); }
     .cmd-refresh-btn.spinning svg { animation: cmd-spin 0.8s linear infinite; }
     @keyframes cmd-spin { to { transform: rotate(360deg); } }
@@ -521,8 +521,8 @@ export const dashboardStyles = `<style>
     @media (max-width: 560px) { .kpi-command-grid { grid-template-columns: 1fr; gap: 10px; } }
     .kpi-cmd-card {
       position: relative;
-      background: linear-gradient(160deg, rgba(255,255,255,0.03) 0%, var(--surface) 45%, var(--surface-2) 100%);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: linear-gradient(160deg, var(--surface-2) 0%, var(--surface) 45%, var(--surface-2) 100%);
+      border: 1px solid var(--border);
       border-radius: 16px;
       padding: 16px 18px 14px;
       overflow: hidden;
@@ -530,8 +530,8 @@ export const dashboardStyles = `<style>
       cursor: default;
     }
     .kpi-cmd-card:hover {
-      border-color: rgba(217,167,89,0.3);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.18), var(--shadow-inner-glow);
+      border-color: var(--accent-glow);
+      box-shadow: none;
       transform: translateY(-2px);
     }
     .kpi-cmd-top {
@@ -547,8 +547,8 @@ export const dashboardStyles = `<style>
     .kpi-cmd-icon.success { background: var(--success-dim); color: var(--success); }
     .kpi-cmd-icon.warning { background: rgba(199,122,31,0.1); color: var(--warning); }
     .kpi-cmd-icon.accent { background: var(--accent-dim); color: var(--accent-2); }
-    .kpi-cmd-icon.ctr { background: rgba(96,165,250,0.1); color: #60A5FA; }
-    .kpi-cmd-icon.cpm { background: rgba(45,212,191,0.1); color: #2DD4BF; }
+    .kpi-cmd-icon.ctr { background: rgba(96,165,250,0.1); color: var(--info); }
+    .kpi-cmd-icon.cpm { background: rgba(45,212,191,0.1); color: var(--series-1); }
     .kpi-cmd-bottom {
       display: flex; align-items: center; justify-content: space-between; gap: 8px;
       margin-top: 8px;
@@ -578,7 +578,7 @@ export const dashboardStyles = `<style>
       line-height: 1.45;
       margin-top: 8px;
       padding-top: 8px;
-      border-top: 1px solid rgba(255,255,255,0.05);
+      border-top: 1px solid var(--border);
       min-height: 0;
       transition: opacity 0.25s;
     }
@@ -591,24 +591,24 @@ export const dashboardStyles = `<style>
     /* ═══ LIVE INSIGHTS ═══ */
     .live-insights-section {
       background:
-        linear-gradient(165deg, rgba(217,167,89,0.05), transparent 40%),
+        linear-gradient(165deg, var(--accent-dim), transparent 40%),
         var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 16px;
       padding: 0;
       margin-bottom: 16px;
       overflow: hidden;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
     }
     .live-insights-header {
       display: flex; align-items: center; justify-content: space-between;
       padding: 12px 16px 10px;
-      border-bottom: 1px solid rgba(255,255,255,0.05);
+      border-bottom: 1px solid var(--border);
     }
     .live-insights-title-row { display: flex; align-items: center; gap: 8px; }
     .live-dot {
       width: 8px; height: 8px; border-radius: 50%; background: var(--success);
-      box-shadow: 0 0 0 4px rgba(52,168,113,0.14);
+      box-shadow: none;
       animation: ticker-pulse 2s ease-in-out infinite;
       flex-shrink: 0;
     }
@@ -625,14 +625,14 @@ export const dashboardStyles = `<style>
       display: flex; flex-direction: column; gap: 8px;
       font-size: 13px; color: var(--text);
       padding: 12px 13px; border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.06);
-      background: rgba(255,255,255,0.02);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
       transition: border-color 0.15s, background 0.15s, transform 0.15s;
       cursor: default; position: relative;
     }
     .live-insight-card:hover {
-      border-color: rgba(217,167,89,0.28);
-      background: rgba(217,167,89,0.05);
+      border-color: var(--accent-glow);
+      background: var(--accent-dim);
       transform: translateY(-1px);
     }
     .live-insight-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
@@ -643,11 +643,11 @@ export const dashboardStyles = `<style>
     }
     .live-insight-icon.positive { background: var(--success-dim); color: var(--success); }
     .live-insight-icon.negative { background: var(--error-dim); color: var(--error); }
-    .live-insight-icon.neutral { background: rgba(217,167,89,0.1); color: var(--accent-2); }
+    .live-insight-icon.neutral { background: var(--accent-dim); color: var(--accent-2); }
     .live-insight-badge {
       font-size: 10px; font-weight: 700; letter-spacing: 0.02em;
       padding: 3px 8px; border-radius: 999px; white-space: nowrap;
-      color: var(--text-3); background: rgba(255,255,255,0.05);
+      color: var(--text-3); background: var(--surface-2);
     }
     .live-insight-text {
       font-size: 13.5px; font-weight: 650; color: var(--text);
@@ -659,7 +659,7 @@ export const dashboardStyles = `<style>
     /* ═══ SMART TIMELINE ═══ */
     .timeline-section {
       background: var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 16px;
       padding: 14px 16px;
       margin-bottom: 16px;
@@ -682,7 +682,7 @@ export const dashboardStyles = `<style>
       top: 4px;
       bottom: 4px;
       width: 2px;
-      background: rgba(255,255,255,0.06);
+      background: var(--surface-2);
       border-radius: 999px;
     }
     .timeline-item {
@@ -700,7 +700,7 @@ export const dashboardStyles = `<style>
       top: 14px;
       width: 8px; height: 8px;
       border-radius: 50%;
-      background: rgba(255,255,255,0.12);
+      background: var(--surface-2);
       border: 2px solid var(--surface);
       z-index: 1;
     }
@@ -723,11 +723,11 @@ export const dashboardStyles = `<style>
     /* Loading skeleton (presentational — no data bindings) */
     .dash-skeleton { width: 100%; padding: 4px 0; }
     .skeleton-block {
-      background: linear-gradient(90deg, var(--surface-2) 25%, rgba(255,255,255,0.04) 50%, var(--surface-2) 75%);
+      background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface-2) 50%, var(--surface-2) 75%);
       background-size: 400% 100%;
       animation: skeleton-shimmer 2s ease-in-out infinite;
       border-radius: 18px;
-      border: 1px solid rgba(255,255,255,0.06);
+      border: 1px solid var(--border);
     }
     .skeleton-gauge { height: 140px; margin-bottom: 16px; border-radius: 20px; }
     .skeleton-hero-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-bottom: 16px; }
@@ -780,7 +780,7 @@ export const dashboardStyles = `<style>
       margin-bottom: 16px;
       padding: 14px 18px;
       border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
       background: var(--surface);
       display: flex;
       align-items: center;
@@ -799,7 +799,7 @@ export const dashboardStyles = `<style>
       border-inline-start-color: var(--success);
       border-left: none;
     }
-    .exec-pulse-banner.healthy::before { background: var(--success); box-shadow: 0 0 0 4px rgba(52,168,113,0.14); }
+    .exec-pulse-banner.healthy::before { background: var(--success); box-shadow: none; }
     .exec-pulse-banner.warning {
       border-inline-start-color: var(--warning);
       border-left: none;
@@ -824,8 +824,8 @@ export const dashboardStyles = `<style>
       gap: 2px;
       padding: 6px 14px;
       border-radius: 12px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       flex-shrink: 0;
     }
     .exec-pulse-score-num {
@@ -844,8 +844,8 @@ export const dashboardStyles = `<style>
     }
     .band-excellent .exec-pulse-score-num { color: var(--success); }
     .band-excellent .exec-pulse-score-lbl { color: var(--success); }
-    .band-good .exec-pulse-score-num { color: #7bc67e; }
-    .band-good .exec-pulse-score-lbl { color: #7bc67e; }
+    .band-good .exec-pulse-score-num { color: var(--success); }
+    .band-good .exec-pulse-score-lbl { color: var(--success); }
     .band-attention .exec-pulse-score-num { color: var(--warning); }
     .band-attention .exec-pulse-score-lbl { color: var(--warning); }
     .band-poor .exec-pulse-score-num { color: var(--error); }
@@ -862,11 +862,11 @@ export const dashboardStyles = `<style>
     .exec-pulse-cta.cta-critical {
       color: #fff;
       background: var(--error);
-      box-shadow: 0 2px 8px rgba(226,96,79,0.3);
+      box-shadow: none;
     }
     .exec-pulse-cta.cta-critical:hover {
-      background: #c8503f;
-      box-shadow: 0 4px 14px rgba(226,96,79,0.4);
+      background: var(--error);
+      box-shadow: none;
     }
     .exec-pulse-cta.cta-warning {
       color: var(--warning);
@@ -887,7 +887,7 @@ export const dashboardStyles = `<style>
       margin-bottom: 16px;
       border-radius: 14px;
       text-decoration: none;
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       background: var(--surface);
       transition: border-color 0.15s, transform 0.15s;
     }
@@ -928,8 +928,8 @@ export const dashboardStyles = `<style>
       gap: 7px;
       padding: 8px 14px;
       border-radius: 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       font-size: 12.5px;
       font-weight: 600;
       color: var(--text-2);
@@ -939,8 +939,8 @@ export const dashboardStyles = `<style>
       transition: all 0.18s ease;
     }
     .qa-chip:hover {
-      background: rgba(217,167,89,0.08);
-      border-color: rgba(217,167,89,0.2);
+      background: var(--accent-dim);
+      border-color: var(--accent-dim);
       color: var(--accent-2);
       transform: translateY(-1px);
     }
@@ -953,9 +953,9 @@ export const dashboardStyles = `<style>
     /* Tier 2 — Main Move unified focus card */
     .main-move-card {
       background:
-        radial-gradient(120% 80% at 100% 0%, rgba(217,167,89,0.14), transparent 55%),
-        linear-gradient(165deg, rgba(255,255,255,0.03) 0%, var(--surface) 42%);
-      border: 1px solid rgba(217,167,89,0.32);
+        radial-gradient(120% 80% at 100% 0%, var(--accent-dim), transparent 55%),
+        linear-gradient(165deg, var(--surface-2) 0%, var(--surface) 42%);
+      border: 1px solid var(--accent-glow);
       border-radius: var(--radius-lg);
       overflow: hidden;
       position: relative;
@@ -1006,7 +1006,7 @@ export const dashboardStyles = `<style>
     .main-move-loop {
       display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
       margin-bottom: 2px; padding: 8px 12px;
-      background: rgba(217,167,89,0.09); border: 1px solid rgba(217,167,89,0.22);
+      background: var(--accent-dim); border: 1px solid var(--accent-dim);
       border-radius: 999px; width: fit-content; max-width: 100%;
     }
     .main-move-loop span { font-size: 11px; font-weight: 800; color: var(--accent-2); }
@@ -1023,7 +1023,7 @@ export const dashboardStyles = `<style>
     }
     .main-move-action-box {
       margin-top: 4px; padding: 14px 16px; border-radius: 12px;
-      background: rgba(217,167,89,0.12); border: 1px solid rgba(217,167,89,0.28);
+      background: var(--accent-dim); border: 1px solid var(--accent-glow);
     }
     .main-move-action-text { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.45; }
     .main-move-steps {
@@ -1034,7 +1034,7 @@ export const dashboardStyles = `<style>
     .main-move-expect {
       margin-top: 4px; padding: 11px 13px; border-radius: 10px;
       font-size: 13px; color: var(--text-2); line-height: 1.5;
-      background: rgba(255,255,255,0.03); border: 1px dashed rgba(217,167,89,0.28);
+      background: var(--border); border: 1px dashed var(--accent-glow);
     }
     .main-move-expect b { color: var(--accent-2); }
     .main-move-impact {
@@ -1055,7 +1055,7 @@ export const dashboardStyles = `<style>
       color: var(--text-2);
       line-height: 1.65;
       padding-top: 10px;
-      border-top: 1px solid rgba(255,255,255,0.05);
+      border-top: 1px solid var(--border);
       margin-top: 2px;
     }
     .main-move-cta-row { display: flex; align-items: center; gap: 12px; margin-top: 4px; flex-wrap: wrap; }
@@ -1078,14 +1078,14 @@ export const dashboardStyles = `<style>
     .main-move-steady-item {
       font-size: 12.5px; color: var(--text-2); line-height: 1.5;
       padding: 10px 12px; border-radius: 10px;
-      background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06);
+      background: var(--border); border: 1px solid var(--border);
     }
     .main-move-steady-item b { color: var(--text); font-weight: 700; }
     .main-move-benchmarks { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
     .main-move-benchmark {
       display: inline-flex; flex-direction: column; gap: 2px;
       font-size: 11px; font-weight: 600; padding: 8px 12px; border-radius: 12px;
-      background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); color: var(--text-2);
+      background: var(--border); border: 1px solid var(--border); color: var(--text-2);
       min-width: 120px;
     }
     .main-move-benchmark-label { font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.03em; }
@@ -1139,8 +1139,8 @@ export const dashboardStyles = `<style>
       margin-bottom: 14px;
     }
     #main-move-section.main-move-above-fold .main-move-card {
-      box-shadow: 0 14px 40px rgba(0,0,0,0.28), 0 0 0 1px rgba(217,167,89,0.12);
-      border-color: rgba(217,167,89,0.38);
+      box-shadow: none;
+      border-color: var(--accent-glow);
     }
     @media (prefers-reduced-motion: no-preference) {
       #main-move-section.main-move-above-fold .main-move-card {
@@ -1312,27 +1312,27 @@ export const dashboardStyles = `<style>
     .section-filter-tab {
       padding: 5px 14px; border-radius: 999px;
       font-size: 11.5px; font-weight: 700; letter-spacing: 0.02em;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
       color: var(--text-3);
       cursor: pointer;
       transition: all 0.15s ease;
       white-space: nowrap;
     }
-    .section-filter-tab:hover { border-color: rgba(217,167,89,0.3); color: var(--text-2); }
+    .section-filter-tab:hover { border-color: var(--accent-glow); color: var(--text-2); }
     .section-filter-tab.active {
-      background: var(--accent-dim); border-color: rgba(217,167,89,0.4);
+      background: var(--accent-dim); border-color: var(--accent-glow);
       color: var(--accent-2);
     }
     .section-filter-count {
       display: inline-flex; align-items: center; justify-content: center;
       min-width: 18px; height: 18px; padding: 0 5px;
       border-radius: 999px; font-size: 10px; font-weight: 800;
-      background: rgba(255,255,255,0.06); color: var(--text-3);
+      background: var(--surface-2); color: var(--text-3);
       margin-inline-start: 5px;
     }
     .section-filter-tab.active .section-filter-count {
-      background: rgba(217,167,89,0.2); color: var(--accent-2);
+      background: var(--accent-dim); color: var(--accent-2);
     }
 
     /* ═══ Predictions ═══ */
@@ -1345,16 +1345,16 @@ export const dashboardStyles = `<style>
     .pred-card {
       display: flex; flex-direction: column; gap: 0;
       border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.07);
-      background: linear-gradient(170deg, rgba(255,255,255,0.02) 0%, var(--surface) 50%);
+      border: 1px solid var(--border);
+      background: linear-gradient(170deg, var(--surface-2) 0%, var(--surface) 50%);
       overflow: hidden;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
       cursor: pointer;
     }
     .pred-card:hover {
-      border-color: rgba(217,167,89,0.3);
+      border-color: var(--accent-glow);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.18), var(--shadow-inner-glow);
+      box-shadow: none;
     }
     .pred-card-top {
       display: flex; align-items: center; gap: 10px;
@@ -1405,15 +1405,15 @@ export const dashboardStyles = `<style>
     .pred-progress-val { font-size: 11px; font-weight: 700; color: var(--text-2); font-variant-numeric: tabular-nums; }
     .pred-progress-bar {
       height: 6px; border-radius: 999px;
-      background: rgba(255,255,255,0.06);
+      background: var(--surface-2);
       overflow: hidden;
     }
     .pred-progress-fill {
       height: 100%; border-radius: 999px;
       transition: width 0.6s ease;
     }
-    .pred-danger .pred-progress-fill { background: linear-gradient(90deg, var(--error), #FB7185); }
-    .pred-warn .pred-progress-fill { background: linear-gradient(90deg, var(--warning), #E6BD7A); }
+    .pred-danger .pred-progress-fill { background: var(--error); }
+    .pred-warn .pred-progress-fill { background: linear-gradient(90deg, var(--warning), var(--accent-2)); }
     .pred-sparkline {
       margin-bottom: 8px;
     }
@@ -1431,7 +1431,7 @@ export const dashboardStyles = `<style>
     .pred-actions {
       display: flex; align-items: center; gap: 8px;
       margin-top: 10px; padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.05);
+      border-top: 1px solid var(--border);
       flex-wrap: wrap;
     }
     .pred-action-btn {
@@ -1448,7 +1448,7 @@ export const dashboardStyles = `<style>
     }
     .pred-action-btn.budget:hover { background: rgba(199,122,31,0.22); border-color: rgba(199,122,31,0.4); }
     .pred-action-btn.fatigue {
-      background: rgba(96,165,250,0.1); color: #60A5FA;
+      background: rgba(96,165,250,0.1); color: var(--info);
       border-color: rgba(96,165,250,0.2);
     }
     .pred-action-btn.fatigue:hover { background: rgba(96,165,250,0.2); border-color: rgba(96,165,250,0.35); }
@@ -1467,16 +1467,16 @@ export const dashboardStyles = `<style>
     @media (max-width: 768px) { .ai-recs-grid { grid-template-columns: 1fr; } }
     .ai-rec-card {
       border-radius: 16px;
-      border: 1px solid rgba(255,255,255,0.07);
-      background: linear-gradient(170deg, rgba(255,255,255,0.02) 0%, var(--surface) 50%);
+      border: 1px solid var(--border);
+      background: linear-gradient(170deg, var(--surface-2) 0%, var(--surface) 50%);
       overflow: hidden;
       transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
       cursor: pointer;
     }
     .ai-rec-card:hover {
-      border-color: rgba(217,167,89,0.3);
+      border-color: var(--accent-glow);
       transform: translateY(-2px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.18), var(--shadow-inner-glow);
+      box-shadow: none;
     }
     .ai-rec-header {
       display: flex; align-items: center; gap: 10px;
@@ -1507,7 +1507,7 @@ export const dashboardStyles = `<style>
     }
     .ai-rec-pri.high { color: var(--error); background: var(--error-dim); }
     .ai-rec-pri.medium { color: var(--warning); background: rgba(199,122,31,0.1); }
-    .ai-rec-pri.low { color: var(--text-3); background: rgba(255,255,255,0.05); }
+    .ai-rec-pri.low { color: var(--text-3); background: var(--surface-2); }
     .ai-rec-body-wrap { padding: 0 16px 12px; }
     .ai-rec-body {
       font-size: 12.5px; color: var(--text-2); line-height: 1.6;
@@ -1519,7 +1519,7 @@ export const dashboardStyles = `<style>
     }
     .ai-rec-conf-bar {
       flex: 1; height: 4px; border-radius: 999px;
-      background: rgba(255,255,255,0.06);
+      background: var(--surface-2);
       overflow: hidden; max-width: 80px;
     }
     .ai-rec-conf-fill {
@@ -1538,8 +1538,8 @@ export const dashboardStyles = `<style>
     .ai-rec-campaign-tag {
       font-size: 10.5px; font-weight: 600;
       padding: 3px 9px; border-radius: 999px;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.07);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       color: var(--text-2);
       max-width: 160px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -1547,7 +1547,7 @@ export const dashboardStyles = `<style>
     .ai-rec-actions {
       display: flex; align-items: center; gap: 8px;
       padding-top: 12px;
-      border-top: 1px solid rgba(255,255,255,0.05);
+      border-top: 1px solid var(--border);
       flex-wrap: wrap;
     }
     .ai-rec-action-btn {
@@ -1575,11 +1575,11 @@ export const dashboardStyles = `<style>
     }
     .ai-rec-action-btn.pause:hover { background: rgba(199,122,31,0.22); border-color: rgba(199,122,31,0.4); }
     .ai-rec-action-btn.watch, .ai-rec-action-btn.optimize {
-      background: rgba(217,167,89,0.1); color: var(--accent-2);
-      border-color: rgba(217,167,89,0.2);
+      background: var(--accent-dim); color: var(--accent-2);
+      border-color: var(--accent-dim);
     }
     .ai-rec-action-btn.watch:hover, .ai-rec-action-btn.optimize:hover {
-      background: rgba(217,167,89,0.2); border-color: rgba(217,167,89,0.35);
+      background: var(--accent-dim); border-color: var(--accent-glow);
     }
     /* ═══ Weekly Report ═══ */
     .weekly-header {
@@ -1609,11 +1609,11 @@ export const dashboardStyles = `<style>
     .weekly-metric {
       padding: 14px 16px;
       border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
       background: var(--surface);
       transition: border-color 0.15s;
     }
-    .weekly-metric:hover { border-color: rgba(255,255,255,0.12); }
+    .weekly-metric:hover { border-color: var(--border); }
     .weekly-metric-label {
       font-size: 10.5px; color: var(--text-3); margin-bottom: 6px;
       font-weight: 700; letter-spacing: 0.03em;
@@ -1630,7 +1630,7 @@ export const dashboardStyles = `<style>
     }
     .weekly-metric-bar {
       height: 4px; border-radius: 999px;
-      background: rgba(255,255,255,0.06);
+      background: var(--surface-2);
       overflow: hidden; margin-top: 6px;
     }
     .weekly-metric-bar-inner {
@@ -1642,15 +1642,15 @@ export const dashboardStyles = `<style>
     }
     .weekly-metric-bar-last {
       height: 100%;
-      background: rgba(255,255,255,0.08);
+      background: var(--surface-2);
     }
     .weekly-summary {
       font-size: 13.5px; line-height: 1.7;
       color: var(--text-2);
       padding: 14px 18px;
       border-radius: 14px;
-      background: linear-gradient(165deg, rgba(217,167,89,0.04), transparent 40%), var(--surface);
-      border: 1px solid rgba(255,255,255,0.07);
+      background: linear-gradient(165deg, var(--accent-dim), transparent 40%), var(--surface);
+      border: 1px solid var(--border);
       margin-bottom: 14px;
     }
     .weekly-recs {
@@ -1662,8 +1662,8 @@ export const dashboardStyles = `<style>
       font-size: 12.5px; color: var(--text-2); line-height: 1.55;
       padding: 10px 14px;
       border-radius: 10px;
-      background: rgba(255,255,255,0.02);
-      border: 1px solid rgba(255,255,255,0.05);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
     }
     .weekly-rec-icon {
       width: 22px; height: 22px; border-radius: 7px;
@@ -1679,7 +1679,7 @@ export const dashboardStyles = `<style>
     .weekly-highlight {
       padding: 14px 16px;
       border-radius: 14px;
-      border: 1px solid rgba(255,255,255,0.07);
+      border: 1px solid var(--border);
       background: var(--surface);
       display: flex; flex-direction: column; gap: 6px;
     }
@@ -1705,8 +1705,8 @@ export const dashboardStyles = `<style>
       display: flex; align-items: center; gap: 6px;
       padding: 6px 12px; border-radius: 999px;
       font-size: 11.5px; font-weight: 600;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       color: var(--text-2);
     }
     .weekly-brain-pill-count {
@@ -1759,8 +1759,8 @@ export const dashboardStyles = `<style>
     /* ═══ Mode Toggle ═══ */
     .mode-toggle {
       display: inline-flex;
-      background: rgba(255,255,255,0.04);
-      border: 1px solid rgba(255,255,255,0.08);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       border-radius: 10px;
       padding: 2px;
       gap: 2px;
@@ -1778,11 +1778,11 @@ export const dashboardStyles = `<style>
       white-space: nowrap;
       letter-spacing: 0.01em;
     }
-    .mode-btn:hover { color: var(--text-2); background: rgba(255,255,255,0.04); }
+    .mode-btn:hover { color: var(--text-2); background: var(--surface-2); }
     .mode-btn.active {
       color: var(--bg);
       background: var(--accent);
-      box-shadow: 0 2px 8px rgba(217,167,89,0.25);
+      box-shadow: none;
     }
 
     /* ═══ Quick Mode — hide advanced sections ═══ */
@@ -1810,21 +1810,21 @@ export const dashboardStyles = `<style>
       align-items: center;
       gap: 28px;
       background:
-        linear-gradient(165deg, rgba(217,167,89,0.06), transparent 50%),
+        linear-gradient(165deg, var(--accent-dim), transparent 50%),
         linear-gradient(340deg, rgba(52,168,113,0.04), transparent 40%),
         var(--surface);
-      border: 1px solid rgba(255,255,255,0.08);
+      border: 1px solid var(--border);
       border-radius: 20px;
       padding: 24px 28px;
       direction: rtl;
       position: relative;
       overflow: hidden;
-      box-shadow: var(--shadow-inner-glow);
+      box-shadow: none;
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
     .health-gauge-card:hover {
-      border-color: rgba(217,167,89,0.2);
-      box-shadow: 0 8px 32px rgba(0,0,0,0.18), var(--shadow-inner-glow);
+      border-color: var(--accent-dim);
+      box-shadow: none;
     }
     .health-gauge-left {
       flex-shrink: 0;
@@ -1857,8 +1857,8 @@ export const dashboardStyles = `<style>
       font-weight: 700;
       padding: 3px 10px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.15);
-      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
       white-space: nowrap;
     }
 
@@ -1904,12 +1904,12 @@ export const dashboardStyles = `<style>
       gap: 3px;
       padding: 10px 16px;
       border-radius: 12px;
-      background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.06);
+      background: var(--surface-2);
+      border: 1px solid var(--border);
       min-width: 80px;
       transition: border-color 0.15s ease;
     }
-    .hg-metric:hover { border-color: rgba(255,255,255,0.12); }
+    .hg-metric:hover { border-color: var(--border); }
     .hg-metric-val {
       font-family: var(--font-display);
       font-size: 22px;
@@ -1971,18 +1971,18 @@ export const dashboardStyles = `<style>
       gap: 8px;
       padding: 12px 18px;
       border-radius: 16px;
-      background: linear-gradient(135deg, var(--accent) 0%, #c49038 100%);
-      color: #1a1613;
+      background: linear-gradient(135deg, var(--accent) 0%, var(--series-4) 100%);
+      color: var(--surface);
       text-decoration: none;
       font-size: 13px;
       font-weight: 800;
-      box-shadow: 0 4px 20px rgba(217,167,89,0.35), 0 2px 8px rgba(0,0,0,0.3);
+      box-shadow: none;
       transition: all 0.2s ease;
       animation: fab-entrance 0.5s ease-out 1s both;
     }
     .ai-fab:hover {
       transform: translateY(-2px) scale(1.03);
-      box-shadow: 0 8px 30px rgba(217,167,89,0.45), 0 4px 12px rgba(0,0,0,0.3);
+      box-shadow: none;
     }
     .ai-fab svg { flex-shrink: 0; }
     @keyframes fab-entrance {
@@ -2003,7 +2003,7 @@ export const dashboardStyles = `<style>
       padding: 12px 16px;
       border-radius: 12px;
       background: rgba(52,168,113,0.04);
-      border: 1px dashed rgba(255,255,255,0.1);
+      border: 1px dashed var(--border);
     }
     .section-empty-icon { font-size: 18px; flex-shrink: 0; }
     .section-empty-title {
@@ -2028,15 +2028,15 @@ export const dashboardStyles = `<style>
       text-decoration: none;
       padding: 5px 12px;
       border-radius: 8px;
-      background: rgba(217,167,89,0.08);
-      border: 1px solid rgba(217,167,89,0.15);
+      background: var(--accent-dim);
+      border: 1px solid var(--accent-dim);
       transition: all 0.15s ease;
       white-space: nowrap;
       flex-shrink: 0;
     }
     .section-empty-cta:hover {
-      background: rgba(217,167,89,0.18);
-      border-color: rgba(217,167,89,0.3);
+      background: var(--accent-dim);
+      border-color: var(--accent-glow);
     }
     @media (max-width: 560px) {
       .section-empty-state { flex-wrap: wrap; }
@@ -2058,7 +2058,7 @@ export const dashboardStyles = `<style>
     .bleed-alert {
       padding: 14px 18px; margin-bottom: 14px; border-radius: 12px;
       background: rgba(244, 67, 54, 0.12); border: 1px solid rgba(244, 67, 54, 0.45);
-      color: var(--error, #ef5350); font-size: 14.5px; font-weight: 700; line-height: 1.6;
+      color: var(--error, var(--error)); font-size: 14.5px; font-weight: 700; line-height: 1.6;
     }
     .insight-strip {
       display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 18px;
@@ -2066,14 +2066,14 @@ export const dashboardStyles = `<style>
     .insight-chip {
       flex: 1 1 280px; display: flex; align-items: flex-start; gap: 10px;
       padding: 12px 14px; border-radius: 12px;
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.10);
+      background: var(--border); border: 1px solid var(--border);
       font-size: 13px; color: var(--text-2, #bbb); line-height: 1.65;
     }
     .insight-chip .ic { font-size: 17px; line-height: 1.3; }
     .kpi-benchmark { margin-top: 6px; font-size: 11px; line-height: 1.5; }
-    .kpi-benchmark.good { color: var(--success, #66bb6a); }
+    .kpi-benchmark.good { color: var(--success, var(--success)); }
     .kpi-benchmark.ok { color: var(--text-3, #999); }
-    .kpi-benchmark.low { color: var(--warning, #ffa726); }
+    .kpi-benchmark.low { color: var(--warning, var(--warning)); }
     .morning-story {
       display: flex; align-items: flex-start; gap: 14px;
       padding: 16px 18px; margin-bottom: 18px; border-radius: 14px;
@@ -2086,13 +2086,13 @@ export const dashboardStyles = `<style>
     .main-move-cost {
       display: inline-block; margin-top: 8px; padding: 5px 12px; border-radius: 8px;
       background: rgba(244, 67, 54, 0.10); border: 1px solid rgba(244, 67, 54, 0.30);
-      font-size: 13.5px; font-weight: 700; color: var(--error, #e53935);
+      font-size: 13.5px; font-weight: 700; color: var(--error, var(--error));
     }
     .main-move-expect { margin-top: 8px; font-size: 13px; color: var(--text-2, #aaa); line-height: 1.6; }
     .main-move-evidence { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
     .main-move-evidence-chip {
       font-size: 11.5px; padding: 3px 10px; border-radius: 999px;
-      background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
+      background: var(--border); border: 1px solid var(--border);
       color: var(--text-2, #bbb);
     }
 
@@ -2103,34 +2103,34 @@ export const dashboardStyles = `<style>
 
     /* Per-unit results — a mixed account never gets one fabricated total. */
     .result-breakdown {
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--border); border: 1px solid var(--border);
       border-radius: 12px; padding: 14px 16px;
     }
-    .result-breakdown-label { font-size: 12px; color: var(--text-3, #8a8a8a); margin-bottom: 8px; }
+    .result-breakdown-label { font-size: 12px; color: var(--text-3, var(--text-3)); margin-bottom: 8px; }
     .result-chips { display: flex; flex-wrap: wrap; gap: 10px; }
     .result-chip {
       font-size: 15px; padding: 6px 14px; border-radius: 999px;
-      background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12);
+      background: var(--border); border: 1px solid var(--border);
     }
     .result-chip b { font-size: 18px; font-weight: 700; }
-    .result-mixed-note { margin-top: 9px; font-size: 12px; color: var(--text-3, #8a8a8a); line-height: 1.6; }
+    .result-mixed-note { margin-top: 9px; font-size: 12px; color: var(--text-3, var(--text-3)); line-height: 1.6; }
     .approx-tag {
       font-size: 10px; padding: 1px 6px; border-radius: 4px; vertical-align: middle;
-      background: rgba(177,149,214,0.15); border: 1px solid rgba(177,149,214,0.4); color: #b195d6;
+      background: rgba(177,149,214,0.15); border: 1px solid rgba(177,149,214,0.4); color: var(--series-3);
     }
 
     /* Diagnosis card — one deterministic verdict, never hidden uncertainty. */
     .diag-card {
       border-radius: 14px; padding: 18px 20px;
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.10);
-      border-right: 3px solid rgba(255,255,255,0.2);
+      background: var(--border); border: 1px solid var(--border);
+      border-right: 3px solid var(--border);
     }
     .diag-card.is-alert { background: rgba(224,114,100,0.07); }
-    .diag-card.postclick, .diag-card.conversion { border-right-color: #7BAEC2; }
-    .diag-card.click { border-right-color: #E07264; }
-    .diag-card.delivery { border-right-color: #D9A03F; }
-    .diag-card.efficiency { border-right-color: #A0B266; }
-    .diag-card.healthy { border-right-color: #4FA88B; }
+    .diag-card.postclick, .diag-card.conversion { border-right-color: var(--info); }
+    .diag-card.click { border-right-color: var(--error); }
+    .diag-card.delivery { border-right-color: var(--accent); }
+    .diag-card.efficiency { border-right-color: var(--series-5); }
+    .diag-card.healthy { border-right-color: var(--success); }
     .diag-head { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; flex-wrap: wrap; }
     .diag-title { font-size: 18px; font-weight: 700; }
     .diag-problem { font-size: 14px; color: var(--text-2, #bbb); margin-bottom: 10px; line-height: 1.7; }
@@ -2138,39 +2138,39 @@ export const dashboardStyles = `<style>
     .diag-evidence { margin: 0 0 10px; padding-inline-start: 18px; display: grid; gap: 5px; }
     .diag-evidence li { font-size: 13px; color: var(--text-2, #bbb); line-height: 1.65; }
     .diag-approx {
-      font-size: 12px; color: #b195d6; margin-bottom: 10px;
+      font-size: 12px; color: var(--series-3); margin-bottom: 10px;
       padding: 7px 10px; border-radius: 8px; background: rgba(177,149,214,0.08);
     }
     .diag-rec {
       margin-top: 12px; padding: 12px 14px; border-radius: 10px;
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--border); border: 1px solid var(--border);
     }
-    .diag-rec.muted { color: var(--text-3, #8a8a8a); font-size: 13px; line-height: 1.65; }
-    .diag-rec-label { font-size: 11px; letter-spacing: .06em; color: var(--text-3, #8a8a8a); margin-bottom: 5px; }
+    .diag-rec.muted { color: var(--text-3, var(--text-3)); font-size: 13px; line-height: 1.65; }
+    .diag-rec-label { font-size: 11px; letter-spacing: .06em; color: var(--text-3, var(--text-3)); margin-bottom: 5px; }
     .diag-rec-action { font-size: 14.5px; font-weight: 600; line-height: 1.7; }
-    .diag-rec-impact { margin-top: 6px; font-size: 12.5px; color: var(--text-3, #8a8a8a); line-height: 1.6; }
+    .diag-rec-impact { margin-top: 6px; font-size: 12.5px; color: var(--text-3, var(--text-3)); line-height: 1.6; }
 
     /* Confidence chips — LOW and INSUFFICIENT must look different, not absent. */
     .conf-chip {
       font-size: 11px; padding: 3px 10px; border-radius: 999px; white-space: nowrap;
       border: 1px solid currentColor;
     }
-    .conf-high { color: #4FA88B; }
-    .conf-medium { color: #D9A03F; }
-    .conf-low { color: #b195d6; }
-    .conf-insufficient { color: #8a8a8a; }
+    .conf-high { color: var(--success); }
+    .conf-medium { color: var(--accent); }
+    .conf-low { color: var(--series-3); }
+    .conf-insufficient { color: var(--text-3); }
 
     /* Funnel visualisation. */
     .funnel-wrap {
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--border); border: 1px solid var(--border);
       border-radius: 12px; padding: 16px 18px;
     }
-    .funnel-title { font-size: 12px; color: var(--text-3, #8a8a8a); margin-bottom: 12px; }
+    .funnel-title { font-size: 12px; color: var(--text-3, var(--text-3)); margin-bottom: 12px; }
     .funnel-viz { display: grid; gap: 0; }
     .funnel-stage {
       display: flex; align-items: center; justify-content: space-between; gap: 14px;
       padding: 10px 14px; border-radius: 9px;
-      background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--border); border: 1px solid var(--border);
     }
     /* The earliest break is the whole point of the funnel: an upstream break
        mechanically depresses everything downstream, so the LAST stage always
@@ -2183,13 +2183,13 @@ export const dashboardStyles = `<style>
       border-inline-start-width: 3px;
     }
     .funnel-break-flag {
-      margin-top: 4px; font-size: 12px; font-weight: 700; color: #E07264;
+      margin-top: 4px; font-size: 12px; font-weight: 700; color: var(--error);
     }
     /* Reach is modelled, not counted. Quiet, but present on the stage it
        qualifies — not buried in a tooltip the merchant will never open. */
     .funnel-stage-conf {
       font-size: 12px; font-weight: 600;
-      color: var(--text-3, #8a8a8a);
+      color: var(--text-3, var(--text-3));
       border: 1px solid rgba(138,138,138,0.35);
       border-radius: 4px; padding: 0 5px; margin-inline-start: 6px;
       white-space: nowrap;
@@ -2200,39 +2200,39 @@ export const dashboardStyles = `<style>
       display: flex; align-items: center; justify-content: center; gap: 8px;
       padding: 5px 0; font-size: 12px;
     }
-    .funnel-arrow { color: var(--text-3, #8a8a8a); }
+    .funnel-arrow { color: var(--text-3, var(--text-3)); }
     .funnel-ratio { color: var(--text-2, #bbb); font-variant-numeric: tabular-nums; }
-    .funnel-ratio.broken { color: #E07264; font-weight: 700; }
-    .funnel-ratio.gated { color: #8a8a8a; font-style: italic; }
+    .funnel-ratio.broken { color: var(--error); font-weight: 700; }
+    .funnel-ratio.gated { color: var(--text-3); font-style: italic; }
 
     /* Objective-aware health — excluded facets read as excluded, not zero. */
     .obj-health {
-      background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08);
+      background: var(--border); border: 1px solid var(--border);
       border-radius: 12px; padding: 14px 16px;
     }
     .obj-health-head { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; flex-wrap: wrap; }
-    .obj-health-label { font-size: 12px; color: var(--text-3, #8a8a8a); }
+    .obj-health-label { font-size: 12px; color: var(--text-3, var(--text-3)); }
     .obj-health-value { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
-    .obj-health.critical .obj-health-value { color: #E07264; }
-    .obj-health.attention .obj-health-value { color: #D9A03F; }
+    .obj-health.critical .obj-health-value { color: var(--error); }
+    .obj-health.attention .obj-health-value { color: var(--accent); }
     .obj-health.good .obj-health-value,
-    .obj-health.excellent .obj-health-value { color: #4FA88B; }
-    .obj-health-note { font-size: 12.5px; color: var(--text-3, #8a8a8a); line-height: 1.6; }
+    .obj-health.excellent .obj-health-value { color: var(--success); }
+    .obj-health-note { font-size: 12.5px; color: var(--text-3, var(--text-3)); line-height: 1.6; }
     .facet-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
     .facet {
       display: flex; align-items: baseline; gap: 10px; font-size: 12.5px;
-      padding: 5px 0; border-top: 1px solid rgba(255,255,255,0.05);
+      padding: 5px 0; border-top: 1px solid var(--border);
     }
     .facet-key { min-width: 110px; color: var(--text-2, #bbb); }
     .facet-score { font-weight: 700; font-variant-numeric: tabular-nums; min-width: 34px; }
-    .facet-note { color: var(--text-3, #8a8a8a); }
+    .facet-note { color: var(--text-3, var(--text-3)); }
     .facet.excluded { opacity: .72; }
     .facet.excluded .facet-note { font-style: italic; }
     /* NOT_APPLICABLE is a label, never a number. A facet the objective
        excludes must not be readable as a zero score. */
     .facet-flag {
-      font-size: 12px; font-weight: 700; color: var(--text-3, #8a8a8a);
-      border: 1px dashed rgba(255,255,255,0.25); border-radius: 6px;
+      font-size: 12px; font-weight: 700; color: var(--text-3, var(--text-3));
+      border: 1px dashed var(--border); border-radius: 6px;
       padding: 1px 8px; white-space: nowrap;
     }
 
@@ -2247,19 +2247,19 @@ export const dashboardStyles = `<style>
       font-size: 12px; font-weight: 700; white-space: nowrap;
       padding: 3px 10px; border-radius: 999px; border: 1px solid currentColor;
     }
-    .dstate-note { font-size: 12.5px; color: var(--text-3, #8a8a8a); line-height: 1.6; flex: 1; min-width: 150px; }
-    .dstate-collecting .dstate-badge { color: #7BAEC2; }
+    .dstate-note { font-size: 12.5px; color: var(--text-3, var(--text-3)); line-height: 1.6; flex: 1; min-width: 150px; }
+    .dstate-collecting .dstate-badge { color: var(--info); }
     /* A gated ratio we are still gathering reads forward-looking, not broken. */
-    .funnel-ratio.collecting { color: #7BAEC2; font-style: normal; font-weight: 600; }
-    .diag-card.collecting { border-right-color: #7BAEC2; }
+    .funnel-ratio.collecting { color: var(--info); font-style: normal; font-weight: 600; }
+    .diag-card.collecting { border-right-color: var(--info); }
 
     /* ═══ THE STATE STRIP — OFFLINE · PARTIAL · INSUFFICIENT_DATA ═══════ */
     .dash-state-strip { display: none; gap: 8px; margin: 0 0 14px; }
     .dash-state {
       display: flex; align-items: flex-start; gap: 10px;
       padding: 12px 14px; border-radius: 12px;
-      border: 1px solid rgba(255,255,255,0.12);
-      background: rgba(255,255,255,0.03);
+      border: 1px solid var(--border);
+      background: var(--surface-2);
     }
     .dash-state-icon { font-size: 16px; line-height: 1.4; flex-shrink: 0; }
     .dash-state-body { flex: 1; min-width: 0; }
@@ -2270,10 +2270,10 @@ export const dashboardStyles = `<style>
       min-height: 44px; min-width: 44px; padding: 0 16px;
       border-radius: 10px; cursor: pointer;
       font-family: inherit; font-size: 13px; font-weight: 700;
-      color: var(--text); background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.16);
+      color: var(--text); background: var(--surface-2);
+      border: 1px solid var(--border);
     }
-    .dash-state-action:hover { background: rgba(255,255,255,0.11); }
+    .dash-state-action:hover { background: var(--surface-2); }
     /* OFFLINE reads neutral-grey: nothing is wrong with the account. */
     .dash-state-offline { background: rgba(148,163,184,0.10); border-color: rgba(148,163,184,0.34); }
     /* PARTIAL reads amber: something is missing, but what is shown is true. */
@@ -2287,17 +2287,17 @@ export const dashboardStyles = `<style>
        of a 24px chip in a wrapping strip. */
     .filter-sheet-trigger { display: none; }
     .filter-sheet { position: fixed; inset: 0; z-index: 1200; }
-    .filter-sheet-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,0.6); }
+    .filter-sheet-backdrop { position: absolute; inset: 0; background: rgba(11,31,25,0.55); }
     .filter-sheet-panel {
       position: absolute; inset-inline: 0; bottom: 0;
-      background: var(--surface, #17140f);
-      border-top: 1px solid rgba(255,255,255,0.10);
+      background: var(--surface, var(--surface-2));
+      border-top: 1px solid var(--border);
       border-radius: 18px 18px 0 0;
       padding: 6px 16px calc(16px + env(safe-area-inset-bottom, 0px));
       max-height: 80vh; overflow-y: auto;
-      box-shadow: 0 -12px 40px rgba(0,0,0,0.45);
+      box-shadow: none;
     }
-    .filter-sheet-grip { width: 42px; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.22); margin: 6px auto 14px; }
+    .filter-sheet-grip { width: 42px; height: 4px; border-radius: 999px; background: var(--border); margin: 6px auto 14px; }
     .filter-sheet-title { font-size: 15px; font-weight: 800; color: var(--text); margin-bottom: 12px; }
     .filter-sheet-options { display: grid; gap: 8px; }
     .filter-sheet-option {
@@ -2305,26 +2305,26 @@ export const dashboardStyles = `<style>
       width: 100%; min-height: 48px; padding: 0 14px;
       border-radius: 12px; cursor: pointer; text-align: start;
       font-family: inherit; font-size: 14px; font-weight: 600;
-      color: var(--text-2); background: rgba(255,255,255,0.03);
-      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--text-2); background: var(--surface-2);
+      border: 1px solid var(--border);
     }
     .filter-sheet-option.active {
-      color: var(--accent-2); background: var(--accent-dim, rgba(217,167,89,0.12));
-      border-color: rgba(217,167,89,0.42);
+      color: var(--accent-2); background: var(--accent-dim, var(--accent-dim));
+      border-color: var(--accent-glow);
     }
     .filter-sheet-option-label { flex: 1; min-width: 0; }
     .filter-sheet-option-count {
       font-size: 12px; font-weight: 800; padding: 2px 8px; border-radius: 999px;
-      background: rgba(255,255,255,0.07); color: var(--text-3);
+      background: var(--surface-2); color: var(--text-3);
     }
-    .filter-sheet-option.active .filter-sheet-option-count { background: rgba(217,167,89,0.2); color: var(--accent-2); }
+    .filter-sheet-option.active .filter-sheet-option-count { background: var(--accent-dim); color: var(--accent-2); }
     .filter-sheet-option-check { font-size: 15px; font-weight: 800; min-width: 14px; text-align: center; }
     .filter-sheet-close {
       width: 100%; min-height: 48px; margin-top: 14px;
       border-radius: 12px; cursor: pointer;
       font-family: inherit; font-size: 14px; font-weight: 700;
-      color: var(--text); background: rgba(255,255,255,0.06);
-      border: 1px solid rgba(255,255,255,0.14);
+      color: var(--text); background: var(--surface-2);
+      border: 1px solid var(--border);
     }
     body.sheet-open { overflow: hidden; }
 
@@ -2383,8 +2383,8 @@ export const dashboardStyles = `<style>
         min-height: 44px; padding: 0 14px; margin-bottom: 12px;
         border-radius: 12px; cursor: pointer;
         font-family: inherit; font-size: 13px; font-weight: 700;
-        color: var(--text-2); background: rgba(255,255,255,0.04);
-        border: 1px solid rgba(255,255,255,0.10);
+        color: var(--text-2); background: var(--surface-2);
+        border: 1px solid var(--border);
       }
       .filter-sheet-trigger-caret { color: var(--text-3); }
 
@@ -2411,9 +2411,9 @@ export const dashboardStyles = `<style>
         font-size: 13px; border: none; border-radius: 50%;
         background:
           radial-gradient(circle at center,
-            rgba(255,255,255,0.07) 0 12px,
+            transparent 0 12px,
             transparent 12px);
-        box-shadow: inset 0 0 0 1px transparent;
+        box-shadow: none;
       }
       .info-btn:hover { background: radial-gradient(circle at center, var(--accent-dim) 0 12px, transparent 12px); }
 
