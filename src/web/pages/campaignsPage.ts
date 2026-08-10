@@ -1346,17 +1346,7 @@ export function campaignsPage(): string {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'var(--accent-glow)',
-            borderWidth: 1,
-            titleColor: cssVar('--text', '#0B1F19'),
-            bodyColor: cssVar('--series-1', '#0E4034'),
-            padding: { top: 10, bottom: 10, left: 14, right: 14 },
-            cornerRadius: 10,
-            titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
-            bodyFont: { size: 12, weight: '600' },
-            displayColors: false,
+          tooltip: Object.assign(chartTooltipStyle(), {
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
             callbacks: {
               label: function (item) {
@@ -1374,13 +1364,13 @@ export function campaignsPage(): string {
                 return name ? (name + ': ' + txt) : txt;
               },
             },
-          }
+          })
         },
         scales: {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: 'var(--surface-2)', maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
+            ticks: { color: cssVar('--text-3', '#5D7066'), maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
           },
           y: {
             beginAtZero: true,
@@ -1388,7 +1378,7 @@ export function campaignsPage(): string {
             grid: { color: cssVar('--gridline', '#D8E4DC'), lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'var(--border-2)',
+              color: cssVar('--text-3', '#5D7066'),
               font: { size: 10, weight: '500' },
               maxTicksLimit: 4,
               callback: function(v) {
