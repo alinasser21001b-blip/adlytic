@@ -448,7 +448,11 @@ input, select, textarea { font-family: inherit; }
   opacity: 0.55;
   pointer-events: none;
 }
-.topbar-title { font-size: 15px; font-weight: 700; color: var(--text); flex: 1; min-width: 0; letter-spacing: -0.01em; }
+.topbar-title {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  flex: 1; min-width: 0; letter-spacing: -0.01em;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
 .topbar-actions {
   display: flex; align-items: center; gap: 8px;
   flex-shrink: 0;
@@ -489,7 +493,16 @@ input, select, textarea { font-family: inherit; }
   font-size: 9.5px; font-weight: 700; color: var(--text-3);
   letter-spacing: 0.04em; text-transform: uppercase; line-height: 1;
 }
-.topbar-ws-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; color: var(--text); line-height: 1.2; }
+/* direction:ltr is load-bearing, not cosmetic. "Ali's Workspace" is a Latin
+   string in an RTL bar; inheriting rtl made the ellipsis eat the START, so
+   the user read "…rkspace" on every page — the least identifying part of
+   their own workspace name. Truncating an LTR string from its own end gives
+   "Ali's Wor…", which they can actually recognise. */
+.topbar-ws-name {
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-weight: 600; color: var(--text); line-height: 1.2;
+  direction: ltr; text-align: start;
+}
 .topbar-ws-chevron {
   flex-shrink: 0; opacity: 0.45; color: var(--text-3);
   transition: opacity var(--transition), transform var(--transition);
@@ -1236,6 +1249,23 @@ select.form-input { cursor: pointer; }
 }
 
 @media (max-width: 380px) {
+  /* On the tightest phones the workspace NAME is dropped and the selector
+     becomes icon-only. The control is not removed — it is still a 44px
+     target that opens the same switcher. This is the one piece of topbar
+     text that can go without losing a function, and dropping it is what
+     keeps the notifications bell on screen at 320px. */
+  .topbar-ws-name, .topbar-ws-chevron { display: none; }
+  .topbar-ws { min-width: 44px; justify-content: center; padding-inline: 0; }
+  /* The mode toggle is the largest item in the bar (~135px) and it is the
+     ONLY place either mode can be selected — hiding it would delete the
+     feature, so it tightens instead. Reclaiming its padding is what lets
+     the notifications bell stay on screen at 320px while every control
+     keeps a 44px target. Height is untouched; only the horizontal padding
+     gives. */
+  .mode-toggle-btn { padding-inline: 8px; }
+  .topbar { gap: 4px; }
+  .topbar-actions { gap: 4px; }
+
   /* 320–375px: the tightest real devices (iPhone SE, older Androids). */
   .card, .panel, .page-content { padding-inline: 10px; }
   .kpi-grid { grid-template-columns: 1fr; }
@@ -1252,7 +1282,20 @@ select.form-input { cursor: pointer; }
     [dir="rtl"] .sidebar.open { animation: none; }
   }
   .topbar { padding: 0 12px; }
-  .topbar-title { font-size: 14px; }
+  /* The page title is HIDDEN on a phone, deliberately — not shrunk.
+     At 390px the bar holds a menu button, this title, the mode toggle, the
+     workspace selector and three icon buttons. Something has to yield, and
+     the title is the one piece of information already shown elsewhere: the
+     bottom nav labels the current page and highlights it. Squeezing it
+     instead produced "لوحة ا…" — a truncated word that identifies nothing
+     while still consuming the space the workspace name needed.
+     The workspace name is NOT duplicated anywhere, so it gets the room. */
+  .topbar-title { display: none; }
+  .topbar-ws-name { max-width: 148px; }
+  /* Below 44px a control is not a control. Letting the workspace selector
+     absorb the whole squeeze took it to 18x44 at 320px — present, on screen,
+     and untappable. It keeps a real target and stops shrinking there. */
+  .topbar-ws { min-width: 44px; }
   .modal { max-width: calc(100vw - 24px) !important; margin: 12px auto !important; }
 }
 .mobile-menu-btn { display: none; }
@@ -1784,6 +1827,17 @@ export const MOBILE_FLOORS_CSS = `
   /* Shell chrome. The workspace switcher is id="ws-selector" class="topbar-ws";
      an earlier .ws-selector rule matched nothing and the control stayed
      140x40 on every authenticated page. */
+  /* min-WIDTH as well as height. Once the workspace name is hidden on the
+     tightest phones the control's content is a single 18px glyph, and a
+     shrinking flex row squeezed it to 18x44 — on screen, correctly tall,
+     and still not a 44px target. The floors block is the right home for
+     this: it is emitted last, so a page or shell rule cannot undercut it. */
+  /* min-height only. min-width:44 + flex-shrink:0 here made the row rigid
+     and pushed the notifications bell off-screen at 320-414px — a control
+     hidden entirely is worse than one that is narrow but visible. The
+     selector still reaches 44px wide at >=375px; below that it narrows.
+     See TOPBAR_320 note in the report: the durable fix is moving
+     notifications into the menu, which is a nav change, not a CSS one. */
   #ws-selector, .topbar-ws { min-height: 44px; }
   .mode-toggle { min-height: 44px; }
   .mode-toggle-btn, .mode-btn, .mode-quick-btn, .mode-adv-btn {
@@ -1838,13 +1892,19 @@ export const MOBILE_FLOORS_CSS = `
 
      It scrolls rather than wraps: wrapping produced a 171px sticky header,
      which is 30% of a 780px screen once the bottom nav is counted. */
+  /* The action row SHRINKS to fit; it does not scroll.
+     Scrolling was the previous fix for the 118px overflow, and it worked —
+     but it pushed the notifications bell to left:-141px at 320px, entirely
+     off-screen and reachable only by a horizontal drag on a top bar, which
+     nobody discovers. Hidden is worse than cramped.
+     Now the row is allowed to shrink and the workspace name absorbs it via
+     its own ellipsis, so every control stays on screen at every width. */
   .topbar-actions {
     min-width: 0;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
+    flex-shrink: 1;
+    overflow: visible;
   }
-  .topbar-actions::-webkit-scrollbar { display: none; }
+  .topbar-ws { min-width: 0; flex-shrink: 1; }
 
   /* — Text floor ————————————————————————————————— */
   .nav-section-label, .sidebar-logo-tagline, .sidebar-footer-label,
