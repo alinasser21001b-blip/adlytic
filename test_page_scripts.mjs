@@ -52,7 +52,7 @@ console.log(`\n${scripts} inline scripts parsed, ${bad} failed`);
 // They are consolidated onto one scale; this keeps them there. A new value
 // is not forbidden — it just has to be a deliberate addition to the scale
 // rather than a number typed into one file.
-const SCALE = new Set([380, 560, 640, 768, 769, 900, 1024]);
+const SCALE = new Set([380, 560, 640, 768, 769, 900, 1024, 1440]);
 const offScale = new Map();
 for (const f of readdirSync('src/web', { recursive: true })) {
   if (typeof f !== 'string' || !f.endsWith('.ts')) continue;

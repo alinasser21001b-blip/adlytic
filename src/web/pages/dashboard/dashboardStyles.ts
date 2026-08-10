@@ -512,13 +512,20 @@ export const dashboardStyles = `<style>
     /* ═══ KPI COMMAND GRID ═══ */
     .kpi-command-grid {
       display: grid;
-      grid-template-columns: repeat(3, 1fr);
+      /* auto-fit, not repeat(3), and not viewport breakpoints.
+         This grid now lives inside the desktop data column, whose width is
+         ~740px regardless of whether the window is 1400 or 2560. A viewport
+         media query cannot see that: at 1920 the old repeat(3) fired and
+         squeezed "IQD 128,294" onto two lines inside a 245px tile. auto-fit
+         asks the CONTAINER instead, which is the question that was always
+         being asked — the breakpoints were a proxy for it that stopped being
+         true the moment the grid was no longer full width. */
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
       gap: 12px;
       margin-bottom: 16px;
       direction: rtl;
     }
-    @media (max-width: 900px) { .kpi-command-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 560px) { .kpi-command-grid { grid-template-columns: 1fr; gap: 10px; } }
+    @media (max-width: 560px) { .kpi-command-grid { gap: 10px; } }
     .kpi-cmd-card {
       position: relative;
       background: linear-gradient(160deg, var(--surface-2) 0%, var(--surface) 45%, var(--surface-2) 100%);

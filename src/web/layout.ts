@@ -1991,6 +1991,14 @@ export const MOBILE_FLOORS_CSS = `
    68ch is the cap. Arabic set in Readex Pro has generous counters and wide
    joins, so it runs longer per character than Latin; 68 lands near the
    middle of the classic 45–75 band at this size rather than at its edge. ── */
+/* Below the desktop breakpoint the two dashboard columns must not merely
+   stack — they must NOT EXIST. display:contents removes a box from the
+   tree while keeping its children, so at phone widths every section is a
+   direct child of #dashboard-content in the original source order, exactly
+   as before the wrappers were added. This is what makes the phone provably
+   unaffected rather than carefully re-checked. */
+.dash-grid, .dash-col { display: contents; }
+
 @media (min-width: 1024px) {
   /* ── Rule 1: prose gets a measure ─────────────────────────────────── */
   .page-subtitle,
@@ -2051,6 +2059,56 @@ export const MOBILE_FLOORS_CSS = `
   @media (pointer: fine) {
     .btn-sm, .chip, .tab { min-height: 32px; }
   }
+}
+
+/* ══ TWO COLUMNS — AND ONLY WHERE BOTH ACTUALLY FIT ════════════════════
+   Rule 5: the decision is READ, the data is CONSULTED. They belong beside
+   each other, not stacked, once there is room for both to be themselves.
+
+   "Room" is a number, not a feeling. Work backwards from what each track
+   needs and the breakpoint falls out:
+
+     data      >= 572px   two KPI tiles at their 280px minimum, plus the gap
+     narrative >= 480px   where the 60ch prose cap lands at 13.5px
+     ------------------------------------------------------------------
+     content   >= 1072px  and content = viewport - 236 sidebar - 56 padding
+     viewport  >= 1364px
+
+   1024 was the obvious guess and it is wrong: at 1280 the content box is
+   988px, the data track collapses to 368, the KPI grid drops to one tile per
+   row and the quick-action chips are clipped at the column edge. Measured,
+   not predicted — the 1280 screenshot showed "حل الإبدا" sliced in half.
+
+   So the two-column layout starts at 1440, the first real width where both
+   tracks work (content 1148 = 556 + 20 + 572). Below it the dashboard stays
+   the single column that measured clean, which is the right answer for a
+   1280 laptop rather than a compromise.
+
+   minmax on BOTH tracks, not a fixed size and a fraction: the narrative may
+   shrink toward its measure but never grow past it, and the data track
+   states its own minimum instead of silently absorbing whatever is left. */
+@media (min-width: 1440px) {
+  /* max-width: 1180px on #dashboard-content was a reading cap, correct while
+     the dashboard WAS one column and the wrong constraint once each column
+     carries its own measure. Releasing it to the page's 1400px cap is what
+     turns the second track from 520px — one KPI tile per row — into a grid. */
+  #dashboard-content { max-width: none; }
+
+  .dash-grid {
+    display: grid;
+    grid-template-columns: minmax(420px, 600px) minmax(572px, 1fr);
+    align-items: start;   /* a short column must not stretch its cards to
+                             match a tall neighbour */
+    gap: 20px;
+  }
+  /* min-width: 0 because a grid item, like a flex item, otherwise refuses to
+     shrink below its widest child — the same failure that once let .main
+     hang 344px off the edge of a 900px viewport. */
+  .dash-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+
+  /* Stacking margins were the single column's spacing mechanism; the grid
+     gap is now. Keeping both would double every gap. */
+  .dash-col > * { margin-bottom: 0; }
 }
 `;
 

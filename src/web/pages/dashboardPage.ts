@@ -90,6 +90,28 @@ export function dashboardPage(): string {
     <div class="dash-state-strip" id="dash-state-strip" role="status" aria-live="polite"></div>
 
     <div id="dashboard-content" style="display:none;">
+      <!-- ═══ TWO COLUMNS, AND ONLY ABOVE 1024px ═══════════════════════════
+           Desktop measurement found the dashboard was a single 1400px column
+           of full-width cards whose content hugged the right edge — the phone
+           layout with more room, not a desktop layout.
+
+           These two wrappers introduce NO reordering. They partition the
+           existing sequence at the boundary that was already there: the
+           decision narrative the merchant reads (status → change → problem →
+           why → action, then the follow-ups), and the reference material
+           consulted alongside it (KPI grid, campaigns needing attention,
+           timeline). Every section keeps its position within its group.
+
+           Below 1024px both wrappers are display:contents, so they vanish
+           from the box tree entirely and the children flow as direct children
+           of #dashboard-content in exactly the original order. That is why
+           the phone measures identically — not because the change was
+           careful, but because at phone widths the change does not exist.
+
+           In RTL the first column renders on the RIGHT, so reading still
+           starts with the decision. -->
+      <div class="dash-grid">
+      <div class="dash-col dash-col--decide">
 
       <!-- ═══ PHASE 3 COMMAND CENTER — status · change · problem · why · action ═══ -->
       <section id="command-center" dir="rtl"></section>
@@ -269,6 +291,9 @@ export function dashboardPage(): string {
         <span class="ch-cta">راجع الإبداعات →</span>
       </a>
 
+      </div><!-- /.dash-col--decide -->
+      <div class="dash-col dash-col--data">
+
       <!-- ═══ QUICK ACTIONS BAR ═══ -->
       <div class="quick-actions-bar" id="quick-actions-bar" dir="rtl">
         <a class="qa-chip" href="/ai?q=${encodeURIComponent('ما أفضل حملة لزيادة ميزانيتها؟')}">
@@ -430,6 +455,12 @@ export function dashboardPage(): string {
           <div id="weekly-report-content"></div>
         </div>
       </section>
+
+      </div><!-- /.dash-col--data -->
+      </div><!-- /.dash-grid -->
+
+      <!-- Overlays live OUTSIDE both columns: they are position:fixed, so a
+           grid track would be a lie about where they render. -->
 
       <!-- Main Move action modal (remediation workflow) -->
       <div id="main-move-action-modal" class="modal-overlay" style="display:none;">

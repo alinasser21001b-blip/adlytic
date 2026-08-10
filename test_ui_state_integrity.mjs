@@ -109,5 +109,41 @@ if (!/\.data-observer-banner\.unknown\s*\{/.test(camp)) {
   fail("the 'unknown' outcome has no styling of its own — it will render like whichever class it inherits");
 }
 
+// ── The desktop columns must not exist on a phone ─────────────────────
+// The two-column dashboard was built by WRAPPING sections, not moving them,
+// and the wrappers are display:contents below the breakpoint so the phone
+// sees the original tree. That is the entire safety argument for the change
+// — the phone is unaffected because at phone widths the change is not there.
+//
+// One line deletes that argument: give .dash-col a display other than
+// contents outside the media query, and every section on every phone
+// suddenly sits inside a flex column that was never measured.
+console.log('\n── desktop columns must vanish below the breakpoint ──');
+const layout = readFileSync('src/web/layout.ts', 'utf8');
+
+const unscoped = layout.match(/^\.dash-grid,\s*\.dash-col\s*\{[^}]*\}/m);
+if (!unscoped) {
+  fail('.dash-grid/.dash-col have no unscoped rule — nothing makes them display:contents on a phone');
+} else if (!/display:\s*contents/.test(unscoped[0])) {
+  fail(`the unscoped .dash-grid/.dash-col rule is "${unscoped[0].trim()}" — it must be display:contents, or the phone gets a layout nobody measured`);
+} else {
+  console.log('  ✓ .dash-grid and .dash-col are display:contents outside any media query');
+}
+
+// And the grid itself must be inside a min-width query, not applied globally.
+const gridRule = layout.indexOf('.dash-grid {\n    display: grid;');
+if (gridRule < 0) {
+  fail('the two-column grid rule was not found');
+} else {
+  const before = layout.slice(0, gridRule);
+  const lastMedia = before.lastIndexOf('@media');
+  const mediaText = before.slice(lastMedia, lastMedia + 40);
+  if (!/min-width:\s*\d+px/.test(mediaText)) {
+    fail(`the two-column grid is not inside a min-width query (nearest: ${mediaText.trim().slice(0, 30)}) — it would apply at every width`);
+  } else {
+    console.log(`  ✓ the grid is scoped to ${mediaText.match(/min-width:\s*\d+px/)[0]}`);
+  }
+}
+
 console.log(`\n════ ${bad === 0 ? 'UI state integrity OK' : bad + ' FAILURES'} ════\n`);
 process.exit(bad ? 1 : 0);
