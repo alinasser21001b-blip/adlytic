@@ -120,7 +120,7 @@ export function adAnalysisPage(): string {
   .source-btn .src-sub { font-size: 12px; color: var(--text-2); line-height: 1.5; }
   .adlytic-strip {
     display: none; margin-bottom: 16px; padding: 14px 16px; border-radius: var(--radius-lg);
-    border: 1px solid rgba(217,167,89,0.35); background: rgba(217,167,89,0.08); direction: rtl;
+    border: 1px solid var(--accent-glow); background: var(--accent-dim); direction: rtl;
   }
   .adlytic-strip.show { display: block; }
   .adlytic-strip-title { font-size: 12.5px; font-weight: 800; color: var(--accent-2); margin-bottom: 8px; }
@@ -592,7 +592,7 @@ export function adAnalysisPage(): string {
         });
       }
       if (ctx.brain && (ctx.brain.arabicTitle || ctx.brain.arabicNarration)) {
-        html += '<div class="ctx-card" style="border-color:rgba(217,167,89,0.35);">'
+        html += '<div class="ctx-card" style="border-color:var(--accent-dim);">'
           + '<h4>' + esc(ctx.brain.arabicTitle || 'توصية مراقب الذكاء الاصطناعي') + '</h4>'
           + '<p>' + esc(ctx.brain.arabicNarration || '') + '</p></div>';
       }

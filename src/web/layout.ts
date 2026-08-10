@@ -403,7 +403,7 @@ input, select, textarea { font-family: inherit; }
   text-align: inherit;
 }
 .sidebar-logout:hover {
-  background: rgba(226,96,79,0.08);
+  background: var(--error-dim);
   color: var(--error-dim);
 }
 .sidebar-logout:active { transform: scale(0.99); }
@@ -417,8 +417,8 @@ input, select, textarea { font-family: inherit; }
   transition: background var(--transition), border-color var(--transition);
 }
 .sidebar-logout:hover .sidebar-logout-icon {
-  background: rgba(226,96,79,0.12);
-  border-color: rgba(226,96,79,0.22);
+  background: var(--error-dim);
+  border-color: var(--error-dim);
 }
 .sidebar-logout svg { width: 16px; height: 16px; opacity: 0.85; }
 
@@ -669,8 +669,8 @@ input, select, textarea { font-family: inherit; }
   height: 22px;
 }
 .camp-kpi[data-accent="gold"]  .camp-kpi-icon { background: var(--accent-dim); color: var(--accent); }
-.camp-kpi[data-accent="green"] .camp-kpi-icon { background: rgba(52,168,113,0.12); color: var(--success); }
-.camp-kpi[data-accent="amber"] .camp-kpi-icon { background: rgba(199,122,31,0.12); color: var(--warning); }
+.camp-kpi[data-accent="green"] .camp-kpi-icon { background: var(--success-dim); color: var(--success); }
+.camp-kpi[data-accent="amber"] .camp-kpi-icon { background: var(--warning-dim); color: var(--warning); }
 .camp-kpi[data-accent="blue"]  .camp-kpi-icon { background: rgba(91,141,239,0.12); color: var(--series-2); }
 .camp-kpi-body { min-width: 0; }
 .camp-kpi-label {
@@ -885,9 +885,9 @@ select.form-input { cursor: pointer; }
   margin-bottom: 16px;
   display: flex; align-items: flex-start; gap: 9px;
 }
-.alert-error { background: var(--error-dim); color: var(--error); border: 1px solid rgba(226,96,79,0.2); }
-.alert-success { background: var(--success-dim); color: var(--success); border: 1px solid rgba(52,168,113,0.2); }
-.alert-warning { background: var(--warning-dim); color: var(--warning); border: 1px solid rgba(199,122,31,0.2); }
+.alert-error { background: var(--error-dim); color: var(--error); border: 1px solid var(--error-dim); }
+.alert-success { background: var(--success-dim); color: var(--success); border: 1px solid var(--success-dim); }
+.alert-warning { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning-dim); }
 .alert-info { background: var(--accent-dim); color: var(--accent-2); border: 1px solid var(--accent-dim); }
 
 /* ── Global token-decrypt failure banner ─────────────────────────── */
@@ -896,7 +896,7 @@ select.form-input { cursor: pointer; }
   align-items: center;
   gap: 14px;
   padding: 14px 24px;
-  background: linear-gradient(90deg, rgba(199,56,42,0.22), rgba(226,96,79,0.12));
+  background: linear-gradient(90deg, rgba(199,56,42,0.22), var(--error-dim));
   border-bottom: 2px solid var(--critical);
   color: var(--text);
   font-size: 14px;
@@ -1578,7 +1578,7 @@ body:has(.app-shell--beginner) .sidebar-overlay {
 .adv-block-sub { font-size: 12px; color: var(--text-3); margin-top: 4px; padding-inline-start: 13px; }
 .adv-empty-ok {
   font-size: 13px; color: var(--text-2); padding: 14px 16px;
-  background: rgba(52,168,113,0.06); border: 1px solid rgba(52,168,113,0.18);
+  background: var(--success-dim); border: 1px solid var(--success-dim);
   border-radius: 12px;
 }
 .adv-issues-list { display: flex; flex-direction: column; gap: 0; }
@@ -1590,7 +1590,7 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   font-size: 10.5px; font-weight: 800; padding: 3px 8px; border-radius: 999px; white-space: nowrap;
 }
 .adv-issue-sev.critical { background: var(--error-dim); color: var(--error); }
-.adv-issue-sev.high { background: rgba(199,122,31,0.12); color: var(--warning); }
+.adv-issue-sev.high { background: var(--warning-dim); color: var(--warning); }
 .adv-issue-sev.medium { background: var(--accent-dim); color: var(--accent-2); }
 .adv-issue-sev.low { background: var(--surface-2); color: var(--text-3); }
 .adv-issue-why { font-size: 12.5px; color: var(--text-2); margin-top: 4px; line-height: 1.5; }
@@ -1614,7 +1614,7 @@ body:has(.app-shell--beginner) .sidebar-overlay {
 .adv-camp-note.note-worst { background: var(--error-dim); color: var(--error); }
 .adv-camp-note.note-danger { background: rgba(211,47,47,0.14); color: var(--error); }
 .adv-camp-note.note-hot { background: var(--accent-dim); color: var(--accent-2); }
-.adv-camp-note.note-watch { background: rgba(199,122,31,0.12); color: var(--warning); }
+.adv-camp-note.note-watch { background: var(--warning-dim); color: var(--warning); }
 .adv-camp-note.note-muted { background: var(--surface-2); color: var(--text-3); }
 
 /* ── Attribution bar ────────────────────────────────────────────── */
@@ -1955,6 +1955,103 @@ export const MOBILE_FLOORS_CSS = `
     min-height: 44px;
   }
 }
+
+/* ══ THE DESKTOP LAYER ═════════════════════════════════════════════════
+   This is the product's FIRST min-width query. Until now every rule was
+   max-width, which means the layout above 768px was never designed — it was
+   the phone layout with more room, and nobody had measured what that looks
+   like. A pass at 1280 / 1440 / 1600 / 1920 / 2560 found:
+
+     · 30 of 40 page-widths carried a line of running text longer than 90
+       characters, worst 247 — roughly three times the width at which the eye
+       reliably finds the start of the next line
+     · a label and its number 971px apart inside one .funnel-stage row
+     · 0 horizontal overflow, and the 1400px content cap working correctly
+
+   THE CONTRACT, in four rules:
+
+   1. TWO KINDS OF CONTENT, TWO WIDTHS. Prose — a sentence a merchant reads —
+      is capped at a reading measure. Data — a table, a chart, a grid of
+      tiles — takes the whole column, because there the width IS the
+      information.
+
+   2. A DATUM NEVER LEAVES ITS VALUE. "مرات الظهور" at one end of a 1400px
+      row and "120,000" at the other is not a layout; it is two facts the
+      reader has to re-pair by hand.
+
+   3. A SECTION HEAD MAY SPAN. Title at one end, action at the other is a
+      real convention and the gap there is deliberate. Rule 2 is about data
+      pairs, not about headers — collapsing both would be a worse layout, not
+      a more careful one.
+
+   4. NOTHING HERE TOUCHES THE PHONE. Every rule is inside min-width: 1024,
+      above the whole mobile system, so the six phone widths measure exactly
+      as they did before.
+
+   68ch is the cap. Arabic set in Readex Pro has generous counters and wide
+   joins, so it runs longer per character than Latin; 68 lands near the
+   middle of the classic 45–75 band at this size rather than at its edge. ── */
+@media (min-width: 1024px) {
+  /* ── Rule 1: prose gets a measure ─────────────────────────────────── */
+  .page-subtitle,
+  .dash-state-text,
+  .observer-msg,
+  .camp-trends-note,
+  .empty-text,
+  .form-hint,
+  .card-text,
+  .panel-sub,
+  .auth-brand-tagline,
+  .rec-why,
+  .insight-body,
+  p.hint {
+    /* 60ch, not 68. The CSS ch unit is the advance of the digit zero, and
+       Arabic glyphs in Readex Pro are narrower than that on average — so a
+       68ch box measured 97 real characters, not 68. The cap is expressed in
+       the unit CSS gives us; the number comes from what the browser actually
+       rendered. */
+    max-width: 60ch;
+  }
+
+  /* Evidence and reasoning lists run slightly longer: each item is a short
+     clause, not a paragraph, and breaking them narrower makes a three-line
+     bullet out of a one-line fact. */
+  .why-list li,
+  .evidence-list li,
+  .diag-evidence li,
+  .cc-why-list li,
+  .funnel-note li {
+    /* Same correction: 76ch measured 92 real characters. */
+    max-width: 70ch;
+  }
+
+  /* ── Rule 2: a datum stays with its value ─────────────────────────── */
+  /* Measured at 971px of empty space between .funnel-stage-label and
+     .funnel-stage-count at 1920. Capping the ROW keeps the pair readable
+     without touching the markup or inventing a new visualisation. */
+  /* space-between is right on a phone, where the row is 340px and the two
+     ends are a glance apart. Capping the row alone still left 449px between
+     them, so the pair is packed from the start instead — and the label is
+     given a fixed track so the counts still line up in a column, which is
+     what makes the stages comparable at all. */
+  .funnel-stage {
+    max-width: 620px;
+    justify-content: flex-start;
+    gap: 18px;
+  }
+  .funnel-stage-label { flex: 0 0 190px; }
+  .cc-metric-row,
+  .kpi-row,
+  .ws-stat-row { max-width: 720px; }
+
+  /* ── Rule 4's corollary: pointer density ──────────────────────────── */
+  /* The 44px floors are correct for a thumb and oversized for a cursor. This
+     only relaxes them where a POINTER is the input; a touch laptop keeps the
+     floors, because (pointer: coarse) still applies there. */
+  @media (pointer: fine) {
+    .btn-sm, .chip, .tab { min-height: 32px; }
+  }
+}
 `;
 
 // ════════════════════════════════════════════════════════════════════════
@@ -2020,6 +2117,42 @@ export const CSS_ASSETS: Record<string, string> = {
 // ── Shared JS (auth guard, toast, sidebar toggle) ───────────────────────
 export const SHARED_JS = `
 const API = '';
+
+/* ── cssVar — the design system, for things that cannot read CSS ─────────
+   Canvas 2D and Chart.js paint with colour STRINGS. They do not resolve
+   custom properties: assigning ctx.fillStyle = 'var(--accent-dim)' is not an
+   error, it is silently ignored, and the context keeps whatever colour it
+   had — which for a fresh context is black. That is how the campaigns
+   sparkline turned into a black blob.
+
+   The alternative everyone reaches for is hardcoding a hex next to the
+   chart, and that is how charts end up as the last part of a product still
+   painted in the previous theme. This reads the real token off :root once,
+   caches it, and falls back to a literal so a canvas can never receive an
+   invalid colour string.
+
+   Always pass a fallback that is the CURRENT value of the token. It is used
+   only if the stylesheet has not arrived, and a stale fallback is a colour
+   nobody will ever see reported as wrong. */
+var _cssVarCache = {};
+function cssVar(name, fallback) {
+  if (_cssVarCache[name] !== undefined) return _cssVarCache[name];
+  var v = '';
+  try {
+    v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  } catch (e) { /* no document yet */ }
+  var out = v || fallback || '#000';
+  _cssVarCache[name] = out;
+  return out;
+}
+
+/** Same token, at a given alpha. Only valid for tokens stored as #rrggbb. */
+function cssVarAlpha(name, alpha, fallback) {
+  var hex = cssVar(name, fallback);
+  var m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(hex);
+  if (!m) return hex;
+  return 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + alpha + ')';
+}
 
 (function () {
   var _errQueue = [];

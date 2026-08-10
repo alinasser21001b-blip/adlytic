@@ -789,10 +789,10 @@ export function dashboardPage(): string {
           legend: { display: false },
           tooltip: {
             backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'rgba(217,167,89,0.35)',
+            borderColor: 'var(--accent-glow)',
             borderWidth: 1,
-            titleColor: '#F3EFE7',
-            bodyColor: '#D9A759',
+            titleColor: cssVar('--text', '#0B1F19'),
+            bodyColor: cssVar('--series-1', '#0E4034'),
             padding: { top: 10, bottom: 10, left: 14, right: 14 },
             cornerRadius: 10,
             titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
@@ -820,7 +820,7 @@ export function dashboardPage(): string {
             },
           },
           y: {
-            grid: { color: 'rgba(255,255,255,0.035)', lineWidth: 0.8 },
+            grid: { color: cssVar('--gridline', '#D8E4DC'), lineWidth: 0.8 },
             border: { display: false },
             ticks: {
               color: 'rgba(184,196,214,0.72)',
@@ -885,27 +885,27 @@ export function dashboardPage(): string {
 
     if (hasResults) {
       makeLineChart('chart-results', p.labels, [
-        buildDataset(lbl('Results', 'النتائج'), p.resultsSeries, '#2DD4BF', 'rgba(45,212,191,0.12)', true, 'num'),
+        buildDataset(lbl('Results', 'النتائج'), p.resultsSeries, cssVar('--series-1', '#0E4034'), cssVarAlpha('--series-1', 0.12, '#0E4034'), true, 'num'),
       ]);
     }
     if (hasCpr) {
       makeLineChart('chart-cpr', p.labels, [
-        buildDataset(lbl('Cost per result', 'التكلفة لكل نتيجة'), p.cprSeries, '#60A5FA', 'rgba(96,165,250,0.12)', true, 'currency'),
+        buildDataset(lbl('Cost per result', 'التكلفة لكل نتيجة'), p.cprSeries, cssVar('--series-2', '#4A6FA5'), cssVarAlpha('--series-2', 0.12, '#4A6FA5'), true, 'currency'),
       ]);
     }
     if (hasCpm) {
       makeLineChart('chart-cpm', p.labels, [
-        buildDataset(lbl('CPM', 'CPM'), p.cpmSeries, '#C77A1F', 'rgba(199,122,31,0.10)', true, 'currency'),
+        buildDataset(lbl('CPM', 'CPM'), p.cpmSeries, cssVar('--series-4', '#B8873B'), cssVarAlpha('--series-4', 0.12, '#B8873B'), true, 'currency'),
       ]);
     }
     if (hasCtr) {
       makeLineChart('chart-ctr', p.labels, [
-        buildDataset(lbl('CTR (%)', 'معدل النقر (٪)'), p.ctrSeries, '#34A871', 'rgba(52,168,113,0.08)', true, 'pct'),
+        buildDataset(lbl('CTR (%)', 'معدل النقر (٪)'), p.ctrSeries, cssVar('--series-5', '#5F8A7D'), cssVarAlpha('--series-5', 0.12, '#5F8A7D'), true, 'pct'),
       ]);
     }
     if (hasFreq) {
       makeLineChart('chart-frequency', p.labels, [
-        buildDataset(lbl('Frequency', 'التكرار'), p.freqSeries, '#FB7185', 'rgba(251,113,133,0.10)', true, 'freq'),
+        buildDataset(lbl('Frequency', 'التكرار'), p.freqSeries, cssVar('--series-3', '#7B4B7E'), cssVarAlpha('--series-3', 0.10, '#7B4B7E'), true, 'freq'),
       ]);
     }
   }
@@ -1384,9 +1384,9 @@ export function dashboardPage(): string {
       var rising = last > first;
       var flat = Math.abs(last - first) < span * 0.05;
       var color;
-      if (good === 'neutral') color = '#D9A759';
-      else if (flat) color = '#8A8378';
-      else color = (rising === (good === 'up')) ? '#34A871' : '#E2604F';
+      if (good === 'neutral') color = cssVar('--series-1', '#0E4034');
+      else if (flat) color = cssVar('--nontext', '#7C8F87');
+      else color = (rising === (good === 'up')) ? cssVar('--series-5', '#5F8A7D') : cssVar('--error', '#A32B1E');
 
       // Area under the line (very light), then the stroke — contiguous segments only.
       var startIdx = -1;
@@ -2773,10 +2773,10 @@ export function dashboardPage(): string {
     section.classList.add('section-enter');
 
     var colors = {
-      excellent: { start: '#34A871', end: '#2DD4A0' },
-      good:      { start: '#D9A759', end: '#E8C97A' },
-      attention: { start: '#C77A1F', end: '#E89C3F' },
-      poor:      { start: '#E2604F', end: '#F07C6F' }
+      excellent: { start: cssVar('--series-5', '#5F8A7D'), end: cssVar('--success-fill', '#1D8A63') },
+      good:      { start: cssVar('--series-1', '#0E4034'), end: cssVar('--success-fill', '#1D8A63') },
+      attention: { start: cssVar('--series-4', '#B8873B'), end: cssVar('--warning', '#AF502A') },
+      poor:      { start: cssVar('--error', '#A32B1E'), end: cssVar('--error', '#A32B1E') }
     };
     var c = colors[band] || colors.attention;
 
@@ -3022,7 +3022,7 @@ export function dashboardPage(): string {
         }).join(' ');
         sparkSvg = '<div class="pred-sparkline">'
           + '<svg viewBox="0 0 ' + w + ' ' + h + '" preserveAspectRatio="none">'
-          + '<polyline points="' + pts + '" fill="none" stroke="' + (f.severity === 'critical' ? '#E2604F' : '#C77A1F') + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
+          + '<polyline points="' + pts + '" fill="none" stroke="' + (f.severity === 'critical' ? cssVar('--error', '#A32B1E') : cssVar('--series-4', '#B8873B')) + '" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>'
           + '</svg></div>';
       }
       var html =
@@ -4044,7 +4044,7 @@ export function dashboardPage(): string {
             if (emptyEl) emptyEl.style.display = 'none';
             if (canvasEl) canvasEl.style.display = '';
             var spendDatasets = [
-              buildDataset(lbl('Spend', 'الإنفاق'), _spendSeriesMajor, '#D9A759', 'rgba(217,167,89,0.12)', true, 'currency'),
+              buildDataset(lbl('Spend', 'الإنفاق'), _spendSeriesMajor, cssVar('--series-1', '#0E4034'), cssVarAlpha('--series-1', 0.12, '#0E4034'), true, 'currency'),
             ];
             var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
             if (markerDataset) spendDatasets.push(markerDataset);

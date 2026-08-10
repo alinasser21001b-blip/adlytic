@@ -21,7 +21,7 @@ export function beginnerDashboardPage(): string {
     }
     @keyframes bgn-pulse-dot {
       0%, 100% { transform: scale(1); box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
-      50% { transform: scale(1.15); box-shadow: 0 0 0 6px rgba(226,96,79,0.18); }
+      50% { transform: scale(1.15); box-shadow: 0 0 0 6px var(--error-dim); }
     }
     @keyframes bgn-wave {
       0% { background-position: 200% 0; }
@@ -54,11 +54,11 @@ export function beginnerDashboardPage(): string {
       display: flex; align-items: flex-start; gap: 14px;
       padding: 22px 26px; margin-bottom: 18px;
       background: linear-gradient(135deg, #241C15 0%, #100E0D 70%);
-      border: 1px solid rgba(217,167,89,0.25);
+      border: 1px solid var(--accent-glow);
       border-radius: 18px;
       transition: border-color 200ms ease, box-shadow 200ms ease;
     }
-    .bgn-greeting:hover { border-color: rgba(217,167,89,0.4); box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+    .bgn-greeting:hover { border-color: var(--accent-dim); box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
     .bgn-greeting-emoji { font-size: 38px; line-height: 1; flex-shrink: 0; transition: transform 280ms ease; }
     .bgn-greeting:hover .bgn-greeting-emoji { transform: scale(1.08) rotate(-6deg); }
     .bgn-greeting-text-wrap { flex: 1; min-width: 0; }
@@ -73,7 +73,7 @@ export function beginnerDashboardPage(): string {
       font-family: inherit; cursor: pointer;
       transition: color 160ms ease, border-color 160ms ease, background 160ms ease;
     }
-    .bgn-refresh-btn:hover { color: var(--accent-2); border-color: rgba(217,167,89,0.35); background: rgba(217,167,89,0.08); }
+    .bgn-refresh-btn:hover { color: var(--accent-2); border-color: var(--accent-glow); background: var(--accent-dim); }
     .bgn-refresh-btn.is-busy { pointer-events: none; opacity: 0.7; }
     .bgn-refresh-btn.is-busy .bgn-refresh-ico { animation: bgn-soft-spin 0.8s linear infinite; }
     .bgn-refresh-ico { width: 12px; height: 12px; display: inline-block; }
@@ -87,11 +87,11 @@ export function beginnerDashboardPage(): string {
     }
     .bgn-status-pill:hover { transform: scale(1.04); }
     .bgn-status-pill .bgn-dot { width: 10px; height: 10px; border-radius: 50%; box-shadow: 0 0 0 3px rgba(255,255,255,0.06); }
-    .bgn-status-pill.green  { background: rgba(52,168,113,0.14);  color: #5CC08F; }
+    .bgn-status-pill.green  { background: var(--success-dim);  color: #5CC08F; }
     .bgn-status-pill.green  .bgn-dot { background: #34A871; }
-    .bgn-status-pill.yellow { background: rgba(199,122,31,0.14); color: #E0A050; }
+    .bgn-status-pill.yellow { background: var(--warning-dim); color: #E0A050; }
     .bgn-status-pill.yellow .bgn-dot { background: #C77A1F; animation: bgn-pulse-dot 1.8s ease-in-out infinite; }
-    .bgn-status-pill.red    { background: rgba(226,96,79,0.14);  color: #EB9186; }
+    .bgn-status-pill.red    { background: var(--error-dim);  color: #EB9186; }
     .bgn-status-pill.red    .bgn-dot { background: #E2604F; animation: bgn-pulse-dot 1.4s ease-in-out infinite; }
     .bgn-status-pill.gray   { background: rgba(255,255,255,0.05); color: var(--text-3); }
     .bgn-status-pill.gray   .bgn-dot { background: var(--text-3); }
@@ -99,15 +99,15 @@ export function beginnerDashboardPage(): string {
 
     /* ── "What's happening now" summary ── */
     .bgn-summary {
-      background: linear-gradient(135deg, rgba(217,167,89,0.08) 0%, var(--surface) 100%);
-      border: 1px solid rgba(217,167,89,0.22);
+      background: linear-gradient(135deg, var(--accent-dim) 0%, var(--surface) 100%);
+      border: 1px solid var(--accent-glow);
       border-radius: 16px;
       padding: 18px 20px;
       margin-bottom: 20px;
       display: flex; gap: 14px; align-items: flex-start;
       transition: border-color 200ms ease, transform 200ms ease;
     }
-    .bgn-summary:hover { border-color: rgba(217,167,89,0.4); transform: translateY(-1px); }
+    .bgn-summary:hover { border-color: var(--accent-dim); transform: translateY(-1px); }
     .bgn-summary-icon { font-size: 26px; line-height: 1; flex-shrink: 0; }
     .bgn-summary-label { font-size: 11px; font-weight: 700; color: var(--accent-2); letter-spacing: 0.04em; margin-bottom: 5px; }
     .bgn-summary-text { font-size: 14.5px; color: var(--text); line-height: 1.65; }
@@ -124,18 +124,18 @@ export function beginnerDashboardPage(): string {
     .bgn-metric-card:hover { transform: translateY(-3px); border-color: var(--border-2); box-shadow: 0 10px 28px rgba(0,0,0,0.2); }
     .bgn-metric-card:active { transform: translateY(-1px) scale(0.99); }
     .bgn-metric-card.is-open {
-      border-color: rgba(217,167,89,0.4);
-      background: linear-gradient(180deg, rgba(217,167,89,0.06), var(--surface));
+      border-color: var(--accent-glow);
+      background: linear-gradient(180deg, var(--accent-dim), var(--surface));
     }
     .bgn-metric-top { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
     .bgn-metric-icon {
       font-size: 28px; line-height: 1; width: 48px; height: 48px;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(217,167,89,0.10); border-radius: 12px; flex-shrink: 0;
+      background: var(--accent-dim); border-radius: 12px; flex-shrink: 0;
       transition: transform 220ms ease;
     }
     .bgn-metric-card:hover .bgn-metric-icon { transform: scale(1.06); }
-    .bgn-metric-card.green  .bgn-metric-icon { background: rgba(52,168,113,0.12); }
+    .bgn-metric-card.green  .bgn-metric-icon { background: var(--success-dim); }
     .bgn-metric-card.blue   .bgn-metric-icon { background: rgba(59,130,246,0.12); }
     .bgn-metric-card.purple .bgn-metric-icon { background: rgba(168,85,247,0.12); }
     .bgn-metric-label { font-size: 12.5px; font-weight: 600; color: var(--text-2); line-height: 1.45; flex: 1; }
@@ -145,7 +145,7 @@ export function beginnerDashboardPage(): string {
       border: 1px solid var(--border); background: rgba(255,255,255,0.03);
       transition: color 160ms ease, border-color 160ms ease;
     }
-    .bgn-metric-card.is-open .bgn-metric-expand { color: var(--accent-2); border-color: rgba(217,167,89,0.35); }
+    .bgn-metric-card.is-open .bgn-metric-expand { color: var(--accent-2); border-color: var(--accent-glow); }
     .bgn-metric-value { font-size: 28px; font-weight: 800; color: var(--text); line-height: 1.15; margin-bottom: 4px; }
     .bgn-metric-trend { font-size: 12px; display: inline-flex; align-items: center; gap: 4px; margin-bottom: 6px; }
     .bgn-metric-trend.up   { color: #5CC08F; }
@@ -172,7 +172,7 @@ export function beginnerDashboardPage(): string {
     }
     .bgn-mini-card:hover { transform: translateY(-2px); border-color: var(--border-2); box-shadow: 0 8px 22px rgba(0,0,0,0.16); }
     .bgn-mini-card:active { transform: scale(0.99); }
-    .bgn-mini-card.is-open { border-color: rgba(217,167,89,0.35); }
+    .bgn-mini-card.is-open { border-color: var(--accent-dim); }
     .bgn-mini-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
     .bgn-mini-emoji { font-size: 24px; line-height: 1; transition: transform 220ms ease; }
     .bgn-mini-card:hover .bgn-mini-emoji { transform: scale(1.08); }
@@ -222,16 +222,16 @@ export function beginnerDashboardPage(): string {
 
     /* ── Issue notice ── */
     .bgn-issue-card {
-      background: rgba(226,96,79,0.06);
-      border: 1px solid rgba(226,96,79,0.22);
+      background: var(--error-dim);
+      border: 1px solid var(--error-dim);
       border-radius: 14px; padding: 16px 18px;
       display: flex; gap: 12px; align-items: flex-start;
       transition: transform 200ms ease, border-color 200ms ease;
     }
     .bgn-issue-card:hover { transform: translateY(-1px); }
     .bgn-issue-card.warn {
-      background: rgba(199,122,31,0.06);
-      border-color: rgba(199,122,31,0.22);
+      background: var(--warning-dim);
+      border-color: var(--warning-dim);
     }
     .bgn-issue-icon { font-size: 22px; line-height: 1; flex-shrink: 0; }
     .bgn-issue-title { font-size: 13.5px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
@@ -239,16 +239,16 @@ export function beginnerDashboardPage(): string {
 
     /* ── Next step / task card ── */
     .bgn-action-card {
-      background: linear-gradient(145deg, rgba(217,167,89,0.12) 0%, var(--surface) 55%);
-      border: 1px solid rgba(217,167,89,0.32);
+      background: linear-gradient(145deg, var(--accent-dim) 0%, var(--surface) 55%);
+      border: 1px solid var(--accent-glow);
       border-radius: 16px; padding: 18px 20px;
       transition: box-shadow 220ms ease, border-color 220ms ease;
     }
-    .bgn-action-card:hover { border-color: rgba(217,167,89,0.5); box-shadow: 0 10px 30px rgba(217,167,89,0.08); }
+    .bgn-action-card:hover { border-color: var(--accent-dim); box-shadow: 0 10px 30px var(--accent-glow); }
     .bgn-task-loop {
       display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
       margin-bottom: 14px; padding: 8px 12px;
-      background: rgba(217,167,89,0.07); border: 1px solid rgba(217,167,89,0.18);
+      background: var(--accent-dim); border: 1px solid var(--accent-glow);
       border-radius: 999px; width: fit-content; max-width: 100%;
     }
     .bgn-task-loop span { font-size: 11px; font-weight: 800; color: var(--accent-2); }
@@ -262,7 +262,7 @@ export function beginnerDashboardPage(): string {
     .bgn-task-label { font-size: 11px; font-weight: 800; color: var(--accent-2); margin-bottom: 4px; letter-spacing: 0.02em; }
     .bgn-task-text { font-size: 13.5px; color: var(--text-2); line-height: 1.55; }
     .bgn-task-action {
-      background: rgba(217,167,89,0.1); border: 1px solid rgba(217,167,89,0.22);
+      background: var(--accent-dim); border: 1px solid var(--accent-glow);
       border-radius: 12px; padding: 12px 14px; margin-bottom: 12px;
     }
     .bgn-task-action .bgn-task-text { color: var(--text); font-weight: 700; font-size: 14px; }
@@ -271,7 +271,7 @@ export function beginnerDashboardPage(): string {
     .bgn-task-expect {
       font-size: 12.5px; color: var(--text-2); line-height: 1.5;
       padding: 10px 12px; border-radius: 10px;
-      background: rgba(255,255,255,0.03); border: 1px dashed rgba(217,167,89,0.25);
+      background: rgba(255,255,255,0.03); border: 1px dashed var(--accent-glow);
       margin-bottom: 14px;
     }
     .bgn-task-expect b { color: var(--accent-2); }
@@ -285,7 +285,7 @@ export function beginnerDashboardPage(): string {
       font-family: inherit;
       transition: background 180ms ease, transform 180ms ease, box-shadow 180ms ease;
     }
-    .bgn-action-cta:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 6px 16px rgba(217,167,89,0.28); }
+    .bgn-action-cta:hover { background: var(--accent-2); transform: translateY(-1px); box-shadow: 0 6px 16px var(--accent-glow); }
     .bgn-action-cta:active { transform: scale(0.98); }
     .bgn-action-cta:disabled { opacity: 0.55; cursor: default; transform: none; }
     .bgn-action-cta.secondary {
@@ -297,7 +297,7 @@ export function beginnerDashboardPage(): string {
       background: transparent; color: var(--text-2); border: 1px solid transparent;
       padding-inline: 10px;
     }
-    .bgn-action-cta.ghost:hover { color: var(--accent-2); background: rgba(217,167,89,0.06); }
+    .bgn-action-cta.ghost:hover { color: var(--accent-2); background: var(--accent-dim); }
 
     /* ── Quick links ── */
     .bgn-quick-links {
@@ -312,7 +312,7 @@ export function beginnerDashboardPage(): string {
       color: var(--text-2); font-size: 13px; font-weight: 600;
       text-decoration: none; transition: all 180ms ease;
     }
-    .bgn-quick-link:hover { border-color: rgba(217,167,89,0.35); color: var(--accent-2); background: rgba(217,167,89,0.06); transform: translateY(-2px); }
+    .bgn-quick-link:hover { border-color: var(--accent-dim); color: var(--accent-2); background: var(--accent-dim); transform: translateY(-2px); }
     .bgn-quick-link:active { transform: scale(0.98); }
     .bgn-quick-link span { font-size: 16px; transition: transform 200ms ease; }
     .bgn-quick-link:hover span { transform: scale(1.12); }

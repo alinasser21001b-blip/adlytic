@@ -222,10 +222,10 @@ export function recommendationsPage(): string {
     font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
     background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
   }
-  .rec-conf.conf-high { color: var(--success); border-color: rgba(52,168,113,0.32); }
-  .rec-conf.conf-medium { color: var(--warning); border-color: rgba(199,122,31,0.32); }
+  .rec-conf.conf-high { color: var(--success); border-color: var(--success-dim); }
+  .rec-conf.conf-medium { color: var(--warning); border-color: var(--warning-dim); }
   .rec-conf.conf-low { color: var(--text-2); }
-  .rec-conf.conf-collecting { color: var(--accent-2); border-color: rgba(217,167,89,0.32); }
+  .rec-conf.conf-collecting { color: var(--accent-2); border-color: var(--accent-glow); }
 
   .rec-problem {
     font-size: 16px; font-weight: 800; color: var(--text);
@@ -242,7 +242,7 @@ export function recommendationsPage(): string {
     font-size: 13.5px; color: var(--text); line-height: 1.65;
     padding: 8px 11px; border-radius: 10px; margin-bottom: 6px;
     background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.05);
-    border-inline-start: 3px solid rgba(217,167,89,0.45);
+    border-inline-start: 3px solid var(--accent);
     overflow-wrap: anywhere;
   }
   .rec-evidence li:last-child { margin-bottom: 0; }
@@ -288,7 +288,7 @@ export function recommendationsPage(): string {
   .rec-modal-tip {
     display: flex; align-items: center; gap: 8px;
     padding: 10px 13px; border-radius: 10px;
-    background: rgba(52,168,113,0.06); border: 1px solid rgba(52,168,113,0.15);
+    background: var(--success-dim); border: 1px solid var(--success-dim);
     font-size: 12px; color: var(--text-2);
   }
   .rec-modal-tip svg { flex-shrink: 0; color: var(--success); }

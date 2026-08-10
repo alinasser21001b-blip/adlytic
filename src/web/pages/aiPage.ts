@@ -56,9 +56,9 @@ export function aiPage(): string {
     font-size: 12px; font-weight: 700; padding: 4px 10px; border-radius: 999px;
     background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
   }
-  .ai-conf.conf-high { color: var(--success); border-color: rgba(52,168,113,0.32); }
-  .ai-conf.conf-medium { color: var(--warning); border-color: rgba(199,122,31,0.32); }
-  .ai-conf.conf-collecting { color: var(--accent-2); border-color: rgba(217,167,89,0.32); }
+  .ai-conf.conf-high { color: var(--success); border-color: var(--success-dim); }
+  .ai-conf.conf-medium { color: var(--warning); border-color: var(--warning-dim); }
+  .ai-conf.conf-collecting { color: var(--accent-2); border-color: var(--accent-glow); }
 
   .ai-steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
   .ai-step {
@@ -69,7 +69,7 @@ export function aiPage(): string {
   .ai-step--what { border-inline-start-color: #7BAEC2; }
   .ai-step--why { border-inline-start-color: #E07264; }
   .ai-step--impact { border-inline-start-color: #D9A03F; }
-  .ai-step--do { border-inline-start-color: var(--accent); background: rgba(217,167,89,0.06); }
+  .ai-step--do { border-inline-start-color: var(--accent); background: var(--accent-dim); }
   .ai-step-label {
     display: flex; align-items: center; gap: 7px;
     font-size: 12px; font-weight: 800; color: var(--accent-2);
@@ -78,7 +78,7 @@ export function aiPage(): string {
   .ai-step-ord {
     display: inline-flex; align-items: center; justify-content: center;
     width: 20px; height: 20px; border-radius: 50%;
-    background: rgba(217,167,89,0.16); color: var(--accent-2);
+    background: var(--accent-dim); color: var(--accent-2);
     font-size: 12px; font-weight: 800; flex-shrink: 0;
   }
   .ai-step-lead { font-size: 15px; font-weight: 800; color: var(--text); line-height: 1.45; }
@@ -129,7 +129,7 @@ export function aiPage(): string {
   .chat-header {
     padding: 12px 14px; border-bottom: 1px solid var(--border);
     display: flex; align-items: center; gap: 10px;
-    background: linear-gradient(135deg, rgba(217,167,89,0.08), transparent);
+    background: linear-gradient(135deg, var(--accent-dim), transparent);
   }
   .chat-header-dot { width: 8px; height: 8px; background: var(--success); border-radius: 50%; animation: pulse 2s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1 } 50% { opacity: 0.4 } }
@@ -157,7 +157,7 @@ export function aiPage(): string {
     background: rgba(255,255,255,0.03); color: var(--text);
     border: 1px solid var(--border); border-inline-start: 3px solid var(--accent);
   }
-  .msg.user .msg-bubble { background: var(--accent-dim); color: var(--text); border: 1px solid rgba(217,167,89,0.25); }
+  .msg.user .msg-bubble { background: var(--accent-dim); color: var(--text); border: 1px solid var(--accent-glow); }
   .msg-bubble p { margin: 0 0 8px; }
   .msg-bubble p:last-child { margin-bottom: 0; }
   .msg-bubble ul { margin: 6px 0 6px 16px; padding: 0; }
@@ -178,7 +178,7 @@ export function aiPage(): string {
     color: var(--text-2); font-size: 12.5px; font-weight: 600;
     cursor: pointer; white-space: nowrap;
   }
-  .suggested-chip:active { border-color: rgba(217,167,89,0.45); }
+  .suggested-chip:active { border-color: var(--accent-dim); }
 
   .chat-input-area { padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); background: rgba(0,0,0,0.12); }
   .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
@@ -189,7 +189,7 @@ export function aiPage(): string {
     transition: border-color var(--transition), box-shadow var(--transition);
     min-height: 44px; max-height: 120px;
   }
-  .chat-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(217,167,89,0.12); }
+  .chat-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
   .chat-input::placeholder { color: var(--text-3); }
   .chat-send-btn {
     width: 44px; height: 44px; background: linear-gradient(135deg, var(--accent), var(--accent-2));
@@ -206,7 +206,7 @@ export function aiPage(): string {
 
   .data-chip {
     display: inline-flex; align-items: center; gap: 4px; padding: 5px 9px;
-    background: rgba(217,167,89,0.1); color: var(--accent-2); border: 1px solid rgba(217,167,89,0.22);
+    background: var(--accent-dim); color: var(--accent-2); border: 1px solid var(--accent-glow);
     border-radius: 999px; font-size: 12px; font-weight: 600; margin: 2px;
   }
   .tool-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }

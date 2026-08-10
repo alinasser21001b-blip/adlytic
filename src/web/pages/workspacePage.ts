@@ -155,9 +155,9 @@ export function workspacePage(): string {
   .ws-header { margin-bottom: 18px; }
   .ws-hero {
     background:
-      linear-gradient(160deg, rgba(217,167,89,0.1), transparent 45%),
+      linear-gradient(160deg, var(--accent-dim), transparent 45%),
       var(--surface);
-    border: 1px solid rgba(217,167,89,0.22);
+    border: 1px solid var(--accent-glow);
     border-radius: 18px;
     padding: 20px;
     margin-bottom: 18px;
@@ -189,7 +189,7 @@ export function workspacePage(): string {
     font-size: 11px; font-weight: 800; padding: 4px 10px; border-radius: 999px;
   }
   .ws-status-pill.ok { background: var(--success-dim); color: var(--success); }
-  .ws-status-pill.warn { background: rgba(199,122,31,0.12); color: var(--warning); }
+  .ws-status-pill.warn { background: var(--warning-dim); color: var(--warning); }
   .ws-status-pill.bad { background: var(--error-dim); color: var(--error); }
   .ws-extra-note {
     font-size: 12px; color: var(--text-3); line-height: 1.5;
@@ -267,7 +267,7 @@ export function workspacePage(): string {
   .field-error.is-shown { display: block; }
   .form-input[aria-invalid="true"] {
     border-color: var(--error);
-    box-shadow: 0 0 0 3px rgba(226,96,79,0.12);
+    box-shadow: 0 0 0 3px var(--error-dim);
   }
   .form-hint { font-size: 12px; color: var(--text-3); margin-top: 6px; line-height: 1.5; }
 

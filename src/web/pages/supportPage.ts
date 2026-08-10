@@ -37,16 +37,16 @@ export function supportPage(): string {
   display: inline-flex; align-items: center; padding: 3px 10px; border-radius: 6px;
   font-size: 11px; font-weight: 700; background: var(--surface-2); color: var(--text-2);
 }
-.ticket-category.BUG { background: rgba(226,96,79,0.15); color: #E2604F; }
+.ticket-category.BUG { background: var(--error-dim); color: #E2604F; }
 .ticket-category.FEATURE_REQUEST { background: rgba(100,149,237,0.15); color: #6495ED; }
-.ticket-category.QUESTION { background: rgba(52,168,113,0.15); color: #34A871; }
-.ticket-category.PAYMENT { background: rgba(217,167,89,0.15); color: var(--accent-2); }
+.ticket-category.QUESTION { background: var(--success-dim); color: #34A871; }
+.ticket-category.PAYMENT { background: var(--accent-dim); color: var(--accent-2); }
 .ticket-status {
   display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 6px;
   font-size: 10px; font-weight: 700; margin-inline-start: auto;
 }
-.ticket-status.OPEN { background: rgba(52,168,113,0.15); color: #34A871; }
-.ticket-status.AWAITING_CUSTOMER { background: rgba(217,167,89,0.15); color: var(--accent-2); }
+.ticket-status.OPEN { background: var(--success-dim); color: #34A871; }
+.ticket-status.AWAITING_CUSTOMER { background: var(--accent-dim); color: var(--accent-2); }
 .ticket-status.RESOLVED { background: rgba(100,149,237,0.15); color: #6495ED; }
 .ticket-status.CLOSED { background: var(--surface-2); color: var(--text-3); }
 .ticket-subject { font-size: 14px; font-weight: 700; color: var(--text); }
@@ -73,7 +73,7 @@ export function supportPage(): string {
   border-radius: 8px; font-size: 13px; color: var(--text); transition: 0.15s;
 }
 .form-input:focus, .form-select:focus, .form-textarea:focus {
-  outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px rgba(217,167,89,0.15);
+  outline: none; border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow);
 }
 .form-textarea { min-height: 120px; resize: vertical; line-height: 1.6; }
 .form-select { appearance: none; cursor: pointer; }
@@ -84,7 +84,7 @@ export function supportPage(): string {
   border-radius: 12px; cursor: pointer; transition: 0.15s; text-align: center;
 }
 .category-btn:hover { border-color: var(--border-2); background: var(--surface-2); }
-.category-btn.selected { border-color: var(--accent); background: rgba(217,167,89,0.08); }
+.category-btn.selected { border-color: var(--accent); background: var(--accent-dim); }
 .category-btn-icon { font-size: 22px; }
 .category-btn-label { font-size: 12px; font-weight: 700; color: var(--text-2); }
 .category-btn.selected .category-btn-label { color: var(--accent-2); }
@@ -116,7 +116,7 @@ export function supportPage(): string {
   white-space: pre-wrap; word-break: break-word;
 }
 .msg-bubble.user {
-  align-self: flex-end; background: rgba(217,167,89,0.12); border: 1px solid rgba(217,167,89,0.2);
+  align-self: flex-end; background: var(--accent-dim); border: 1px solid var(--accent-glow);
   border-bottom-left: 4px;
 }
 .msg-bubble.admin {

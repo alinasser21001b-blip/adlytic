@@ -232,4 +232,57 @@ for (const dir of ['src/web']) {
 }
 if (!numeralBad) console.log("numerals clean: every Arabic date formatter uses 'ar-u-nu-latn'");
 
-process.exit(bad || scaleBad || contrastBad || rootBad || dupBad || numeralBad ? 1 : 0);
+
+// ── One palette ───────────────────────────────────────────────────────
+// Daylight replaced the tokens but left 199 rgba() literals from the old
+// dark ramps sitting in nine customer pages, so panels kept their gold
+// borders months after the gold was gone. Charts were worse: they are canvas,
+// which cannot read var(), so 55 colours were hardcoded hexes and the charts
+// were still painted entirely for the previous theme.
+//
+// Two rules follow, and they pull in opposite directions on purpose:
+//   · CSS may not hardcode a colour from the retired ramps — use a token.
+//   · Canvas may not be handed a var() string — it is silently ignored and
+//     the context keeps its previous colour, which for a fresh context is
+//     black. Route it through cssVar(), which reads the token at runtime.
+const RETIRED_RAMPS = [
+  ['217,167,89', 'the old gold brand ramp'],
+  ['52,168,113', 'the old success green'],
+  ['199,122,31', 'the old warning orange'],
+  ['226,96,79', 'the old error red'],
+  ['224,114,100', 'the old error red (variant)'],
+  ['123,174,194', 'the old info blue'],
+];
+let paletteBad = 0;
+for (const dir of ['src/web']) {
+  for (const f of readdirSync(dir, { recursive: true })) {
+    if (typeof f !== 'string' || !f.endsWith('.ts')) continue;
+    const src = readFileSync(dir + '/' + f, 'utf8');
+    for (const [rgb, what] of RETIRED_RAMPS) {
+      const re = new RegExp(`rgba\\(\\s*${rgb.replace(/,/g, ',\\s*')}`, 'g');
+      const hits = [...src.matchAll(re)].length;
+      if (hits) {
+        console.error(`✗ ${dir}/${f}: ${hits}x rgba(${rgb}…) — ${what}; use a design token`);
+        paletteBad++;
+      }
+    }
+    // Canvas colour properties must never receive a var() string.
+    for (const m of src.matchAll(/(fillStyle|strokeStyle|shadowColor)\s*=\s*['"]var\(--/g)) {
+      const upTo = src.slice(0, m.index);
+      const line = upTo.split('\n').length;
+      // The rule is DESCRIBED in cssVar's own docstring, so a naive scan
+      // flags the documentation explaining the rule — on a CONTINUATION line
+      // of a block comment, which no "does this line start with //" check
+      // catches. Ask whether the match sits inside a comment instead: is the
+      // nearest preceding /* later than the nearest preceding */?
+      const inBlockComment = upTo.lastIndexOf('/*') > upTo.lastIndexOf('*/');
+      const lineText = src.split('\n')[line - 1] ?? '';
+      if (inBlockComment || /^\s*\/\//.test(lineText)) continue;
+      console.error(`✗ ${dir}/${f}:${line} assigns var() to ctx.${m[1]} — canvas ignores it and keeps the previous colour; use cssVar()`);
+      paletteBad++;
+    }
+  }
+}
+if (!paletteBad) console.log('palette clean: no retired ramp in CSS, no var() handed to a canvas');
+
+process.exit(bad || scaleBad || contrastBad || rootBad || dupBad || numeralBad || paletteBad ? 1 : 0);

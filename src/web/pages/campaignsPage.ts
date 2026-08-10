@@ -287,10 +287,10 @@ export function campaignsPage(): string {
 
     /* ── Collapsible account trends (high-contrast control) ───────────── */
     .camp-trends {
-      background: linear-gradient(180deg, rgba(217,167,89,0.08), transparent 70%), var(--surface);
-      border: 1px solid rgba(217,167,89,0.38);
+      background: linear-gradient(180deg, var(--accent-dim), transparent 70%), var(--surface);
+      border: 1px solid var(--accent-glow);
       border-radius: var(--radius-lg); margin-bottom: 20px; overflow: hidden;
-      box-shadow: 0 0 0 1px rgba(217,167,89,0.08);
+      box-shadow: 0 0 0 1px var(--accent-glow);
     }
     .camp-trends-summary {
       list-style: none; cursor: pointer; display: flex; align-items: center;
@@ -300,7 +300,7 @@ export function campaignsPage(): string {
     }
     .camp-trends-summary::-webkit-details-marker { display: none; }
     .camp-trends-summary:hover {
-      background: rgba(217,167,89,0.10);
+      background: var(--accent-dim);
     }
     .camp-trends-summary:focus-visible {
       outline: 2px solid var(--accent);
@@ -312,8 +312,8 @@ export function campaignsPage(): string {
     .camp-trends-icon {
       flex-shrink: 0; width: 36px; height: 36px; border-radius: 10px;
       display: inline-flex; align-items: center; justify-content: center;
-      background: rgba(217,167,89,0.16); color: var(--accent-2);
-      border: 1px solid rgba(217,167,89,0.35);
+      background: var(--accent-dim); color: var(--accent-2);
+      border: 1px solid var(--accent-glow);
     }
     .camp-trends-icon svg { width: 18px; height: 18px; }
     .camp-trends-copy {
@@ -328,7 +328,7 @@ export function campaignsPage(): string {
     .camp-trends-action {
       flex-shrink: 0; display: inline-flex; align-items: center; gap: 8px;
       font-size: 12.5px; font-weight: 800; color: var(--accent-2);
-      background: rgba(217,167,89,0.14); border: 1px solid rgba(217,167,89,0.42);
+      background: var(--accent-dim); border: 1px solid var(--accent-glow);
       padding: 8px 12px; border-radius: 999px; white-space: nowrap;
     }
     .camp-trends-action::after {
@@ -337,12 +337,12 @@ export function campaignsPage(): string {
       transform: rotate(45deg); margin-top: -3px; transition: transform .15s;
     }
     .camp-trends[open] {
-      border-color: rgba(217,167,89,0.55);
-      box-shadow: 0 0 0 1px rgba(217,167,89,0.12);
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-glow);
     }
     .camp-trends[open] .camp-trends-summary {
-      border-bottom: 1px solid rgba(217,167,89,0.22);
-      background: rgba(217,167,89,0.07);
+      border-bottom: 1px solid var(--accent-glow);
+      background: var(--accent-dim);
     }
     .camp-trends[open] .camp-trends-action {
       color: var(--text);
@@ -396,8 +396,8 @@ export function campaignsPage(): string {
     .observer-body { flex: 1; min-width: 0; }
     .observer-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
     .observer-msg { font-size: 12px; color: var(--text-3); line-height: 1.5; }
-    .observer-fix-btn { font-size: 11px; white-space: nowrap; background: rgba(245,166,35,0.15); color: var(--accent); border: 1px solid rgba(245,166,35,0.3); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
-    .observer-fix-btn:hover { background: rgba(245,166,35,0.25); }
+    .observer-fix-btn { font-size: 11px; white-space: nowrap; background: var(--warning-dim); color: var(--accent); border: 1px solid var(--warning-dim); border-radius: 6px; padding: 5px 12px; cursor: pointer; }
+    .observer-fix-btn:hover { background: var(--warning-dim); }
 
     /* ── Chart empty state ────────────────────────────────────────────── */
     .chart-empty {
@@ -453,7 +453,7 @@ export function campaignsPage(): string {
       padding: 8px 12px 8px 28px; font: inherit; font-size: 12.5px; font-weight: 600;
       min-width: 148px; cursor: pointer; direction: rtl;
     }
-    .camp-select:focus { outline: none; border-color: rgba(217,167,89,0.55); }
+    .camp-select:focus { outline: none; border-color: var(--accent); }
     .camp-search { align-self: flex-end; }
     .sort-hint {
       font-size: 11.5px; color: var(--text-3); padding: 0 18px 10px;
@@ -468,10 +468,10 @@ export function campaignsPage(): string {
       width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0;
       background: currentColor;
     }
-    .delivery-status.today { background: rgba(217,167,89,0.16); color: var(--accent-2); }
-    .delivery-status.delivering { background: rgba(52,168,113,0.14); color: var(--success); }
+    .delivery-status.today { background: var(--accent-dim); color: var(--accent-2); }
+    .delivery-status.delivering { background: var(--success-dim); color: var(--success); }
     .delivery-status.not-delivering { background: rgba(211,47,47,0.14); color: var(--danger, #d32f2f); }
-    .delivery-status.dormant { background: rgba(199,122,31,0.14); color: #C77A1F; }
+    .delivery-status.dormant { background: var(--warning-dim); color: #C77A1F; }
     .delivery-status.paused { background: rgba(116,106,92,0.16); color: var(--text-3); }
     .delivery-status.archived { background: rgba(116,106,92,0.12); color: var(--text-3); }
     .display-mode-toggle { display: flex; gap: 4px; align-self: flex-end; }
@@ -479,7 +479,7 @@ export function campaignsPage(): string {
       width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
       background: var(--surface); color: var(--text-3); cursor: pointer; font-size: 14px;
     }
-    .view-btn.active { color: var(--accent-2); border-color: rgba(217,167,89,0.45); background: var(--accent-dim); }
+    .view-btn.active { color: var(--accent-2); border-color: var(--accent); background: var(--accent-dim); }
     .action-group { display: flex; gap: 6px; flex-wrap: wrap; }
     .camp-cards-only .table-wrap table,
     .camp-cards-only #table-container { display: none !important; }
@@ -555,8 +555,8 @@ export function campaignsPage(): string {
     /* Headline result — objectiveKpis.cards[0], chosen by the analytics layer. */
     .camp-card-hero {
       padding: 10px 12px; margin-bottom: 10px; border-radius: 10px;
-      background: linear-gradient(135deg, rgba(217,167,89,0.10), rgba(255,255,255,0.02));
-      border: 1px solid rgba(217,167,89,0.24);
+      background: linear-gradient(135deg, var(--accent-dim), rgba(255,255,255,0.02));
+      border: 1px solid var(--accent-glow);
     }
     .camp-card-hero-label { font-size: 12px; font-weight: 600; color: var(--text-2); }
     .camp-card-hero-value {
@@ -774,7 +774,7 @@ export function campaignsPage(): string {
       background: var(--surface-2, rgba(255,255,255,0.02));
       min-height: 88px;
     }
-    .insp-signal-card.is-pos { border-color: rgba(52,168,113,0.28); }
+    .insp-signal-card.is-pos { border-color: var(--success-dim); }
     .insp-signal-card.is-neg { border-color: rgba(220,80,80,0.28); }
     .insp-signal-head {
       display: flex; align-items: center; gap: 8px;
@@ -804,12 +804,12 @@ export function campaignsPage(): string {
       color: var(--text-2); font-size: 13.5px; line-height: 1.55;
     }
     .insp-stable.is-neutral .insp-stable-icon {
-      background: rgba(148,163,184,0.12); color: var(--text-3);
+      background: var(--surface-2); color: var(--text-3);
     }
     .insp-stable-icon {
       width: 28px; height: 28px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
-      background: rgba(52,168,113,0.12); color: var(--success);
+      background: var(--success-dim); color: var(--success);
       font-size: 14px; font-weight: 700; flex-shrink: 0;
     }
     .insp-timeline-item {
@@ -909,7 +909,7 @@ export function campaignsPage(): string {
       border: 1px solid var(--border-2);
       border-inline-start: 3px solid var(--border-2);
     }
-    .diag-card.is-alert { background: rgba(224,114,100,0.07); }
+    .diag-card.is-alert { background: var(--error-dim); }
     .diag-card.postclick, .diag-card.conversion { border-inline-start-color: #7BAEC2; }
     .diag-card.click { border-inline-start-color: #E07264; }
     .diag-card.delivery { border-inline-start-color: #D9A03F; }
@@ -952,7 +952,7 @@ export function campaignsPage(): string {
       padding: 10px 14px; border-radius: 9px;
       background: var(--surface); border: 1px solid var(--border-2);
     }
-    .funnel-stage.is-break { background: rgba(123,174,194,0.12); border-color: rgba(123,174,194,0.55); }
+    .funnel-stage.is-break { background: var(--info-dim); border-color: var(--info); }
     .funnel-stage-label { font-size: 13px; color: var(--text-2); }
     .funnel-stage-count {
       font-size: 17px; font-weight: 700; font-feature-settings: 'tnum';
@@ -1026,11 +1026,11 @@ export function campaignsPage(): string {
       font-size: 10.5px; color: var(--text-3);
     }
     .inspector-rel-grades b { color: var(--text-2); font-weight: 700; }
-    .inspector-rel.rel-high { border-color: rgba(226,96,79,0.28); background: rgba(226,96,79,0.06); }
+    .inspector-rel.rel-high { border-color: var(--error-dim); background: var(--error-dim); }
     .inspector-rel.rel-high .inspector-rel-title { color: var(--error, #E2604F); }
-    .inspector-rel.rel-mid { border-color: rgba(199,122,31,0.28); background: rgba(199,122,31,0.06); }
+    .inspector-rel.rel-mid { border-color: var(--warning-dim); background: var(--warning-dim); }
     .inspector-rel.rel-mid .inspector-rel-title { color: var(--warning, #C77A1F); }
-    .inspector-rel.rel-ok { border-color: rgba(52,168,113,0.24); background: rgba(52,168,113,0.05); }
+    .inspector-rel.rel-ok { border-color: var(--success-dim); background: var(--success-dim); }
     .inspector-rel.rel-ok .inspector-rel-title { color: var(--success, #34A871); }
     .inspector-creative-thumb {
       width: 100%;
@@ -1338,10 +1338,10 @@ export function campaignsPage(): string {
           legend: { display: false },
           tooltip: {
             backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'rgba(217,167,89,0.35)',
+            borderColor: 'var(--accent-glow)',
             borderWidth: 1,
-            titleColor: '#F3EFE7',
-            bodyColor: '#D9A759',
+            titleColor: cssVar('--text', '#0B1F19'),
+            bodyColor: cssVar('--series-1', '#0E4034'),
             padding: { top: 10, bottom: 10, left: 14, right: 14 },
             cornerRadius: 10,
             titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
@@ -1370,15 +1370,15 @@ export function campaignsPage(): string {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: 'rgba(148,163,184,0.5)', maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
+            ticks: { color: 'var(--surface-2)', maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
           },
           y: {
             beginAtZero: true,
             grace: '8%',
-            grid: { color: 'rgba(255,255,255,0.035)', lineWidth: 0.8 },
+            grid: { color: cssVar('--gridline', '#D8E4DC'), lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'rgba(148,163,184,0.5)',
+              color: 'var(--border-2)',
               font: { size: 10, weight: '500' },
               maxTicksLimit: 4,
               callback: function(v) {
@@ -1516,9 +1516,9 @@ export function campaignsPage(): string {
     // gets two lines (conversations, orders) — never one line of their sum.
     var units = accountResultUnits();
     var RESULT_COLORS = [
-      ['#2DD4BF', [45, 212, 191]],
-      ['#F59E0B', [245, 158, 11]],
-      ['#A78BFA', [167, 139, 250]],
+      [cssVar('--series-1', '#0E4034'), [45, 212, 191]],
+      [cssVar('--series-4', '#B8873B'), [245, 158, 11]],
+      [cssVar('--series-3', '#7B4B7E'), [167, 139, 250]],
     ];
     var resultSeries = units.map(function (u, i) {
       var color = RESULT_COLORS[i % RESULT_COLORS.length];
@@ -1591,12 +1591,12 @@ export function campaignsPage(): string {
         label: 'الإنفاق',
         _tipLabel: 'الإنفاق',
         data: spendData,
-        borderColor: '#D9A759',
+        borderColor: cssVar('--series-1', '#0E4034'),
         _rgb: [217, 167, 89],
         _fmt: 'currency',
         fill: true, tension: 0.35,
         spanGaps: false,
-        pointBackgroundColor: '#D9A759',
+        pointBackgroundColor: cssVar('--series-1', '#0E4034'),
       }];
       var numericSpend = spendData.filter(function (v) { return v != null; });
       if (numericSpend.length >= 7) {
@@ -1659,12 +1659,12 @@ export function campaignsPage(): string {
         label: 'تكلفة ' + (cprUnit && cprUnit.labelAr ? cprUnit.labelAr : 'النتيجة'),
         _tipLabel: 'تكلفة ' + (cprUnit && cprUnit.labelAr ? cprUnit.labelAr : 'النتيجة'),
         data: cprData,
-        borderColor: '#60A5FA',
+        borderColor: cssVar('--series-2', '#4A6FA5'),
         _rgb: [96, 165, 250],
         _fmt: 'currency',
         fill: true, tension: 0.35,
         spanGaps: false,
-        pointBackgroundColor: '#60A5FA',
+        pointBackgroundColor: cssVar('--series-2', '#4A6FA5'),
       }]);
     }
 
@@ -1675,12 +1675,12 @@ export function campaignsPage(): string {
         label: 'CPM',
         _tipLabel: 'CPM',
         data: cpmData,
-        borderColor: '#C77A1F',
+        borderColor: cssVar('--series-4', '#B8873B'),
         _rgb: [199, 122, 31],
         _fmt: 'currency',
         fill: true, tension: 0.35,
         spanGaps: false,
-        pointBackgroundColor: '#C77A1F',
+        pointBackgroundColor: cssVar('--series-4', '#B8873B'),
       }]);
     }
 
@@ -1690,12 +1690,12 @@ export function campaignsPage(): string {
       upsertLine('ctrChart', 'chart-ctr', [{
         label: 'نسبة النقر (%)',
         data: ctrData,
-        borderColor: '#34A871',
+        borderColor: cssVar('--series-5', '#5F8A7D'),
         _rgb: [52, 168, 113],
         _fmt: 'pct',
         fill: true, tension: 0.35,
         spanGaps: false,
-        pointBackgroundColor: '#34A871',
+        pointBackgroundColor: cssVar('--series-5', '#5F8A7D'),
       }]);
     }
 
@@ -1705,12 +1705,12 @@ export function campaignsPage(): string {
       upsertLine('frequencyChart', 'chart-frequency', [{
         label: 'التكرار',
         data: freqData,
-        borderColor: '#FB7185',
+        borderColor: cssVar('--series-3', '#7B4B7E'),
         _rgb: [251, 113, 133],
         _fmt: 'freq',
         fill: true, tension: 0.35,
         spanGaps: false,
-        pointBackgroundColor: '#FB7185',
+        pointBackgroundColor: cssVar('--series-3', '#7B4B7E'),
       }]);
     }
     } catch (chartErr) {
@@ -1907,7 +1907,7 @@ export function campaignsPage(): string {
       ctx.clearRect(0, 0, cv.width, cv.height);
       var hasReal = vals.some(function (v) { return v != null && Number(v) > 0; });
       if (!vals.length || !hasReal) {
-        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+        ctx.strokeStyle = cssVar('--border-2', '#C7D8CE');
         ctx.beginPath(); ctx.moveTo(4, cv.height / 2); ctx.lineTo(cv.width - 4, cv.height / 2); ctx.stroke();
         return;
       }
@@ -1930,7 +1930,7 @@ export function campaignsPage(): string {
         ctx.lineTo(pad + endIdx * stepX, cv.height - 2);
         ctx.lineTo(pad + segStart * stepX, cv.height - 2);
         ctx.closePath();
-        ctx.fillStyle = 'rgba(217,167,89,0.16)';
+        ctx.fillStyle = cssVarAlpha('--series-1', 0.12, '#0E4034');
         ctx.fill();
       }
       for (var i = 0; i < numeric.length; i++) {
@@ -1944,7 +1944,7 @@ export function campaignsPage(): string {
       flushArea(numeric.length - 1);
 
       // stroke segments
-      ctx.strokeStyle = '#D9A759';
+      ctx.strokeStyle = cssVar('--series-1', '#0E4034');
       ctx.lineWidth = 2.5;
       ctx.lineJoin = 'round';
       ctx.beginPath();
@@ -1962,7 +1962,7 @@ export function campaignsPage(): string {
         if (numeric[k] == null) continue;
         ctx.beginPath();
         ctx.arc(pad + k * stepX, y(numeric[k]), 3, 0, Math.PI * 2);
-        ctx.fillStyle = '#E6BD7A';
+        ctx.fillStyle = cssVar('--warning', '#AF502A');
         ctx.fill();
         break;
       }
@@ -2957,11 +2957,11 @@ ${renderIntelligenceJs}
         label: 'الإنفاق',
         _tipLabel: 'الإنفاق',
         data: spendData,
-        borderColor: '#D9A759',
+        borderColor: cssVar('--series-1', '#0E4034'),
         _rgb: [217, 167, 89],
         _fmt: 'currency',
         fill: true, tension: 0.35, spanGaps: false,
-        pointBackgroundColor: '#D9A759',
+        pointBackgroundColor: cssVar('--series-1', '#0E4034'),
       }]);
     }
     if (hasResults) {
@@ -2969,11 +2969,11 @@ ${renderIntelligenceJs}
         label: ts.resultLabelAr || 'النتائج',
         _tipLabel: ts.resultLabelAr || 'النتائج',
         data: resultsData,
-        borderColor: '#2DD4BF',
+        borderColor: cssVar('--series-1', '#0E4034'),
         _rgb: [45, 212, 191],
         _fmt: 'int',
         fill: true, tension: 0.35, spanGaps: false,
-        pointBackgroundColor: '#2DD4BF',
+        pointBackgroundColor: cssVar('--series-1', '#0E4034'),
       }]);
     }
     if (hasEff) {
@@ -2981,11 +2981,11 @@ ${renderIntelligenceJs}
         label: ts.efficiencyLabelAr || 'الكفاءة',
         _tipLabel: ts.efficiencyLabelAr || 'الكفاءة',
         data: effData,
-        borderColor: '#60A5FA',
+        borderColor: cssVar('--series-2', '#4A6FA5'),
         _rgb: [96, 165, 250],
         _fmt: 'currency',
         fill: true, tension: 0.35, spanGaps: false,
-        pointBackgroundColor: '#60A5FA',
+        pointBackgroundColor: cssVar('--series-2', '#4A6FA5'),
       }]);
     }
   }
@@ -3001,7 +3001,7 @@ ${renderIntelligenceJs}
     var panel = document.getElementById('investigate-panel');
     if (!panel) return;
     var offlineNote = report.usedOffline
-      ? '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px;direction:rtl;text-align:right;padding:10px 12px;border:1px solid var(--border-2);border-radius:10px;background:rgba(217,167,89,0.06);">'
+      ? '<div style="font-size:12px;color:var(--text-3);margin-bottom:10px;direction:rtl;text-align:right;padding:10px 12px;border:1px solid var(--border-2);border-radius:10px;background:var(--accent-dim);">'
         + 'تم بناء هذا التحقيق من بيانات حسابك مباشرة (بدون نموذج سحابي). الأرقام من أدوات التحليل الحية.'
         + '</div>'
       : '';
@@ -3295,7 +3295,7 @@ ${renderIntelligenceJs}
           ? 'linear-gradient(90deg, #34A871, #5CC08F)'
           : 'linear-gradient(90deg, var(--accent), var(--accent-2))';
         var rowBg      = isWinner
-          ? 'background:rgba(52,168,113,0.06);border:1px solid rgba(52,168,113,0.25);border-radius:8px;padding:8px 10px;'
+          ? 'background:var(--success-dim);border:1px solid var(--success-dim);border-radius:8px;padding:8px 10px;'
           : '';
         var winnerBadge = isWinner
           ? '<span style="display:inline-block;background:#34A871;color:#fff;font-size:10px;font-weight:700;'

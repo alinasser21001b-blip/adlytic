@@ -130,8 +130,8 @@ export const dashboardStyles = `<style>
       padding: 3px 8px; border-radius: 999px; white-space: nowrap;
     }
     .ticker-badge.cat-strategy { color: var(--accent-2); background: var(--accent-dim); }
-    .ticker-badge.cat-alert { color: var(--warning); background: rgba(199,122,31,0.12); }
-    .ticker-badge.cat-performance { color: var(--success); background: rgba(52,168,113,0.1); }
+    .ticker-badge.cat-alert { color: var(--warning); background: var(--warning-dim); }
+    .ticker-badge.cat-performance { color: var(--success); background: var(--success-dim); }
     .ticker-badge.cat-insight { color: var(--text-2); background: var(--surface-2); }
     .ticker-text {
       font-size: 13px; font-weight: 700; color: var(--text);
@@ -213,7 +213,7 @@ export const dashboardStyles = `<style>
     .strategy-card.high     { border-inline-start-color: var(--warning); }
     .strategy-card.critical { border-inline-start-color: var(--error); }
     .strategy-card.medium   { border-inline-start-color: var(--accent); }
-    .strategy-card.low      { border-inline-start-color: rgba(52,168,113,0.55); }
+    .strategy-card.low      { border-inline-start-color: var(--success-dim); }
     .strategy-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
     .strategy-title { font-size: 13px; font-weight: 750; color: var(--text); line-height: 1.35; }
     .strategy-sev {
@@ -221,7 +221,7 @@ export const dashboardStyles = `<style>
       white-space: nowrap; flex-shrink: 0; color: var(--text-3); background: var(--surface-2);
     }
     .strategy-card.critical .strategy-sev { color: var(--error); background: var(--error-dim); }
-    .strategy-card.high .strategy-sev { color: var(--warning); background: rgba(199,122,31,0.1); }
+    .strategy-card.high .strategy-sev { color: var(--warning); background: var(--warning-dim); }
     .strategy-card.medium .strategy-sev { color: var(--accent-2); background: var(--accent-dim); }
     .strategy-card.low .strategy-sev { color: var(--success); background: var(--success-dim); }
     .strategy-body  { font-size: 12px; color: var(--text-2); line-height: 1.55; }
@@ -470,9 +470,9 @@ export const dashboardStyles = `<style>
       color: var(--text);
       white-space: nowrap;
     }
-    .cmd-health-pill.healthy { border-color: rgba(52,168,113,0.35); background: var(--success-dim); color: var(--success); }
-    .cmd-health-pill.warning { border-color: rgba(199,122,31,0.35); background: rgba(199,122,31,0.1); color: var(--warning); }
-    .cmd-health-pill.critical { border-color: rgba(226,96,79,0.35); background: var(--error-dim); color: var(--error); }
+    .cmd-health-pill.healthy { border-color: var(--success-dim); background: var(--success-dim); color: var(--success); }
+    .cmd-health-pill.warning { border-color: var(--warning-dim); background: var(--warning-dim); color: var(--warning); }
+    .cmd-health-pill.critical { border-color: var(--error-dim); background: var(--error-dim); color: var(--error); }
     .cmd-health-dot {
       width: 7px; height: 7px; border-radius: 50%;
       background: var(--text-3); flex-shrink: 0;
@@ -545,7 +545,7 @@ export const dashboardStyles = `<style>
       flex-shrink: 0;
     }
     .kpi-cmd-icon.success { background: var(--success-dim); color: var(--success); }
-    .kpi-cmd-icon.warning { background: rgba(199,122,31,0.1); color: var(--warning); }
+    .kpi-cmd-icon.warning { background: var(--warning-dim); color: var(--warning); }
     .kpi-cmd-icon.accent { background: var(--accent-dim); color: var(--accent-2); }
     .kpi-cmd-icon.ctr { background: rgba(96,165,250,0.1); color: var(--info); }
     .kpi-cmd-icon.cpm { background: rgba(45,212,191,0.1); color: var(--series-1); }
@@ -570,7 +570,7 @@ export const dashboardStyles = `<style>
     }
     .kpi-bench:empty { display: none; }
     .kpi-bench.good { color: var(--success); background: var(--success-dim); }
-    .kpi-bench.mid  { color: var(--warning); background: rgba(199,122,31,0.12); }
+    .kpi-bench.mid  { color: var(--warning); background: var(--warning-dim); }
     .kpi-bench.low  { color: var(--error); background: var(--error-dim); }
     .kpi-cmd-insight {
       font-size: 11.5px;
@@ -803,7 +803,7 @@ export const dashboardStyles = `<style>
     .exec-pulse-banner.warning {
       border-inline-start-color: var(--warning);
       border-left: none;
-      background: rgba(199,122,31,0.06);
+      background: var(--warning-dim);
     }
     .exec-pulse-banner.warning::before { background: var(--warning); }
     .exec-pulse-banner.critical {
@@ -870,12 +870,12 @@ export const dashboardStyles = `<style>
     }
     .exec-pulse-cta.cta-warning {
       color: var(--warning);
-      background: rgba(199,122,31,0.12);
-      border: 1px solid rgba(199,122,31,0.25);
+      background: var(--warning-dim);
+      border: 1px solid var(--warning-dim);
     }
     .exec-pulse-cta.cta-warning:hover {
-      background: rgba(199,122,31,0.22);
-      border-color: rgba(199,122,31,0.4);
+      background: var(--warning-dim);
+      border-color: var(--warning-dim);
     }
 
     /* ═══ Creative Health strip ═══ */
@@ -892,8 +892,8 @@ export const dashboardStyles = `<style>
       transition: border-color 0.15s, transform 0.15s;
     }
     .creative-health-strip:hover { transform: translateY(-1px); }
-    .creative-health-strip.ch-high { border-color: rgba(226,96,79,0.3); background: rgba(226,96,79,0.05); }
-    .creative-health-strip.ch-mid  { border-color: rgba(199,122,31,0.28); background: rgba(199,122,31,0.05); }
+    .creative-health-strip.ch-high { border-color: var(--error-dim); background: var(--error-dim); }
+    .creative-health-strip.ch-mid  { border-color: var(--warning-dim); background: var(--warning-dim); }
     .ch-icon { font-size: 20px; flex-shrink: 0; }
     .ch-body { flex: 1; min-width: 0; }
     .ch-title { font-size: 14px; font-weight: 800; color: var(--text); }
@@ -1000,8 +1000,8 @@ export const dashboardStyles = `<style>
     .main-move-sev-pill {
       font-size: 11px; font-weight: 800;
       padding: 3px 10px; border-radius: 999px;
-      background: rgba(226,96,79,0.14); color: var(--error);
-      border: 1px solid rgba(226,96,79,0.28);
+      background: var(--error-dim); color: var(--error);
+      border: 1px solid var(--error-dim);
     }
     .main-move-loop {
       display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
@@ -1091,9 +1091,9 @@ export const dashboardStyles = `<style>
     .main-move-benchmark-label { font-size: 10px; font-weight: 700; color: var(--text-3); letter-spacing: 0.03em; }
     .main-move-benchmark-value { font-size: 14px; font-weight: 800; color: var(--text); font-variant-numeric: tabular-nums; }
     .main-move-benchmark-verdict { font-size: 10.5px; color: var(--text-3); }
-    .main-move-benchmark.positive { color: var(--success); background: var(--success-dim); border-color: rgba(52,168,113,0.22); }
+    .main-move-benchmark.positive { color: var(--success); background: var(--success-dim); border-color: var(--success-dim); }
     .main-move-benchmark.positive .main-move-benchmark-value { color: var(--success); }
-    .main-move-benchmark.negative { color: var(--warning); background: rgba(199,122,31,0.08); border-color: rgba(199,122,31,0.22); }
+    .main-move-benchmark.negative { color: var(--warning); background: var(--warning-dim); border-color: var(--warning-dim); }
     .main-move-benchmark.negative .main-move-benchmark-value { color: var(--warning); }
     .main-move-more { border-top: 1px solid var(--border); }
     .main-move-more summary {
@@ -1364,17 +1364,17 @@ export const dashboardStyles = `<style>
       position: absolute; top: 0; left: 0; right: 0; height: 3px;
     }
     .pred-card { position: relative; }
-    .pred-danger .pred-sev-stripe { background: linear-gradient(90deg, var(--error), rgba(226,96,79,0.3)); }
-    .pred-warn .pred-sev-stripe { background: linear-gradient(90deg, var(--warning), rgba(199,122,31,0.3)); }
-    .pred-danger { border-color: rgba(226,96,79,0.25); }
-    .pred-warn { border-color: rgba(199,122,31,0.25); }
+    .pred-danger .pred-sev-stripe { background: linear-gradient(90deg, var(--error), var(--error-dim)); }
+    .pred-warn .pred-sev-stripe { background: linear-gradient(90deg, var(--warning), var(--warning-dim)); }
+    .pred-danger { border-color: var(--error-dim); }
+    .pred-warn { border-color: var(--warning-dim); }
     .pred-icon {
       width: 36px; height: 36px; border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
       font-size: 16px; flex-shrink: 0;
     }
     .pred-danger .pred-icon { background: var(--error-dim); }
-    .pred-warn .pred-icon { background: rgba(199,122,31,0.1); }
+    .pred-warn .pred-icon { background: var(--warning-dim); }
     .pred-body { flex: 1; min-width: 0; }
     .pred-title {
       font-weight: 700; font-size: 13.5px; color: var(--text);
@@ -1387,7 +1387,7 @@ export const dashboardStyles = `<style>
       white-space: nowrap; flex-shrink: 0;
     }
     .pred-danger .pred-type-tag { color: var(--error); background: var(--error-dim); }
-    .pred-warn .pred-type-tag { color: var(--warning); background: rgba(199,122,31,0.1); }
+    .pred-warn .pred-type-tag { color: var(--warning); background: var(--warning-dim); }
     .pred-card-body { padding: 0 16px 14px; }
     .pred-detail {
       font-size: 12.5px; color: var(--text-2); line-height: 1.5;
@@ -1443,10 +1443,10 @@ export const dashboardStyles = `<style>
       border: 1px solid transparent;
     }
     .pred-action-btn.budget {
-      background: rgba(199,122,31,0.12); color: var(--warning);
-      border-color: rgba(199,122,31,0.2);
+      background: var(--warning-dim); color: var(--warning);
+      border-color: var(--warning-dim);
     }
-    .pred-action-btn.budget:hover { background: rgba(199,122,31,0.22); border-color: rgba(199,122,31,0.4); }
+    .pred-action-btn.budget:hover { background: var(--warning-dim); border-color: var(--warning-dim); }
     .pred-action-btn.fatigue {
       background: rgba(96,165,250,0.1); color: var(--info);
       border-color: rgba(96,165,250,0.2);
@@ -1490,7 +1490,7 @@ export const dashboardStyles = `<style>
     }
     .ai-rec-icon.scale { background: var(--success-dim); }
     .ai-rec-icon.fix { background: var(--error-dim); }
-    .ai-rec-icon.pause { background: rgba(199,122,31,0.1); }
+    .ai-rec-icon.pause { background: var(--warning-dim); }
     .ai-rec-icon.watch { background: rgba(96,165,250,0.1); }
     .ai-rec-title-wrap { flex: 1; min-width: 0; }
     .ai-rec-title {
@@ -1506,7 +1506,7 @@ export const dashboardStyles = `<style>
       white-space: nowrap; flex-shrink: 0;
     }
     .ai-rec-pri.high { color: var(--error); background: var(--error-dim); }
-    .ai-rec-pri.medium { color: var(--warning); background: rgba(199,122,31,0.1); }
+    .ai-rec-pri.medium { color: var(--warning); background: var(--warning-dim); }
     .ai-rec-pri.low { color: var(--text-3); background: var(--surface-2); }
     .ai-rec-body-wrap { padding: 0 16px 12px; }
     .ai-rec-body {
@@ -1560,20 +1560,20 @@ export const dashboardStyles = `<style>
       border: 1px solid transparent;
     }
     .ai-rec-action-btn.scale {
-      background: rgba(52,168,113,0.12); color: var(--success);
-      border-color: rgba(52,168,113,0.2);
+      background: var(--success-dim); color: var(--success);
+      border-color: var(--success-dim);
     }
-    .ai-rec-action-btn.scale:hover { background: rgba(52,168,113,0.22); border-color: rgba(52,168,113,0.4); }
+    .ai-rec-action-btn.scale:hover { background: var(--success-dim); border-color: var(--success-dim); }
     .ai-rec-action-btn.fix {
-      background: rgba(226,96,79,0.12); color: var(--error);
-      border-color: rgba(226,96,79,0.2);
+      background: var(--error-dim); color: var(--error);
+      border-color: var(--error-dim);
     }
-    .ai-rec-action-btn.fix:hover { background: rgba(226,96,79,0.22); border-color: rgba(226,96,79,0.4); }
+    .ai-rec-action-btn.fix:hover { background: var(--error-dim); border-color: var(--error-dim); }
     .ai-rec-action-btn.pause {
-      background: rgba(199,122,31,0.12); color: var(--warning);
-      border-color: rgba(199,122,31,0.2);
+      background: var(--warning-dim); color: var(--warning);
+      border-color: var(--warning-dim);
     }
-    .ai-rec-action-btn.pause:hover { background: rgba(199,122,31,0.22); border-color: rgba(199,122,31,0.4); }
+    .ai-rec-action-btn.pause:hover { background: var(--warning-dim); border-color: var(--warning-dim); }
     .ai-rec-action-btn.watch, .ai-rec-action-btn.optimize {
       background: var(--accent-dim); color: var(--accent-2);
       border-color: var(--accent-dim);
@@ -1739,21 +1739,21 @@ export const dashboardStyles = `<style>
     }
     .weekly-highlight-action.best-action {
       color: var(--success);
-      background: rgba(52,168,113,0.08);
-      border: 1px solid rgba(52,168,113,0.18);
+      background: var(--success-dim);
+      border: 1px solid var(--success-dim);
     }
     .weekly-highlight-action.best-action:hover {
-      background: rgba(52,168,113,0.18);
-      border-color: rgba(52,168,113,0.3);
+      background: var(--success-dim);
+      border-color: var(--success-dim);
     }
     .weekly-highlight-action.worst-action {
       color: var(--error);
-      background: rgba(226,96,79,0.08);
-      border: 1px solid rgba(226,96,79,0.18);
+      background: var(--error-dim);
+      border: 1px solid var(--error-dim);
     }
     .weekly-highlight-action.worst-action:hover {
-      background: rgba(226,96,79,0.18);
-      border-color: rgba(226,96,79,0.3);
+      background: var(--error-dim);
+      border-color: var(--error-dim);
     }
 
     /* ═══ Mode Toggle ═══ */
@@ -1811,7 +1811,7 @@ export const dashboardStyles = `<style>
       gap: 28px;
       background:
         linear-gradient(165deg, var(--accent-dim), transparent 50%),
-        linear-gradient(340deg, rgba(52,168,113,0.04), transparent 40%),
+        linear-gradient(340deg, var(--success-dim), transparent 40%),
         var(--surface);
       border: 1px solid var(--border);
       border-radius: 20px;
@@ -2002,7 +2002,7 @@ export const dashboardStyles = `<style>
       gap: 10px;
       padding: 12px 16px;
       border-radius: 12px;
-      background: rgba(52,168,113,0.04);
+      background: var(--success-dim);
       border: 1px dashed var(--border);
     }
     .section-empty-icon { font-size: 18px; flex-shrink: 0; }
@@ -2125,7 +2125,7 @@ export const dashboardStyles = `<style>
       background: var(--border); border: 1px solid var(--border);
       border-right: 3px solid var(--border);
     }
-    .diag-card.is-alert { background: rgba(224,114,100,0.07); }
+    .diag-card.is-alert { background: var(--error-dim); }
     .diag-card.postclick, .diag-card.conversion { border-right-color: var(--info); }
     .diag-card.click { border-right-color: var(--error); }
     .diag-card.delivery { border-right-color: var(--accent); }
@@ -2178,8 +2178,8 @@ export const dashboardStyles = `<style>
        identifies the first stage to break; this makes that stage the loudest
        thing in the column rather than a faint tint. */
     .funnel-stage.is-break {
-      background: rgba(224,114,100,0.10);
-      border-color: rgba(224,114,100,0.55);
+      background: var(--error-dim);
+      border-color: var(--error);
       border-inline-start-width: 3px;
     }
     .funnel-break-flag {
@@ -2190,7 +2190,7 @@ export const dashboardStyles = `<style>
     .funnel-stage-conf {
       font-size: 12px; font-weight: 600;
       color: var(--text-3, var(--text-3));
-      border: 1px solid rgba(138,138,138,0.35);
+      border: 1px solid var(--border-2);
       border-radius: 4px; padding: 0 5px; margin-inline-start: 6px;
       white-space: nowrap;
     }
@@ -2275,11 +2275,11 @@ export const dashboardStyles = `<style>
     }
     .dash-state-action:hover { background: var(--surface-2); }
     /* OFFLINE reads neutral-grey: nothing is wrong with the account. */
-    .dash-state-offline { background: rgba(148,163,184,0.10); border-color: rgba(148,163,184,0.34); }
+    .dash-state-offline { background: var(--surface-2); border-color: var(--border-2); }
     /* PARTIAL reads amber: something is missing, but what is shown is true. */
-    .dash-state-partial { background: rgba(217,160,63,0.10); border-color: rgba(217,160,63,0.40); }
+    .dash-state-partial { background: var(--warning-dim); border-color: var(--warning-dim); }
     /* COLLECTING reads calm blue: wait, do not act. Never red, never empty. */
-    .dash-state-collecting { background: rgba(123,174,194,0.10); border-color: rgba(123,174,194,0.36); }
+    .dash-state-collecting { background: var(--info-dim); border-color: var(--info-dim); }
     /* STALE reads hatched, like every other "this is not a verdict" surface
        in the product: the numbers on screen are real, they have simply
        stopped being current. Not amber — nothing is wrong with the account. */

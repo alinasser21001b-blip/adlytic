@@ -363,13 +363,13 @@ export function settingsPage(): string {
     padding: 8px 14px;
     border-radius: 10px;
     border: 1px solid var(--border);
-    background: rgba(217,167,89,0.05);
+    background: var(--accent-dim);
     flex-shrink: 0;
   }
   .settings-version-dot {
     width: 7px; height: 7px; border-radius: 50%;
     background: var(--success);
-    box-shadow: 0 0 6px rgba(52,168,113,0.5);
+    box-shadow: 0 0 6px var(--success-dim);
     animation: pulse-dot 2s infinite;
   }
   @keyframes pulse-dot { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -439,8 +439,8 @@ export function settingsPage(): string {
   .settings-card-head-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
   .settings-profile-hero {
-    background: linear-gradient(145deg, rgba(217,167,89,0.06), var(--surface));
-    border-color: rgba(217,167,89,0.2);
+    background: linear-gradient(145deg, var(--accent-dim), var(--surface));
+    border-color: var(--accent-glow);
   }
   .settings-profile-top { display: flex; align-items: center; gap: 20px; margin-bottom: 28px; }
   .settings-avatar-lg {
@@ -448,7 +448,7 @@ export function settingsPage(): string {
     background: linear-gradient(135deg, var(--accent), var(--accent-2));
     color: #1A1613; font-size: 26px; font-weight: 800;
     display: flex; align-items: center; justify-content: center;
-    box-shadow: 0 4px 20px rgba(217,167,89,0.3);
+    box-shadow: 0 4px 20px var(--accent-glow);
     flex-shrink: 0;
   }
   .settings-profile-info { display: flex; flex-direction: column; gap: 3px; }
@@ -633,7 +633,7 @@ export function settingsPage(): string {
   .field-error.is-shown { display: block; }
   .form-input[aria-invalid="true"] {
     border-color: var(--error);
-    box-shadow: 0 0 0 3px rgba(226,96,79,0.12);
+    box-shadow: 0 0 0 3px var(--error-dim);
   }
 
   /* The toggle switch is 44x24 — wide enough, short enough to miss. Grow the
