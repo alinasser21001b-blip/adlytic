@@ -191,6 +191,7 @@ export function campaignsPage(): string {
   </details>
 
   <!-- Campaigns table — Ads Manager style: toolbar first, then rows -->
+  <div id="account-billing-banner" class="account-billing-banner" role="alert"></div>
   <div class="table-wrap camp-manager">
     <div class="camp-toolbar">
       <div class="camp-toolbar-start">
@@ -204,6 +205,7 @@ export function campaignsPage(): string {
             <option value="DELIVERING">تعمل</option>
             <option value="TODAY">تنفق اليوم</option>
             <option value="REVIEW">تحتاج مراجعة</option>
+            <option value="ACCOUNT_BLOCKED">متوقفة (ديون)</option>
             <option value="PAUSED">متوقفة</option>
             <option value="ARCHIVED">أرشيف</option>
             <option value="ALL">الكل</option>
@@ -471,9 +473,16 @@ export function campaignsPage(): string {
     .delivery-status.today { background: var(--accent-dim); color: var(--accent-2); }
     .delivery-status.delivering { background: var(--success-dim); color: var(--success); }
     .delivery-status.not-delivering { background: rgba(211,47,47,0.14); color: var(--danger, #d32f2f); }
+    .delivery-status.account-blocked { background: rgba(211,47,47,0.18); color: var(--danger, #d32f2f); font-weight: 700; }
     .delivery-status.dormant { background: var(--warning-dim); color: #C77A1F; }
     .delivery-status.paused { background: rgba(116,106,92,0.16); color: var(--text-3); }
     .delivery-status.archived { background: rgba(116,106,92,0.12); color: var(--text-3); }
+    .account-billing-banner {
+      display: none; margin: 0 0 14px; padding: 12px 14px; border-radius: 10px;
+      background: rgba(211,47,47,0.10); border: 1px solid rgba(211,47,47,0.35);
+      color: var(--danger, #d32f2f); font-size: 13px; line-height: 1.55; font-weight: 600;
+    }
+    .account-billing-banner.visible { display: block; }
     .display-mode-toggle { display: flex; gap: 4px; align-self: flex-end; }
     .view-btn {
       width: 34px; height: 34px; border-radius: 8px; border: 1px solid var(--border);
@@ -535,7 +544,8 @@ export function campaignsPage(): string {
     .camp-card[data-delivery="DELIVERING_TODAY"] { border-inline-start-color: var(--accent); }
     .camp-card[data-delivery="DELIVERING_WINDOW"] { border-inline-start-color: var(--success); }
     .camp-card[data-delivery="DORMANT_ACTIVE"] { border-inline-start-color: #C77A1F; }
-    .camp-card[data-delivery="NOT_DELIVERING"] { border-inline-start-color: var(--danger, #d32f2f); }
+    .camp-card[data-delivery="NOT_DELIVERING"],
+    .camp-card[data-delivery="ACCOUNT_BLOCKED"] { border-inline-start-color: var(--danger, #d32f2f); }
     .camp-card[data-delivery="PAUSED"],
     .camp-card[data-delivery="ARCHIVED"] { border-inline-start-color: var(--text-3); }
     .camp-card-top {
@@ -1336,17 +1346,7 @@ export function campaignsPage(): string {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'var(--accent-glow)',
-            borderWidth: 1,
-            titleColor: cssVar('--text', '#0B1F19'),
-            bodyColor: cssVar('--series-1', '#0E4034'),
-            padding: { top: 10, bottom: 10, left: 14, right: 14 },
-            cornerRadius: 10,
-            titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
-            bodyFont: { size: 12, weight: '600' },
-            displayColors: false,
+          tooltip: Object.assign(chartTooltipStyle(), {
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
             callbacks: {
               label: function (item) {
@@ -1364,13 +1364,13 @@ export function campaignsPage(): string {
                 return name ? (name + ': ' + txt) : txt;
               },
             },
-          }
+          })
         },
         scales: {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: 'var(--surface-2)', maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
+            ticks: { color: cssVar('--text-3', '#5D7066'), maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
           },
           y: {
             beginAtZero: true,
@@ -1378,7 +1378,7 @@ export function campaignsPage(): string {
             grid: { color: cssVar('--gridline', '#D8E4DC'), lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'var(--border-2)',
+              color: cssVar('--text-3', '#5D7066'),
               font: { size: 10, weight: '500' },
               maxTicksLimit: 4,
               callback: function(v) {
@@ -1720,6 +1720,9 @@ export function campaignsPage(): string {
 
   function deliveryStatus(c) {
     var tier = c.deliveryTier || '';
+    if (tier === 'ACCOUNT_BLOCKED' || c.isAccountBlocked) {
+      return { cls: 'account-blocked', text: 'متوقفة (ديون)', rank: 0 };
+    }
     if (c.isCurrentlySpending || tier === 'DELIVERING_TODAY') {
       return { cls: 'today', text: 'تنفق الآن', rank: 1 };
     }
@@ -1799,12 +1802,35 @@ export function campaignsPage(): string {
     if (filter === 'ALL') return true;
     if (filter === 'DELIVERING') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
     if (filter === 'TODAY') return tier === 'DELIVERING_TODAY' || !!c.isCurrentlySpending;
-    if (filter === 'NOT_DELIVERING') return tier === 'NOT_DELIVERING';
+    if (filter === 'NOT_DELIVERING') return tier === 'NOT_DELIVERING' || tier === 'ACCOUNT_BLOCKED';
+    if (filter === 'ACCOUNT_BLOCKED') return tier === 'ACCOUNT_BLOCKED' || !!c.isAccountBlocked;
     if (filter === 'REVIEW' || filter === 'DORMANT') return tier === 'DORMANT_ACTIVE' || !!c.isDormantActive;
     if (filter === 'ACTIVE') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE';
     if (filter === 'PAUSED') return tier === 'PAUSED';
     if (filter === 'ARCHIVED') return tier === 'ARCHIVED';
     return c.status === filter;
+  }
+
+  function renderAccountBillingBanner(campaigns) {
+    var el = document.getElementById('account-billing-banner');
+    if (!el) return;
+    var sample = (campaigns || []).find(function (c) { return c && c.accountDelivery; });
+    var ad = sample && sample.accountDelivery;
+    if (ad && ad.deliverable === false) {
+      el.textContent = ad.labelAr || 'الحساب متوقف بسبب ديون/فاتورة غير مسددة في Meta — الحملات لا تعمل';
+      el.classList.add('visible');
+      return;
+    }
+    var blockedN = (campaigns || []).filter(function (c) {
+      return c.deliveryTier === 'ACCOUNT_BLOCKED' || c.isAccountBlocked;
+    }).length;
+    if (blockedN > 0) {
+      el.textContent = blockedN + ' حملة متوقفة بسبب ديون/فاتورة Meta — لا تُحسب ضمن «تعمل»';
+      el.classList.add('visible');
+      return;
+    }
+    el.textContent = '';
+    el.classList.remove('visible');
   }
 
   function setDisplayMode(mode) {
@@ -1828,6 +1854,9 @@ export function campaignsPage(): string {
     var needsReview = campaigns.filter(function(c) {
       return c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive;
     }).length;
+    var accountBlocked = campaigns.filter(function(c) {
+      return c.deliveryTier === 'ACCOUNT_BLOCKED' || c.isAccountBlocked;
+    }).length;
     var paused = campaigns.filter(function(c) { return c.status === 'PAUSED' || c.deliveryTier === 'PAUSED'; }).length;
     var insightsSlice = recentAsc(insights, state.days);
     var totalSpendMinor = insightsSlice.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
@@ -1836,14 +1865,15 @@ export function campaignsPage(): string {
     var spendPeriod = document.getElementById('spend-period');
     if (spendPeriod) spendPeriod.textContent = 'آخر ' + state.days + ' يوماً';
 
-    renderCampStatusStrip(campaigns.length, spendingToday, deliveringInWindow, needsReview, paused);
+    renderAccountBillingBanner(campaigns);
+    renderCampStatusStrip(campaigns.length, spendingToday, deliveringInWindow, needsReview, paused, accountBlocked);
   }
 
   // One connected strip in place of the old "حملات تعمل"/"تحتاج مراجعة"
   // KPI cards — same non-overlapping segmentation as the dashboard's own
   // status strip (see renderCampaignStatusStrip in dashboardPage.ts), reused
   // here so the exact same counts never read differently on two pages.
-  function renderCampStatusStrip(total, spendingToday, deliveringInWindow, dormant, paused) {
+  function renderCampStatusStrip(total, spendingToday, deliveringInWindow, dormant, paused, accountBlocked) {
     var bar = document.getElementById('camp-status-strip-bar');
     var legend = document.getElementById('camp-status-strip-legend');
     var titleEl = document.getElementById('camp-status-strip-title');
@@ -1854,6 +1884,7 @@ export function campaignsPage(): string {
       { n: spendingToday, color: 'var(--success)', label: 'تنفق اليوم' },
       { n: restDelivering, color: 'var(--accent)', label: 'تعمل فعلًا' },
       { n: dormant, color: 'var(--warning)', label: 'بدون إنفاق' },
+      { n: accountBlocked || 0, color: 'var(--danger, #d32f2f)', label: 'متوقفة (ديون)' },
       { n: paused, color: 'var(--border-2)', label: 'متوقفة' },
     ];
     if (titleEl) titleEl.textContent = 'حملاتك الـ' + total + ' — أين تقف فعلًا؟';
@@ -2241,6 +2272,7 @@ export function campaignsPage(): string {
     var spend = Number(c.spendWindowMinor) || 0;
     var score = Math.log10(spend + 1) * 10;
     if (c.isCurrentlySpending) score += 1000;
+    else if (c.deliveryTier === 'ACCOUNT_BLOCKED' || c.isAccountBlocked) score += 900;
     else if (c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW') score += 700;
     else if (c.deliveryTier === 'NOT_DELIVERING') score += 500;
     else if (c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive) score += 450;
@@ -3431,6 +3463,26 @@ ${renderIntelligenceJs}
 
     state.campaigns = Array.isArray(campaigns) ? campaigns : [];
     state.insights = Array.isArray(insights) ? insights : [];
+
+    // Debt-stopped accounts: default "تعمل" filter would show an empty table
+    // while every row is ACCOUNT_BLOCKED. Flip to the billing filter once so
+    // the merchant sees the honest stopped state immediately.
+    if (state.statusFilter === 'DELIVERING') {
+      var blockedAll = state.campaigns.length > 0 && state.campaigns.every(function (c) {
+        return c.deliveryTier === 'ACCOUNT_BLOCKED' || c.isAccountBlocked;
+      });
+      var anyBlocked = state.campaigns.some(function (c) {
+        return c.deliveryTier === 'ACCOUNT_BLOCKED' || c.isAccountBlocked
+          || (c.accountDelivery && c.accountDelivery.deliverable === false);
+      });
+      if (blockedAll || (anyBlocked && !state.campaigns.some(function (c) {
+        return c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW';
+      }))) {
+        state.statusFilter = 'ACCOUNT_BLOCKED';
+        var statusSelectEl = document.getElementById('status-filter-select');
+        if (statusSelectEl) statusSelectEl.value = 'ACCOUNT_BLOCKED';
+      }
+    }
 
     applyFilters();
     updateSummary(state.campaigns, state.insights);

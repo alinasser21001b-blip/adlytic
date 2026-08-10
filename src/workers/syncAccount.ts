@@ -34,6 +34,7 @@ import {
   mapMetaEntityStatus,
   resolveCampaignStatusFromMeta,
 } from "../lib/metaEntityStatus";
+import { parseMetaAccountStatus } from "../lib/metaAccountDelivery";
 
 /** Defense-in-depth (G2): IQD must always map with factor=1 — never 100. */
 function currencyFactorForMapper(
@@ -338,6 +339,40 @@ export class SyncAccountWorker {
     });
   }
 
+  /**
+   * Persist Meta account_status / disable_reason so delivery classification
+   * can refuse false "تعمل" when the ad account is unsettled (debt) or
+   * disabled. Non-fatal — a failed read must not abort campaign sync.
+   */
+  async refreshAccountDeliveryStatus(
+    adAccountId: string,
+  ): Promise<{ metaAccountStatus: number | null; metaDisableReason: number | null }> {
+    const acct = await this.prisma.adAccount.findUniqueOrThrow({
+      where: { id: adAccountId },
+      select: { externalAccountId: true },
+    });
+    const tag = `[accountDelivery:${acct.externalAccountId}]`;
+    try {
+      const row = await this.meta.getAdAccount(acct.externalAccountId);
+      const metaAccountStatus = parseMetaAccountStatus(row["account_status"]);
+      const metaDisableReason = parseMetaAccountStatus(row["disable_reason"]);
+      await this.prisma.adAccount.update({
+        where: { id: adAccountId },
+        data: { metaAccountStatus, metaDisableReason },
+      });
+      console.log(
+        `${tag} account_status=${metaAccountStatus ?? "null"} disable_reason=${metaDisableReason ?? "null"}`,
+      );
+      return { metaAccountStatus, metaDisableReason };
+    } catch (e) {
+      const msg = e instanceof MetaApiError
+        ? `Meta ${e.status}: ${e.message}`
+        : e instanceof Error ? e.message : String(e);
+      console.warn(`${tag} FAILED (non-fatal) — ${msg}`);
+      return { metaAccountStatus: null, metaDisableReason: null };
+    }
+  }
+
   /** Non-fatal wrapper — campaign status drift must not fail account sync. */
   private async reconcileCampaignStatusesSafe(
     adAccountId: string,
@@ -420,6 +455,9 @@ export class SyncAccountWorker {
     const tag = `[reconcileCampaigns:${acct.externalAccountId}]`;
     const now = opts.now ?? new Date();
     console.log(`${tag} listing campaigns…`);
+
+    // Keep account_status fresh on the cheap reconcile path too (6h auto-sync).
+    await this.refreshAccountDeliveryStatus(adAccountId);
 
     const metaCampaigns = await this.meta.listCampaigns(acct.externalAccountId);
     console.log(`${tag} fetched ${metaCampaigns.length} campaign(s) from Meta`);

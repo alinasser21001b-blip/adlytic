@@ -818,17 +818,7 @@ export function dashboardPage(): string {
         interaction: { mode: 'index', intersect: false },
         plugins: {
           legend: { display: false },
-          tooltip: {
-            backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'var(--accent-glow)',
-            borderWidth: 1,
-            titleColor: cssVar('--text', '#0B1F19'),
-            bodyColor: cssVar('--series-1', '#0E4034'),
-            padding: { top: 10, bottom: 10, left: 14, right: 14 },
-            cornerRadius: 10,
-            titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
-            bodyFont: { size: 12, weight: '600' },
-            displayColors: false,
+          tooltip: Object.assign(chartTooltipStyle(), {
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },
             callbacks: {
               label: function (item) {
@@ -836,14 +826,14 @@ export function dashboardPage(): string {
                 return (item.dataset.label ? item.dataset.label + ': ' : '') + tip;
               },
             },
-          }
+          })
         },
         scales: {
           x: {
             grid: { display: false },
             border: { display: false },
             ticks: {
-              color: 'rgba(184,196,214,0.72)',
+              color: cssVar('--text-3', '#5D7066'),
               maxTicksLimit: chartXTicks(opts && opts.maxTicks),
               font: { size: chartAxisFont(), weight: '500' },
               maxRotation: 0,
@@ -854,7 +844,7 @@ export function dashboardPage(): string {
             grid: { color: cssVar('--gridline', '#D8E4DC'), lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'rgba(184,196,214,0.72)',
+              color: cssVar('--text-3', '#5D7066'),
               font: { size: chartAxisFont(), weight: '500' },
               maxTicksLimit: 4,
             },
@@ -1648,8 +1638,15 @@ export function dashboardPage(): string {
     if (activeEl) {
       var activeSpan = activeEl.querySelector('span');
       if (activeSpan) {
-        var delivering = cc ? (cc.deliveringInWindow || cc.spendingToday || 0) : 0;
-        activeSpan.textContent = delivering + ' ' + lbl('active', 'نشطة');
+        var ad = cc && cc.accountDelivery;
+        if (ad && ad.deliverable === false) {
+          activeSpan.textContent = (cc.accountBlocked || 0) + ' ' + lbl('billing-stopped', 'متوقفة (ديون)');
+          activeEl.title = ad.labelAr || ad.labelEn || '';
+        } else {
+          var delivering = cc ? (cc.deliveringInWindow || cc.spendingToday || 0) : 0;
+          activeSpan.textContent = delivering + ' ' + lbl('active', 'نشطة');
+          activeEl.title = lbl('Active campaigns', 'حملات نشطة');
+        }
       }
     }
 
@@ -1831,6 +1828,7 @@ export function dashboardPage(): string {
       { n: cc.spendingToday || 0, color: 'var(--success)', label: lbl('spending today', 'تنفق اليوم') },
       { n: delivering, color: 'var(--accent)', label: lbl('delivering', 'تعمل فعلًا') },
       { n: cc.dormantActive || 0, color: 'var(--warning)', label: lbl('no spend', 'بدون إنفاق') },
+      { n: cc.accountBlocked || 0, color: 'var(--danger, #d32f2f)', label: lbl('billing-stopped', 'متوقفة (ديون)') },
       { n: (cc.paused || 0) + (cc.archived || 0), color: 'var(--border-2)', label: lbl('stopped', 'متوقفة') },
     ];
 
@@ -1845,9 +1843,14 @@ export function dashboardPage(): string {
         + escHtml(s.label) + ' <bdi>' + s.n + '</bdi></span>';
     }).join('');
     if (note) {
-      note.textContent = cc.dormantActive > 0
-        ? lbl('"No spend" looks active in Meta but is not spending anything — not counted as delivering.', '«بدون إنفاق» تبدو نشطة في Meta لكنها لا تصرف شيئًا — لا تُحسب ضمن ما يعمل.')
-        : '';
+      var ad = cc.accountDelivery;
+      if (ad && ad.deliverable === false) {
+        note.textContent = ad.labelAr || ad.labelEn || '';
+      } else {
+        note.textContent = cc.dormantActive > 0
+          ? lbl('"No spend" looks active in Meta but is not spending anything — not counted as delivering.', '«بدون إنفاق» تبدو نشطة في Meta لكنها لا تصرف شيئًا — لا تُحسب ضمن ما يعمل.')
+          : '';
+      }
     }
   }
 

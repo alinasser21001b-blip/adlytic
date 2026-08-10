@@ -20,7 +20,16 @@ const fake: DashboardDTO = {
     currency: "IQD", currencyMinorFactor: 1, lastSyncedAt: null, activeCampaigns: 2,
     campaignCounts: {
       total: 5, activeStatus: 17, paused: 1, archived: 1, spendingToday: 2,
-      deliveringInWindow: 4, dormantActive: 13, withMetrics: 2, deliveryWindowDays: 30,
+      deliveringInWindow: 4, dormantActive: 13, accountBlocked: 0, withMetrics: 2,
+      deliveryWindowDays: 30, recentDeliveryDays: 2,
+      accountDelivery: {
+        deliverable: true,
+        metaAccountStatus: 1,
+        metaDisableReason: 0,
+        reason: null,
+        labelAr: '',
+        labelEn: '',
+      },
     },
   },
   health: { score: 51, band: "attention" },

@@ -122,6 +122,12 @@ model AdAccount {
   lastSyncedAt         DateTime?    @map("last_synced_at")
   lifetimeSpendMinor   BigInt       @default(0) @map("lifetime_spend_minor")
   lifetimeSyncedAt     DateTime?    @map("lifetime_synced_at")
+  /// Meta Marketing API `account_status` (1=ACTIVE, 3=UNSETTLED, …). Null until
+  /// the first sync that fetches it. Used to block false "delivering" when the
+  /// account cannot spend (debt / billing hold) even though campaigns stay ACTIVE.
+  metaAccountStatus    Int?         @map("meta_account_status")
+  /// Meta Marketing API `disable_reason` numeric code (0=NONE, 3=RISK_PAYMENT, …).
+  metaDisableReason    Int?         @map("meta_disable_reason")
   // ── Phase 1 (additive, non-destructive) — System User / FB Login groundwork ──
   // Nullable FK into the new MetaConnection. When set, the connection is the
   // authoritative token source; the legacy token columns above remain for

@@ -2212,6 +2212,28 @@ function cssVarAlpha(name, alpha, fallback) {
   return 'rgba(' + parseInt(m[1], 16) + ',' + parseInt(m[2], 16) + ',' + parseInt(m[3], 16) + ',' + alpha + ')';
 }
 
+/**
+ * Chart.js canvas tooltip style matched to the Daylight surface — never a
+ * near-black box on a light dashboard. Chart.js cannot resolve CSS variables
+ * in canvas, so every colour is resolved through cssVar() first.
+ */
+function chartTooltipStyle() {
+  return {
+    backgroundColor: cssVar('--surface', '#FFFFFF'),
+    borderColor: cssVar('--border-2', '#C7D8CE'),
+    borderWidth: 1,
+    titleColor: cssVar('--text', '#0B1F19'),
+    bodyColor: cssVar('--text-2', '#2F433B'),
+    padding: { top: 10, bottom: 10, left: 14, right: 14 },
+    cornerRadius: 10,
+    titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
+    bodyFont: { size: 12, weight: '600', family: "'IBM Plex Sans Arabic', sans-serif" },
+    displayColors: false,
+    caretPadding: 8,
+    boxPadding: 4,
+  };
+}
+
 (function () {
   var _errQueue = [];
   function _reportErr(msg, src, line) {
