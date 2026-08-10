@@ -158,7 +158,7 @@ import { currencyFactorNeedsHeal, currencyMinorFactorFor, moneyFormatterFor, res
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor, accountLocalDateFloor, getAccountLocalDateString } from '../lib/campaignSpending';
-import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
+import { classifyCampaignDelivery, accountDeliveryHold, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
 import {
   efficiencyForObjective,
   resultCountForObjective,
@@ -2722,7 +2722,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       include: {
         industryProfile: true,
         adAccounts: {
-          select: { id: true, name: true, currency: true, currencyMinorFactor: true, status: true, lastSyncedAt: true, externalAccountId: true, tokenExpiresAt: true },
+          select: { id: true, name: true, currency: true, currencyMinorFactor: true, status: true, lastSyncedAt: true, externalAccountId: true, tokenExpiresAt: true, metaAccountStatus: true },
         },
       },
     });
@@ -2732,7 +2732,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         acct.currencyMinorFactor = healed;
       }
     }
-    return c.json(safeJson(ws));
+    // The hold is computed HERE, not in the browser: the frontend renders
+    // the verdict, it does not interpret Meta status codes.
+    const payload = {
+      ...safeJson(ws) as object,
+      adAccounts: ws.adAccounts.map((a) => ({
+        ...(safeJson(a) as object),
+        accountHold: accountDeliveryHold(a.metaAccountStatus),
+      })),
+    };
+    return c.json(payload);
   });
 
   /** PATCH /api/workspaces/:workspaceId — update workspace name / industry. */
@@ -3059,11 +3068,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
         const resultsWindow = resultCountForObjective(purposeKey, windowTotals);
         const costPerResultMajor = efficiencyForObjective(purposeKey, windowTotals, factor);
+        const lastSpendIso = lastSpendByCampaign.get(camp.id) ?? null;
         const deliveryTier = classifyCampaignDelivery({
           status: camp.status,
           metaEffectiveStatus: camp.metaEffectiveStatus,
           spendTodayMinor,
           spendWindowMinor,
+          daysSinceLastSpend: lastSpendIso
+            ? Math.floor((accountLocalTodayFloor(account.timezone).getTime() - new Date(lastSpendIso).getTime()) / 86400000)
+            : null,
+          accountHalted: accountDeliveryHold(account.metaAccountStatus).halted,
         });
         // ── P4.2 — the KPI set THIS campaign's objective cares about ───────
         //

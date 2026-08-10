@@ -241,6 +241,26 @@ export class MetaClient {
   }
 
   /**
+   * Account-level delivery status — the field that says whether Meta is
+   * willing to deliver ANYTHING on this account (1=ACTIVE, 3=UNSETTLED…).
+   * One read of the account node; no insights quota involved. Read-only.
+   */
+  async getAccountStatus(externalAccountId: string): Promise<{
+    accountStatus: number | null;
+    disableReason: number | null;
+  }> {
+    const params = new URLSearchParams({ fields: "account_status,disable_reason" });
+    const url = `${this.base}/${externalAccountId}?${params.toString()}`;
+    const page = await this.requestWithRetry(url);
+    const row = page as unknown as Record<string, unknown>;
+    const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+    return {
+      accountStatus: num(row["account_status"]),
+      disableReason: num(row["disable_reason"]),
+    };
+  }
+
+  /**
    * List Meta Pixels / Datasets registered on this ad account. Read-only
    * discovery — used to find a dataset_id for getDatasetQuality() without
    * asking the merchant to paste one in manually.

@@ -2291,6 +2291,11 @@ export const dashboardStyles = `<style>
        in the product: the numbers on screen are real, they have simply
        stopped being current. Not amber — nothing is wrong with the account. */
     .dash-state-stale { background: var(--hatch); border-color: var(--border-2); }
+    /* ACCOUNT_HALTED is the one state that IS a verdict: Meta has stopped
+       the whole account (unsettled balance, disabled). Error ramp, full
+       border — this must not read like weather. */
+    .dash-state-halted { background: var(--error-dim); border-color: var(--error); }
+    .dash-state-halted .dash-state-title { color: var(--error); }
 
     /* ═══ FILTER BOTTOM SHEET (phones) ═══════════════════════════════════
        The inline tab row is a desktop control. On a phone it becomes a

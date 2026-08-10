@@ -2,7 +2,25 @@ import type { PrismaClient } from '@prisma/client';
 import { EntityType } from '@prisma/client';
 
 import { accountLocalTodayFloor, accountLocalDateFloor, isCurrentlySpending } from './campaignSpending';
-import { classifyCampaignDelivery, type DeliveryTier } from './campaignLifecycle';
+import { accountDeliveryHold, classifyCampaignDelivery, type DeliveryTier } from './campaignLifecycle';
+
+/**
+ * The account-level gate plus per-campaign spend recency, fetched HERE so no
+ * caller can forget them. The extra cost is one indexed AdAccount read and a
+ * _max aggregate on a groupBy that was already running.
+ */
+async function accountHaltedFor(prisma: PrismaClient, adAccountId: string): Promise<boolean> {
+  const acct = await prisma.adAccount.findUnique({
+    where: { id: adAccountId },
+    select: { metaAccountStatus: true },
+  });
+  return accountDeliveryHold(acct?.metaAccountStatus).halted;
+}
+
+function daysSince(tickToday: Date, lastDate: Date | null | undefined): number | null {
+  if (!lastDate) return null;
+  return Math.floor((tickToday.getTime() - lastDate.getTime()) / 86400000);
+}
 
 export interface CampaignCounts {
   /** All synced campaigns (excludes DELETED). */
@@ -98,15 +116,20 @@ export async function getCampaignCounts(
             date: { gte: sinceDate },
           },
           _sum: { spend: true },
+          _max: { date: true },
         })
       : Promise.resolve([]),
   ]);
+  const accountHalted = await accountHaltedFor(prisma, adAccountId);
 
   const spendTodayByCampaign = new Map(
     todayStats.map((s) => [s.entityId, Number(s.spend)]),
   );
   const spendWindowByCampaign = new Map(
     windowAgg.map((a) => [a.entityId, Number(a._sum.spend ?? 0)]),
+  );
+  const lastSpendByCampaign = new Map(
+    windowAgg.map((a) => [a.entityId, a._max?.date ?? null]),
   );
 
   let spendingToday = 0;
@@ -121,6 +144,8 @@ export async function getCampaignCounts(
       metaEffectiveStatus: c.metaEffectiveStatus,
       spendTodayMinor: spendToday,
       spendWindowMinor: spendWindow,
+      daysSinceLastSpend: daysSince(tickToday, lastSpendByCampaign.get(c.id)),
+      accountHalted,
     });
     if (tier === 'DELIVERING_TODAY') spendingToday += 1;
     if (tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW') deliveringInWindow += 1;
@@ -185,14 +210,19 @@ export async function getCampaignCatalog(
             date: { gte: sinceDate },
           },
           _sum: { spend: true },
+          _max: { date: true },
         })
       : Promise.resolve([]),
   ]);
+  const accountHalted = await accountHaltedFor(prisma, adAccountId);
   const spendTodayByCampaign = new Map(
     todayStats.map((s) => [s.entityId, Number(s.spend)]),
   );
   const spendWindowByCampaign = new Map(
     windowAgg.map((a) => [a.entityId, Number(a._sum.spend ?? 0)]),
+  );
+  const lastSpendByCampaign = new Map(
+    windowAgg.map((a) => [a.entityId, a._max?.date ?? null]),
   );
 
   return campaigns.map((c, index) => {
@@ -208,6 +238,8 @@ export async function getCampaignCatalog(
       metaEffectiveStatus: c.metaEffectiveStatus,
       spendTodayMinor: spendToday,
       spendWindowMinor: spendWindow,
+      daysSinceLastSpend: daysSince(tickToday, lastSpendByCampaign.get(c.id)),
+      accountHalted,
     });
     return {
       ref: index + 1,

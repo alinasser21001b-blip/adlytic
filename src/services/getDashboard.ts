@@ -100,6 +100,7 @@ import {
   buildEntityObjectiveKpis,
   type EntityFunnelResult,
 } from "./entityIntelligence";
+import { accountDeliveryHold, type AccountDeliveryHold } from "../lib/campaignLifecycle";
 import { classificationConfidenceFromReason } from "../analytics/confidence";
 import { resolveAccountResultKey } from "../analytics/accountResultKey";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
@@ -188,6 +189,12 @@ export interface ResultBreakdownDTO {
 export interface DashboardDTO {
   /** Present and true only when the workspace has no ad account yet. */
   empty?: true;
+  /**
+   * Account-level delivery verdict (Meta account_status). When halted,
+   * NOTHING on this account delivers — the UI must show this before any
+   * per-campaign detail, because it explains all of them at once.
+   */
+  accountHold?: AccountDeliveryHold;
   workspace?: {
     id: string;
     name: string;
@@ -1642,6 +1649,11 @@ export async function getDashboard(
       activeCampaigns,
       campaignCounts,
     },
+    // The account-level delivery verdict, computed by the engine. The
+    // dashboard renders it verbatim in the state strip — a merchant whose
+    // account Meta halted for an unpaid balance must read that on the FIRST
+    // screen, not deduce it from five flat sparklines.
+    accountHold: accountDeliveryHold(account.metaAccountStatus),
     health: headlineHealth,
     creativeHealth,
     kpis,

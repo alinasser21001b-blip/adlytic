@@ -64,6 +64,19 @@ export function campaignsPage(): string {
     </div>
   </div>
 
+  <!-- Account delivery hold — rendered ABOVE everything, because when Meta
+       has halted the ACCOUNT (unpaid balance, disabled, closed), every number
+       below is history and every campaign pill is downstream of this one
+       fact. Populated from the server-computed accountHold verdict; this
+       page interprets nothing. -->
+  <div class="account-hold-banner" id="account-hold-banner" style="display:none;" role="alert" dir="rtl">
+    <div class="account-hold-icon" aria-hidden="true">⛔</div>
+    <div class="account-hold-body">
+      <div class="account-hold-title" id="account-hold-title"></div>
+      <div class="account-hold-advice" id="account-hold-advice"></div>
+    </div>
+  </div>
+
   <!-- Hero row: total spend (unique figure) + the unified honest status
        strip (reused from the dashboard — see .status-strip-* in layout.ts).
        The strip replaces what used to be two separate KPI cards ("حملات
@@ -471,6 +484,15 @@ export function campaignsPage(): string {
     .delivery-status.today { background: var(--accent-dim); color: var(--accent-2); }
     .delivery-status.delivering { background: var(--success-dim); color: var(--success); }
     .delivery-status.not-delivering { background: rgba(211,47,47,0.14); color: var(--danger, #d32f2f); }
+    .delivery-status.halted { background: var(--error-dim); color: var(--error); border: 1px solid var(--error); }
+    .account-hold-banner {
+      display: flex; align-items: flex-start; gap: 12px;
+      background: var(--error-dim); border: 1px solid var(--error);
+      border-radius: var(--radius-lg); padding: 14px 16px; margin-bottom: 16px;
+    }
+    .account-hold-icon { font-size: 20px; flex-shrink: 0; line-height: 1.4; }
+    .account-hold-title { font-size: 14px; font-weight: 700; color: var(--error); margin-bottom: 3px; }
+    .account-hold-advice { font-size: 13px; color: var(--text-2); line-height: 1.7; max-width: 70ch; }
     .delivery-status.dormant { background: var(--warning-dim); color: #C77A1F; }
     .delivery-status.paused { background: rgba(116,106,92,0.16); color: var(--text-3); }
     .delivery-status.archived { background: rgba(116,106,92,0.12); color: var(--text-3); }
@@ -1720,6 +1742,13 @@ export function campaignsPage(): string {
 
   function deliveryStatus(c) {
     var tier = c.deliveryTier || '';
+    // The account gate comes first — before isCurrentlySpending, because
+    // money recorded earlier today was spent BEFORE the halt, and this pill
+    // answers "is it delivering NOW". The server already ranked the gate
+    // above spend evidence; the display must not un-rank it.
+    if (tier === 'ACCOUNT_HALTED') {
+      return { cls: 'halted', text: 'متوقفة — الحساب موقوف', rank: 0 };
+    }
     if (c.isCurrentlySpending || tier === 'DELIVERING_TODAY') {
       return { cls: 'today', text: 'تنفق الآن', rank: 1 };
     }
@@ -1798,10 +1827,10 @@ export function campaignsPage(): string {
     var tier = c.deliveryTier || '';
     if (filter === 'ALL') return true;
     if (filter === 'DELIVERING') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
+    if (filter === 'NOT_DELIVERING') return tier === 'NOT_DELIVERING' || tier === 'ACCOUNT_HALTED';
     if (filter === 'TODAY') return tier === 'DELIVERING_TODAY' || !!c.isCurrentlySpending;
-    if (filter === 'NOT_DELIVERING') return tier === 'NOT_DELIVERING';
     if (filter === 'REVIEW' || filter === 'DORMANT') return tier === 'DORMANT_ACTIVE' || !!c.isDormantActive;
-    if (filter === 'ACTIVE') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE';
+    if (filter === 'ACTIVE') return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW' || tier === 'DORMANT_ACTIVE' || tier === 'ACCOUNT_HALTED';
     if (filter === 'PAUSED') return tier === 'PAUSED';
     if (filter === 'ARCHIVED') return tier === 'ARCHIVED';
     return c.status === filter;
@@ -3429,6 +3458,21 @@ ${renderIntelligenceJs}
       }
     }
 
+      // Account-level delivery hold — the server computed the verdict; this
+      // only prints it. Shown/hidden on every load so a settled balance
+      // clears the banner without a hard refresh.
+      var holdBanner = document.getElementById('account-hold-banner');
+      if (holdBanner) {
+        var hold = primary && primary.accountHold;
+        if (hold && hold.halted) {
+          document.getElementById('account-hold-title').textContent = hold.labelAr || '';
+          document.getElementById('account-hold-advice').textContent = hold.adviceAr || '';
+          holdBanner.style.display = 'flex';
+        } else {
+          holdBanner.style.display = 'none';
+        }
+      }
+
     state.campaigns = Array.isArray(campaigns) ? campaigns : [];
     state.insights = Array.isArray(insights) ? insights : [];
 
@@ -3823,6 +3867,21 @@ ${renderIntelligenceJs}
       // budgets / total spend uses the correct factor. /api/workspaces/:id
       // returns adAccounts[*].{currency, currencyMinorFactor}.
       var primary = wsData && Array.isArray(wsData.adAccounts) && wsData.adAccounts[0];
+
+      // Account-level delivery hold — the server computed the verdict; this
+      // only prints it. Shown/hidden on every load so a settled balance
+      // clears the banner without a hard refresh.
+      var holdBanner = document.getElementById('account-hold-banner');
+      if (holdBanner) {
+        var hold = primary && primary.accountHold;
+        if (hold && hold.halted) {
+          document.getElementById('account-hold-title').textContent = hold.labelAr || '';
+          document.getElementById('account-hold-advice').textContent = hold.adviceAr || '';
+          holdBanner.style.display = 'flex';
+        } else {
+          holdBanner.style.display = 'none';
+        }
+      }
       if (primary) {
         if (primary.currency) state.currency = primary.currency;
         if (primary.currency === 'IQD') {

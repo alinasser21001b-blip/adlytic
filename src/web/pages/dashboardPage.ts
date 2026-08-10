@@ -1040,6 +1040,15 @@ export function dashboardPage(): string {
   //  No state is invented here: OFFLINE and PARTIAL are things the browser
   //  observed first-hand, everything else is copied off the DTO.
   var DASH_STATE_DEFS = {
+    ACCOUNT_HALTED: {
+      cls: 'halted', icon: '⛔',
+      // Title and body are OVERWRITTEN from the DTO's accountHold verdict at
+      // render time — the engine names the exact hold (unsettled balance,
+      // disabled, closed) and this strip prints it verbatim. These defaults
+      // exist only so a missing field never renders an empty banner.
+      title: 'الحساب الإعلاني موقوف لدى Meta',
+      body: 'كل الحملات متوقفة عن العرض حتى معالجة حالة الحساب.'
+    },
     OFFLINE: {
       cls: 'offline', icon: '⚡',
       title: 'لا يوجد اتصال بالإنترنت',
@@ -1064,7 +1073,7 @@ export function dashboardPage(): string {
     }
   };
   // Render order = urgency order. OFFLINE first: it explains the others.
-  var DASH_STATE_ORDER = ['OFFLINE', 'STALE', 'PARTIAL', 'INSUFFICIENT_DATA'];
+  var DASH_STATE_ORDER = ['ACCOUNT_HALTED', 'OFFLINE', 'STALE', 'PARTIAL', 'INSUFFICIENT_DATA'];
   var _dashStates = {};
   var _failedSections = {};
 
@@ -3891,6 +3900,16 @@ export function dashboardPage(): string {
       safeRender('weeklyReport', function () { renderWeeklyReport(dashData.weeklyReport); });
 
       safeRender('stateMatrix', function () {
+        // ACCOUNT_HALTED — the engine's verdict on Meta account_status,
+        // printed verbatim. First in the strip because it explains every
+        // other symptom on the page: the flat charts, the zero budget
+        // utilisation, the dormant-looking campaigns.
+        var hold = dashData.accountHold;
+        if (hold && hold.halted) {
+          DASH_STATE_DEFS.ACCOUNT_HALTED.title = hold.labelAr || DASH_STATE_DEFS.ACCOUNT_HALTED.title;
+          DASH_STATE_DEFS.ACCOUNT_HALTED.body = hold.adviceAr || DASH_STATE_DEFS.ACCOUNT_HALTED.body;
+        }
+        setDashState('ACCOUNT_HALTED', !!(hold && hold.halted));
         // INSUFFICIENT_DATA — copied off the reconciled verdict, never inferred.
         // Absent intelligence is NOT insufficient data: it means the account
         // has no single resolvable purpose, which is a different thing

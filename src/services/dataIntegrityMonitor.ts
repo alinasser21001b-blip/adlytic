@@ -6,7 +6,7 @@ import {
   cleanupOrphanedCampaignStats,
   findGloballyOrphanedCampaignEntityIds,
 } from '../lib/campaignDataIsolation';
-import { classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
+import { accountDeliveryHold, classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
 import { accountLocalDateFloor } from '../lib/campaignSpending';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
@@ -56,12 +56,38 @@ export async function runDataIntegrityCheck(
     id: string;
     timezone: string;
     lastSyncedAt: Date | null;
+    /** Meta account_status — the upstream delivery gate. Optional so older
+        callers compile; absent means "not synced yet", never "healthy". */
+    metaAccountStatus?: number | null;
   },
   opts: { windowDays?: number } = {},
 ): Promise<DataIntegrityReport> {
   const windowDays = opts.windowDays ?? DELIVERY_WINDOW_DAYS;
   const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
   const checks: IntegrityCheck[] = [];
+
+  // The account-level hold is the FIRST check, because it explains every
+  // other symptom at once: flat-lined spend, zero delivery, dormant-looking
+  // campaigns. Reporting those without naming their upstream cause sends the
+  // merchant chasing five campaign-level ghosts.
+  const hold = accountDeliveryHold(account.metaAccountStatus);
+  if (hold.halted) {
+    checks.push({
+      code: 'ACCOUNT_DELIVERY_HALTED',
+      severity: 'CRITICAL',
+      message: `Meta account_status ${hold.code} (${hold.kind}) — the account itself blocks all delivery`,
+      messageAr: hold.labelAr,
+      value: hold.code ?? undefined,
+    });
+  } else if (hold.kind === 'GRACE_PERIOD') {
+    checks.push({
+      code: 'ACCOUNT_GRACE_PERIOD',
+      severity: 'WARN',
+      message: 'Meta account in billing grace period — delivery stops if the balance is not settled',
+      messageAr: hold.labelAr,
+      value: hold.code ?? undefined,
+    });
+  }
 
   const knownCampaigns = await prisma.campaign.findMany({
     where: { adAccountId: account.id },
@@ -108,6 +134,7 @@ export async function runDataIntegrityCheck(
       status: c.status,
       metaEffectiveStatus: c.metaEffectiveStatus,
       spendWindowMinor: spendWindowByCampaign.get(c.id) ?? 0,
+      accountHalted: hold.halted,
     });
     if (tier === 'DORMANT_ACTIVE') staleActiveCount += 1;
   }

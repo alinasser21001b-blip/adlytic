@@ -111,6 +111,12 @@ model AdAccount {
   timezone             String       @default("UTC")
   status               EntityStatus @default(ACTIVE)
   countryCode          String?      @map("country_code") @db.VarChar(2)
+  /// Meta account_status, refreshed on every sync (1=ACTIVE, 3=UNSETTLED …).
+  /// The delivery classifier gates EVERY campaign on this: an unsettled
+  /// account delivers nothing regardless of per-campaign status.
+  metaAccountStatus    Int?         @map("meta_account_status")
+  /// Meta disable_reason when the account is disabled; null otherwise.
+  metaDisableReason    Int?         @map("meta_disable_reason")
   accessTokenEncrypted String?      @map("access_token_encrypted")
   /// Which TOKEN_ENCRYPTION_KEY generation encrypted the value above.
   /// NULL = written before versioning existed, i.e. generation 1 by

@@ -255,6 +255,30 @@ export class SyncAccountWorker {
 
     try {
       try {
+        // ─ Account-level delivery status ────────────────────────────────
+        // account_status was fetched once at connect time and never again,
+        // so an account Meta suspended for unpaid bills kept rendering every
+        // campaign as delivering. Refresh it each sync; the classifier gates
+        // all campaigns on it. A failure here keeps the LAST KNOWN status
+        // rather than failing the sync or resetting to healthy — both of
+        // those would erase a hold we already knew about.
+        try {
+          const st = await this.meta.getAccountStatus(acct.externalAccountId);
+          if (st.accountStatus != null &&
+              (st.accountStatus !== acct.metaAccountStatus || st.disableReason !== acct.metaDisableReason)) {
+            await this.prisma.adAccount.update({
+              where: { id: adAccountId },
+              data: { metaAccountStatus: st.accountStatus, metaDisableReason: st.disableReason },
+            });
+            acct = { ...acct, metaAccountStatus: st.accountStatus, metaDisableReason: st.disableReason };
+            console.log(`${tag} account_status → ${st.accountStatus}${st.disableReason != null ? ` (disable_reason ${st.disableReason})` : ''}`);
+          }
+        } catch (stErr) {
+          console.warn(`${tag} account_status refresh failed — keeping last known (${acct.metaAccountStatus ?? 'never synced'}):`,
+            stErr instanceof Error ? stErr.message : String(stErr));
+        }
+
+
         // ─ Extract ────────────────────────────────────────────────────────
         console.log(`${tag} Fetching account-level insights from Meta…`);
         const rows = await this.meta.getInsights({
