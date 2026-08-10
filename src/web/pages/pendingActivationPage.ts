@@ -13,7 +13,7 @@ export function pendingActivationPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#100E0D">
+  <meta name="theme-color" content="#F2F7F4">
   <title>بانتظار التفعيل — Adlytic</title>
   <link rel="stylesheet" href="${BASE_CSS_PATH}">
   <style>

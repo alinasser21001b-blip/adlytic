@@ -1,3 +1,5 @@
+import { TOKENS_CSS_PATH } from '../layout';
+
 export function adminInboxPage(): string {
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -5,18 +7,15 @@ export function adminInboxPage(): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>صندوق الدعم — Adlytic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <!-- Tokens + typefaces from the design system, no shell selectors.
+       This page used to carry a private copy of :root written for the
+       dark theme; when the product went light it stayed black, because
+       it was not reading the design system at all. -->
+  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #100E0D; --surface: #1A1613; --surface-2: #221D19; --border: #322B25;
-      --text: #F3EFE7; --text-2: #B8AC9C; --text-3: #746A5C;
-      --accent: #D9A759; --accent-2: #E8C07A;
-      --success: #34A871; --warning: #C77A1F; --error: #E2604F;
-      --font: 'Tajawal', sans-serif;
-    }
+    /* The page was authored against --font; the system calls it --font-body. */
+    :root { --font: var(--font-body); }
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
     a { color: inherit; text-decoration: none; }
     button, input, select, textarea { font: inherit; color: inherit; }
@@ -34,7 +33,7 @@ export function adminInboxPage(): string {
     }
     @keyframes gate-spin { to { transform: rotate(360deg); } }
     .sidebar {
-      width: 240px; flex-shrink: 0; background: linear-gradient(180deg, #1A1613, #14110F);
+      width: 240px; flex-shrink: 0; background: var(--surface);
       border-left: 1px solid var(--border); display: flex; flex-direction: column;
       position: sticky; top: 0; height: 100vh;
     }
@@ -50,19 +49,19 @@ export function adminInboxPage(): string {
       justify-content: space-between;
     }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(217,167,89,0.14); color: var(--accent-2); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
     .nav-count {
       display: inline-flex; align-items: center; justify-content: center; min-width: 20px;
       height: 20px; border-radius: 999px; font-size: 11px; font-weight: 800; padding: 0 6px;
     }
     .nav-count.red { background: var(--error); color: #fff; }
-    .nav-count.gold { background: rgba(217,167,89,0.2); color: var(--accent-2); }
+    .nav-count.gold { background: var(--accent-dim); color: var(--accent-2); }
     .nav-count.muted { background: var(--surface-2); color: var(--text-3); }
     .nav-foot { padding: 12px; border-top: 1px solid var(--border); }
     .main-wrapper { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar {
       height: 60px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(26,22,19,0.92);
+      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.92);
       backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
     }
     .topbar h1 { font-size: 16px; font-weight: 800; }
@@ -77,15 +76,15 @@ export function adminInboxPage(): string {
     }
     .ticket-list-header .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
     .field {
-      background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+      background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 9px;
       padding: 7px 10px; color: var(--text); min-width: 0; font-size: 12.5px;
     }
-    .field:focus { outline: none; border-color: rgba(217,167,89,0.55); }
+    .field:focus { outline: none; border-color: var(--accent); }
     .ticket-item {
       padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.15s;
     }
     .ticket-item:hover { background: var(--surface-2); }
-    .ticket-item.active { background: rgba(217,167,89,0.08); border-right: 3px solid var(--accent); }
+    .ticket-item.active { background: var(--accent-dim); border-right: 3px solid var(--accent); }
     .ticket-item.unread { border-right: 3px solid var(--error); }
     .ticket-subject { font-weight: 700; font-size: 13px; margin-bottom: 4px; line-height: 1.4; }
     .ticket-meta { font-size: 11px; color: var(--text-3); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
@@ -105,8 +104,8 @@ export function adminInboxPage(): string {
       white-space: pre-wrap; word-break: break-word;
     }
     .msg.user { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
-    .msg.admin { align-self: flex-end; background: rgba(217,167,89,0.1); border: 1px solid rgba(217,167,89,0.2); }
-    .msg.internal { align-self: flex-end; background: rgba(226,96,79,0.08); border: 1px dashed rgba(226,96,79,0.3); }
+    .msg.admin { align-self: flex-end; background: var(--accent-dim); border: 1px solid var(--accent-dim); }
+    .msg.internal { align-self: flex-end; background: var(--error-dim); border: 1px dashed var(--error); }
     .msg-sender { font-size: 11px; font-weight: 700; color: var(--accent-2); margin-bottom: 4px; }
     .msg-time { font-size: 10px; color: var(--text-3); margin-top: 4px; }
     .msg-label { font-size: 10px; color: var(--error); font-weight: 700; }
@@ -114,33 +113,33 @@ export function adminInboxPage(): string {
       padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: flex-end;
     }
     .compose-area {
-      flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: 12px;
+      flex: 1; background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 12px;
       padding: 10px 14px; color: var(--text); resize: none; min-height: 42px; max-height: 160px;
       font-size: 13.5px; line-height: 1.6;
     }
-    .compose-area:focus { outline: none; border-color: rgba(217,167,89,0.55); }
+    .compose-area:focus { outline: none; border-color: var(--accent); }
     .btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13px;
       border: 1px solid transparent; transition: 0.15s;
     }
-    .btn-primary { background: var(--accent); color: #100E0D; }
+    .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { filter: brightness(1.05); }
-    .btn-secondary { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+    .btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
     .btn-secondary:hover { border-color: var(--accent); }
-    .btn-danger { background: rgba(226,96,79,0.12); border-color: rgba(226,96,79,0.35); color: var(--error); }
-    .btn-success { background: rgba(52,168,113,0.14); border-color: rgba(52,168,113,0.35); color: var(--success); }
+    .btn-danger { background: var(--error-dim); border-color: var(--error); color: var(--error); }
+    .btn-success { background: var(--success-dim); border-color: var(--success); color: var(--success); }
     .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     .badge {
       display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
       font-size: 10px; font-weight: 700; border: 1px solid transparent;
     }
-    .badge-ok { background: rgba(52,168,113,0.14); color: var(--success); border-color: rgba(52,168,113,0.3); }
-    .badge-warn { background: rgba(199,122,31,0.14); color: var(--warning); border-color: rgba(199,122,31,0.3); }
-    .badge-err { background: rgba(226,96,79,0.12); color: var(--error); border-color: rgba(226,96,79,0.3); }
+    .badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+    .badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+    .badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
     .badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
-    .badge-gold { background: rgba(217,167,89,0.14); color: var(--accent-2); border-color: rgba(217,167,89,0.3); }
+    .badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
     .muted { color: var(--text-3); font-size: 12px; }
     .context-panel {
       width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
@@ -154,11 +153,11 @@ export function adminInboxPage(): string {
     .toast {
       position: fixed; bottom: 20px; left: 20px; z-index: 60; padding: 12px 16px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.35); display: none; max-width: 360px;
+      box-shadow: none; display: none; max-width: 360px;
     }
     .toast.show { display: block; }
-    .toast.ok { border-color: rgba(52,168,113,0.4); }
-    .toast.err { border-color: rgba(226,96,79,0.4); color: #ffb4a8; }
+    .toast.ok { border-color: var(--success); }
+    .toast.err { border-color: var(--error); color: var(--error); }
     .check-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
     @media (max-width: 1024px) {
       .sidebar { display: none; }

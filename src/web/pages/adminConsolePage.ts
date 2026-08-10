@@ -6,6 +6,8 @@
 //  activity. Data is gated by /api/admin/* + PLATFORM_ADMIN_EMAILS.
 // ════════════════════════════════════════════════════════════════════════
 
+import { TOKENS_CSS_PATH } from '../layout';
+
 export function adminConsolePage(): string {
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
@@ -13,26 +15,15 @@ export function adminConsolePage(): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>إدارة المنصة — Adlytic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <!-- Tokens + typefaces from the design system, no shell selectors.
+       This page used to carry a private copy of :root written for the
+       dark theme; when the product went light it stayed black, because
+       it was not reading the design system at all. -->
+  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #100E0D;
-      --surface: #1A1613;
-      --surface-2: #221D19;
-      --border: #322B25;
-      --text: #F3EFE7;
-      --text-2: #B8AC9C;
-      --text-3: #746A5C;
-      --accent: #D9A759;
-      --accent-2: #E8C07A;
-      --success: #34A871;
-      --warning: #C77A1F;
-      --error: #E2604F;
-      --font: 'Tajawal', sans-serif;
-    }
+    /* The page was authored against --font; the system calls it --font-body. */
+    :root { --font: var(--font-body); }
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
     a { color: inherit; text-decoration: none; }
     button, input, select, textarea { font: inherit; color: inherit; }
@@ -50,7 +41,7 @@ export function adminConsolePage(): string {
     }
     @keyframes gate-spin { to { transform: rotate(360deg); } }
     .sidebar {
-      width: 240px; flex-shrink: 0; background: linear-gradient(180deg, #1A1613, #14110F);
+      width: 240px; flex-shrink: 0; background: var(--surface);
       border-left: 1px solid var(--border); display: flex; flex-direction: column;
       position: sticky; top: 0; height: 100vh;
     }
@@ -65,12 +56,12 @@ export function adminConsolePage(): string {
       color: var(--text-2); font-weight: 600; font-size: 13.5px; transition: 0.15s;
     }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(217,167,89,0.14); color: var(--accent-2); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
     .nav-foot { padding: 12px; border-top: 1px solid var(--border); }
     .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar {
       height: 60px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(26,22,19,0.92);
+      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.92);
       backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
     }
     .topbar h1 { font-size: 16px; font-weight: 800; }
@@ -81,19 +72,19 @@ export function adminConsolePage(): string {
       padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13px;
       border: 1px solid transparent; transition: 0.15s;
     }
-    .btn-primary { background: var(--accent); color: #100E0D; }
+    .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { filter: brightness(1.05); }
-    .btn-secondary { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+    .btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
     .btn-secondary:hover { border-color: var(--accent); }
-    .btn-danger { background: rgba(226,96,79,0.12); border-color: rgba(226,96,79,0.35); color: var(--error); }
-    .btn-success { background: rgba(52,168,113,0.14); border-color: rgba(52,168,113,0.35); color: var(--success); }
+    .btn-danger { background: var(--error-dim); border-color: var(--error); color: var(--error); }
+    .btn-success { background: var(--success-dim); border-color: var(--success); color: var(--success); }
     .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
     @media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .sidebar { display: none; } }
     .kpi {
       padding: 16px; border-radius: 12px; border: 1px solid var(--border);
-      background: linear-gradient(145deg, rgba(217,167,89,0.06), var(--surface));
+      background: linear-gradient(145deg, var(--accent-dim), var(--surface));
     }
     .kpi-label { font-size: 12px; color: var(--text-3); font-weight: 700; margin-bottom: 6px; }
     .kpi-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
@@ -111,10 +102,10 @@ export function adminConsolePage(): string {
     .panel-body { padding: 16px; }
     .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
     .field {
-      background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+      background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 9px;
       padding: 9px 12px; color: var(--text); min-width: 0;
     }
-    .field:focus { outline: none; border-color: rgba(217,167,89,0.55); }
+    .field:focus { outline: none; border-color: var(--accent); }
     .field-sm { padding: 7px 10px; font-size: 12.5px; }
     table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
     table.data th {
@@ -122,20 +113,20 @@ export function adminConsolePage(): string {
       border-bottom: 1px solid var(--border); font-weight: 700;
     }
     table.data td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    table.data tr:hover td { background: rgba(255,255,255,0.015); }
+    table.data tr:hover td { background: var(--surface-hover); }
     .badge {
       display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; border: 1px solid transparent;
     }
-    .badge-ok { background: rgba(52,168,113,0.14); color: var(--success); border-color: rgba(52,168,113,0.3); }
-    .badge-warn { background: rgba(199,122,31,0.14); color: var(--warning); border-color: rgba(199,122,31,0.3); }
-    .badge-err { background: rgba(226,96,79,0.12); color: var(--error); border-color: rgba(226,96,79,0.3); }
+    .badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+    .badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+    .badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
     .badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
-    .badge-gold { background: rgba(217,167,89,0.14); color: var(--accent-2); border-color: rgba(217,167,89,0.3); }
+    .badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
     .muted { color: var(--text-3); font-size: 12px; }
     .error-box {
-      padding: 14px 16px; border-radius: 10px; border: 1px solid rgba(226,96,79,0.35);
-      background: rgba(226,96,79,0.08); color: var(--error); margin-bottom: 14px;
+      padding: 14px 16px; border-radius: 10px; border: 1px solid var(--error);
+      background: var(--error-dim); color: var(--error); margin-bottom: 14px;
     }
     .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
     .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -151,13 +142,13 @@ export function adminConsolePage(): string {
     .drawer-backdrop.open { display: flex; }
     .drawer {
       width: min(520px, 100%); background: var(--surface); border-left: 1px solid var(--border);
-      padding: 18px; overflow-y: auto; box-shadow: -20px 0 60px rgba(0,0,0,0.35);
+      padding: 18px; overflow-y: auto; box-shadow: none;
     }
     .drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
     .drawer-title { font-size: 18px; font-weight: 800; }
     .section { margin-bottom: 18px; }
     .section h3 { font-size: 13px; font-weight: 800; color: var(--accent-2); margin-bottom: 8px; }
-    .section.danger { border: 1px solid rgba(226,96,79,0.3); border-radius: 10px; padding: 12px; background: rgba(226,96,79,0.04); }
+    .section.danger { border: 1px solid var(--error); border-radius: 10px; padding: 12px; background: var(--error-dim); }
     .section.danger h3 { color: var(--error); }
     .list-card {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
@@ -166,11 +157,11 @@ export function adminConsolePage(): string {
     .toast {
       position: fixed; bottom: 20px; left: 20px; z-index: 60; padding: 12px 16px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
-      box-shadow: 0 10px 30px rgba(0,0,0,0.35); display: none; max-width: 360px;
+      box-shadow: none; display: none; max-width: 360px;
     }
     .toast.show { display: block; }
-    .toast.ok { border-color: rgba(52,168,113,0.4); }
-    .toast.err { border-color: rgba(226,96,79,0.4); color: #ffb4a8; }
+    .toast.ok { border-color: var(--success); }
+    .toast.err { border-color: var(--error); color: var(--error); }
     .actions { display: flex; gap: 6px; flex-wrap: wrap; }
   </style>
 </head>

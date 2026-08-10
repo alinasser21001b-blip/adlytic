@@ -113,4 +113,101 @@ for (const t of TEXT_ON_ANY) {
 }
 if (!contrastBad) console.log(`contrast clean: ${TEXT_ON_ANY.length} text tokens x ${Object.keys(SURFACES).length} surfaces, all >= 4.5:1`);
 
-process.exit(bad || scaleBad || contrastBad ? 1 : 0);
+
+// ── Control-boundary contrast (WCAG 1.4.11) ───────────────────────────
+// A separator may be faint. The line around a text field may not: it is
+// the only thing telling someone where to type. --border shipped at
+// 1.13:1 on --surface-2 and a customer reading the form said it looked
+// empty. --border-control is the token that has to clear 3:1, on every
+// ground a control can sit on.
+const ctl = tokenHex('--border-control');
+if (!ctl) { console.error('✗ --border-control not found in layout.ts'); contrastBad++; }
+else {
+  let worst = Infinity, worstOn = '';
+  for (const [sName, sHex] of Object.entries(SURFACES)) {
+    const r = contrast(ctl, sHex);
+    if (r < worst) { worst = r; worstOn = sName; }
+    if (r < 3) { console.error(`✗ --border-control (${ctl}) on ${sName} (${sHex}) = ${r.toFixed(2)}:1 — needs 3`); contrastBad++; }
+  }
+  if (worst >= 3) console.log(`control boundary clean: --border-control worst case ${worst.toFixed(2)}:1 on ${worstOn}`);
+}
+
+// Every interactive control must take its boundary from that token, not
+// from --border. Listed by name so adding a control is a deliberate act.
+const CONTROLS = [
+  ['src/web/layout.ts', '.form-input'],
+  ['src/web/layout.ts', '.btn-secondary'],
+  ['src/web/layout.ts', '.tabs'],
+  ['src/web/pages/addClientPage.ts', '.field'],
+  ['src/web/pages/addClientPage.ts', '.mf-input, .mf-select'],
+  ['src/web/pages/addClientPage.ts', '.btn-secondary'],
+  ['src/web/pages/adminConsolePage.ts', '.field'],
+  ['src/web/pages/adminConsolePage.ts', '.btn-secondary'],
+  ['src/web/pages/adminInboxPage.ts', '.field'],
+  ['src/web/pages/adminInboxPage.ts', '.compose-area'],
+  ['src/web/pages/adminInboxPage.ts', '.btn-secondary'],
+  ['src/web/pages/dashboard/dashboardStyles.ts', '.qa-chip'],
+];
+for (const [file, sel] of CONTROLS) {
+  const src = readFileSync(file, 'utf8');
+  // The rule body from the selector to its closing brace.
+  const i = src.indexOf(sel + ' {');
+  const body = i < 0 ? '' : src.slice(i, src.indexOf('}', i));
+  if (!body) { console.error(`✗ ${sel} not found in ${file}`); contrastBad++; continue; }
+  if (/border(-\w+)?:[^;]*var\(--border\)/.test(body)) {
+    console.error(`✗ ${sel} (${file}) draws its boundary with var(--border) — a control needs var(--border-control)`);
+    contrastBad++;
+  }
+}
+
+
+// ── One source of colour ──────────────────────────────────────────────
+// /add-client carried a private :root full of dark-theme hexes. When the
+// product went light it stayed black — not because anyone changed it, but
+// because nobody could: the page was not reading the design system at
+// all. A page may link TOKENS_CSS; it may not redeclare the tokens.
+const TOKEN_NAMES = /--(bg|surface|surface-2|border|border-2|border-control|text|text-2|text-3|accent|accent-2|success|warning|error|critical|info)\s*:\s*(#|rgb)/;
+let rootBad = 0;
+for (const f of readdirSync('src/web/pages', { recursive: true })) {
+  if (typeof f !== 'string' || !f.endsWith('.ts')) continue;
+  const src = readFileSync('src/web/pages/' + f, 'utf8');
+  for (const m of src.matchAll(/:root\s*{([^}]*)}/g)) {
+    if (TOKEN_NAMES.test(m[1])) {
+      console.error(`✗ src/web/pages/${f} declares design tokens in its own :root — link TOKENS_CSS_PATH instead`);
+      rootBad++;
+    }
+  }
+}
+if (!rootBad) console.log('token ownership clean: no page redeclares a design token');
+
+
+// ── Duplicate element ids ─────────────────────────────────────────────
+// The auth pages render the logo twice, and both copies carried the same
+// gradient ids. url(#id) and getElementById both bind to the FIRST match
+// in document order — which on a phone was the copy inside
+// `.auth-brand { display: none }`, where a paint server resolves to
+// nothing. The visible mark rendered as a bare plate for months.
+//
+// Same failure mode, wider blast radius: a duplicated id on a control
+// means addEventListener wires the hidden copy and the visible button
+// does nothing. Cheap to check, so check it everywhere.
+//
+// <script> and <style> are stripped first: they contain id="..." inside
+// JS template strings for branches that are mutually exclusive at
+// runtime, and counting those reports collisions that cannot happen.
+let dupBad = 0;
+for (const f of readdirSync('.mobile-pages').filter((n) => n.endsWith('.html'))) {
+  const html = readFileSync('.mobile-pages/' + f, 'utf8')
+    .replace(/<script[\s\S]*?<\/script>/g, '')
+    .replace(/<style[\s\S]*?<\/style>/g, '');
+  const seen = new Map();
+  for (const m of html.matchAll(/\sid="([^"]+)"/g)) seen.set(m[1], (seen.get(m[1]) || 0) + 1);
+  const dup = [...seen].filter(([, n]) => n > 1);
+  if (dup.length) {
+    console.error(`✗ ${f}: duplicate id ${dup.map(([k, n]) => `${k} x${n}`).join(', ')}`);
+    dupBad++;
+  }
+}
+if (!dupBad) console.log('id uniqueness clean: no page renders a duplicate element id');
+
+process.exit(bad || scaleBad || contrastBad || rootBad || dupBad ? 1 : 0);

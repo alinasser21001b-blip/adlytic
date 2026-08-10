@@ -795,7 +795,7 @@ export function dashboardPage(): string {
             bodyColor: '#D9A759',
             padding: { top: 10, bottom: 10, left: 14, right: 14 },
             cornerRadius: 10,
-            titleFont: { size: 13, weight: '700', family: "'El Messiri', 'Tajawal', sans-serif" },
+            titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
             bodyFont: { size: 12, weight: '600' },
             displayColors: false,
             filter: function (item) { return !(item.dataset && item.dataset.isIssueMarkers); },

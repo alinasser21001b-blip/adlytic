@@ -21,33 +21,28 @@
 //  requirements, error text) is rendered through escHtml() — never interpolated raw.
 // ════════════════════════════════════════════════════════════════════════
 
+import { TOKENS_CSS_PATH } from '../layout';
+
 export function addClientPage(): string {
   return `<!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#F2F7F4" />
   <title>إضافة عميل — Adlytic</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet" />
+  <!-- Tokens + typefaces from the design system, no shell selectors: this
+       page has its own sidebar and tables and must not inherit the app's.
+       It used to carry a private copy of :root written for the dark theme,
+       which is why it stayed black after the product went light. It also
+       used to pull Tajawal from fonts.googleapis.com on every load — two
+       cross-origin round trips before a single glyph could paint. -->
+  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #100E0D;
-      --surface: #1A1613;
-      --surface-2: #221D19;
-      --border: #322B25;
-      --text: #F3EFE7;
-      --text-2: #B8AC9C;
-      --text-3: #746A5C;
-      --accent: #D9A759;
-      --accent-2: #E8C07A;
-      --success: #34A871;
-      --warning: #C77A1F;
-      --error: #E2604F;
-      --font: 'Tajawal', sans-serif;
-    }
+    /* The page was authored against --font; the system calls it
+       --font-body. One alias beats 40 edits. */
+    :root { --font: var(--font-body); }
     html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
     a { color: inherit; text-decoration: none; }
     button, input, select, textarea { font: inherit; color: inherit; }
@@ -65,7 +60,7 @@ export function addClientPage(): string {
     }
     @keyframes gate-spin { to { transform: rotate(360deg); } }
     .sidebar {
-      width: 240px; flex-shrink: 0; background: linear-gradient(180deg, #1A1613, #14110F);
+      width: 240px; flex-shrink: 0; background: var(--surface);
       border-left: 1px solid var(--border); display: flex; flex-direction: column;
       position: sticky; top: 0; height: 100vh;
     }
@@ -80,12 +75,12 @@ export function addClientPage(): string {
       color: var(--text-2); font-weight: 600; font-size: 13.5px; transition: 0.15s;
     }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(217,167,89,0.14); color: var(--accent-2); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
     .nav-foot { padding: 12px; border-top: 1px solid var(--border); }
     .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
     .topbar {
       height: 60px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(26,22,19,0.92);
+      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.92);
       backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
     }
     .topbar h1 { font-size: 16px; font-weight: 800; }
@@ -96,9 +91,9 @@ export function addClientPage(): string {
       padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13px;
       border: 1px solid transparent; transition: 0.15s;
     }
-    .btn-primary { background: var(--accent); color: #100E0D; }
+    .btn-primary { background: var(--accent); color: #fff; }
     .btn-primary:hover { filter: brightness(1.05); }
-    .btn-secondary { background: var(--surface-2); border-color: var(--border); color: var(--text); }
+    .btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
     .btn-secondary:hover { border-color: var(--accent); }
     .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
@@ -116,14 +111,14 @@ export function addClientPage(): string {
     .intro {
       color: var(--text-2); font-size: 13.5px; line-height: 1.85; margin-bottom: 18px;
       border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
-      background: linear-gradient(145deg, rgba(217,167,89,0.05), var(--surface));
+      background: linear-gradient(145deg, var(--accent-dim), var(--surface));
     }
     @media (max-width: 768px) { .sidebar { display: none; } }
     .field {
-      background: var(--bg); border: 1px solid var(--border); border-radius: 9px;
+      background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 9px;
       padding: 9px 12px; color: var(--text); min-width: 0;
     }
-    .field:focus { outline: none; border-color: rgba(217,167,89,0.55); }
+    .field:focus { outline: none; border-color: var(--accent); }
     select.field { cursor: pointer; }
     .form-grid { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; align-items: end; }
     @media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; } }
@@ -138,10 +133,10 @@ export function addClientPage(): string {
     }
     .state-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
     .state-pill.live .dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-    .state-accent { background: rgba(217,167,89,0.15); color: var(--accent-2); border-color: rgba(217,167,89,0.4); }
-    .state-success { background: rgba(52,168,113,0.15); color: var(--success); border-color: rgba(52,168,113,0.4); }
-    .state-warn { background: rgba(199,122,31,0.15); color: var(--warning); border-color: rgba(199,122,31,0.42); }
-    .state-error { background: rgba(226,96,79,0.13); color: var(--error); border-color: rgba(226,96,79,0.4); }
+    .state-accent { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
+    .state-success { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+    .state-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+    .state-error { background: var(--error-dim); color: var(--error); border-color: var(--error); }
     @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
 
     /* ── Live plan ──────────────────────────────────────────────────────── */
@@ -155,34 +150,34 @@ export function addClientPage(): string {
     }
     .plan-label { font-weight: 700; font-size: 14px; color: var(--text-2); line-height: 1.6; }
     .plan-meta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
-    .plan-step.done .plan-dot { background: rgba(52,168,113,0.16); color: var(--success); border-color: rgba(52,168,113,0.4); }
+    .plan-step.done .plan-dot { background: var(--success-dim); color: var(--success); border-color: var(--success); }
     .plan-step.done .plan-label { color: var(--text); }
     .plan-step.active .plan-dot {
-      background: rgba(217,167,89,0.2); color: var(--accent-2); border-color: rgba(217,167,89,0.6);
+      background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent);
       animation: pulse-step 1.7s ease-in-out infinite;
     }
     .plan-step.active .plan-label { color: var(--accent-2); font-weight: 800; }
     .plan-step.pending .plan-label { color: var(--text-3); }
     @keyframes pulse-step {
-      0%, 100% { box-shadow: 0 0 0 0 rgba(217,167,89,0.35); }
-      50% { box-shadow: 0 0 0 7px rgba(217,167,89,0); }
+      0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
+      50% { box-shadow: 0 0 0 7px transparent; }
     }
     @media (prefers-reduced-motion: reduce) {
       .plan-step.active .plan-dot, .state-pill.live .dot, .access-gate .gate-spinner { animation: none; }
-      .plan-step.active .plan-dot { box-shadow: 0 0 0 3px rgba(217,167,89,0.28); }
+      .plan-step.active .plan-dot { box-shadow: 0 0 0 3px var(--accent-glow); }
     }
 
     /* ── Requirement / error / waiting cards ────────────────────────────── */
     .callout { border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; border: 1px solid transparent; }
     .callout-title { font-weight: 800; font-size: 14.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
     .callout-text { line-height: 1.95; font-size: 13.5px; color: var(--text); }
-    .callout-warn { border-color: rgba(199,122,31,0.45); background: rgba(199,122,31,0.09); }
+    .callout-warn { border-color: var(--warning); background: var(--warning-dim); }
     .callout-warn .callout-title { color: var(--warning); }
-    .callout-err { border-color: rgba(226,96,79,0.45); background: rgba(226,96,79,0.08); }
+    .callout-err { border-color: var(--error); background: var(--error-dim); }
     .callout-err .callout-title { color: var(--error); }
-    .callout-info { border-color: rgba(217,167,89,0.4); background: rgba(217,167,89,0.07); }
+    .callout-info { border-color: var(--accent); background: var(--accent-dim); }
     .callout-info .callout-title { color: var(--accent-2); }
-    .callout-ok { border-color: rgba(52,168,113,0.42); background: rgba(52,168,113,0.08); }
+    .callout-ok { border-color: var(--success); background: var(--success-dim); }
     .callout-ok .callout-title { color: var(--success); }
     .callout-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 
@@ -204,8 +199,8 @@ export function addClientPage(): string {
       padding: 12px 14px; border: 1px solid var(--border); border-radius: 11px;
       background: var(--surface-2); margin-bottom: 8px; text-align: right; transition: 0.15s; flex-wrap: wrap;
     }
-    .ob-row:hover { border-color: rgba(217,167,89,0.55); }
-    .ob-row.selected { border-color: var(--accent); background: rgba(217,167,89,0.09); }
+    .ob-row:hover { border-color: var(--accent); }
+    .ob-row.selected { border-color: var(--accent); background: var(--accent-dim); }
     .ob-row:last-child { margin-bottom: 0; }
 
     table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
@@ -214,27 +209,27 @@ export function addClientPage(): string {
       border-bottom: 1px solid var(--border); font-weight: 700;
     }
     table.data td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    table.data tr:hover td { background: rgba(255,255,255,0.015); }
+    table.data tr:hover td { background: var(--surface-hover); }
     .table-wrap { overflow-x: auto; }
     td.currency-cell { font-weight: 800; color: var(--accent-2); white-space: nowrap; }
     .badge {
       display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; border: 1px solid transparent; white-space: nowrap;
     }
-    .badge-ok { background: rgba(52,168,113,0.14); color: var(--success); border-color: rgba(52,168,113,0.3); }
-    .badge-warn { background: rgba(199,122,31,0.14); color: var(--warning); border-color: rgba(199,122,31,0.3); }
-    .badge-err { background: rgba(226,96,79,0.12); color: var(--error); border-color: rgba(226,96,79,0.3); }
+    .badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+    .badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+    .badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
     .badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
-    .badge-gold { background: rgba(217,167,89,0.14); color: var(--accent-2); border-color: rgba(217,167,89,0.3); }
+    .badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
     .muted { color: var(--text-3); font-size: 12px; }
     .mono { font-family: monospace; direction: ltr; text-align: left; unicode-bidi: embed; }
     .error-box {
-      padding: 14px 16px; border-radius: 10px; border: 1px solid rgba(226,96,79,0.35);
-      background: rgba(226,96,79,0.08); color: var(--error); margin-bottom: 14px;
+      padding: 14px 16px; border-radius: 10px; border: 1px solid var(--error);
+      background: var(--error-dim); color: var(--error); margin-bottom: 14px;
     }
     .info-box {
-      padding: 14px 16px; border-radius: 10px; border: 1px solid rgba(199,122,31,0.35);
-      background: rgba(199,122,31,0.08); color: var(--warning); margin-bottom: 14px; line-height: 1.8;
+      padding: 14px 16px; border-radius: 10px; border: 1px solid var(--warning);
+      background: var(--warning-dim); color: var(--warning); margin-bottom: 14px; line-height: 1.8;
     }
     .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
 
@@ -293,14 +288,14 @@ export function addClientPage(): string {
       width: 100%; min-height: 52px;   /* ≥44px touch floor */
       font-size: 16px;                 /* 16px: anything smaller makes iOS Safari zoom on focus */
       padding: 12px 14px; border-radius: 12px;
-      background: var(--bg); border: 1px solid var(--border); color: var(--text);
+      background: var(--surface-2); border: 1px solid var(--border-control); color: var(--text);
     }
     .mf-input { direction: ltr; text-align: left; font-family: monospace; letter-spacing: 0.04em; }
     .mf-input:focus, .mf-select:focus { outline: none; border-color: var(--accent); }
     .mf-select { margin-bottom: 20px; }
     .mf-err {
       margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.8;
-      border: 1px solid rgba(226,96,79,0.4); background: rgba(226,96,79,0.08); color: var(--error);
+      border: 1px solid var(--error); background: var(--error-dim); color: var(--error);
     }
     .mf-spin {
       width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent);
@@ -320,7 +315,7 @@ export function addClientPage(): string {
       width: 100%; min-height: 52px; border-radius: 13px;
       font-size: 16px; font-weight: 800; border: 1px solid transparent; text-align: center;
     }
-    .mf-btn-primary { background: var(--accent); color: #100E0D; }
+    .mf-btn-primary { background: var(--accent); color: #fff; }
     .mf-btn-quiet { background: transparent; border-color: var(--border); color: var(--text-2); }
     .mf-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     .mf-ok { color: var(--success); }

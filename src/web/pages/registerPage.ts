@@ -15,7 +15,7 @@ export function registerPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#100E0D">
+  <meta name="theme-color" content="#F2F7F4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>إنشاء حساب — Adlytic</title>
   <link rel="stylesheet" href="${BASE_CSS_PATH}">
@@ -34,7 +34,7 @@ export function registerPage(): string {
     <!-- Brand panel -->
     <div class="auth-brand">
       <div class="auth-brand-inner">
-        ${logoSvg(56)}
+        ${logoSvg(56, 'register-brand')}
         <h1 class="auth-brand-title">Adlytic</h1>
         <p class="auth-brand-tagline">منصة ذكاء إعلاني تدير حملاتك على Meta بأسلوب احترافي — تحليلات عميقة، توصيات فورية، وحماية ذكية لميزانيتك.</p>
         <div class="auth-brand-features">
@@ -73,7 +73,7 @@ export function registerPage(): string {
     <div class="auth-form-side">
       <div class="auth-form-wrap">
         <div class="auth-mobile-logo">
-          ${logoSvg(40)}
+          ${logoSvg(40, 'register-mobile')}
           <span class="auth-mobile-logo-text">Adlytic</span>
         </div>
 

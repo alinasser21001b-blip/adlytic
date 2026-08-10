@@ -929,7 +929,7 @@ export const dashboardStyles = `<style>
       padding: 8px 14px;
       border-radius: 12px;
       background: var(--surface-2);
-      border: 1px solid var(--border);
+      border: 1px solid var(--border-control);
       font-size: 12.5px;
       font-weight: 600;
       color: var(--text-2);

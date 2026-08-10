@@ -75,6 +75,24 @@ export const SHARED_CSS = `
   --surface-hover: #E8F0EA;
   --border: #D8E4DC;
   --border-2: #C7D8CE;
+  /* ── Control boundary ─────────────────────────────────────────────
+     --border and --border-2 are SEPARATORS: they divide two regions the
+     eye already reads as separate, so 1.2:1 is enough and anything
+     stronger turns every card into a box.
+
+     A control boundary is a different job. The line around a text field
+     is the only thing telling a merchant where to type; if it vanishes,
+     the field is not "subtle", it is gone. WCAG 1.4.11 asks 3:1 for it,
+     and the Daylight palette shipped it at 1.13:1 on --surface-2 — which
+     is where our fields actually sit, not on --bg where the handoff
+     measured. A customer reading these screens said the form looked
+     empty. It was not; the borders were.
+
+     3.18:1 on --surface-2, 3.41:1 on --bg, 3.69:1 on --surface — clears
+     3:1 on ALL THREE grounds a control can land on, which is the whole
+     point of measuring it separately. Not --nontext (#7C8F87): that one
+     is 2.95:1 on --surface-2 and would have failed the same way. */
+  --border-control: #748A80;
   --text: #0B1F19;            /* 15.8:1 */
   --text-2: #4A5F57;          /* 6.4:1  */
   --text-3: #5D7066;          /* 4.9:1 on --bg, 4.6:1 on --surface-2 */
@@ -148,6 +166,7 @@ export const SHARED_CSS = `
   --transition: 150ms cubic-bezier(0.4,0,0.2,1);
   --transition-slow: 260ms cubic-bezier(0.34,1.56,0.64,1);
 }
+/* ══ END TOKENS ══ */
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 14px; -webkit-font-smoothing: antialiased; }
 body {
@@ -813,9 +832,11 @@ tr:hover td { background: var(--surface-hover); transition: background 0.12s eas
 .btn-secondary {
   background: var(--surface-2);
   color: var(--text);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
 }
-.btn-secondary:hover { background: var(--surface-hover); border-color: var(--accent); color: #fff; transform: translateY(-1px); }
+/* color was #fff — a dark-theme leftover that painted white text on a
+   light-green ground the moment the pointer touched it. */
+.btn-secondary:hover { background: var(--surface-hover); border-color: var(--accent); color: var(--text); transform: translateY(-1px); }
 .btn-danger { background: var(--error-dim); color: var(--error); border: 1px solid transparent; }
 .btn-danger:hover { background: var(--error); color: #fff; transform: translateY(-1px); box-shadow: none; }
 .btn-ghost { background: transparent; color: var(--text-2); }
@@ -845,7 +866,7 @@ tr:hover td { background: var(--surface-hover); transition: background 0.12s eas
 .form-input {
   width: 100%;
   background: var(--surface-2);
-  border: 1px solid var(--border);
+  border: 1px solid var(--border-control);
   border-radius: var(--radius-sm);
   padding: 8px 12px;
   font-size: 13.5px; color: var(--text);
@@ -996,12 +1017,14 @@ select.form-input { cursor: pointer; }
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 /* ── Tabs ────────────────────────────────────────────────────────── */
-.tabs { display: flex; gap: 2px; padding: 3px; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid var(--border); width: fit-content; }
+.tabs { display: flex; gap: 2px; padding: 3px; background: var(--surface-2); border-radius: var(--radius-sm); border: 1px solid var(--border-control); width: fit-content; }
 .tab {
   padding: 5px 12px; font-size: 12.5px; font-weight: 500; color: var(--text-2);
   border-radius: 4px; cursor: pointer; transition: all var(--transition); border: none; background: none;
 }
-.tab.active { background: var(--surface); color: var(--text); box-shadow: none; }
+/* The active pill is white on an --surface-2 track: 1.16:1. Inset ring
+   instead of a border so selecting a tab does not shift the row by 2px. */
+.tab.active { background: var(--surface); color: var(--text); box-shadow: inset 0 0 0 1px var(--border-control); }
 .tab:hover:not(.active) { color: var(--text); }
 
 /* ── Search ──────────────────────────────────────────────────────── */
@@ -1959,13 +1982,39 @@ function cssHash(s: string): string {
   return h.toString(36);
 }
 
+/* ── Tokens without the shell ──────────────────────────────────────────
+   Some pages are not built on the app shell — /add-client is an operator
+   cockpit with its own sidebar, its own tables, its own everything — but
+   they still have to be the same PRODUCT: same typefaces, same greens,
+   same three surfaces.
+
+   Before this existed the only way to get the design system was to link
+   the whole of SHARED_CSS, whose .sidebar / .card / .btn rules would
+   collide with the page's own. So /add-client did the other thing: it
+   pasted its own :root. That copy was written against the dark theme and
+   nobody updated it when the product went light, so the page sat at
+   #100E0D — a black screen behind a light product — for as long as
+   Daylight has been live.
+
+   TOKENS_CSS is SHARED_CSS's own head, sliced at a sentinel rather than
+   re-typed, so the two cannot disagree: the fonts and every custom
+   property, and not one selector. Change a token once, both move. ──── */
+const TOKENS_END = '/* ══ END TOKENS ══ */';
+export const TOKENS_CSS = SHARED_CSS.slice(0, SHARED_CSS.indexOf(TOKENS_END) + TOKENS_END.length);
+if (SHARED_CSS.indexOf(TOKENS_END) < 0) {
+  // Fails at import time, i.e. at boot, not on the page that needed it.
+  throw new Error('layout.ts: TOKENS_END sentinel missing — TOKENS_CSS would be empty');
+}
+
 export const BASE_CSS_PATH = `/assets/base-${cssHash(SHARED_CSS)}.css`;
 export const FLOORS_CSS_PATH = `/assets/floors-${cssHash(MOBILE_FLOORS_CSS)}.css`;
+export const TOKENS_CSS_PATH = `/assets/tokens-${cssHash(TOKENS_CSS)}.css`;
 
 /** Served by the /assets/* route. Keyed by the same paths exported above. */
 export const CSS_ASSETS: Record<string, string> = {
   [BASE_CSS_PATH]: SHARED_CSS,
   [FLOORS_CSS_PATH]: MOBILE_FLOORS_CSS,
+  [TOKENS_CSS_PATH]: TOKENS_CSS,
 };
 
 // ── Shared JS (auth guard, toast, sidebar toggle) ───────────────────────
@@ -3259,7 +3308,7 @@ export function layout(opts: {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="var(--bg)">
+  <meta name="theme-color" content="#F2F7F4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="manifest" href="/manifest.json">

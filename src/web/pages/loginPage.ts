@@ -41,9 +41,19 @@ export const AUTH_FORM_MOBILE_CSS = `
 /* Password field + reveal control. The control is a real 44px target inside
    the field's padding, not an 18px glyph overlapping the text. */
 .pw-wrap { position: relative; }
-.pw-wrap .form-input { padding-inline-start: 48px; }
+/* PHYSICAL sides, deliberately. Three things share this one field and they
+   do not agree on what "start" means:
+     · the lock icon is pinned with right:14px (physical);
+     · the toggle is positioned against .pw-wrap, which is RTL;
+     · the input itself carries dir="ltr" so a password never reorders,
+       which flips ITS inline axis relative to its own wrapper.
+   Logical properties gave the toggle the wrapper's left edge and the
+   padding the input's right edge — the control ended up sitting on the
+   text it was supposed to sit beside. Physical sides make the three
+   agree: lock on the right, reveal on the left, padding for each. */
+.pw-wrap .form-input { padding-left: 56px; }
 .pw-toggle {
-  position: absolute; inset-inline-start: 4px; top: 50%;
+  position: absolute; left: 4px; top: 50%;
   transform: translateY(-50%);
   min-width: 44px; min-height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -62,7 +72,7 @@ export const AUTH_FORM_MOBILE_CSS = `
 .field-error.is-shown { display: block; }
 .form-input[aria-invalid="true"] {
   border-color: var(--error);
-  box-shadow: 0 0 0 3px rgba(226,96,79,0.12);
+  box-shadow: 0 0 0 3px var(--error-dim);
 }
 
 /* The banner alerts announce themselves and stay legible at the text floor. */
@@ -107,7 +117,7 @@ export function loginPage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="theme-color" content="#100E0D">
+  <meta name="theme-color" content="#F2F7F4">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>تسجيل الدخول — Adlytic</title>
   <link rel="stylesheet" href="${BASE_CSS_PATH}">
@@ -127,7 +137,7 @@ export function loginPage(): string {
     <!-- Left: brand panel -->
     <div class="auth-brand">
       <div class="auth-brand-inner">
-        ${logoSvg(56)}
+        ${logoSvg(56, 'login-brand')}
         <h1 class="auth-brand-title">Adlytic</h1>
         <p class="auth-brand-tagline">ذكاء إعلاني يقود نموّك</p>
         <div class="auth-brand-features">
@@ -166,7 +176,7 @@ export function loginPage(): string {
     <div class="auth-form-side">
       <div class="auth-form-wrap">
         <div class="auth-mobile-logo">
-          ${logoSvg(40)}
+          ${logoSvg(40, 'login-mobile')}
           <span class="auth-mobile-logo-text">Adlytic</span>
         </div>
 

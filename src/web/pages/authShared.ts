@@ -2,28 +2,55 @@
 //  src/web/pages/authShared.ts  —  Shared auth page styles & logo
 // ════════════════════════════════════════════════════════════════════════
 
-export function logoSvg(size: number, idPrefix = 'logo'): string {
+// The mark, in Daylight.
+//
+// It used to be a #100E0D square with a gold rule inside it — correct on
+// the old dark shell, and a black box on the light one. The geometry is
+// untouched; only the two gradients and the plate colour moved.
+//
+// The plate is --accent (#0E4034) and the rule on it is --signal
+// (#C8F26B) at 9.1:1. This is the one place the lime is unconditionally
+// right: the token's rule is "on the brand ground, at most once per
+// screen", and the logo is the brand ground and appears exactly once.
+//
+// Colours are literal rather than var(): this SVG is inlined into pages
+// that render before the stylesheet resolves, and a mark that flashes
+// black is the bug being fixed.
+// idPrefix must be unique per call on a page. The auth pages render the mark
+// twice — once in the desktop brand panel, once in the mobile header — and
+// both used to default to "logo". Duplicate gradient IDs are not merely
+// untidy: url(#logo-fill) binds to the FIRST match in document order, which
+// on a phone is the copy inside `.auth-brand { display: none }`, and a paint
+// server in a display:none subtree resolves to nothing. The visible mark
+// rendered as a bare plate with no triangle inside it. Measured, not
+// assumed — a two-case probe in Chromium renders the duplicate blank and the
+// unique-id copy correctly.
+//
+// Defaulting to `logo-${size}` makes the two existing calls distinct on their
+// own; the call sites also pass explicit names so the constraint is visible
+// at the point where it can be violated.
+export function logoSvg(size: number, idPrefix = `logo-${size}`): string {
   const ring = `${idPrefix}-ring`;
   const fill = `${idPrefix}-fill`;
   const glow = `${idPrefix}-glow`;
   return `<svg width="${size}" height="${size}" viewBox="0 0 120 120" fill="none" xmlns="http://www.w3.org/2000/svg" class="adlytic-logo-svg" aria-hidden="true">
   <defs>
     <linearGradient id="${ring}" x1="0" y1="0" x2="120" y2="120" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#D9A759"/>
-      <stop offset="50%" stop-color="#E6BD7A"/>
-      <stop offset="100%" stop-color="#C4903E"/>
+      <stop offset="0%" stop-color="#0E4034"/>
+      <stop offset="50%" stop-color="#17714F"/>
+      <stop offset="100%" stop-color="#0E4034"/>
     </linearGradient>
     <linearGradient id="${fill}" x1="30" y1="20" x2="90" y2="100" gradientUnits="userSpaceOnUse">
-      <stop offset="0%" stop-color="#E6BD7A"/>
-      <stop offset="45%" stop-color="#D9A759"/>
-      <stop offset="100%" stop-color="#A87432"/>
+      <stop offset="0%" stop-color="#D8F58C"/>
+      <stop offset="45%" stop-color="#C8F26B"/>
+      <stop offset="100%" stop-color="#A9D94E"/>
     </linearGradient>
     <filter id="${glow}" x="-30%" y="-30%" width="160%" height="160%">
       <feGaussianBlur in="SourceGraphic" stdDeviation="3.5"/>
     </filter>
   </defs>
   <rect x="3" y="3" width="114" height="114" rx="28" stroke="url(#${ring})" stroke-width="2.5" fill="none" opacity="0.55"/>
-  <rect x="10" y="10" width="100" height="100" rx="22" fill="#100E0D"/>
+  <rect x="10" y="10" width="100" height="100" rx="22" fill="#0E4034"/>
   <rect x="10" y="10" width="100" height="100" rx="22" fill="url(#${fill})" opacity="0.06"/>
   <path d="M34 88 L60 28 L86 88 Z" fill="url(#${fill})" filter="url(#${glow})" opacity="0.12"/>
   <path d="M38 82 L60 34 L82 82 Z" stroke="url(#${fill})" stroke-width="2.2" fill="none" stroke-linejoin="round"/>
@@ -45,7 +72,7 @@ body {
   position: fixed; top: -40%; right: -20%;
   width: 80vw; height: 80vw;
   max-width: 700px; max-height: 700px;
-  background: radial-gradient(circle, rgba(217,167,89,0.06) 0%, transparent 70%);
+  background: radial-gradient(circle, var(--accent-dim) 0%, transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
@@ -67,7 +94,7 @@ body {
   position: relative;
   overflow: hidden;
   background:
-    linear-gradient(135deg, rgba(217,167,89,0.04) 0%, transparent 60%),
+    linear-gradient(135deg, var(--accent-dim) 0%, transparent 60%),
     var(--bg);
   border-left: 1px solid var(--border);
 }
@@ -76,8 +103,8 @@ body {
   position: absolute;
   inset: 0;
   background-image:
-    radial-gradient(circle at 25% 35%, rgba(217,167,89,0.07) 0%, transparent 50%),
-    radial-gradient(circle at 75% 75%, rgba(217,167,89,0.04) 0%, transparent 40%);
+    radial-gradient(circle at 25% 35%, var(--accent-glow) 0%, transparent 50%),
+    radial-gradient(circle at 75% 75%, var(--accent-dim) 0%, transparent 40%);
   pointer-events: none;
 }
 
@@ -119,7 +146,7 @@ body {
   flex-shrink: 0;
   width: 36px; height: 36px;
   border-radius: 10px;
-  background: rgba(217,167,89,0.1);
+  background: var(--accent-dim);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -175,7 +202,9 @@ body {
   border: 1px solid var(--border);
   border-radius: 16px;
   padding: 36px 32px 32px;
-  box-shadow: var(--shadow-inner-glow), 0 8px 32px rgba(0,0,0,0.25);
+  /* Was a 32px black drop shadow — invented depth on a dark ground. In
+     Daylight elevation is surface tint + a 1px border, nothing else. */
+  box-shadow: none;
 }
 .auth-card-header {
   margin-bottom: 28px;
@@ -217,7 +246,7 @@ body {
 }
 .form-input:focus {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(217,167,89,0.12);
+  box-shadow: 0 0 0 3px var(--accent-glow);
 }
 
 /* ── Submit button ────────────────────────────────────────────────────── */
@@ -231,18 +260,22 @@ body {
   margin-top: 8px;
   border: none;
   border-radius: 10px;
-  background: linear-gradient(135deg, #D9A759 0%, #C4903E 100%);
-  color: #100E0D;
+  /* Same primary as .btn-primary in the app shell. The gold gradient
+     that used to live here was the last thing telling a returning
+     merchant they had landed on a different product than the one they
+     log into. */
+  background: var(--grad-accent);
+  color: #fff;                     /* 11.7:1 on --accent */
   font-family: var(--font-body);
   font-size: 14.5px;
   font-weight: 700;
   cursor: pointer;
-  transition: transform 0.15s, box-shadow 0.2s, opacity 0.2s;
-  box-shadow: 0 2px 12px rgba(217,167,89,0.2);
+  transition: transform 0.15s, background 0.2s, opacity 0.2s;
+  box-shadow: none;
 }
 .auth-submit:hover {
   transform: translateY(-2px);
-  box-shadow: 0 6px 24px rgba(217,167,89,0.35);
+  background: var(--grad-accent-hover);
 }
 .auth-submit:active {
   transform: translateY(0);

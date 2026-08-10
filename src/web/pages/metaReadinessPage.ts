@@ -17,6 +17,8 @@
 //  check is only a friendly UI guard — the server route is the real boundary.
 // ════════════════════════════════════════════════════════════════════════
 
+import { TOKENS_CSS_PATH } from '../layout';
+
 export function metaReadinessPage(): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -24,22 +26,16 @@ export function metaReadinessPage(): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Meta Readiness — Adlytic</title>
+  <!-- Tokens + typefaces from the design system, no shell selectors.
+       This page used to carry a private copy of :root written for the
+       dark theme; when the product went light it stayed black, because
+       it was not reading the design system at all. -->
+  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #100E0D;
-      --surface: #1A1613;
-      --surface-2: #221D19;
-      --border: #322B25;
-      --text: #F3EFE7;
-      --text-2: #B8AC9C;
-      --text-3: #746A5C;
-      --accent: #D9A759;
-      --success: #34A871;
-      --warning: #C77A1F;
-      --error: #E2604F;
-    }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
+    /* The page was authored against --font; the system calls it --font-body. */
+    :root { --font: var(--font-body); }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; }
     a { color: inherit; text-decoration: none; }
     button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
 
@@ -62,7 +58,7 @@ export function metaReadinessPage(): string {
     .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(217,167,89,0.15); color: var(--accent); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
     .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
     .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
 
@@ -93,8 +89,8 @@ export function metaReadinessPage(): string {
     /* Verdict banner */
     .verdict { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 12px; margin-bottom: 18px; border: 1px solid var(--border); background: var(--surface); }
     .verdict-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 20px; font-weight: 700; }
-    .verdict-ready .verdict-icon { background: rgba(52,168,113,0.15); color: var(--success); border: 1px solid rgba(52,168,113,0.4); }
-    .verdict-notready .verdict-icon { background: rgba(199,122,31,0.15); color: var(--warning); border: 1px solid rgba(199,122,31,0.4); }
+    .verdict-ready .verdict-icon { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+    .verdict-notready .verdict-icon { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
     .verdict-title { font-size: 16px; font-weight: 700; }
     .verdict-ready .verdict-title { color: var(--success); }
     .verdict-notready .verdict-title { color: var(--warning); }
@@ -104,8 +100,8 @@ export function metaReadinessPage(): string {
     .gate { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border); }
     .gate:last-child { border-bottom: none; }
     .gate-check { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; font-weight: 700; margin-top: 2px; }
-    .gate-check.ok { background: rgba(52,168,113,0.15); color: var(--success); border: 1px solid rgba(52,168,113,0.4); }
-    .gate-check.no { background: rgba(199,122,31,0.15); color: var(--warning); border: 1px solid rgba(199,122,31,0.4); }
+    .gate-check.ok { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+    .gate-check.no { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
     .gate-body { flex: 1; }
     .gate-label { font-size: 14px; font-weight: 600; color: var(--text); }
     .gate-detail { font-size: 12.5px; color: var(--text-2); margin-top: 3px; }
@@ -132,8 +128,8 @@ export function metaReadinessPage(): string {
     table.brk tr:last-child td { border-bottom: none; }
     .cat-badge { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; font-weight: 700; letter-spacing: 0.3px; color: var(--text-2); }
 
-    .warn-box { padding: 12px 16px; border: 1px solid rgba(199,122,31,0.35); background: rgba(199,122,31,0.08); border-radius: 10px; color: var(--warning); font-size: 12.5px; margin-bottom: 18px; }
-    .error-box { padding: 16px; border: 1px solid rgba(226,96,79,0.35); background: rgba(226,96,79,0.08); border-radius: 10px; color: var(--error); font-size: 13px; }
+    .warn-box { padding: 12px 16px; border: 1px solid var(--warning); background: var(--warning-dim); border-radius: 10px; color: var(--warning); font-size: 12.5px; margin-bottom: 18px; }
+    .error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
 
     .footer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
     .footer-info { font-size: 12px; color: var(--text-2); }

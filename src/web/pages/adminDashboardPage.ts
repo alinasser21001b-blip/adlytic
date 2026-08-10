@@ -17,6 +17,8 @@
 //                           (POSTs /api/admin/cache/bust then refetches)
 // ════════════════════════════════════════════════════════════════════════
 
+import { TOKENS_CSS_PATH } from '../layout';
+
 export function adminDashboardPage(): string {
   return `<!DOCTYPE html>
 <html lang="en">
@@ -24,22 +26,16 @@ export function adminDashboardPage(): string {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Admin — Adlytic</title>
+  <!-- Tokens + typefaces from the design system, no shell selectors.
+       This page used to carry a private copy of :root written for the
+       dark theme; when the product went light it stayed black, because
+       it was not reading the design system at all. -->
+  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg: #100E0D;
-      --surface: #1A1613;
-      --surface-2: #221D19;
-      --border: #322B25;
-      --text: #F3EFE7;
-      --text-2: #B8AC9C;
-      --text-3: #746A5C;
-      --accent: #D9A759;
-      --success: #34A871;
-      --warning: #C77A1F;
-      --error: #E2604F;
-    }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 14px; }
+    /* The page was authored against --font; the system calls it --font-body. */
+    :root { --font: var(--font-body); }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; }
     a { color: inherit; text-decoration: none; }
     button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
 
@@ -62,7 +58,7 @@ export function adminDashboardPage(): string {
     .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: rgba(217,167,89,0.15); color: var(--accent); }
+    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
     .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
     .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
 
@@ -107,18 +103,18 @@ export function adminDashboardPage(): string {
     .cache-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
     .cache-info { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-2); }
     .badge { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
-    .badge-cache { background: rgba(199,122,31,0.15); color: var(--warning); border: 1px solid rgba(199,122,31,0.35); }
-    .badge-fresh { background: rgba(52,168,113,0.15); color: var(--success); border: 1px solid rgba(52,168,113,0.35); }
+    .badge-cache { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+    .badge-fresh { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
     .btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
     .btn-refresh:hover { opacity: 0.9; }
     .btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }
     .btn-activate { padding: 6px 12px; border-radius: 6px; background: var(--success); color: #fff; font-size: 12px; font-weight: 600; }
     .btn-activate:hover { opacity: 0.9; }
     .btn-activate[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .badge-active { background: rgba(52,168,113,0.15); color: var(--success); border: 1px solid rgba(52,168,113,0.35); }
-    .badge-inactive { background: rgba(199,122,31,0.15); color: var(--warning); border: 1px solid rgba(199,122,31,0.35); }
+    .badge-active { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+    .badge-inactive { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
 
-    .error-box { padding: 16px; border: 1px solid rgba(226,96,79,0.35); background: rgba(226,96,79,0.08); border-radius: 10px; color: var(--error); font-size: 13px; }
+    .error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
   </style>
 </head>
 <body>
