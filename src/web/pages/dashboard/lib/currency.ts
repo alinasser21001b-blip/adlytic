@@ -14,12 +14,17 @@ export const currencyHelpersJs = `
   // honouring the connected ad-account's currency + minorFactor.
   function fmtCurrencyMinor(minorVal) {
     if (minorVal == null || isNaN(Number(minorVal))) return '—';
+    // No currency context yet → no number. Printing a money figure against a
+    // guessed scale is not an approximation; it is wrong by 100x and carries
+    // a currency the merchant does not use.
+    if (state.minorFactor == null || !state.currency) return '—';
     var major = Number(minorVal) / state.minorFactor;
     if (state.minorFactor === 1) major = Math.round(major);
     return major.toLocaleString('en-US', { useGrouping: true, minimumFractionDigits: state.minorFactor === 1 ? 0 : 2, maximumFractionDigits: state.minorFactor === 1 ? 0 : 2 }) + ' ' + state.currency;
   }
   function fmtCurrencyMajor(n) {
     if (n == null || isNaN(n)) return '—';
+    if (state.minorFactor == null || !state.currency) return '—';
     if (state.minorFactor === 1) {
       return Math.round(Number(n)).toLocaleString('en-US', { useGrouping: true, minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ' ' + state.currency;
     }

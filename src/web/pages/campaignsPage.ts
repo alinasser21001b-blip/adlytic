@@ -1116,6 +1116,10 @@ export function campaignsPage(): string {
   // 10.00 USD/day budget as "$1,000.00" — see state.minorFactor below.
   function fmtCurrencyMinor(amountMinor) {
     if (amountMinor == null || isNaN(amountMinor)) return '—';
+    // No currency context yet → no number. A money figure printed against a
+    // guessed scale is not "approximately right", it is wrong by 100x and
+    // carries the wrong currency name. "—" is the honest output.
+    if (state.minorFactor == null || !state.currency) return '—';
     var major = Number(amountMinor) / state.minorFactor;
     var decimals = state.minorFactor === 1 ? 0 : 2;
     return major.toLocaleString('en-US', {
@@ -1217,9 +1221,18 @@ export function campaignsPage(): string {
     inspEffChart: null,
     workspaceId: null,
     // Currency context — hydrated from /api/workspaces/:id once it returns.
-    // Defaults are safe for the common case (USD-style 2-decimal currencies).
-    currency: 'USD',
-    minorFactor: 100,
+    //
+    // NULL until then, deliberately. These used to default to USD/100, which
+    // meant an IQD workspace rendered 40,000 IQD as "USD 400.00" — the value
+    // divided by 100 AND relabelled into a currency the merchant does not
+    // use. Worse, the workspace fetch swallows its own error, so a single
+    // failed request left those defaults in place permanently: every money
+    // figure on the page wrong, with no error shown.
+    //
+    // Same rule the reconciliation job follows: never guess a currency scale
+    // on a money column. An unhydrated amount renders "—".
+    currency: null,
+    minorFactor: null,
     lastSyncedAt: null,
     lastIssueDates: [],
     currentInspectorCampaignId: null,
@@ -1736,8 +1749,10 @@ export function campaignsPage(): string {
     // "cost per conversation" on a sales campaign. When the server cannot say
     // what a result costs, the honest answer is "—".
     if (c.costPerResult == null || !Number.isFinite(Number(c.costPerResult))) return null;
-    var factor = state.minorFactor || 100;
-    return Number(c.costPerResult) * factor;
+    // No 100 fallback: converting a MAJOR-unit cost with a guessed factor
+    // produces a confident wrong price, which is worse than no price.
+    if (state.minorFactor == null) return null;
+    return Number(c.costPerResult) * state.minorFactor;
   }
 
   /**
@@ -2889,8 +2904,13 @@ ${renderIntelligenceJs}
       return;
     }
     var currency = (account && account.currency) || state.currency || '';
-    var factor = (account && account.currencyMinorFactor) || state.minorFactor || 100;
+    // No 100 fallback here: that is the same guess that produced USD 400.00
+    // for a 40,000 IQD budget, just by a second route. Two formatters in one
+    // file disagreeing about the scale is how the page showed IQD spend
+    // beside a USD budget on the same card.
+    var factor = (account && account.currencyMinorFactor) || state.minorFactor;
     if (currency === 'IQD') factor = 1;
+    if (factor == null || !currency) return;
     var byDate = {};
     ts.dates.forEach(function (iso, i) {
       byDate[String(iso).slice(0, 10)] = i;

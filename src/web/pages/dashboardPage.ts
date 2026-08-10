@@ -912,8 +912,13 @@ export function dashboardPage(): string {
 
   // buildIssueMarkerDataset — provided by SHARED_JS (layout.ts).
   var state = {
-    currency: 'USD',
-    minorFactor: 100,
+    // NULL until /api/workspaces/:id hydrates. These defaulted to USD/100,
+    // the identical bug the campaigns page had: an IQD account rendered its
+    // spend divided by 100 and labelled USD. It is why the dashboard showed
+    // "100 IQD" while the campaign list under it summed to millions — two
+    // pages, two scales, both confident.
+    currency: null,
+    minorFactor: null,
     workspaceId: null,
     locale: 'EN',
     mainMovePrimary: null,

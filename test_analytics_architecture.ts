@@ -433,6 +433,28 @@ check('every purpose resolution that passes volume evidence passes ALL of it', (
     `purpose resolution with partial evidence: ${[...new Set(offenders)].join(', ')}`);
 });
 
+check('no frontend money formatter defaults to a currency or a scale', () => {
+  // THE BUG THIS ENCODES, caught by a customer review of production:
+  // campaignsPage initialised `currency: 'USD', minorFactor: 100` and its
+  // formatter divided by that. An IQD workspace therefore rendered a
+  // 40,000 IQD daily budget as "USD 400.00" — off by 100x AND relabelled
+  // into a currency the merchant does not use. The workspace fetch swallows
+  // its own failure, so one bad request made that permanent.
+  //
+  // Rule: a money formatter may not carry a default currency or a default
+  // minor-unit factor. Unknown scale means no number.
+  const offenders: string[] = [];
+  for (const { path, code } of FILES) {
+    if (!/^src\/web\//.test(path)) continue;
+    const stripped = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+    if (/currency:\s*['"][A-Z]{3}['"]/.test(stripped)) offenders.push(path + ' (default currency)');
+    if (/minorFactor:\s*\d+/.test(stripped)) offenders.push(path + ' (default minorFactor)');
+    if (/minorFactor\s*\|\|\s*\d+/.test(stripped)) offenders.push(path + ' (minorFactor || fallback)');
+  }
+  assert.deepEqual([...new Set(offenders)], [],
+    `frontend money formatter with a guessed scale: ${[...new Set(offenders)].join(', ')}`);
+});
+
 check('the intelligence section renders the DTO without deciding anything', () => {
   const src = readFileSync(join(ROOT, 'web/pages/dashboard/sections/intelligence.ts'), 'utf8');
   // It may format (×100 for display) but must not threshold or compare counts.
