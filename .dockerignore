@@ -1,37 +1,81 @@
-# Git & tooling
+# ════════════════════════════════════════════════════════════════════════
+#  Build context for the Adlytic runtime image.
+#
+#  WHY THIS WAS REWRITTEN
+#  Nixpacks runs `COPY . /app` THREE times, so every megabyte in this context
+#  is paid for three times in image layers — and layers are what "Publishing
+#  image" spends its minutes uploading.
+#
+#  The repository is not one project. It carries `review/` (14MB of audit
+#  material), `hub/`, `platform/`, `dawai-platform/`, `dawai-site/`,
+#  `qareeb-platform/`, `docs/` and `public/adspulse/` — none of which the
+#  Adlytic server imports or serves. Verified, not assumed: zero `src/`
+#  imports reference any of them, and the only static routes are /fonts,
+#  /icons, /manifest.json, /sw.js and /vendor.
+#
+#  Also corrected: Docker's ignore patterns are NOT recursive. `*.md` matched
+#  only root-level files, so every .md under docs/ and the sibling projects
+#  was being copied in despite the rule that looked like it excluded them.
+#  The patterns below use `**/` where recursion is what was meant.
+#
+#  RULE FOR EDITING: this file is an allow-nothing-by-accident list. If you
+#  add a directory to the repo, decide whether the RUNTIME needs it. If it
+#  does not, add it here.
+# ════════════════════════════════════════════════════════════════════════
+
+# ── Git & tooling ───────────────────────────────────────────────────────
 .git
 .gitignore
 .cursor
 .claude
 .github
 
-# Dependencies & build output (rebuilt in container)
+# ── Dependencies & build output (rebuilt in the container) ──────────────
 node_modules
+**/node_modules
 dist
+**/dist
 coverage
 .playwright
 playwright-report
 test-results
 
-# Local env & secrets
+# ── Local env & secrets ─────────────────────────────────────────────────
 .env
 .env.*
 !.env.example
 
-# Tests & dev scripts
+# ── Tests & dev scripts ─────────────────────────────────────────────────
 test_*.ts
+test_*.mjs
 tests
 e2e
 playwright.config.ts
 *.command
 scripts/compileMasterAuditPdf.ts
 
-# Docs, audits, logs (not needed at runtime)
-*.md
-*.txt
-*.pdf
-*.log
-*.sh
+# ── SIBLING PROJECTS — not the Adlytic runtime ──────────────────────────
+# Each is its own deployable; the server neither imports nor serves them.
+hub
+platform
+dawai-platform
+dawai-site
+qareeb-platform
+review
+docs
+public/adspulse
+
+# ── Rendered/audit artefacts (regenerated on demand, never shipped) ─────
+.mobile-pages
+.desktop-shots
+.desktop-findings.json
+
+# ── Docs, audits, logs — recursive, because *.md alone is root-only ─────
+**/*.md
+**/*.txt
+**/*.pdf
+**/*.log
+**/*.sh
 AUDIT_*
 ADLYTIC_*
 ARCHITECTURE_*
@@ -45,11 +89,7 @@ CMO_*
 COMPLETION_*
 alpha_*
 
-# Uploads / artifacts
+# ── Uploads / artifacts ─────────────────────────────────────────────────
 uploads
 artifacts
 tmp
-
-# Railway setup (not runtime)
-railway.setup.txt
-deploy-adlytic-only.command
