@@ -13,7 +13,7 @@ export function welcomePage(): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Welcome — Adlytic</title>
+  <title>مرحباً — Adlytic</title>
   <link rel="stylesheet" href="${BASE_CSS_PATH}">
   <style>
     body {
@@ -142,8 +142,8 @@ export function welcomePage(): string {
   <div id="toast-container"></div>
   <div class="welcome-wrap">
     <div class="welcome-topbar" id="welcome-topbar">
-      <a href="/login" id="topbar-login">Log in</a>
-      <a href="/register" class="welcome-topbar-primary" id="topbar-register">Sign up</a>
+      <a href="/login" id="topbar-login">تسجيل الدخول</a>
+      <a href="/register" class="welcome-topbar-primary" id="topbar-register">إنشاء حساب</a>
     </div>
     <div class="welcome-logo">
       <div class="welcome-logo-mark">A</div>
@@ -152,40 +152,40 @@ export function welcomePage(): string {
     <div class="welcome-card" id="welcome-card">
       <div class="welcome-hero">
         <div class="welcome-emoji">📊</div>
-        <div class="welcome-title" id="welcome-title">Welcome to Adlytic</div>
+        <div class="welcome-title" id="welcome-title">مرحباً بك في Adlytic</div>
         <div class="welcome-subtitle" id="welcome-subtitle">
-          Sign in to connect your Meta Ads account and unlock AI-powered insights.
+          سجّل الدخول لربط حساب إعلانات Meta والحصول على رؤى ذكية.
         </div>
       </div>
 
       <div id="error-msg" class="alert alert-error"></div>
 
       <div class="welcome-signed-in" id="welcome-signed-in">
-        <span id="signed-in-label">Signed in as</span>
+        <span id="signed-in-label">مسجّل الدخول كـ</span>
         <strong id="signed-in-email"></strong>.
-        <a href="#" id="switch-account-link">Use a different account</a>
+        <a href="#" id="switch-account-link">استخدام حساب آخر</a>
       </div>
 
       <div class="welcome-actions" id="guest-actions">
-        <a href="/login" class="btn btn-primary welcome-email-btn" id="manual-login-btn">Sign in with email</a>
-        <a href="/register" class="btn btn-secondary welcome-register-btn" id="register-btn">Create account</a>
+        <a href="/login" class="btn btn-primary welcome-email-btn" id="manual-login-btn">تسجيل الدخول بالبريد</a>
+        <a href="/register" class="btn btn-secondary welcome-register-btn" id="register-btn">إنشاء حساب</a>
       </div>
 
       <div id="meta-section">
-        <div class="welcome-or" id="welcome-or">or</div>
+        <div class="welcome-or" id="welcome-or">أو</div>
         <button type="button" class="btn btn-primary meta-connect-btn" id="connect-meta-btn">
           <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
           </svg>
-          <span id="connect-btn-label">Connect with Meta</span>
+          <span id="connect-btn-label">الربط مع Meta</span>
         </button>
-        <div class="welcome-meta-hint" id="meta-hint">Sign in first, then connect your ad account.</div>
+        <div class="welcome-meta-hint" id="meta-hint">سجّل الدخول أولاً، ثم اربط حسابك الإعلاني.</div>
         <div id="connect-loading">
           <span class="spinner" style="width:16px;height:16px;border-width:2px;"></span>
-          <span id="connect-loading-text">Redirecting to Meta…</span>
+          <span id="connect-loading-text">جاري التحويل إلى Meta…</span>
         </div>
         <a href="/workspace?connect=manual" class="btn btn-ghost welcome-manual-btn" id="manual-connect-link" style="display:none;">
-          <span id="manual-connect-label">Connect manually (access token)</span>
+          <span id="manual-connect-label">الربط اليدوي بميتا</span>
         </a>
       </div>
 
@@ -195,22 +195,22 @@ export function welcomePage(): string {
         <div class="welcome-benefit">
           <div class="welcome-benefit-icon">⚡</div>
           <div>
-            <div class="welcome-benefit-title" data-i18n="b1-title">Instant performance overview</div>
-            <div class="welcome-benefit-text" data-i18n="b1-text">See spend, reach, and engagement across all campaigns.</div>
+            <div class="welcome-benefit-title" data-i18n="b1-title">نظرة فورية على الأداء</div>
+            <div class="welcome-benefit-text" data-i18n="b1-text">تابع الإنفاق والوصول والتفاعل لكل الحملات.</div>
           </div>
         </div>
         <div class="welcome-benefit">
           <div class="welcome-benefit-icon">🧠</div>
           <div>
-            <div class="welcome-benefit-title" data-i18n="b2-title">AI recommendations</div>
-            <div class="welcome-benefit-text" data-i18n="b2-text">Get prioritized actions tailored to your ad account.</div>
+            <div class="welcome-benefit-title" data-i18n="b2-title">توصيات ذكية</div>
+            <div class="welcome-benefit-text" data-i18n="b2-text">احصل على إجراءات مقترحة مخصّصة لحسابك الإعلاني.</div>
           </div>
         </div>
         <div class="welcome-benefit">
           <div class="welcome-benefit-icon">🔒</div>
           <div>
-            <div class="welcome-benefit-title" data-i18n="b3-title">Secure connection</div>
-            <div class="welcome-benefit-text" data-i18n="b3-text">Your tokens are encrypted. We only read ad performance data.</div>
+            <div class="welcome-benefit-title" data-i18n="b3-title">اتصال آمن</div>
+            <div class="welcome-benefit-text" data-i18n="b3-text">بيانات الدخول مشفّرة — نقرأ أداء الإعلانات فقط.</div>
           </div>
         </div>
       </div>

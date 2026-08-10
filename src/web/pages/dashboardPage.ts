@@ -76,7 +76,7 @@ export function dashboardPage(): string {
     <!-- ═══ STATE: ERROR ═══ -->
     <div id="error-state" style="display:none;">
       <div class="alert alert-error">
-        <div style="flex:1;min-width:0;" id="error-msg">An error occurred.</div>
+        <div style="flex:1;min-width:0;" id="error-msg">حدث خطأ.</div>
         <button type="button" class="btn btn-primary btn-sm" id="error-retry-btn">إعادة المحاولة</button>
       </div>
     </div>
@@ -396,7 +396,7 @@ export function dashboardPage(): string {
             <div class="brain-box-sub" id="brain-box-sub">—</div>
           </div>
           <div id="strategy-list" dir="auto">
-            <div class="v2-action-empty">Analyzing…</div>
+            <div class="v2-action-empty">جارٍ التحليل…</div>
           </div>
         </div>
         <div class="chart-panel">
@@ -439,7 +439,7 @@ export function dashboardPage(): string {
           <div class="action-modal-steps" id="action-modal-steps"></div>
           <div class="modal-footer">
             <button type="button" class="btn btn-secondary btn-sm" id="action-modal-cancel">إلغاء</button>
-            <button type="button" class="btn btn-primary btn-sm" id="action-modal-confirm">I've applied this</button>
+            <button type="button" class="btn btn-primary btn-sm" id="action-modal-confirm">نفّذت المهمة</button>
           </div>
         </div>
       </div>

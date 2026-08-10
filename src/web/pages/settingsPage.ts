@@ -296,7 +296,7 @@ export function settingsPage(): string {
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1l2.2 4.5 4.8.7-3.5 3.4.8 4.9L8 12.1l-4.3 2.4.8-4.9L1 6.2l4.8-.7L8 1z" stroke="currentColor" stroke-width="1.3" stroke-linejoin="round"/></svg>
                 ترقية إلى Premium — $10 / شهر
               </button>
-              <div class="form-hint" style="margin-top:8px;text-align:center;">Powered by Stripe. Sandbox: card 4242 4242 4242 4242.</div>
+              <div class="form-hint" style="margin-top:8px;text-align:center;">الدفع عبر Stripe — بيانات بطاقتك لا تمر عبر خوادمنا.</div>
             </div>
             <div id="billing-non-owner-note" style="display:none;margin-top:16px;" class="form-hint">فقط مالك مساحة العمل يمكنه إدارة الفوترة.</div>
             <div class="settings-divider"></div>

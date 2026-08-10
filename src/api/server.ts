@@ -688,6 +688,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   ]);
 
   // Block inactive accounts from all authenticated APIs except the allowlist above.
+  /**
+   * ACTIVE-USER GATE, NOT AN AUTH GATE.
+   *
+   * Read the next-calls below before changing anything here. Every failure
+   * path calls next(): no Authorization header → through; malformed header →
+   * through; invalid, expired or revoked token → through. That is deliberate,
+   * because public routes (login, register, webhooks, OAuth callbacks) sit
+   * under /api/* too and must reach their handlers without a session.
+   *
+   * The consequence is the single most important fact about this codebase:
+   * AUTHENTICATION IS ENFORCED ONE ROUTE AT A TIME. Each handler resolves its
+   * own caller via getUserId() / requirePlatformAdmin(), and each
+   * workspace-scoped handler proves membership via checkMember(). A handler
+   * that forgets is not caught by a type or by this middleware — it is simply
+   * open to anonymous callers.
+   *
+   * Two things follow, and both are load-bearing:
+   *   · Do NOT "fix" this to return 401. That breaks every public route.
+   *   · Do NOT delete a per-route check on the assumption that this covers
+   *     it. It does not.
+   *
+   * test_route_authz.ts enforces both halves across all registered /api
+   * routes, so the next forgotten check fails the build instead of shipping.
+   */
   app.use('/api/*', async (c, next) => {
     const path = c.req.path;
     if (

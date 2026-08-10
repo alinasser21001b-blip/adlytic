@@ -3199,7 +3199,7 @@ export function sidebar(active: string): string {
           <span class="avatar-status" title="متصل"></span>
         </div>
         <div class="sidebar-user-info">
-          <div class="sidebar-user-name" id="user-name">Loading…</div>
+          <div class="sidebar-user-name" id="user-name">جارٍ التحميل…</div>
           <div class="sidebar-user-email" id="user-email"></div>
         </div>
         <span class="sidebar-user-chevron" aria-hidden="true">${ICONS['chevron']}</span>
