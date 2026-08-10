@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" role="img" aria-label="Adlytic monogram A">
+  <!-- Fallback monogram when aperture is too small or needs letter recognition -->
+  <rect width="64" height="64" rx="14" fill="#0E4034"/>
+  <path d="M18 48 L32 14 L46 48" fill="none" stroke="#C8F26B" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M23.5 36.5 H40.5" stroke="#C8F26B" stroke-width="4.5" stroke-linecap="round"/>
+</svg>

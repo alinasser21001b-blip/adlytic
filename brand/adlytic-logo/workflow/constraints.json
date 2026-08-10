@@ -1,0 +1,37 @@
+{
+  "strategic_decision": "option_b_full_independence",
+  "brand_soul": "advisor_recommends_never_spends",
+  "audience_primary": "iraqi_smb_owners",
+  "audience_secondary": ["meta_app_review", "partners", "investors"],
+  "bilingual": { "ar_rtl": true, "en_ltr": true },
+  "colors": {
+    "brand": "#0E4034",
+    "signal": "#C8F26B",
+    "text": "#0B1F19",
+    "field": "#F2F7F4"
+  },
+  "typography": {
+    "display": "IBM Plex Sans Arabic",
+    "note": "Shared font with AdsPulse is operational only — not visual kinship"
+  },
+  "banned_motifs": [
+    "rising_arrow",
+    "ascending_chart",
+    "rocket",
+    "magnifying_glass",
+    "circuit_brain_neurons",
+    "sales_funnel",
+    "generic_globe",
+    "adspulse_ecg"
+  ],
+  "required_assets": [
+    "mark_standalone",
+    "mono_black",
+    "mono_white_on_dark",
+    "lockup_horizontal_en",
+    "favicon",
+    "app_icon",
+    "monogram_fallback"
+  ],
+  "validity_tests": ["px16", "mono", "sketch10s", "whatsapp", "print_bw"]
+}

@@ -1,0 +1,20 @@
+{
+  "name": "adlytic-logo-identity",
+  "pattern": "evaluator",
+  "generator": {
+    "agent": "generator"
+  },
+  "evaluator": {
+    "agent": "evaluator",
+    "criteria": [
+      "accuracy",
+      "format",
+      "safety"
+    ]
+  },
+  "loop": {
+    "max_iterations": 3,
+    "pass_threshold": 0.8,
+    "on_fail": "revise_and_retry"
+  }
+}

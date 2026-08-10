@@ -1,0 +1,20 @@
+{
+  "name": "adlytic-logo-concepts",
+  "pattern": "parallel",
+  "fan_out": {
+    "tasks": [
+      "research_a",
+      "research_b",
+      "research_c"
+    ],
+    "agent": "analyst"
+  },
+  "fan_in": {
+    "agent": "synthesizer",
+    "output": "combined_report"
+  },
+  "timeouts": {
+    "per_task_seconds": 180,
+    "fan_in_seconds": 120
+  }
+}

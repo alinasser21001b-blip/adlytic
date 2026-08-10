@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Adlytic Lattice Seal  monochrome black">
+  <rect x="8" y="8" width="104" height="104" rx="26" fill="#0B1F19"/>
+  <circle cx="60" cy="36" r="7" fill="#FFFFFF"/>
+  <circle cx="38" cy="78" r="7" fill="#FFFFFF"/>
+  <circle cx="82" cy="78" r="7" fill="#FFFFFF"/>
+  <path d="M60 43 L41 72" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M60 43 L79 72" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" fill="none"/>
+  <path d="M45 78 L75 78" stroke="#FFFFFF" stroke-width="3.2" stroke-linecap="round" fill="none" opacity="0.55"/>
+</svg>
