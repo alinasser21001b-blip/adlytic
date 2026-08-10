@@ -6,12 +6,23 @@ export type DeliveryTier =
   | 'DELIVERING_WINDOW'
   | 'DORMANT_ACTIVE'
   | 'NOT_DELIVERING'
+  | 'ACCOUNT_BLOCKED'
   | 'PAUSED'
   | 'ARCHIVED'
   | 'DELETED';
 
 /** Default window for "delivering" vs "dormant" classification. */
 export const DELIVERY_WINDOW_DAYS = 30;
+
+/**
+ * How many account-local calendar days (including today) count as "recent"
+ * enough to keep DELIVERING_WINDOW after midnight. Day 0 = today, day 1 =
+ * yesterday — so a campaign that spent yesterday still reads as delivering
+ * when Meta has not yet reported today's first spend. Two or more consecutive
+ * zero-spend days (typical of an unsettled/debt-stopped account) fall out of
+ * this window and become DORMANT_ACTIVE instead of a false "تعمل".
+ */
+export const RECENT_DELIVERY_DAYS = 2;
 
 /**
  * Meta effective_status values that indicate the campaign is NOT actually
@@ -35,20 +46,41 @@ export type CampaignDeliveryInput = {
   status: EntityStatus | string;
   metaEffectiveStatus?: string | null;
   spendTodayMinor?: number | bigint | null;
+  /** Spend inside the full delivery window (default 30d). */
   spendWindowMinor?: number | bigint | null;
+  /**
+   * Spend inside the recent delivery window (today + yesterday). Required for
+   * DELIVERING_WINDOW — 30d history alone must not keep a debt-stopped
+   * campaign marked "تعمل".
+   */
+  spendRecentMinor?: number | bigint | null;
+  /**
+   * False when Meta's ad-account account_status blocks delivery (unsettled
+   * balance, disabled, closed, …). Null/undefined = unknown → do not invent
+   * an account block.
+   */
+  accountDeliverable?: boolean | null;
 };
 
 /**
  * Classify a campaign for UI + AI based on Meta's actual delivery state.
  * Only reports "delivering" when Meta confirms ACTIVE effective_status AND
  * there is real spend evidence: today's spend → DELIVERING_TODAY, otherwise
- * spend inside the delivery window → DELIVERING_WINDOW. ACTIVE with zero
- * spend across the whole window is DORMANT_ACTIVE.
+ * recent (today/yesterday) spend → DELIVERING_WINDOW. ACTIVE with older
+ * window spend only is DORMANT_ACTIVE. Account-level billing blocks win over
+ * every campaign-level signal.
  */
 export function classifyCampaignDelivery(input: CampaignDeliveryInput): DeliveryTier {
   const status = String(input.status ?? '').toUpperCase();
   if (status === EntityStatus.DELETED || status === 'DELETED') return 'DELETED';
   if (status === EntityStatus.ARCHIVED || status === 'ARCHIVED') return 'ARCHIVED';
+
+  // Account billing / disable gate — Meta can leave campaigns ACTIVE while
+  // the whole ad account is unsettled. Those must never read as "تعمل".
+  if (input.accountDeliverable === false) {
+    return 'ACCOUNT_BLOCKED';
+  }
+
   if (status === EntityStatus.PAUSED || status === 'PAUSED') return 'PAUSED';
 
   const metaEff = input.metaEffectiveStatus
@@ -67,18 +99,23 @@ export function classifyCampaignDelivery(input: CampaignDeliveryInput): Delivery
 
   const isActive = status === EntityStatus.ACTIVE || status === 'ACTIVE';
 
-  // "Today" resets at the account-timezone midnight, hours before Meta
-  // reports the new day's first spend — a campaign that is ACTIVE and spent
-  // inside the window is still delivering, not dormant. Without this tier
-  // every dashboard "active" count drops to zero right after midnight.
-  const window = Number(input.spendWindowMinor ?? 0);
-  if (isActive && window > 0) return 'DELIVERING_WINDOW';
+  // Midnight-safe recent window: ACTIVE + spend today-or-yesterday stays
+  // delivering. Older 30d spend without recent activity is dormant — this is
+  // what stops debt-frozen campaigns with a green "تعمل" badge.
+  // Callers must pass spendRecentMinor (0 is meaningful). When omitted, fall
+  // back to the full window so legacy call sites keep the prior midnight
+  // contract until they are wired.
+  const recent =
+    input.spendRecentMinor !== undefined
+      ? Number(input.spendRecentMinor ?? 0)
+      : Number(input.spendWindowMinor ?? 0);
+  if (isActive && recent > 0) return 'DELIVERING_WINDOW';
 
   if (isActive) return 'DORMANT_ACTIVE';
   return 'PAUSED';
 }
 
-/** True when the campaign is actively delivering (today's or window spend). */
+/** True when the campaign is actively delivering (today's or recent window spend). */
 export function isDeliveringCampaign(tier: DeliveryTier): boolean {
   return tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW';
 }
@@ -94,6 +131,7 @@ export function deliveryTierLabel(tier: DeliveryTier, locale: 'EN' | 'AR' = 'AR'
     DELIVERING_WINDOW: 'Delivering',
     DORMANT_ACTIVE: 'Active (not spending)',
     NOT_DELIVERING: 'Not delivering',
+    ACCOUNT_BLOCKED: 'Stopped (billing)',
     PAUSED: 'Paused',
     ARCHIVED: 'Archived',
     DELETED: 'Deleted',
@@ -103,6 +141,7 @@ export function deliveryTierLabel(tier: DeliveryTier, locale: 'EN' | 'AR' = 'AR'
     DELIVERING_WINDOW: 'تعمل',
     DORMANT_ACTIVE: 'نشطة بدون إنفاق',
     NOT_DELIVERING: 'لا تعمل',
+    ACCOUNT_BLOCKED: 'متوقفة (ديون)',
     PAUSED: 'متوقفة',
     ARCHIVED: 'مؤرشفة',
     DELETED: 'محذوفة',
@@ -153,7 +192,7 @@ export function matchesDeliveryFilter(tier: DeliveryTier, filter: DeliveryFilter
     case 'PAUSED':
       return tier === 'PAUSED';
     case 'NOT_DELIVERING':
-      return tier === 'NOT_DELIVERING';
+      return tier === 'NOT_DELIVERING' || tier === 'ACCOUNT_BLOCKED';
     case 'ARCHIVED':
       return tier === 'ARCHIVED';
     default:

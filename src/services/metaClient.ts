@@ -203,6 +203,19 @@ export class MetaClient {
     return this.paginated(url, 1);
   }
 
+  /**
+   * Read ad-account delivery fields (account_status / disable_reason).
+   * Used to detect unsettled/debt-blocked accounts whose campaigns still
+   * report effective_status=ACTIVE.
+   */
+  async getAdAccount(externalAccountId: string): Promise<MetaInsightRow> {
+    const params = new URLSearchParams({
+      fields: "id,name,account_status,disable_reason,currency,timezone_name",
+    });
+    const url = `${this.base}/${externalAccountId}?${params.toString()}`;
+    return this.requestWithRetry(url) as Promise<MetaInsightRow>;
+  }
+
   /** List campaigns under an account — used for entity discovery. */
   async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({

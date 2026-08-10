@@ -158,7 +158,13 @@ import { currencyFactorNeedsHeal, currencyMinorFactorFor, moneyFormatterFor, res
 import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
 import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor, accountLocalDateFloor, getAccountLocalDateString } from '../lib/campaignSpending';
-import { classifyCampaignDelivery, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
+import {
+  classifyCampaignDelivery,
+  matchesCampaignScope,
+  RECENT_DELIVERY_DAYS,
+  type CampaignScopeFilter,
+} from '../lib/campaignLifecycle';
+import { resolveMetaAccountDeliveryState } from '../lib/metaAccountDelivery';
 import {
   efficiencyForObjective,
   resultCountForObjective,
@@ -2926,11 +2932,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const scope: CampaignScopeFilter =
       scopeRaw === 'live' || scopeRaw === 'historical' ? scopeRaw : 'all';
     const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
+    const recentSince = accountLocalDateFloor(account.timezone, RECENT_DELIVERY_DAYS - 1);
+    const accountDelivery = resolveMetaAccountDeliveryState({
+      metaAccountStatus: account.metaAccountStatus,
+      metaDisableReason: account.metaDisableReason,
+    });
     // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
     // so every campaign gets exactly 7 chronological points.
     const sparkDays = 7;
     const sparkSince = accountLocalDateFloor(account.timezone, sparkDays - 1);
-    const [todayStats, windowAgg, sparkRows, lastSpendRows] = campaigns.length
+    const [todayStats, windowAgg, recentAgg, sparkRows, lastSpendRows] = campaigns.length
       ? await Promise.all([
           prisma.dailyStat.findMany({
             where: {
@@ -2967,6 +2978,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             // (same rule the inspector endpoint applies).
             _avg: { frequency: true },
           }),
+          prisma.dailyStat.groupBy({
+            by: ['entityId'],
+            where: {
+              entityType: EntityType.CAMPAIGN,
+              entityId: { in: campaignIds },
+              date: { gte: recentSince },
+            },
+            _sum: { spend: true },
+          }),
           prisma.dailyStat.findMany({
             where: {
               entityType: EntityType.CAMPAIGN,
@@ -2985,9 +3005,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
             _max: { date: true },
           }),
         ])
-      : [[], [], [], []];
+      : [[], [], [], [], []];
     const spendTodayByCampaign = new Map(
       todayStats.map((s) => [s.entityId, Number(s.spend)]),
+    );
+    const spendRecentByCampaign = new Map(
+      recentAgg.map((a) => [a.entityId, Number(a._sum.spend ?? 0)]),
     );
     const aggByCampaign = new Map(
       windowAgg.map((a) => [
@@ -3059,11 +3082,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const purposeKey = purposeToObjectiveKey(purpose.family, camp.objective);
         const resultsWindow = resultCountForObjective(purposeKey, windowTotals);
         const costPerResultMajor = efficiencyForObjective(purposeKey, windowTotals, factor);
+        const spendRecentMinor = spendRecentByCampaign.get(camp.id) ?? 0;
         const deliveryTier = classifyCampaignDelivery({
           status: camp.status,
           metaEffectiveStatus: camp.metaEffectiveStatus,
           spendTodayMinor,
           spendWindowMinor,
+          spendRecentMinor,
+          accountDeliverable: accountDelivery.deliverable,
         });
         // ── P4.2 — the KPI set THIS campaign's objective cares about ───────
         //
@@ -3102,6 +3128,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           deliveryTier,
           deliveringInWindow: deliveryTier === 'DELIVERING_TODAY' || deliveryTier === 'DELIVERING_WINDOW',
           isDormantActive: deliveryTier === 'DORMANT_ACTIVE',
+          isAccountBlocked: deliveryTier === 'ACCOUNT_BLOCKED',
+          accountDelivery,
           isCurrentlySpending: isCurrentlySpending({
             status: camp.status,
             spendTodayMinor,

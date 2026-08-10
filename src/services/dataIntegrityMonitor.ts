@@ -6,8 +6,13 @@ import {
   cleanupOrphanedCampaignStats,
   findGloballyOrphanedCampaignEntityIds,
 } from '../lib/campaignDataIsolation';
-import { classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
+import {
+  classifyCampaignDelivery,
+  DELIVERY_WINDOW_DAYS,
+  RECENT_DELIVERY_DAYS,
+} from '../lib/campaignLifecycle';
 import { accountLocalDateFloor } from '../lib/campaignSpending';
+import { resolveMetaAccountDeliveryState } from '../lib/metaAccountDelivery';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -61,7 +66,17 @@ export async function runDataIntegrityCheck(
 ): Promise<DataIntegrityReport> {
   const windowDays = opts.windowDays ?? DELIVERY_WINDOW_DAYS;
   const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
+  const recentSince = accountLocalDateFloor(account.timezone, RECENT_DELIVERY_DAYS - 1);
   const checks: IntegrityCheck[] = [];
+
+  const acctRow = await prisma.adAccount.findUnique({
+    where: { id: account.id },
+    select: { metaAccountStatus: true, metaDisableReason: true },
+  });
+  const accountDelivery = resolveMetaAccountDeliveryState({
+    metaAccountStatus: acctRow?.metaAccountStatus ?? null,
+    metaDisableReason: acctRow?.metaDisableReason ?? null,
+  });
 
   const knownCampaigns = await prisma.campaign.findMany({
     where: { adAccountId: account.id },
@@ -69,7 +84,7 @@ export async function runDataIntegrityCheck(
   });
   const campaignIdSet = new Set(knownCampaigns.map((c) => c.id));
 
-  const [accountStats, campaignAgg, windowAgg, orphanedEntityIds] = await Promise.all([
+  const [accountStats, campaignAgg, windowAgg, recentAgg, orphanedEntityIds] = await Promise.all([
     prisma.dailyStat.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       select: { spend: true },
@@ -96,11 +111,25 @@ export async function runDataIntegrityCheck(
           _sum: { spend: true },
         })
       : Promise.resolve([]),
+    knownCampaigns.length
+      ? prisma.dailyStat.groupBy({
+          by: ['entityId'],
+          where: {
+            entityType: EntityType.CAMPAIGN,
+            entityId: { in: [...campaignIdSet] },
+            date: { gte: recentSince },
+          },
+          _sum: { spend: true },
+        })
+      : Promise.resolve([]),
     findGloballyOrphanedCampaignEntityIds(prisma, { sinceDate, limit: 500 }),
   ]);
 
   const spendWindowByCampaign = new Map(
     windowAgg.map((a) => [a.entityId, Number(a._sum.spend ?? 0)]),
+  );
+  const spendRecentByCampaign = new Map(
+    recentAgg.map((a) => [a.entityId, Number(a._sum.spend ?? 0)]),
   );
   let staleActiveCount = 0;
   for (const c of knownCampaigns) {
@@ -108,6 +137,8 @@ export async function runDataIntegrityCheck(
       status: c.status,
       metaEffectiveStatus: c.metaEffectiveStatus,
       spendWindowMinor: spendWindowByCampaign.get(c.id) ?? 0,
+      spendRecentMinor: spendRecentByCampaign.get(c.id) ?? 0,
+      accountDeliverable: accountDelivery.deliverable,
     });
     if (tier === 'DORMANT_ACTIVE') staleActiveCount += 1;
   }
@@ -119,6 +150,16 @@ export async function runDataIntegrityCheck(
     0,
     windowDays,
   );
+
+  if (!accountDelivery.deliverable) {
+    checks.push({
+      code: 'ACCOUNT_BILLING_BLOCKED',
+      severity: 'CRITICAL',
+      message: accountDelivery.labelEn,
+      messageAr: accountDelivery.labelAr,
+      value: accountDelivery.metaAccountStatus ?? undefined,
+    });
+  }
 
   const accountTotalSpend = accountStats.reduce((a, s) => a + Number(s.spend), 0);
   const campaignTotalSpend = campaignAgg.reduce((a, g) => a + Number(g._sum.spend ?? 0), 0);

@@ -208,17 +208,7 @@ export interface DashboardDTO {
     /** Campaigns delivering spend in the window — primary operational "active" count. */
     activeCampaigns: number;
     /** Unified counts — same source used by AI + UI chips. */
-    campaignCounts: {
-      total: number;
-      activeStatus: number;
-      paused: number;
-      archived: number;
-      spendingToday: number;
-      deliveringInWindow: number;
-      dormantActive: number;
-      withMetrics: number;
-      deliveryWindowDays: number;
-    };
+    campaignCounts: CampaignCounts;
   };
   /**
    * THE account health score. Singular, deliberately.

@@ -1648,8 +1648,15 @@ export function dashboardPage(): string {
     if (activeEl) {
       var activeSpan = activeEl.querySelector('span');
       if (activeSpan) {
-        var delivering = cc ? (cc.deliveringInWindow || cc.spendingToday || 0) : 0;
-        activeSpan.textContent = delivering + ' ' + lbl('active', 'نشطة');
+        var ad = cc && cc.accountDelivery;
+        if (ad && ad.deliverable === false) {
+          activeSpan.textContent = (cc.accountBlocked || 0) + ' ' + lbl('billing-stopped', 'متوقفة (ديون)');
+          activeEl.title = ad.labelAr || ad.labelEn || '';
+        } else {
+          var delivering = cc ? (cc.deliveringInWindow || cc.spendingToday || 0) : 0;
+          activeSpan.textContent = delivering + ' ' + lbl('active', 'نشطة');
+          activeEl.title = lbl('Active campaigns', 'حملات نشطة');
+        }
       }
     }
 
@@ -1831,6 +1838,7 @@ export function dashboardPage(): string {
       { n: cc.spendingToday || 0, color: 'var(--success)', label: lbl('spending today', 'تنفق اليوم') },
       { n: delivering, color: 'var(--accent)', label: lbl('delivering', 'تعمل فعلًا') },
       { n: cc.dormantActive || 0, color: 'var(--warning)', label: lbl('no spend', 'بدون إنفاق') },
+      { n: cc.accountBlocked || 0, color: 'var(--danger, #d32f2f)', label: lbl('billing-stopped', 'متوقفة (ديون)') },
       { n: (cc.paused || 0) + (cc.archived || 0), color: 'var(--border-2)', label: lbl('stopped', 'متوقفة') },
     ];
 
@@ -1845,9 +1853,14 @@ export function dashboardPage(): string {
         + escHtml(s.label) + ' <bdi>' + s.n + '</bdi></span>';
     }).join('');
     if (note) {
-      note.textContent = cc.dormantActive > 0
-        ? lbl('"No spend" looks active in Meta but is not spending anything — not counted as delivering.', '«بدون إنفاق» تبدو نشطة في Meta لكنها لا تصرف شيئًا — لا تُحسب ضمن ما يعمل.')
-        : '';
+      var ad = cc.accountDelivery;
+      if (ad && ad.deliverable === false) {
+        note.textContent = ad.labelAr || ad.labelEn || '';
+      } else {
+        note.textContent = cc.dormantActive > 0
+          ? lbl('"No spend" looks active in Meta but is not spending anything — not counted as delivering.', '«بدون إنفاق» تبدو نشطة في Meta لكنها لا تصرف شيئًا — لا تُحسب ضمن ما يعمل.')
+          : '';
+      }
     }
   }
 
