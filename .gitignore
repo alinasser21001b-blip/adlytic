@@ -43,3 +43,8 @@ platform/dist-tools/
 # disagree with the deploy.
 platform/dist-web/
 .mobile-pages/
+
+# Throwaway diagnostic probes. Written to the repo root so `playwright`
+# resolves, deleted after use. Never part of the product.
+probe*.mjs
+probe-*.mjs
