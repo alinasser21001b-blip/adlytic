@@ -69,7 +69,7 @@ export function settingsPage(): string {
                 <div id="profile-email-display" class="settings-profile-email"></div>
                 <div class="settings-profile-joined">
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="currentColor" stroke-width="1.5"/><path d="M8 4.5v4l2.5 1.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                  <span id="profile-joined-text">عضو منذ ٢٠٢٤</span>
+                  <span id="profile-joined-text"></span>
                 </div>
               </div>
             </div>
@@ -693,6 +693,19 @@ export function settingsPage(): string {
   document.getElementById('email-input').value = me.email || '';
   document.getElementById('locale-input').value = me.locale || 'AR';
 
+  // "Member since" was a hardcoded ٢٠٢٤ that nothing ever replaced — every
+  // account, whoever they were and whenever they joined, was told the same
+  // year. /api/auth/me has returned createdAt all along. If it is ever
+  // missing the line is removed rather than guessed.
+  var joinedEl = document.getElementById('profile-joined-text');
+  var joinedRow = document.querySelector('.settings-profile-joined');
+  var joined = me.createdAt ? new Date(me.createdAt) : null;
+  if (joinedEl && joined && !isNaN(joined.getTime())) {
+    joinedEl.textContent = 'عضو منذ ' + joined.toLocaleDateString('ar-u-nu-latn', { year: 'numeric', month: 'long' });
+  } else if (joinedRow) {
+    joinedRow.style.display = 'none';
+  }
+
   // ── Phase 13: form plumbing shared by every panel on this page ────────
   // Per-field messages, because the card-top alert is off-screen while a
   // phone keyboard is open and the user is looking at the field they got
@@ -969,7 +982,7 @@ export function settingsPage(): string {
         document.getElementById('billing-status-line').textContent = ws.subscriptionStatus || 'بدون اشتراك';
         if (ws.subscriptionExpiresAt) {
           const expEl = document.getElementById('billing-expiry-line');
-          expEl.textContent = 'ينتهي: ' + new Date(ws.subscriptionExpiresAt).toLocaleDateString('ar');
+          expEl.textContent = 'ينتهي: ' + new Date(ws.subscriptionExpiresAt).toLocaleDateString('ar-u-nu-latn');
           expEl.style.display = 'block';
         }
         if (wsM && wsM.role === 'OWNER' && ws.tier !== 'PREMIUM') {

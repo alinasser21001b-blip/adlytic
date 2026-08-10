@@ -210,4 +210,26 @@ for (const f of readdirSync('.mobile-pages').filter((n) => n.endsWith('.html')))
 }
 if (!dupBad) console.log('id uniqueness clean: no page renders a duplicate element id');
 
-process.exit(bad || scaleBad || contrastBad || rootBad || dupBad ? 1 : 0);
+
+// ── One numeral system ────────────────────────────────────────────────
+// Metrics are formatted with Latin digits everywhere: 390,000 / 84 / 38.
+// Seven date formatters asked for a plain Arabic locale, which emits
+// Arabic-Indic digits, so one screen showed "38/100" beside
+// "آخر تحديث ٨ آب ١٢:٠٠". Both are correct Arabic; mixing them in one
+// view is not. The convention is 'ar-u-nu-latn' — Arabic month names,
+// Latin numerals — and this keeps it.
+let numeralBad = 0;
+for (const dir of ['src/web']) {
+  for (const f of readdirSync(dir, { recursive: true })) {
+    if (typeof f !== 'string' || !f.endsWith('.ts')) continue;
+    const src = readFileSync(dir + '/' + f, 'utf8');
+    for (const m of src.matchAll(/toLocale(?:Date|Time)?String\(\s*'(ar[^']*)'/g)) {
+      if (m[1] === 'ar-u-nu-latn') continue;
+      console.error(`✗ ${dir}/${f}: toLocale…('${m[1]}') emits Arabic-Indic digits — use 'ar-u-nu-latn'`);
+      numeralBad++;
+    }
+  }
+}
+if (!numeralBad) console.log("numerals clean: every Arabic date formatter uses 'ar-u-nu-latn'");
+
+process.exit(bad || scaleBad || contrastBad || rootBad || dupBad || numeralBad ? 1 : 0);

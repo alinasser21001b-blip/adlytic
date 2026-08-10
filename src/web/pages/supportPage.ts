@@ -179,12 +179,12 @@ let currentTicket = null;
 function fmtDateSafe(v) {
   if (!v) return '—';
   var d = new Date(v);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('ar');
+  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('ar-u-nu-latn');
 }
 function fmtDateTimeSafe(v) {
   if (!v) return '—';
   var d = new Date(v);
-  return isNaN(d.getTime()) ? '—' : d.toLocaleString('ar');
+  return isNaN(d.getTime()) ? '—' : d.toLocaleString('ar-u-nu-latn');
 }
 
 async function apiFetch(path, opts = {}) {

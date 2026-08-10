@@ -762,7 +762,7 @@ export const renderCommandCenterJs = `
   function ccWhen(iso) {
     var d = new Date(iso);
     if (isNaN(d.getTime())) return String(iso);
-    return d.toLocaleString('ar-IQ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+    return d.toLocaleString('ar-u-nu-latn', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
   }
 
   function ccBindFoot() {

@@ -3001,7 +3001,7 @@ ${renderIntelligenceJs}
       : '';
     panel.innerHTML = offlineNote
       + '<div style="font-size:11px;color:var(--text-3);margin-bottom:12px;direction:rtl;text-align:right;">'
-      + 'تم إجراء هذا التحقيق ' + new Date(report.generatedAt).toLocaleString('ar') + '</div>'
+      + 'تم إجراء هذا التحقيق ' + new Date(report.generatedAt).toLocaleString('ar-u-nu-latn') + '</div>'
       + report.sections.map(function (s) {
           var badge = s.status !== 'ok'
             ? '<span class="badge badge-gray" style="margin-inline-start:8px;">' + (SECTION_STATUS_LABEL[s.status] || s.status) + '</span>'

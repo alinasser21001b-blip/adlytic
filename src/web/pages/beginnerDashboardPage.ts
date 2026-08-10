@@ -746,8 +746,8 @@ export function beginnerDashboardPage(): string {
     var synced = dash.workspace && dash.workspace.lastSyncedAt;
     try {
       el.textContent = synced
-        ? ('آخر مزامنة مع فيسبوك: ' + new Date(synced).toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' }))
-        : ('تم التحديث: ' + new Date().toLocaleTimeString('ar-EG', { hour: 'numeric', minute: '2-digit' }));
+        ? ('آخر مزامنة مع فيسبوك: ' + new Date(synced).toLocaleTimeString('ar-u-nu-latn', { hour: 'numeric', minute: '2-digit' }))
+        : ('تم التحديث: ' + new Date().toLocaleTimeString('ar-u-nu-latn', { hour: 'numeric', minute: '2-digit' }));
     } catch (e) { el.textContent = ''; }
   }
 
