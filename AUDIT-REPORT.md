@@ -35,6 +35,12 @@ findings mean:**
 | D-10 | P2 | `src/web/pages/loginPage.ts:44` | The password reveal control sat **on top of** the padlock icon. Three things share that field and disagreed about which side is "start": the icon uses physical `right`, the toggle used a logical property against an RTL wrapper, and the input carries `dir="ltr"` so its own inline axis is flipped. | All three physical: lock right, reveal left, padding for each. | `408e700` | — |
 | D-11 | P1 | `src/web/pages/settingsPage.ts:72` | Settings told **every** account `عضو منذ ٢٠٢٤` — a literal in the markup that nothing ever replaced. A merchant who signed up last month read a fabricated year about their own account. Directly violates the project's "never manufacture historical values" rule. | Populated from `me.createdAt` (already returned by `/api/auth/me`); the line is removed rather than guessed when the field is absent. | `28dc6aa` | — |
 | D-12 | P2 | 7 sites | `toLocaleDateString('ar')` / `'ar-EG'` / `'ar-IQ'` emit Arabic-Indic digits while every metric uses Latin ones, so one screen showed `38/100` above `آخر تحديث ٨ آب ١٢:٠٠`. | All seven use `'ar-u-nu-latn'`, the convention the other 25 sites already followed. | `28dc6aa` | numeral rule in `test_page_scripts.mjs` |
+| D-1a | P0 | `prisma/schema.prisma`, `src/config.ts`, `src/services/tokenEncryption.ts` | No `key_version` on either token column, so "which key opens this row" was unanswerable from the data and a key change was instantaneous, total and unrecoverable. | `access_token_key_version` added to both tables (additive, nullable, no default → catalog-only change, no heap rewrite, reversible). `TOKEN_ENCRYPTION_KEY_PREVIOUS` + `TOKEN_ENCRYPTION_KEY_VERSION` make a rotation stageable: old rows keep opening while new writes are stamped with the new generation. All 6 persistence sites stamp it. Nothing changes when neither variable is set. | this commit | `test_token_encryption.ts` — rewritten, see below |
+| D-1b | P0 | `test_token_encryption.ts` | **The crypto suite was testing nothing.** It documented `Run: TOKEN_ENCRYPTION_KEY=… npx tsx …` and nobody ever did, so `encryptToken` returned its input and `decryptToken` returned its input — "round-trip decrypt" PASSED because two identity functions agreed. This is the layer that should have caught D-1 and could not. | The test sets its own keys, and asserts first that a key is actually configured. Rotation is exercised in **child processes**, because `config.ts` reads env once at module load — which is also how a rotation really lands: a redeploy. 8 → **17 assertions**. | this commit | itself |
+| D-2c | P2 | `src/api/server.ts:607-611` | Five `/admin*` HTML routes were `c.html(page())` with no server check. No data was exposed — all 36 `/api/admin` routes gate — but the operator shell was readable by anyone. A client-side redirect is a courtesy, not a boundary. | Login and register now also set an HttpOnly `adlytic_session` cookie (purely additive; the bearer flow is untouched), and the five routes redirect anonymous callers. `POST /api/auth/logout` clears it, since the browser cannot clear HttpOnly itself. | this commit | operator-page rule in `test_route_authz.ts` |
+| D-5 | P1 | `src/web/pages/dashboardPage.ts` | Four mutually exclusive regions — skeleton, backfill overlay, hard error, content — toggled by nine scattered `.style.display` writes with **no owner**. `showError` left content up; `hideLoadingShowDashboard` left error up; `showOnboardingOverlay` left both. That is how production showed four contradictory states at once. | One `setDashPhase()` and a `DASH_PHASES` table where every phase specifies every region. Adding a fifth region is one row. The state strip (OFFLINE/STALE/PARTIAL/INSUFFICIENT_DATA) is deliberately **not** included — those genuinely coexist with a rendered dashboard. | this commit | `test_ui_state_integrity.mjs` |
+| D-13 | P1 | `src/web/pages/campaignsPage.ts:3440` | The data-integrity monitor printed «البيانات متسقة — لا توجد مشاكل» whenever it had assembled zero findings — which is also what an empty payload, a 404 and a rejected request produce. **Absence of findings was rendered as proof of health**, on the one surface whose job is to say whether the numbers can be trusted. | Three outcomes, not two: `ok` (green, auto-hides), `warn` (amber, stays), `unknown` (hatched, stays). The green branch is now unreachable without `checkedAt` proving the check ran, and the `.catch` renders `unknown` instead of staying silent. | this commit | `test_ui_state_integrity.mjs` |
+| D-14 | P2 | `src/web/pages/dashboardPage.ts:3546` | Polling retried forever at a fixed interval with an empty catch. Against a broken token nothing improved by asking more often, and the customer was never told refreshing had stopped working — the screen kept showing numbers that had quietly stopped being current. | Exponential backoff per consecutive failure (capped at 15 min), and a new `STALE` entry in the state strip after 3 consecutive failures. Any success, an explicit retry, or returning to the tab resets both. | this commit | — |
 | D-2b | P1 | `src/api/server.ts:691` | The `/api/*` middleware **looks like** an auth gate and is not one — every failure path calls `next()`. A future reader "fixing" it to 401 breaks all public routes; one trusting it and deleting a per-route check opens everything. It was unlabelled. | Documented as `ACTIVE-USER GATE, NOT AN AUTH GATE`, with both failure modes spelled out. Behaviour unchanged — this is a comment plus a test, not an auth change, so it is not inside the D-2 approval gate. | this commit | **`test_route_authz.ts`** |
 
 Every fitness test listed was **first proven to fail on the real regression**
@@ -43,9 +49,27 @@ A test that has never been red is decoration.
 
 ---
 
-## Found, not fixed (needs approval)
+## Findings in detail
 
-### D-1 — P0 — Meta token encryption: no key versioning
+Everything below is now fixed except the first item, which needs a production
+database this sandbox does not have.
+
+### D-1 (remainder) — P0 — the blast radius is still unmeasured
+The structural half is fixed (D-1a above): `access_token_key_version` exists, rotation is stageable, and the crypto suite genuinely exercises both keys. **What is still missing is the number**, and it cannot be produced from here.
+
+Run this against production and the incident is sized:
+
+```bash
+DATABASE_URL=… TOKEN_ENCRYPTION_KEY=… npx tsx scripts/count-undecryptable-tokens.ts
+```
+
+It now reports rows per key generation as well as failures, so a rotation is finishable: `gen N` grows, `gen N-1` shrinks to zero, and when it does `TOKEN_ENCRYPTION_KEY_PREVIOUS` can be removed. `DECRYPT FAILED` must be zero throughout.
+
+**To rotate, once you have that number:** set `TOKEN_ENCRYPTION_KEY_PREVIOUS` to the current key, `TOKEN_ENCRYPTION_KEY` to the new one, `TOKEN_ENCRYPTION_KEY_VERSION` to 2, redeploy. No customer sees anything. Then re-run the counter until generation 1 is empty.
+
+<details><summary>Original D-1 analysis (retained for the record)</summary>
+
+#### Meta token encryption: no key versioning
 `src/services/tokenEncryption.ts`, `src/config.ts:106-119`, `prisma/schema.prisma:114,162`
 
 **Traced.** The key is `TOKEN_ENCRYPTION_KEY`, a 64-hex env var read once in
@@ -102,10 +126,9 @@ fix regardless — add `key_version` (nullable `SMALLINT`, defaulting to the
 current key's generation) so the next rotation is stageable rather than
 catastrophic.
 
-**Blocked on:** your approval. The task's hard rules put encryption keys and
-database migrations behind a gate, and I have not touched either.
+</details>
 
-### D-2 — P0 as reported → **downgraded to P2 information disclosure**, with a P1 structural risk
+### D-2 — P0 as reported → **P2 information disclosure**, plus a real P1 structural risk · **FIXED**
 
 The brief's claim is that authentication is client-side only. **The data half
 of that is wrong, and I can show it; the shell half is right.**
@@ -152,13 +175,19 @@ it by deleting the `checkMember` call from
 `GET /api/dashboard/pulse/:workspaceId` and watching the suite name that exact
 route, then restoring it.
 
-**Blocked on:** your approval — the task gates "any change to encryption,
-keys, or auth". The middleware label and the test are not behaviour changes,
-so I shipped those. **Proposed fix awaiting approval:** a `requireAuthPage`
-helper on the five `/admin*` HTML routes. Blast radius: five routes, no API
-change, no data-path change.
+**Now fixed** (D-2c above). The obstacle was that a browser NAVIGATION cannot
+carry `Authorization: Bearer` — the token lives in localStorage — which is
+genuinely why every HTML route was ungated. Login and register now also set an
+HttpOnly `adlytic_session` cookie carrying the same JWT; the five operator
+routes read it and redirect anonymous callers. The bearer flow is untouched,
+so no existing API call changes and no session breaks.
 
-### D-5 — P1 — No UI state machine
+**One consequence worth knowing:** an operator whose browser predates this
+change has no cookie yet, so the first visit to `/admin*` redirects to
+`/login`. Signing in restores it. That is a one-time re-login for you, not for
+customers.
+
+### D-5 — P1 — No UI state machine · **FIXED**
 `src/web/pages/dashboardPage.ts:43, 66, 76, 90, 94` + `src/web/layout.ts:894`
 
 **The brief's diagnosis is right, and it is more specific than "independent
@@ -182,15 +211,15 @@ four that are not:
 `token-decrypt-failed` · `token-expired-stale-cache` · `partial-failure(n)` ·
 `offline` · `insufficient-data` · `success` · `hard-error`.
 
-**Proposed:** one discriminated union owning the four exclusive regions, with
-`dash-state-strip` kept as-is for the states that genuinely coexist with a
-rendered dashboard. Display priority: `hard-error` > `token-decrypt-failed` >
-`loading` > `onboarding` > `success`, with `offline` / `partial` / stale
-rendering *alongside* success rather than instead of it. Cost: ~1 day, one
-file, no API or analytics change. **Not implemented — the task requires a
-proposal first for structural work.**
+**Fixed** — see D-5 in the Fixed table. `setDashPhase()` owns the four
+exclusive regions through a table where every phase names every region, so a
+phase cannot silently inherit the last one's leftovers. The state strip keeps
+its own visibility, because OFFLINE / STALE / PARTIAL / INSUFFICIENT_DATA are
+true *alongside* a rendered dashboard rather than instead of it.
+`test_ui_state_integrity.mjs` fails the build if any region is toggled behind
+the owner's back.
 
-### D-13 — P1 — The data-consistency monitor reports "all clear" when it has no data
+### D-13 — P1 — The monitor reported "all clear" when it had no data · **FIXED**
 `src/web/pages/campaignsPage.ts:3440-3475`
 
 `runDataObserver` builds a `parts[]` array from the `/data-health` response,
@@ -205,11 +234,13 @@ This is the same shape as the health score of `0` for an unconnected account
 that was fixed earlier in this codebase, and it sits on the *data-integrity*
 surface — the one thing that must never lie.
 
-**Proposed:** distinguish `checked-and-clean` from `could-not-check`, and
-render the second as an unknown state, not a green one. **Not implemented —
-it changes what a data-integrity surface asserts, which deserves your call.**
+**Fixed** — see D-13 in the Fixed table. Three outcomes now: `ok`, `warn`,
+`unknown`. The green branch is unreachable without `checkedAt` proving the
+check ran, `unknown` is hatched (the same pattern the analytics layer uses for
+INSUFFICIENT_DATA — it survives greyscale and colour blindness) and does not
+auto-hide, and the `.catch` renders it rather than staying silent.
 
-### D-14 — P2 — Client polling never backs off and swallows every error
+### D-14 — P2 — Polling never backed off and swallowed every error · **FIXED**
 `src/web/pages/dashboardPage.ts:3480-3501`
 
 Good news first: all 5 `setInterval` sites across the app pause on
@@ -227,9 +258,12 @@ The brief's related worry — that this compounds against Meta's error budget �
 `src/services/metaUsageTracker.ts` already tracks call volume and error rate
 against the 500-call / 15% policy server-side.
 
-**Proposed:** exponential backoff on consecutive failures, and surface the
-third consecutive failure in the existing state strip (a `STALE` entry) rather
-than silently. Small, but it touches the refresh loop, so: proposing first.
+**Fixed** — see D-14 in the Fixed table. Backoff doubles per consecutive
+failure to a 15-minute ceiling; three consecutive failures raise a `STALE`
+entry in the state strip that says the numbers are from the last successful
+load. Success, an explicit retry, or returning to the tab resets both — coming
+back to a tab is a deliberate act and should not resume an invisible
+15-minute wait.
 
 ---
 
@@ -241,24 +275,24 @@ than silently. Small, but it touches the refresh loop, so: proposing first.
 | `strict` in tsconfig | **on** | — |
 | `any` / `as any` | **81** (42 `: any`, 39 `as any`) | grep |
 | `@ts-ignore` / `@ts-expect-error` | **0** | grep |
-| Registered routes | **132** (109 `/api`, 23 HTML) | `test_route_authz.ts` |
+| Registered routes | **133** (110 `/api`, 23 HTML) | `test_route_authz.ts` |
 | `/api` routes resolving a caller | **97 of 97 non-public** | `test_route_authz.ts` |
 | Workspace-scoped routes with `checkMember` | **41 of 41** | `test_route_authz.ts` |
 | `/api/admin/*` with `requirePlatformAdmin` | **36 of 36** | `test_route_authz.ts` |
 | Unauthorised **data** endpoints | **none found** | as above |
-| Unauthorised **HTML** routes | **5** (`/admin`, `/admin/inbox`, `/admin/observability`, `/admin/meta-readiness`, `/admin/add-client`) — shell only, no data | route scan |
+| Unauthorised **HTML** routes | **5 → 0** — all five operator pages now gated server-side | `test_route_authz.ts` |
 | Hardcoded English in Arabic pages | **38 → 0** | `test_no_english_in_ar_pages.mjs` |
-| Undecryptable tokens | **unmeasured** — no `DATABASE_URL` in the sandbox | script delivered |
+| Undecryptable tokens | **still unmeasured** — no `DATABASE_URL` in the sandbox; the counter now also splits rows by key generation | script delivered |
 | Physical vs logical CSS properties | **103 physical / 90 logical** | grep |
 | Polling timers | **5**, all pausing on `visibilitychange`, all cleared | grep + read |
-| Polling backoff | **none** | read |
+| Polling backoff | **none → exponential, 15 min ceiling**, with a visible STALE state after 3 failures | `dashboardPage.ts` |
 | Security headers | CSP, HSTS (`max-age=63072000; includeSubDomains; preload`), `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: strict-origin-when-cross-origin` — **all present** | `server.ts:532-543` |
 | Rate limiting | present on register, login, password, support, AI | grep `429` |
 | Served page weight, dashboard | **434.9 KB** HTML + inline JS, uncompressed, blocking first paint | `ls .mobile-pages` |
 | Served page weight, campaigns | **266.3 KB** | same |
 | Shared CSS (cacheable) | 78.1 KB base + 10.9 KB tokens + 5.4 KB floors | same |
 | Fonts | **500 KB across 23 self-hosted woff2**, subset by `unicode-range`, `font-display: swap`, same-origin | `du public/fonts` |
-| Test files | **56** | `ls test_*` |
+| Test files | **56 → 59** | `ls test_*` |
 | Source files | **250** | `find src -name '*.ts'` |
 | **Coverage %** | **not measurable — no coverage tooling exists** (no jest/vitest/c8/nyc; tests are standalone `tsx` scripts). Reporting a number here would be inventing one. | `package.json` |
 | Mobile viewport gate | **0/20 screens overflow**, 12 widths in Chromium | `test_mobile_viewport.mjs` |
@@ -293,16 +327,19 @@ often they have already bitten.
    a gate is not one. `test_route_authz.ts` now fails the build on a forgotten
    check, which converts this from invisible to loud — but the durable fix is
    a route-registration wrapper that cannot be called without declaring its
-   auth requirement.
-3. **No `key_version` on encrypted columns.** Any key change is instantaneous,
-   total, and unrecoverable. Rotation is currently an incident, not an
-   operation.
-4. **Five UI regions, nine display toggles, no owner** (D-5).
+   auth requirement. *Mitigated, not eliminated.*
+3. ~~**No `key_version` on encrypted columns.**~~ **Closed** (D-1a). Rotation is
+   now an operation: set the previous key, bump the version, redeploy, watch
+   the counter drain generation N-1.
+4. ~~**Five UI regions, nine display toggles, no owner.**~~ **Closed** (D-5).
 5. **Two paths to the same number.** The campaigns page totals daily insight
    rows while its cards render per-campaign windows; the dashboard prints a
    server-formatted `display` string while campaigns format client-side from
-   minor units. Nothing reconciles them, and D-13 means the monitor that
-   should notice says "all clear" instead.
+   minor units. Both follow the same `days` selection, so they should agree —
+   but nothing checks that they do. What changed is that the monitor which
+   should notice no longer answers "all clear" when it has not looked (D-13),
+   and the server already computes `divergencePct` for exactly this. The
+   remaining gap is that no test asserts the two agree.
 6. **The dashboard is a single 434.9 KB document** carrying command centre,
    KPI cards, campaign table, five trend charts, events feed and monitoring
    panel — all blocking first paint, none code-split. There is no bundler to

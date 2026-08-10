@@ -2085,6 +2085,13 @@ function clearClientIdentity() {
 
 function logout() {
   clearClientIdentity();
+  // The session cookie that gates the operator pages is HttpOnly, so the
+  // browser cannot drop it on its own — the server has to. keepalive lets the
+  // request survive the navigation on the next line, and a failure must not
+  // trap the user on a page they asked to leave.
+  try {
+    fetch('/api/auth/logout', { method: 'POST', keepalive: true }).catch(function () {});
+  } catch (e) { /* navigate anyway */ }
   window.location.href = '/login';
 }
 

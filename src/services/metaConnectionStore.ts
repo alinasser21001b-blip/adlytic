@@ -23,7 +23,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import type { PrismaClient } from '@prisma/client';
-import { encryptToken } from './tokenEncryption';
+import { encryptToken, TOKEN_KEY_VERSION } from './tokenEncryption';
 
 /**
  * Create or update the MetaConnection row for a workspace+business. Encrypts
@@ -52,6 +52,7 @@ export async function upsertMetaConnection(
     businessName:         params.businessName ?? undefined,
     systemUserId:         params.systemUserId ?? undefined,
     accessTokenEncrypted: encrypted,
+    accessTokenKeyVersion: TOKEN_KEY_VERSION,
     tokenType:            'SYSTEM_USER' as const,
     tokenExpiresAt:       null,
     grantedScopes:        params.scopes,

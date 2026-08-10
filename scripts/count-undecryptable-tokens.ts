@@ -15,14 +15,20 @@
 //      call budget or touch a live ad account
 //
 //  WHY IT EXISTS
-//  There is no key_version column on either token table (see AUDIT-REPORT.md
-//  D-1). Without one, "which key encrypted this row" is unanswerable from the
-//  data, and the only way to size a key-mismatch incident is to attempt every
-//  decryption and count the failures. That is what this does.
+//  Both token tables now carry access_token_key_version, but rows written
+//  before it existed are NULL — generation 1 by assumption — and a stamp is
+//  only a claim until a decryption confirms it. So the count still comes from
+//  attempting every decryption; the stamp tells you which population each
+//  failure belongs to, which is what makes a rotation finishable.
+//
+//  Read it during a rotation as: `gen N` should grow and `gen N-1` should
+//  shrink to zero. When it does, TOKEN_ENCRYPTION_KEY_PREVIOUS can be
+//  removed. `DECRYPT FAILED` must be zero throughout — anything else means a
+//  row neither key can open.
 // ════════════════════════════════════════════════════════════════════════
 import { PrismaClient } from '@prisma/client';
 import { config } from '../src/config';
-import { decryptToken, isEncryptedToken, TokenDecryptError } from '../src/services/tokenEncryption';
+import { decryptToken, isEncryptedToken, TOKEN_KEY_VERSION, TokenDecryptError } from '../src/services/tokenEncryption';
 
 type Tally = {
   rows: number;
@@ -31,17 +37,31 @@ type Tally = {
   decrypted: number;
   failed: number;
   failedIds: string[];
+  /** Rows per stamped key generation; `null` = written before versioning. */
+  byVersion: Map<number | null, number>;
+  /** Stamped as generation N but only opened by another key — a stale stamp. */
+  mismatched: number;
 };
 
-const blank = (): Tally => ({ rows: 0, empty: 0, plaintext: 0, decrypted: 0, failed: 0, failedIds: [] });
+const blank = (): Tally => ({
+  rows: 0, empty: 0, plaintext: 0, decrypted: 0, failed: 0, failedIds: [],
+  byVersion: new Map(), mismatched: 0,
+});
 
-function classify(tally: Tally, id: string, stored: string | null): void {
+function classify(tally: Tally, id: string, stored: string | null, keyVersion: number | null): void {
   tally.rows++;
+  tally.byVersion.set(keyVersion, (tally.byVersion.get(keyVersion) ?? 0) + 1);
   if (!stored) { tally.empty++; return; }
   if (!isEncryptedToken(stored)) { tally.plaintext++; return; }
   try {
     decryptToken(stored);
     tally.decrypted++;
+    // A row stamped with a generation other than the one this process writes
+    // opened anyway — either the previous key is configured and rotation is
+    // still in progress, or the stamp is stale. Either way it is worth
+    // counting, because it is exactly the population a re-encryption pass
+    // has to walk.
+    if (keyVersion !== null && keyVersion !== TOKEN_KEY_VERSION) tally.mismatched++;
   } catch (err) {
     if (!(err instanceof TokenDecryptError)) throw err;
     tally.failed++;
@@ -57,6 +77,11 @@ function report(label: string, t: Tally): void {
   console.log(`  legacy plaintext         : ${t.plaintext}   (stored before the key existed)`);
   console.log(`  decrypt OK               : ${t.decrypted}`);
   console.log(`  DECRYPT FAILED           : ${t.failed}   (${pct}% of rows)`);
+  const versions = [...t.byVersion.entries()].sort((a, b) => Number(a[0] ?? 0) - Number(b[0] ?? 0));
+  console.log(`  by key generation        : ${versions.map(([v, n]) => `${v === null ? 'unstamped(=gen 1 by assumption)' : 'gen ' + v}=${n}`).join('  ') || '—'}`);
+  if (t.mismatched) {
+    console.log(`  opened but not on gen ${TOKEN_KEY_VERSION} : ${t.mismatched}   (re-encrypt these to finish the rotation)`);
+  }
   if (t.failed) {
     console.log(`  affected ids             : ${t.failedIds.join(', ')}${t.failed > t.failedIds.length ? ` … +${t.failed - t.failedIds.length} more` : ''}`);
   }
@@ -66,6 +91,8 @@ async function main(): Promise<void> {
   const fp = config.tokenEncryption.keyFingerprint;
   console.log('\n════ stored-token decryptability ════');
   console.log(`key fingerprint in this process: ${fp ?? '<NO KEY SET — every row will read as plaintext>'}`);
+  console.log(`writing key generation         : ${TOKEN_KEY_VERSION}`);
+  console.log(`previous key configured        : ${config.tokenEncryption.previousKey ? 'yes — rotation in progress' : 'no'}`);
   if (!fp) {
     console.log('Without a key the script cannot distinguish "encrypted with another key"');
     console.log('from "stored as plaintext". Set TOKEN_ENCRYPTION_KEY and re-run.');
@@ -75,19 +102,19 @@ async function main(): Promise<void> {
   try {
     const adTally = blank();
     for (const row of await prisma.adAccount.findMany({
-      select: { id: true, accessTokenEncrypted: true },
+      select: { id: true, accessTokenEncrypted: true, accessTokenKeyVersion: true },
     })) {
-      classify(adTally, row.id, row.accessTokenEncrypted);
+      classify(adTally, row.id, row.accessTokenEncrypted, row.accessTokenKeyVersion);
     }
     report('AdAccount.access_token_encrypted', adTally);
 
     // The second token table. Wrapped because it is a later addition and this
     // script must still run against an older database rather than crash.
-    const conn = (prisma as unknown as Record<string, { findMany?: (a: unknown) => Promise<Array<{ id: string; accessTokenEncrypted: string | null }>> }>)['metaConnection'];
+    const conn = (prisma as unknown as Record<string, { findMany?: (a: unknown) => Promise<Array<{ id: string; accessTokenEncrypted: string | null; accessTokenKeyVersion: number | null }>> }>)['metaConnection'];
     if (conn?.findMany) {
       const connTally = blank();
-      for (const row of await conn.findMany({ select: { id: true, accessTokenEncrypted: true } })) {
-        classify(connTally, row.id, row.accessTokenEncrypted);
+      for (const row of await conn.findMany({ select: { id: true, accessTokenEncrypted: true, accessTokenKeyVersion: true } })) {
+        classify(connTally, row.id, row.accessTokenEncrypted, row.accessTokenKeyVersion);
       }
       report('MetaConnection.access_token_encrypted', connTally);
       console.log(`\nTOTAL UNDECRYPTABLE: ${adTally.failed + connTally.failed}`);

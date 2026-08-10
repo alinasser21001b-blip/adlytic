@@ -384,8 +384,14 @@ export function campaignsPage(): string {
       border-radius: var(--radius-lg); padding: 14px 18px; margin-bottom: 16px;
       direction: rtl;
     }
-    .data-observer-banner.warn { border-color: rgba(245,166,35,0.4); background: rgba(245,166,35,0.06); }
-    .data-observer-banner.ok { border-color: rgba(52,168,113,0.4); background: rgba(52,168,113,0.06); }
+    /* Three outcomes, three appearances. 'unknown' deliberately borrows
+       nothing from 'ok': it is the absence of a verdict, not a good one, and
+       the hatch is the same pattern the analytics layer uses for
+       INSUFFICIENT_DATA — it survives greyscale and colour blindness. */
+    .data-observer-banner.warn { border-color: var(--warning); background: var(--warning-dim); }
+    .data-observer-banner.ok { border-color: var(--success); background: var(--success-dim); }
+    .data-observer-banner.unknown { border-color: var(--border-2); background: var(--hatch); }
+    .data-observer-banner.unknown .observer-title::after { content: ' — غير مُتحقَّق منه'; color: var(--text-3); font-weight: 500; }
     .observer-icon { font-size: 20px; flex-shrink: 0; }
     .observer-body { flex: 1; min-width: 0; }
     .observer-title { font-size: 12px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
@@ -3437,6 +3443,36 @@ ${renderIntelligenceJs}
   }
 
   // ── Data observer — detect and report account/campaign divergence ─────
+  /**
+   * Render the observer in ONE of three outcomes. There are three, not two.
+   *
+   * This function used to print «البيانات متسقة — لا توجد مشاكل» whenever it
+   * had assembled zero findings — which is also what happens when the request
+   * failed, timed out, or returned an empty object. Absence of findings was
+   * being rendered as proof of health, on the one surface in the product whose
+   * entire job is to say whether the numbers can be trusted.
+   *
+   *   'ok'      the check RAN and found nothing        → green, auto-hides
+   *   'warn'    the check RAN and found something      → amber, stays
+   *   'unknown' the check DID NOT RUN                  → neutral, stays, offers retry
+   *
+   * 'unknown' must never look like 'ok'. A merchant who cannot be told the
+   * data is fine has to be told that, not reassured.
+   */
+  function renderObserver(outcome, message, opts) {
+    var banner = document.getElementById('data-observer-banner');
+    var msgEl = document.getElementById('observer-msg');
+    var fixBtn = document.getElementById('observer-fix-btn');
+    if (!banner || !msgEl) return;
+    banner.style.display = 'flex';
+    banner.className = 'data-observer-banner ' + outcome;
+    msgEl.textContent = message;
+    if (fixBtn) fixBtn.style.display = (opts && opts.fix) ? '' : 'none';
+    if (outcome === 'ok') {
+      setTimeout(function() { banner.style.display = 'none'; }, 5000);
+    }
+  }
+
   function runDataObserver(workspaceId) {
     if (!workspaceId) return;
     apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/data-health', {}, 10000)
@@ -3445,6 +3481,15 @@ ${renderIntelligenceJs}
         var msgEl = document.getElementById('observer-msg');
         var fixBtn = document.getElementById('observer-fix-btn');
         if (!banner || !msgEl) return;
+
+        // PROOF THE CHECK RAN. runDataIntegrityCheck always stamps checkedAt
+        // and overallStatus; a payload without them is a 404 ("no ad account
+        // linked"), an error body, or an empty object — none of which is
+        // evidence that anything was verified.
+        if (!health || typeof health.checkedAt !== 'string' || !health.overallStatus) {
+          renderObserver('unknown', 'تعذّر التحقق من اتساق البيانات الآن — لم نفحصها، وهذا لا يعني أنها سليمة.');
+          return;
+        }
 
         var parts = [];
         if (health.divergenceStatus === 'HIGH' || health.divergenceStatus === 'MODERATE') {
@@ -3467,11 +3512,7 @@ ${renderIntelligenceJs}
         }
 
         if (parts.length === 0) {
-          banner.style.display = 'flex';
-          banner.className = 'data-observer-banner ok';
-          msgEl.textContent = 'البيانات متسقة — لا توجد مشاكل.';
-          fixBtn.style.display = 'none';
-          setTimeout(function() { banner.style.display = 'none'; }, 5000);
+          renderObserver('ok', 'فحصنا البيانات — متسقة، لا توجد مشاكل.');
           return;
         }
 
@@ -3500,7 +3541,11 @@ ${renderIntelligenceJs}
           fixBtn.style.display = 'none';
         }
       })
-      .catch(function() { /* silently skip if the endpoint is unavailable */ });
+      .catch(function() {
+        // Was: silently skip. Silence here is indistinguishable from a clean
+        // bill of health, which is the whole defect.
+        renderObserver('unknown', 'تعذّر التحقق من اتساق البيانات الآن — لم نفحصها، وهذا لا يعني أنها سليمة.');
+      });
   }
 
   function toastWithReconnect(err) {

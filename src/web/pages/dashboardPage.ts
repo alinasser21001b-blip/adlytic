@@ -935,10 +935,56 @@ export function dashboardPage(): string {
   ${formatHelpersJs}
   ${currencyHelpersJs}
 
+  // ── THE PHASE OWNER ─────────────────────────────────────────────────────
+  //
+  //  Four regions of this page are MUTUALLY EXCLUSIVE — the skeleton, the
+  //  backfill overlay, the hard-error block, and the dashboard itself. Exactly
+  //  one may be on screen.
+  //
+  //  They used not to be owned by anything. Nine separate writes to
+  //  .style.display, spread across the file, each turning one region on and
+  //  guessing which others to turn off:
+  //
+  //    showError()               hid loading, showed error — left CONTENT up
+  //    hideLoadingShowDashboard() hid loading, showed content — left ERROR up
+  //    showOnboardingOverlay()   hid loading — left both error and content up
+  //
+  //  So the page could, and in production did, show a loading overlay, a
+  //  token-decryption error, a stale-data banner and a generic "try again"
+  //  block at the same time. Four contradictory answers to "what is happening
+  //  right now", none of them wrong on its own.
+  //
+  //  There is nothing to remember here any more: name the phase and every
+  //  region follows from the table. Adding a fifth region means adding one row.
+  //
+  //  NOT part of this: #dash-state-strip (OFFLINE / PARTIAL /
+  //  INSUFFICIENT_DATA) and the token-decrypt banner. Those genuinely COEXIST
+  //  with a rendered dashboard — being offline while showing the last good
+  //  numbers is a true statement about two different things — and they own
+  //  their own visibility deliberately.
+  var DASH_PHASES = {
+    loading:    { 'loading-state': 'flex',  'onboarding-overlay': 'none', 'error-state': 'none',  'dashboard-content': 'none'  },
+    onboarding: { 'loading-state': 'none',  'onboarding-overlay': 'flex', 'error-state': 'none',  'dashboard-content': 'none'  },
+    error:      { 'loading-state': 'none',  'onboarding-overlay': 'none', 'error-state': 'block', 'dashboard-content': 'none'  },
+    ready:      { 'loading-state': 'none',  'onboarding-overlay': 'none', 'error-state': 'none',  'dashboard-content': 'block' },
+  };
+  var _dashPhase = 'loading';
+
+  function setDashPhase(phase) {
+    var spec = DASH_PHASES[phase];
+    if (!spec) { console.warn('[dashboard] unknown phase:', phase); return; }
+    _dashPhase = phase;
+    for (var id in spec) {
+      if (!Object.prototype.hasOwnProperty.call(spec, id)) continue;
+      var el = document.getElementById(id);
+      if (el) el.style.display = spec[id];
+    }
+  }
+
   function showError(msg) {
-    document.getElementById('loading-state').style.display = 'none';
-    document.getElementById('error-state').style.display = 'block';
-    document.getElementById('error-msg').textContent = msg;
+    setDashPhase('error');
+    var el = document.getElementById('error-msg');
+    if (el) el.textContent = msg;
   }
 
   // ── THE STATE MATRIX ────────────────────────────────────────────────────
@@ -974,14 +1020,20 @@ export function dashboardPage(): string {
       body: 'تعذّر تحميل بعض الأقسام. ما هو معروض صحيح — الناقص هو ما لم يصل.',
       action: 'إعادة المحاولة'
     },
+    STALE: {
+      cls: 'stale', icon: '⏸',
+      title: 'التحديث التلقائي متوقف',
+      body: 'فشلت آخر محاولات التحديث. الأرقام المعروضة من آخر تحميل ناجح — نعيد المحاولة بفواصل متباعدة.',
+      action: 'حدّث الآن'
+    },
     INSUFFICIENT_DATA: {
       cls: 'collecting', icon: '⏳',
       title: 'لا تزال البيانات قيد التجميع',
       body: 'لم نُصدر حكماً على الأداء بعد — نحتاج فترة إنفاق أطول قبل أن نقارن بثقة. سنخبرك فور اكتمالها.'
     }
   };
-  // Render order = urgency order. OFFLINE first: it explains the other two.
-  var DASH_STATE_ORDER = ['OFFLINE', 'PARTIAL', 'INSUFFICIENT_DATA'];
+  // Render order = urgency order. OFFLINE first: it explains the others.
+  var DASH_STATE_ORDER = ['OFFLINE', 'STALE', 'PARTIAL', 'INSUFFICIENT_DATA'];
   var _dashStates = {};
   var _failedSections = {};
 
@@ -1057,9 +1109,17 @@ export function dashboardPage(): string {
         var btn = e.target.closest('[data-state-retry]');
         if (!btn || !state.workspaceId) return;
         clearPartial();
-        refreshDashboardData(state.workspaceId, { force: true }).catch(function () {
-          markPartial('refresh');
-        });
+        // An explicit retry clears the backoff. Someone who taps "refresh now"
+        // has asked for one attempt at full speed, not for the schedule the
+        // failures earned.
+        _refreshFails = 0;
+        setDashState('STALE', false);
+        refreshDashboardData(state.workspaceId, { force: true })
+          .then(function () { noteRefreshOutcome(true); })
+          .catch(function () {
+            markPartial('refresh');
+            noteRefreshOutcome(false);
+          });
       });
     }
     var errRetry = document.getElementById('error-retry-btn');
@@ -3474,7 +3534,52 @@ export function dashboardPage(): string {
       var hasSignal = applyPulse(pulse);
       var pulseSection = document.getElementById('brain-pulse-section');
       if (pulseSection) pulseSection.style.display = hasSignal ? 'block' : 'none';
-    } catch (e) { /* silent pulse */ }
+      noteRefreshOutcome(true);
+    } catch (e) {
+      // Still no toast — a failed pulse is not worth interrupting anyone for.
+      // But it counts, so three of them in a row raise STALE like any other
+      // refresh failure instead of vanishing.
+      noteRefreshOutcome(false);
+    }
+  }
+
+  // ── Refresh failure handling ────────────────────────────────────────────
+  //
+  //  The loop used to be: fixed interval, an empty catch, forever.
+  //  Two things wrong with that, and the second is the serious one.
+  //
+  //  1. Against a broken token every attempt fails, and the loop keeps firing
+  //     at full rate for as long as the tab is open. Nothing gets better by
+  //     asking more often.
+  //  2. The customer is never told. The screen keeps showing numbers, they
+  //     just quietly stop being current — a dashboard that looks live and is
+  //     not is worse than one that admits it is stale.
+  //
+  //  So: double the interval on each consecutive failure up to a ceiling, and
+  //  once failures pass the threshold say so in the state strip. Any success
+  //  resets both. The threshold is 3 rather than 1 because a single timeout on
+  //  a Baghdad mobile connection is normal and does not deserve a banner.
+  var REFRESH_BACKOFF_MAX_MS = 15 * 60000;
+  var REFRESH_FAILS_BEFORE_STALE = 3;
+  var _refreshFails = 0;
+
+  function noteRefreshOutcome(ok) {
+    if (ok) {
+      var wasStale = _refreshFails >= REFRESH_FAILS_BEFORE_STALE;
+      _refreshFails = 0;
+      if (wasStale) { setDashState('STALE', false); return true; }
+      return false;
+    }
+    _refreshFails++;
+    if (_refreshFails === REFRESH_FAILS_BEFORE_STALE) setDashState('STALE', true);
+    return _refreshFails >= REFRESH_FAILS_BEFORE_STALE;
+  }
+
+  /** Interval for the NEXT attempt, doubling per consecutive failure. */
+  function backoffMs(baseMs) {
+    if (_refreshFails === 0) return baseMs;
+    var scaled = baseMs * Math.pow(2, Math.min(_refreshFails, 6));
+    return Math.min(scaled, REFRESH_BACKOFF_MAX_MS);
   }
 
   function startAutoRefresh(workspaceId) {
@@ -3484,14 +3589,20 @@ export function dashboardPage(): string {
     }
     function armTimers() {
       stopTimers();
-      refreshTimer = setInterval(function () { refreshPulseOnly(workspaceId); }, PULSE_MS);
+      refreshTimer = setInterval(function () { refreshPulseOnly(workspaceId); }, backoffMs(PULSE_MS));
       fullRefreshTimer = setInterval(function () {
-        refreshDashboardData(workspaceId).catch(function () { /* silent */ });
-      }, FULL_REFRESH_MS);
+        refreshDashboardData(workspaceId)
+          .then(function () { if (noteRefreshOutcome(true)) armTimers(); })
+          .catch(function () { if (noteRefreshOutcome(false)) armTimers(); });
+      }, backoffMs(FULL_REFRESH_MS));
     }
     document.addEventListener('visibilitychange', function () {
       if (!document.hidden) {
-        refreshDashboardData(workspaceId).catch(function () { /* silent */ });
+        // Coming back to the tab is a deliberate act — treat it as a fresh
+        // start rather than resuming a 15-minute backoff the user cannot see.
+        _refreshFails = 0;
+        setDashState('STALE', false);
+        refreshDashboardData(workspaceId).catch(function () { noteRefreshOutcome(false); });
         armTimers();
       } else {
         stopTimers();
@@ -3547,10 +3658,7 @@ export function dashboardPage(): string {
   }
 
   function hideLoadingShowDashboard() {
-    var loadingEl = document.getElementById('loading-state');
-    var contentEl = document.getElementById('dashboard-content');
-    if (loadingEl) loadingEl.style.display = 'none';
-    if (contentEl) contentEl.style.display = 'block';
+    setDashPhase('ready');
     setGreeting();
     // Reveal order mirrors the decision hierarchy: summary → health →
     // decision → shortcuts → context → metrics → evidence.
@@ -3560,8 +3668,11 @@ export function dashboardPage(): string {
   /** Safety net if init hangs — do not rely on layout SHARED_JS globals. */
   function startLoadingSafetyTimeout(ms) {
     setTimeout(function () {
-      var loadingEl = document.getElementById('loading-state');
-      if (!loadingEl || loadingEl.style.display === 'none') return;
+      // Ask the phase, not the DOM. Reading .style.display used to mean the
+      // net fired whenever loading happened to be hidden — including when
+      // the onboarding overlay had legitimately taken over — and yanked the
+      // dashboard up over a backfill still in progress.
+      if (_dashPhase !== 'loading') return;
       console.warn('[dashboard] loading safety timeout — revealing page');
       hideLoadingShowDashboard();
     }, ms || 5000);
@@ -3593,10 +3704,10 @@ export function dashboardPage(): string {
   }
 
   function showOnboardingOverlay(show) {
-    var el = document.getElementById('onboarding-overlay');
-    if (el) el.style.display = show ? 'flex' : 'none';
-    var loadingEl = document.getElementById('loading-state');
-    if (loadingEl && show) loadingEl.style.display = 'none';
+    // Turning the overlay OFF does not by itself say what should be on
+    // screen instead, so fall back to loading and let whoever finishes next
+    // claim 'ready' or 'error'. Never leave zero regions visible.
+    setDashPhase(show ? 'onboarding' : 'loading');
   }
 
   function updateOnboardingUI(job, tick) {

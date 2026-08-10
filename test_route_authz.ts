@@ -32,6 +32,7 @@ const SRC = readFileSync('src/api/server.ts', 'utf8');
 const PUBLIC_BY_DESIGN: Record<string, string> = {
   'POST /api/auth/register': 'account creation',
   'POST /api/auth/login': 'credential exchange',
+  'POST /api/auth/logout': 'clears an HttpOnly cookie the caller already holds; must work with an expired token',
   'GET /api/health': 'liveness probe — must answer without a DB user',
   'GET /api/health/ai': 'liveness probe for the LLM provider; returns no customer data',
   'GET /api/meta/oauth/callback': 'Meta redirects the browser here; consumeOAuthState() is the guard',
@@ -65,11 +66,27 @@ function extractRoutes(src: string): Route[] {
   const re = /app\.(get|post|put|patch|delete)\(\s*(['`])([^'`]+)\2/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(src))) {
-    // Balanced-brace scan from the handler's opening brace to its close, so a
-    // nested function or object literal cannot truncate the body.
     const from = re.lastIndex;
     const open = src.indexOf('{', from);
+    const semi = src.indexOf(';', from);
+
+    // Concise arrow form — `app.get('/x', (c) => render(c));` — has no block
+    // at all, so the brace scan below would run off into the NEXT route and
+    // report on somebody else's body. Getting this wrong is not academic: it
+    // is why five ungated operator pages first read as gated.
+    if (semi >= 0 && (open < 0 || semi < open)) {
+      out.push({
+        method: m[1].toUpperCase(),
+        path: m[3],
+        body: src.slice(from, semi),
+        line: src.slice(0, m.index).split('\n').length,
+      });
+      continue;
+    }
     if (open < 0) continue;
+
+    // Block form: balanced-brace scan from the opening brace to its close, so
+    // a nested function or object literal cannot truncate the body.
     let depth = 0;
     let i = open;
     for (; i < src.length; i++) {
@@ -138,7 +155,22 @@ for (const id of MUST_VERIFY_SIGNATURE) {
 }
 console.log(`  ✓ ${MUST_VERIFY_SIGNATURE.length} unauthenticated webhook routes verify their signature`);
 
-// 3. The middleware must not be mistaken for an auth gate by a future reader.
+// 4. Operator PAGES must be gated at the server too. The five /admin* HTML
+//    routes used to be bare c.html(page()) — no data exposed, but the whole
+//    operator shell was readable by anyone who asked. A client-side redirect
+//    is a courtesy to the operator, not a boundary.
+const ADMIN_PAGES = ['/admin', '/admin/inbox', '/admin/observability', '/admin/meta-readiness', '/admin/add-client'];
+const pageRoutes = extractRoutes(SRC).filter((r) => !r.path.startsWith('/api/'));
+for (const path of ADMIN_PAGES) {
+  const r = pageRoutes.find((x) => x.path === path);
+  if (!r) { fail(`operator page ${path} is not registered`); continue; }
+  if (!/adminPage\(/.test(r.body)) {
+    fail(`GET ${path} (server.ts:${r.line}) renders without adminPage() — the operator shell is served to anonymous callers`);
+  }
+}
+console.log(`  ✓ ${ADMIN_PAGES.length} operator pages gated server-side`);
+
+// 5. The middleware must not be mistaken for an auth gate by a future reader.
 //    If someone "fixes" it to return 401, every public route breaks; if
 //    someone deletes a per-route check trusting it, everything opens. Pin the
 //    comment that explains which one it is.

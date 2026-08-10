@@ -112,6 +112,44 @@ const encValid = validateRequired('TOKEN_ENCRYPTION_KEY', rawEncKey, (v) =>
     : null,
 );
 const tokenEncryptionKey: Buffer | null = encValid.ok ? Buffer.from(rawEncKey as string, 'hex') : null;
+
+// ── Key rotation (AUDIT-REPORT.md D-1) ───────────────────────────────────
+// Two variables turn a key change from an incident into an operation:
+//
+//   TOKEN_ENCRYPTION_KEY_VERSION    the generation new writes are stamped with
+//   TOKEN_ENCRYPTION_KEY_PREVIOUS   the outgoing key, kept readable meanwhile
+//
+// Rotation becomes: set PREVIOUS to the old key, KEY to the new one, bump
+// VERSION. Old rows keep opening, new rows are written under the new key and
+// stamped, and scripts/count-undecryptable-tokens.ts reports the split so you
+// know when the old key can be dropped. Neither variable is required; with
+// both unset the behaviour is exactly what it was before this existed.
+const rawEncKeyVersion = env('TOKEN_ENCRYPTION_KEY_VERSION');
+let tokenEncryptionKeyVersion = 1;
+if (rawEncKeyVersion !== undefined) {
+  const parsed = Number(rawEncKeyVersion);
+  if (!Number.isInteger(parsed) || parsed < 1) {
+    record({ key: 'TOKEN_ENCRYPTION_KEY_VERSION', status: 'warn', detail: `Invalid TOKEN_ENCRYPTION_KEY_VERSION "${rawEncKeyVersion}" — must be an integer ≥ 1; using 1` });
+  } else {
+    tokenEncryptionKeyVersion = parsed;
+  }
+}
+
+const rawEncKeyPrev = env('TOKEN_ENCRYPTION_KEY_PREVIOUS');
+let tokenEncryptionKeyPrevious: Buffer | null = null;
+if (rawEncKeyPrev !== undefined) {
+  if (!/^[0-9a-fA-F]{64}$/.test(rawEncKeyPrev)) {
+    // Fatal in production: a malformed previous key means rows encrypted
+    // under it are silently unreadable, which is the exact incident this
+    // variable exists to prevent. Failing loudly beats failing quietly.
+    record({ key: 'TOKEN_ENCRYPTION_KEY_PREVIOUS', status: IS_PRODUCTION ? 'fail' : 'warn', detail: 'TOKEN_ENCRYPTION_KEY_PREVIOUS must be 64 hex characters (32 bytes)' });
+  } else if (rawEncKeyPrev === rawEncKey) {
+    record({ key: 'TOKEN_ENCRYPTION_KEY_PREVIOUS', status: 'warn', detail: 'TOKEN_ENCRYPTION_KEY_PREVIOUS is identical to TOKEN_ENCRYPTION_KEY — rotation has not actually started; unset it' });
+  } else {
+    tokenEncryptionKeyPrevious = Buffer.from(rawEncKeyPrev, 'hex');
+    record({ key: 'TOKEN_ENCRYPTION_KEY_PREVIOUS', status: 'ok', detail: `rotation in progress — writing generation ${tokenEncryptionKeyVersion}, still reading the previous key` });
+  }
+}
 /** Short, non-reversible fingerprint of the key so operators can confirm the
  *  prod key matches what encrypted the stored tokens. Never logs the key. */
 const tokenEncryptionKeyFingerprint: string | null = tokenEncryptionKey
@@ -395,6 +433,10 @@ export interface AppConfig {
     key: Buffer | null;
     /** First 8 chars of sha256(key), or null when no key. Safe to log. */
     keyFingerprint: string | null;
+    /** Generation stamped on rows written by THIS process. Defaults to 1. */
+    keyVersion: number;
+    /** Outgoing key, readable during a rotation. Null when not rotating. */
+    previousKey: Buffer | null;
   };
 
   meta: {
@@ -453,6 +495,8 @@ export const config: Readonly<AppConfig> = Object.freeze({
   tokenEncryption: Object.freeze({
     key: tokenEncryptionKey,
     keyFingerprint: tokenEncryptionKeyFingerprint,
+    keyVersion: tokenEncryptionKeyVersion,
+    previousKey: tokenEncryptionKeyPrevious,
   }),
   meta: Object.freeze({
     apiVersion: metaApiVersion,

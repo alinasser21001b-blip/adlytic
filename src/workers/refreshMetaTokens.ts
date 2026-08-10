@@ -11,7 +11,7 @@ import type { PrismaClient } from '@prisma/client';
 import { invalidateCachedTokenHealth } from '../services/cachedTokenHealth';
 import { recordMetaAuditEvent } from '../services/metaAudit';
 import { buildMetaOAuth } from '../services/metaOAuth';
-import { decryptToken, encryptToken, TokenDecryptError } from '../services/tokenEncryption';
+import { decryptToken, encryptToken, TokenDecryptError, TOKEN_KEY_VERSION } from '../services/tokenEncryption';
 
 /** Refresh tokens expiring within this window (default 7 days). */
 const REFRESH_THRESHOLD_MS = 7 * 864e5;
@@ -154,6 +154,7 @@ export async function refreshExpiringMetaTokens(prisma: PrismaClient): Promise<v
         where: { id: acct.id },
         data: {
           accessTokenEncrypted: encryptToken(token),
+          accessTokenKeyVersion: TOKEN_KEY_VERSION,
           tokenExpiresAt,
         },
       });

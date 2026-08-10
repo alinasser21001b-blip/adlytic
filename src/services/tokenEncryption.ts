@@ -68,6 +68,30 @@ function getKey(): Buffer | null {
   return config.tokenEncryption.key;
 }
 
+/**
+ * The key generation this process writes with. Stamp it alongside every
+ * ciphertext you persist (`accessTokenKeyVersion`) so the question "which key
+ * opens this row" is answerable from the data instead of by trial decryption.
+ */
+export const TOKEN_KEY_VERSION: number = config.tokenEncryption.keyVersion;
+
+/**
+ * Attempt a decryption with a specific key. Returns null on failure rather
+ * than throwing, so the caller can try the next key without exceptions being
+ * used for control flow.
+ */
+function tryDecryptWith(key: Buffer, ivHex: string, tagHex: string, dataHex: string): string | null {
+  try {
+    const decipher = createDecipheriv(ALGORITHM, key, Buffer.from(ivHex, 'hex'));
+    decipher.setAuthTag(Buffer.from(tagHex, 'hex'));
+    return Buffer.concat([decipher.update(Buffer.from(dataHex, 'hex')), decipher.final()]).toString('utf8');
+  } catch {
+    // GCM authentication failed: wrong key, or corrupted ciphertext. Which of
+    // the two it is cannot be told apart here, and the caller decides.
+    return null;
+  }
+}
+
 /** True when `stored` matches the AES-256-GCM envelope (iv:tag:ciphertext hex). */
 export function isEncryptedToken(stored: string): boolean {
   if (!stored || !stored.includes(SEP)) return false;
@@ -117,33 +141,43 @@ export function decryptToken(stored: string): string {
   // Plaintext stored before encryption was configured (no valid iv:tag:ciphertext envelope)
   if (!isEncryptedToken(stored)) return stored;
 
-  const parts = stored.split(SEP);
+  const [ivHex, tagHex, dataHex] = stored.split(SEP) as [string, string, string];
 
-  try {
-    const [ivHex, tagHex, dataHex] = parts as [string, string, string];
-    const iv      = Buffer.from(ivHex, 'hex');
-    const tag     = Buffer.from(tagHex, 'hex');
-    const data    = Buffer.from(dataHex, 'hex');
+  const current = tryDecryptWith(key, ivHex, tagHex, dataHex);
+  if (current !== null) return current;
 
-    const decipher = createDecipheriv(ALGORITHM, key, iv);
-    decipher.setAuthTag(tag);
-
-    return Buffer.concat([decipher.update(data), decipher.final()]).toString('utf8');
-  } catch (err) {
-    // Decryption failed — almost always a KEY MISMATCH (the prod key differs
-    // from the one that encrypted this row) or corrupted ciphertext. We must
-    // NOT silently return the ciphertext: doing so makes a key problem look
-    // like an expired/invalid Meta token (190). Log loudly with the key
-    // fingerprint and throw a distinct error so callers can tell the two apart.
-    const fp = config.tokenEncryption.keyFingerprint ?? '<none>';
-    console.error(
-      `[adlytic:TOKEN_DECRYPT_FAILED] Could not decrypt a stored token with the ` +
-      `current key (fingerprint ${fp}). This is a key mismatch or corrupted data, ` +
-      `NOT a token expiry.`,
-    );
-    throw new TokenDecryptError(
-      `Failed to decrypt stored token (key fingerprint ${fp}) — likely a TOKEN_ENCRYPTION_KEY mismatch`,
-      err,
-    );
+  // ── Rotation window ────────────────────────────────────────────────────
+  // The current key did not open this row. If TOKEN_ENCRYPTION_KEY_PREVIOUS
+  // is configured we are mid-rotation and this is expected for rows written
+  // before the switch — read them with the outgoing key so the product keeps
+  // working while they are re-encrypted, rather than presenting every client
+  // with a reconnect banner on the day of the rotation.
+  //
+  // This widens nothing when no previous key is set, which is the default.
+  const previous = config.tokenEncryption.previousKey;
+  if (previous) {
+    const legacy = tryDecryptWith(previous, ivHex, tagHex, dataHex);
+    if (legacy !== null) {
+      console.warn(
+        '[adlytic:TOKEN_KEY_ROTATION] a stored token opened with the PREVIOUS key — ' +
+        're-encrypt it under the current key and stamp accessTokenKeyVersion = ' +
+        `${config.tokenEncryption.keyVersion}.`,
+      );
+      return legacy;
+    }
   }
+
+  // Neither key opened it — a genuine key mismatch or corrupted ciphertext.
+  // We must NOT silently return the ciphertext: doing so makes a key problem
+  // look like an expired/invalid Meta token (190). Log loudly with the key
+  // fingerprint and throw a distinct error so callers can tell the two apart.
+  const fp = config.tokenEncryption.keyFingerprint ?? '<none>';
+  console.error(
+    `[adlytic:TOKEN_DECRYPT_FAILED] Could not decrypt a stored token with the ` +
+    `current key (fingerprint ${fp})${previous ? ' or the configured previous key' : ''}. ` +
+    `This is a key mismatch or corrupted data, NOT a token expiry.`,
+  );
+  throw new TokenDecryptError(
+    `Failed to decrypt stored token (key fingerprint ${fp}) — likely a TOKEN_ENCRYPTION_KEY mismatch`,
+  );
 }

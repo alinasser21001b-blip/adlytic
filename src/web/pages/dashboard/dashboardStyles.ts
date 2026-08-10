@@ -2280,6 +2280,10 @@ export const dashboardStyles = `<style>
     .dash-state-partial { background: rgba(217,160,63,0.10); border-color: rgba(217,160,63,0.40); }
     /* COLLECTING reads calm blue: wait, do not act. Never red, never empty. */
     .dash-state-collecting { background: rgba(123,174,194,0.10); border-color: rgba(123,174,194,0.36); }
+    /* STALE reads hatched, like every other "this is not a verdict" surface
+       in the product: the numbers on screen are real, they have simply
+       stopped being current. Not amber — nothing is wrong with the account. */
+    .dash-state-stale { background: var(--hatch); border-color: var(--border-2); }
 
     /* ═══ FILTER BOTTOM SHEET (phones) ═══════════════════════════════════
        The inline tab row is a desktop control. On a phone it becomes a

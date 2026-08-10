@@ -112,6 +112,12 @@ model AdAccount {
   status               EntityStatus @default(ACTIVE)
   countryCode          String?      @map("country_code") @db.VarChar(2)
   accessTokenEncrypted String?      @map("access_token_encrypted")
+  /// Which TOKEN_ENCRYPTION_KEY generation encrypted the value above.
+  /// NULL = written before versioning existed, i.e. generation 1 by
+  /// assumption. Without this, "which key opens this row" is unanswerable
+  /// from the data and a key change is an unrecoverable, all-or-nothing
+  /// event — see AUDIT-REPORT.md D-1.
+  accessTokenKeyVersion Int?        @map("access_token_key_version")
   tokenExpiresAt       DateTime?    @map("token_expires_at")
   lastSyncedAt         DateTime?    @map("last_synced_at")
   lifetimeSpendMinor   BigInt       @default(0) @map("lifetime_spend_minor")
@@ -160,6 +166,8 @@ model MetaConnection {
   systemUserId         String?              @map("system_user_id")
   /// Encrypted access token (same envelope as AdAccount.accessTokenEncrypted).
   accessTokenEncrypted String?              @map("access_token_encrypted")
+  /// Key generation that encrypted the value above. See AdAccount.
+  accessTokenKeyVersion Int?                @map("access_token_key_version")
   tokenType            MetaTokenType        @default(LONG_LIVED_USER) @map("token_type")
   tokenExpiresAt       DateTime?            @map("token_expires_at")
   /// Scopes Meta actually granted (may be a subset of what was requested).

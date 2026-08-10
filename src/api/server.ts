@@ -37,6 +37,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { bodyLimit } from 'hono/body-limit';
@@ -121,7 +122,7 @@ import { buildAiUnavailableReply } from '../services/aiOfflineReply';
 import { generateText, isAIAvailable } from '../services/ai/aiService';
 import { getActiveProviderName } from '../services/ai/providerManager';
 import { classifyLlmError } from '../lib/llmErrors';
-import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson } from '../services/tokenEncryption';
+import { encryptToken, decryptToken, TokenDecryptError, tokenDecryptErrorJson, TOKEN_KEY_VERSION } from '../services/tokenEncryption';
 // MetaConnection is the single source of auth truth for Meta — the upsert
 // lives in one shared module so the orchestrator writes identical rows.
 import { upsertMetaConnection } from '../services/metaConnectionStore';
@@ -604,11 +605,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/ai',             (c) => c.html(aiPage()));
   app.get('/settings',       (c) => c.html(settingsPage()));
   app.get('/support',        (c) => c.html(supportPage()));
-  app.get('/admin',          (c) => c.html(adminConsolePage()));
-  app.get('/admin/inbox',    (c) => c.html(adminInboxPage()));
-  app.get('/admin/observability', (c) => c.html(adminDashboardPage()));
-  app.get('/admin/meta-readiness', (c) => c.html(metaReadinessPage()));
-  app.get('/admin/add-client', (c) => c.html(addClientPage()));
+  /**
+   * ── Operator pages: gated at the SERVER, not only in the browser ────────
+   *
+   * These five used to be `c.html(page())` with no check at all. The data
+   * behind them was never exposed — all 36 /api/admin routes call
+   * requirePlatformAdmin — but the SHELL was: an anonymous GET /admin
+   * returned the whole operator console, every route name and every internal
+   * label, to anyone who asked. A client-side `ensureAdmin()` redirect is a
+   * courtesy to the operator, not a boundary.
+   *
+   * The session token lives in localStorage, which a navigation request
+   * cannot carry, so login now ALSO sets an HttpOnly `adlytic_session`
+   * cookie (see setSessionCookie). This gate reads that. Consequence worth
+   * knowing: an operator whose browser predates this change has no cookie
+   * yet and will be sent to /login once. Signing in restores it.
+   *
+   * Anonymous callers get a redirect, not a 403 page — a 403 would still
+   * confirm the route exists and is worth attacking.
+   */
+  async function adminPage(c: Context, render: () => string) {
+    const cookie = readSessionCookie(c.req.header('cookie'));
+    const userId = await getUserId(cookie);
+    if (!userId) return c.redirect('/login', 302);
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    if (!user || !isPlatformAdminEmail(user.email)) return c.redirect('/dashboard', 302);
+    return c.html(render());
+  }
+
+  app.get('/admin',                (c) => adminPage(c, adminConsolePage));
+  app.get('/admin/inbox',          (c) => adminPage(c, adminInboxPage));
+  app.get('/admin/observability',  (c) => adminPage(c, adminDashboardPage));
+  app.get('/admin/meta-readiness', (c) => adminPage(c, metaReadinessPage));
+  app.get('/admin/add-client',     (c) => adminPage(c, addClientPage));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
   // ── Auth helpers ──────────────────────────────────────────────────────────
@@ -680,6 +709,61 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       'Please contact support to initiate an explicit account transfer.',
     code: 'AD_ACCOUNT_ALREADY_LINKED_ELSEWHERE',
   } as const;
+
+  /**
+   * ── The page-navigation half of the session ─────────────────────────────
+   *
+   * The API authenticates with `Authorization: Bearer <jwt>` out of
+   * localStorage. That works for fetch() and is unavailable to a browser
+   * NAVIGATION, which is why every HTML route in this file was ungated: the
+   * server genuinely had no way to know who was asking for a page.
+   *
+   * So login and register now ALSO drop the same JWT in an HttpOnly cookie.
+   * This is purely additive — the client still stores and sends the bearer
+   * token exactly as before, nothing reads the cookie except the operator-page
+   * gate, and no existing session breaks.
+   *
+   * HttpOnly  — page auth must not be readable by the inline scripts.
+   * Secure    — production only, so local http:// development still works.
+   * SameSite=Lax — a top-level GET navigation carries it (which is the whole
+   *   point) while a cross-site POST does not. No API route reads this
+   *   cookie, so it cannot be used as a CSRF vector against one.
+   * Max-Age   — matched to the JWT's own lifetime; a cookie that outlives its
+   *   token is just a slower 401.
+   */
+  const SESSION_COOKIE = 'adlytic_session';
+  const SESSION_COOKIE_MAX_AGE = 30 * 86400;
+
+  function setSessionCookie(c: Context, token: string): void {
+    const secure = config.isProduction ? ' Secure;' : '';
+    c.header(
+      'Set-Cookie',
+      `${SESSION_COOKIE}=${token}; Path=/; Max-Age=${SESSION_COOKIE_MAX_AGE}; HttpOnly;${secure} SameSite=Lax`,
+      { append: true },
+    );
+  }
+
+  function clearSessionCookie(c: Context): void {
+    const secure = config.isProduction ? ' Secure;' : '';
+    c.header(
+      'Set-Cookie',
+      `${SESSION_COOKIE}=; Path=/; Max-Age=0; HttpOnly;${secure} SameSite=Lax`,
+      { append: true },
+    );
+  }
+
+  /** Pull the session JWT out of a raw Cookie header. Returns null when absent. */
+  function readSessionCookie(header: string | undefined): string | null {
+    if (!header) return null;
+    for (const part of header.split(';')) {
+      const eq = part.indexOf('=');
+      if (eq < 0) continue;
+      if (part.slice(0, eq).trim() !== SESSION_COOKIE) continue;
+      const value = part.slice(eq + 1).trim();
+      return value.length ? value : null;
+    }
+    return null;
+  }
 
   /** Paths inactive (pending-activation) users may call with a bearer token. */
   const INACTIVE_ALLOWED_API = new Set([
@@ -886,6 +970,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       throw err;
     }
     const token = signToken({ sub: user.id, email: user.email, ver: user.tokenVersion });
+    setSessionCookie(c, token);
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name ?? null }, workspaceId: workspace.id }, 201);
   });
 
@@ -914,6 +999,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       await prisma.user.update({ where: { id: user.id }, data: { passwordHash: upgraded } });
     }
     const token = signToken({ sub: user.id, email: user.email, ver: user.tokenVersion });
+    setSessionCookie(c, token);
     return c.json({ token, user: { id: user.id, email: user.email, name: user.name } });
   });
 
@@ -1012,6 +1098,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.json({ success: true });
   });
 
+  /**
+   * POST /api/auth/logout — end THIS session.
+   *
+   * Clearing localStorage is something the browser can do alone; clearing an
+   * HttpOnly cookie is not, by design. Without this route "log out" would
+   * leave a 30-day operator-page cookie in the jar of a shared machine —
+   * which is exactly the situation logging out exists for.
+   *
+   * Deliberately requires no bearer token: logging out must work even when
+   * the token is already expired or malformed, and the only effect is
+   * removing a cookie the caller already holds.
+   */
+  app.post('/api/auth/logout', (c) => {
+    clearSessionCookie(c);
+    return c.json({ success: true });
+  });
+
   /** POST /api/auth/logout-all — revoke all sessions by incrementing tokenVersion. */
   app.post('/api/auth/logout-all', async (c) => {
     const req = await honoToApiRequest(c);
@@ -1022,6 +1125,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { id: userId },
       data: { tokenVersion: { increment: 1 } },
     });
+    // Bumping tokenVersion already makes the cookie's JWT fail getUserId, so
+    // this is belt and braces — but leaving a dead session cookie in the jar
+    // after an explicit "log out everywhere" is the kind of loose end that
+    // makes a later reader doubt the whole mechanism.
+    clearSessionCookie(c);
     return c.json({ success: true });
   });
 
@@ -5218,6 +5326,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         where: { id: lookup.existing.id },
         data: {
           accessTokenEncrypted: encryptedToken,
+          accessTokenKeyVersion: TOKEN_KEY_VERSION,
           tokenExpiresAt:       session.expiresAt,
           name:                 accountName,
           currency:             accountCurrency,
@@ -5241,6 +5350,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           countryCode,
           status:               'ACTIVE',
           accessTokenEncrypted: encryptedToken,
+          accessTokenKeyVersion: TOKEN_KEY_VERSION,
           tokenExpiresAt:       session.expiresAt,
         },
       });
@@ -5426,6 +5536,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         where: { id: existing.id },
         data: {
           accessTokenEncrypted: encryptedToken,
+          accessTokenKeyVersion: TOKEN_KEY_VERSION,
           // workspaceId intentionally OMITTED: ownership stays where it is.
           name:                 body.name ?? existing.name,
           currency:             resolvedCurrency,
@@ -5464,6 +5575,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         countryCode,
         status:               'ACTIVE',
         accessTokenEncrypted: encryptedToken,
+          accessTokenKeyVersion: TOKEN_KEY_VERSION,
       },
     });
     await invalidateCachedTokenHealth(workspaceId);

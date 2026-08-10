@@ -46,6 +46,10 @@ Enforced by `test_analytics_architecture.ts` (27 assertions),
 `test_health_single_source.ts`.
 
 ### Authorisation
+- HTML routes cannot read `Authorization: Bearer` — a navigation does not carry
+  it. Page-level gating reads the HttpOnly `adlytic_session` cookie that login
+  and register set alongside the bearer token. The five `/admin*` pages go
+  through `adminPage()`; anything else page-level must too.
 - **`app.use('/api/*')` is an ACTIVE-USER gate, not an auth gate.** Every
   failure path calls `next()` — no header, bad token, revoked token all reach
   the handler. Authentication is enforced **per route**, by hand.
@@ -62,9 +66,14 @@ Enforced by `test_analytics_architecture.ts` (27 assertions),
 - A decrypt failure throws `TokenDecryptError` and must **never** be
   softened into a Meta 190 — key mismatch and token expiry are different
   incidents with different fixes.
-- **There is no `key_version` column.** Until there is, a key change is
-  unrecoverable and its blast radius can only be measured by attempting every
-  decryption (`scripts/count-undecryptable-tokens.ts`).
+- `access_token_key_version` records which key generation wrote each row.
+  Every persistence site must stamp `TOKEN_KEY_VERSION`; a NULL means "written
+  before versioning", i.e. generation 1 by assumption.
+- To rotate: set `TOKEN_ENCRYPTION_KEY_PREVIOUS` to the outgoing key,
+  `TOKEN_ENCRYPTION_KEY` to the new one, bump `TOKEN_ENCRYPTION_KEY_VERSION`,
+  redeploy. Old rows keep opening; run
+  `scripts/count-undecryptable-tokens.ts` until generation N-1 is empty, then
+  drop the previous key. `DECRYPT FAILED` must be zero throughout.
 
 ### Meta API
 - Read-only against live ad accounts, always. No budget writes, no state
@@ -119,8 +128,14 @@ Enforced by `test_analytics_architecture.ts` (27 assertions),
    each solved the visible symptom and created the next. Measure at every
    breakpoint before and after.
 7. **Independent booleans for mutually exclusive UI states.** Nine separate
-   `style.display` writes across five regions, no owner — so production can
-   and did show loading, error, stale and partial at once.
+   `style.display` writes across four regions, no owner — so production showed
+   loading, error, stale and partial at once. Fixed by `setDashPhase()`; the
+   pattern to watch for is a function that turns one region on and *guesses*
+   which others to turn off.
+8. **A test that passes because it never ran the code.** `test_token_encryption`
+   documented an env var nobody set, so both sides of its round-trip were
+   identity functions and it reported green on an unexecuted path. Assert the
+   precondition first ("a key IS configured"), then assert the behaviour.
 
 ## Working rules
 
