@@ -55,7 +55,7 @@ export function supportPage(): string {
 /* ── Create ticket form ── */
 .create-overlay {
   display: none; position: fixed; inset: 0; z-index: 900;
-  background: rgba(0,0,0,0.6); backdrop-filter: blur(4px);
+  background: var(--scrim); backdrop-filter: blur(4px);
   justify-content: center; align-items: center;
 }
 .create-overlay.open { display: flex; }

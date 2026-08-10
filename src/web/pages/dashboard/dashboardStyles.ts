@@ -749,7 +749,7 @@ export const dashboardStyles = `<style>
     /* Onboarding sync overlay */
     .onboarding-overlay {
       position: fixed; inset: 0; z-index: 200;
-      background: rgba(16,14,13,0.92);
+      background: var(--scrim);
       display: flex; align-items: center; justify-content: center;
       padding: 24px;
     }

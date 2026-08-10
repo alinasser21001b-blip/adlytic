@@ -283,6 +283,74 @@ for (const dir of ['src/web']) {
     }
   }
 }
-if (!paletteBad) console.log('palette clean: no retired ramp in CSS, no var() handed to a canvas');
+// ── Chart tooltips must be legible, and scrims must come from the token ──
+// The chart-palette pass moved tooltip TEXT to --text (near-black) and left
+// the ground at rgba(16,14,13,0.97) — the dark theme's panel, which that pass
+// never touched. Result: 1.12:1. The date line simply was not there, and a
+// customer had to report it because no gate could see a hover state.
+//
+// Two rules follow. Neither is about hover: both are about the same mistake,
+// which is changing ink without its ground.
+const CHART_FILES = ['src/web/pages/dashboardPage.ts', 'src/web/pages/campaignsPage.ts'];
+let tooltipsChecked = 0;
+for (const file of CHART_FILES) {
+  const src = readFileSync(file, 'utf8');
+  // Balanced-brace scan, not a bounded lazy match. The first version of this
+  // rule used [\s\S]{0,900}? and silently matched NOTHING once the block grew
+  // past 900 characters — it reported "clean" while checking zero tooltips,
+  // the exact defect shape it was written to catch. A counter below makes
+  // that failure impossible to repeat quietly.
+  for (const m of src.matchAll(/tooltip:\s*\{/g)) {
+    const open = src.indexOf('{', m.index);
+    let depth = 0, i = open;
+    for (; i < src.length; i++) {
+      if (src[i] === '{') depth++;
+      else if (src[i] === '}') { depth--; if (depth === 0) break; }
+    }
+    const body = src.slice(open, i + 1);
+    const line = src.slice(0, m.index).split('\n').length;
+    tooltipsChecked++;
+    const bg = body.match(/backgroundColor:\s*([^,\n]+)/);
+    if (!bg) {
+      console.error(`✗ ${file}:${line} chart tooltip sets no backgroundColor — Chart.js defaults to near-black, under text this product paints near-black`);
+      paletteBad++;
+      continue;
+    }
+    // A literal dark colour, or any rgba() ground, is the defect. The ground
+    // must be a token so it moves with the theme.
+    if (!/cssVar\(/.test(bg[1])) {
+      console.error(`✗ ${file}:${line} chart tooltip ground is a literal (${bg[1].trim()}) — use cssVar('--surface', …) so it follows the theme`);
+      paletteBad++;
+    }
+    for (const key of ['titleColor', 'bodyColor']) {
+      const ink = body.match(new RegExp(key + ':\\s*([^,\\n]+)'));
+      if (ink && !/cssVar\(/.test(ink[1])) {
+        console.error(`✗ ${file}:${line} chart tooltip ${key} is a literal (${ink[1].trim()}) — use cssVar()`);
+        paletteBad++;
+      }
+    }
+  }
+}
+
+// A rule that inspects nothing is worse than no rule: it reports "clean".
+if (tooltipsChecked < CHART_FILES.length) {
+  console.error(`✗ the tooltip rule matched ${tooltipsChecked} tooltip block(s) across ${CHART_FILES.length} chart files — it is checking nothing`);
+  paletteBad++;
+}
+
+// Every modal veil comes from --scrim. Five overlays had five values — pure
+// black at 0.55 / 0.6 / 0.65, and the old dark ink at 0.92, which is close
+// enough to opaque that opening a dialog blacked the product out.
+for (const f of readdirSync('src/web', { recursive: true })) {
+  if (typeof f !== 'string' || !f.endsWith('.ts')) continue;
+  const src = readFileSync('src/web/' + f, 'utf8');
+  for (const m of src.matchAll(/(?:^|\n)\s*(?:background|background-color):\s*(rgba\(\s*(?:0\s*,\s*0\s*,\s*0|16\s*,\s*14\s*,\s*13|11\s*,\s*31\s*,\s*25)[^)]*\))/g)) {
+    const line = src.slice(0, m.index).split('\n').length;
+    console.error(`✗ src/web/${f}:${line} hardcodes a dark veil (${m[1]}) — use var(--scrim)`);
+    paletteBad++;
+  }
+}
+
+if (!paletteBad) console.log('palette clean: no retired ramp, no var() on canvas, tooltips tokenised, one scrim');
 
 process.exit(bad || scaleBad || contrastBad || rootBad || dupBad || numeralBad || paletteBad ? 1 : 0);

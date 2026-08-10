@@ -58,7 +58,7 @@ export function beginnerDashboardPage(): string {
       border-radius: 18px;
       transition: border-color 200ms ease, box-shadow 200ms ease;
     }
-    .bgn-greeting:hover { border-color: var(--accent-dim); box-shadow: 0 8px 28px rgba(0,0,0,0.18); }
+    .bgn-greeting:hover { border-color: var(--accent-dim); box-shadow: none; }
     .bgn-greeting-emoji { font-size: 38px; line-height: 1; flex-shrink: 0; transition: transform 280ms ease; }
     .bgn-greeting:hover .bgn-greeting-emoji { transform: scale(1.08) rotate(-6deg); }
     .bgn-greeting-text-wrap { flex: 1; min-width: 0; }
@@ -121,7 +121,7 @@ export function beginnerDashboardPage(): string {
       cursor: pointer; user-select: none;
       transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease, background 200ms ease;
     }
-    .bgn-metric-card:hover { transform: translateY(-3px); border-color: var(--border-2); box-shadow: 0 10px 28px rgba(0,0,0,0.2); }
+    .bgn-metric-card:hover { transform: translateY(-3px); border-color: var(--border-2); box-shadow: none; }
     .bgn-metric-card:active { transform: translateY(-1px) scale(0.99); }
     .bgn-metric-card.is-open {
       border-color: var(--accent-glow);
@@ -170,7 +170,7 @@ export function beginnerDashboardPage(): string {
       cursor: pointer;
       transition: transform 200ms ease, border-color 200ms ease, box-shadow 200ms ease;
     }
-    .bgn-mini-card:hover { transform: translateY(-2px); border-color: var(--border-2); box-shadow: 0 8px 22px rgba(0,0,0,0.16); }
+    .bgn-mini-card:hover { transform: translateY(-2px); border-color: var(--border-2); box-shadow: none; }
     .bgn-mini-card:active { transform: scale(0.99); }
     .bgn-mini-card.is-open { border-color: var(--accent-dim); }
     .bgn-mini-top { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }

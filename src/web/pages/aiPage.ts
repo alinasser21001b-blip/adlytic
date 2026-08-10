@@ -180,7 +180,7 @@ export function aiPage(): string {
   }
   .suggested-chip:active { border-color: var(--accent-dim); }
 
-  .chat-input-area { padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); background: rgba(0,0,0,0.12); }
+  .chat-input-area { padding: 10px 12px calc(12px + env(safe-area-inset-bottom, 0px)); border-top: 1px solid var(--border); background: var(--surface-2); }
   .chat-input-row { display: flex; gap: 8px; align-items: flex-end; }
   .chat-input {
     flex: 1; min-width: 0; background: var(--surface-2); border: 1px solid var(--border);

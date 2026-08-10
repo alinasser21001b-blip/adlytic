@@ -126,6 +126,13 @@ export const SHARED_CSS = `
      greyscale and colour-blindness, which a tint does not. */
   --hatch: repeating-linear-gradient(135deg, #F2F7F4 0 7px, #E8F0EA 7px 14px);
 
+  /* The veil behind a modal. ONE value, because five overlays had five —
+     pure black at 0.55, 0.6, 0.65, and the old dark ink at 0.92, which is so
+     close to opaque that opening a dialog blacked the product out instead of
+     dimming it. Deep ink rather than #000: a green-black veil belongs to this
+     palette, a pure black slab belongs to no palette at all. */
+  --scrim: rgba(11,31,25,0.55);
+
   /* ── Data-viz series — WHICH campaign, never how healthy. ──────────
      No value here appears in the status ramp above, and a chart may not
      borrow a status colour for a series: two lines meaning "campaign A"
@@ -1177,7 +1184,7 @@ select.form-input { cursor: pointer; }
 /* ── Sidebar overlay (mobile) ─────────────────────────────────────── */
 .sidebar-overlay {
   display: none; position: fixed; inset: 0; z-index: 99;
-  background: rgba(11,31,25,0.55); backdrop-filter: blur(2px);
+  background: var(--scrim); backdrop-filter: blur(2px);
   opacity: 0; transition: opacity 0.2s;
 }
 @media (max-width: 768px) {

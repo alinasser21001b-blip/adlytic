@@ -1087,7 +1087,7 @@ export function campaignsPage(): string {
       display: flex;
       align-items: center;
       gap: 4px;
-      background: rgba(0,0,0,0.65);
+      background: var(--scrim);
       color: #fff;
       font-size: 11px;
       font-weight: 600;
@@ -1359,11 +1359,21 @@ export function campaignsPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'var(--accent-glow)',
+            // A LIGHT tooltip on a light product. This was rgba(16,14,13,0.97)
+            // — the dark theme's panel, never migrated — and when the chart
+            // pass moved the TEXT to --text (#0B1F19, near-black) the result
+            // was near-black on near-black: the date line in the screenshot
+            // was invisible and the spend line barely legible. Changing the
+            // ink without the ground is how a migration produces something
+            // worse than what it replaced.
+            //
+            // Elevation here follows the Daylight rule the rest of the
+            // product follows: surface + a 1px border, no invented depth.
+            backgroundColor: cssVar('--surface', '#FFFFFF'),
+            borderColor: cssVar('--border-2', '#C7D8CE'),
             borderWidth: 1,
-            titleColor: cssVar('--text', '#0B1F19'),
-            bodyColor: cssVar('--series-1', '#0E4034'),
+            titleColor: cssVar('--text', '#0B1F19'),       // 15.8:1 on --surface
+            bodyColor: cssVar('--text-2', '#4A5F57'),      //  6.4:1 on --surface
             padding: { top: 10, bottom: 10, left: 14, right: 14 },
             cornerRadius: 10,
             titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
@@ -1392,7 +1402,10 @@ export function campaignsPage(): string {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: 'var(--surface-2)', maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
+            // Was var(--surface-2): a var() string canvas cannot read, AND a
+            // SURFACE colour used as tick ink. Two mistakes agreeing to look
+            // fine because Chart.js fell back to its own default.
+            ticks: { color: cssVar('--text-3', '#5D7066'), maxTicksLimit: 7, font: { size: 10, weight: '500' }, maxRotation: 0 }
           },
           y: {
             beginAtZero: true,
@@ -1400,7 +1413,7 @@ export function campaignsPage(): string {
             grid: { color: cssVar('--gridline', '#D8E4DC'), lineWidth: 0.8 },
             border: { display: false },
             ticks: {
-              color: 'var(--border-2)',
+              color: cssVar('--text-3', '#5D7066'),
               font: { size: 10, weight: '500' },
               maxTicksLimit: 4,
               callback: function(v) {

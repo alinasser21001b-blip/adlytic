@@ -136,7 +136,7 @@ export function adminConsolePage(): string {
     .form-group.full { grid-column: 1 / -1; }
     .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
     .drawer-backdrop {
-      position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 40;
+      position: fixed; inset: 0; background: var(--scrim); z-index: 40;
       display: none; align-items: stretch; justify-content: flex-start;
     }
     .drawer-backdrop.open { display: flex; }

@@ -819,11 +819,21 @@ export function dashboardPage(): string {
         plugins: {
           legend: { display: false },
           tooltip: {
-            backgroundColor: 'rgba(16,14,13,0.97)',
-            borderColor: 'var(--accent-glow)',
+            // A LIGHT tooltip on a light product. This was rgba(16,14,13,0.97)
+            // — the dark theme's panel, never migrated — and when the chart
+            // pass moved the TEXT to --text (#0B1F19, near-black) the result
+            // was near-black on near-black: the date line in the screenshot
+            // was invisible and the spend line barely legible. Changing the
+            // ink without the ground is how a migration produces something
+            // worse than what it replaced.
+            //
+            // Elevation here follows the Daylight rule the rest of the
+            // product follows: surface + a 1px border, no invented depth.
+            backgroundColor: cssVar('--surface', '#FFFFFF'),
+            borderColor: cssVar('--border-2', '#C7D8CE'),
             borderWidth: 1,
-            titleColor: cssVar('--text', '#0B1F19'),
-            bodyColor: cssVar('--series-1', '#0E4034'),
+            titleColor: cssVar('--text', '#0B1F19'),       // 15.8:1 on --surface
+            bodyColor: cssVar('--text-2', '#4A5F57'),      //  6.4:1 on --surface
             padding: { top: 10, bottom: 10, left: 14, right: 14 },
             cornerRadius: 10,
             titleFont: { size: 13, weight: '700', family: "'IBM Plex Sans Arabic', sans-serif" },
