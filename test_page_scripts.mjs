@@ -73,4 +73,44 @@ if (offScale.size) {
   console.log(`breakpoint scale clean: ${[...SCALE].sort((a, b) => a - b).join(' / ')}`);
 }
 
-process.exit(bad || scaleBad ? 1 : 0);
+
+// ── Token contrast ────────────────────────────────────────────────────
+// Every text colour must clear WCAG AA against EVERY surface it can sit on,
+// not just the page ground.
+//
+// This exists because the Daylight handoff measured all ratios against
+// --bg (#F2F7F4) and shipped two colours that fail on --surface-2 (#E8F0EA),
+// which is darker: --text-3 at 4.42:1 and --warning at 4.22:1. Both are used
+// on raised surfaces throughout. A ratio is meaningless without naming the
+// backdrop it was measured against.
+const SURFACES = { '--bg': '#F2F7F4', '--surface': '#FFFFFF', '--surface-2': '#E8F0EA' };
+const TEXT_ON_ANY = ['--text', '--text-2', '--text-3', '--success', '--warning', '--error', '--critical', '--info'];
+
+const lum = (hex) => {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255)
+    .map((v) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  return 0.2126 * c[0] + 0.7152 * c[1] + 0.0722 * c[2];
+};
+const contrast = (a, b) => {
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+};
+
+const layoutSrc = readFileSync('src/web/layout.ts', 'utf8');
+const tokenHex = (name) => (layoutSrc.match(new RegExp(name + ':\\s*(#[0-9A-Fa-f]{6})')) || [])[1];
+
+let contrastBad = 0;
+for (const t of TEXT_ON_ANY) {
+  const fg = tokenHex(t);
+  if (!fg) { console.error(`✗ token ${t} not found in layout.ts`); contrastBad++; continue; }
+  for (const [sName, sHex] of Object.entries(SURFACES)) {
+    const r = contrast(fg, sHex);
+    if (r < 4.5) {
+      console.error(`✗ ${t} (${fg}) on ${sName} (${sHex}) = ${r.toFixed(2)}:1 — needs 4.5`);
+      contrastBad++;
+    }
+  }
+}
+if (!contrastBad) console.log(`contrast clean: ${TEXT_ON_ANY.length} text tokens x ${Object.keys(SURFACES).length} surfaces, all >= 4.5:1`);
+
+process.exit(bad || scaleBad || contrastBad ? 1 : 0);

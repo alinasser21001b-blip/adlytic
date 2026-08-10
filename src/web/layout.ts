@@ -77,7 +77,7 @@ export const SHARED_CSS = `
   --border-2: #C7D8CE;
   --text: #0B1F19;            /* 15.8:1 */
   --text-2: #4A5F57;          /* 6.4:1  */
-  --text-3: #5F7268;          /* 4.8:1 — smallest legal text colour */
+  --text-3: #5D7066;          /* 4.9:1 on --bg, 4.6:1 on --surface-2 */
   --nontext: #7C8F87;         /* 3.2:1 — NON-TEXT ONLY, never words */
 
   /* ── Brand — deep forest green. Replaces the gold. ───────────────── */
@@ -96,7 +96,7 @@ export const SHARED_CSS = `
   --success: #17714F;         /* 5.6:1 text */
   --success-fill: #1D8A63;    /* 4.0:1 — fills only, never text */
   --success-dim: rgba(23,113,79,0.10);
-  --warning: #B4552F;         /* 4.5:1 */
+  --warning: #AF502A;         /* 4.8:1 on --bg, 4.5:1 on --surface-2 */
   --warning-dim: rgba(180,85,47,0.10);
   --error: #A32B1E;           /* 6.7:1 */
   --error-dim: rgba(163,43,30,0.10);
@@ -1367,7 +1367,16 @@ body:has(.app-shell--beginner) .sidebar-overlay {
   white-space: nowrap;
 }
 .mode-toggle-btn:hover { color: var(--text); }
-.mode-toggle-btn.active { color: var(--bg); }
+/* The label sits on .mode-toggle-indicator — an absolutely-positioned
+   SIBLING filled with --accent, not on any ancestor. --surface reads 11.66:1
+   against it; the previous --bg read 10.76:1, so this is a small clarity
+   gain, NOT a bug fix.
+   Recorded because an automated audit flagged this at 1.07:1 and it was
+   wrong: the probe walked ancestors for the backdrop, and the real backdrop
+   is a sibling it could never see. Verified by screenshot — white on deep
+   green, entirely legible. Any future contrast checker will trip here for
+   the same reason; the element is fine. */
+.mode-toggle-btn.active { color: var(--surface); }
 
 /* ── RTL Support ────────────────────────────────────────────────── */
 [dir="rtl"] .sidebar { left: auto; right: 0; border-right: none; border-left: 1px solid var(--border); }
