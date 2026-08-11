@@ -27,16 +27,43 @@ That distinction is the point of the phase. Filling this report from Meta's
 documentation would produce exactly the artefact the probe was built to
 prevent — a wish list wearing the costume of evidence.
 
+### The block is a policy, not a fault
+
+`/root/.ccr/README.md` is explicit about a 403 from the egress proxy:
+
+> The destination host is not allowed by your organization's egress policy for
+> this session. **Do not retry or route around it — report the blocked host.**
+
+Reported: **`graph.facebook.com`**. No workaround was attempted, and none
+should be — routing around an egress policy to reach a live client's ad
+account is exactly the wrong instinct for this codebase.
+
 ### To produce the real evidence
 
+**Preferred — the token never touches a shell or its history.** On any host
+that already runs the workers, `DATABASE_URL` and `TOKEN_ENCRYPTION_KEY` are
+in the ambient environment:
+
 ```bash
-META_ACCESS_TOKEN=…  META_AD_ACCOUNT_ID=act_…  \
-npx tsx scripts/run-capability-probe.ts
+WORKSPACE_ID=ws_…  npx tsx scripts/run-capability-probe.ts
 ```
 
-It discovers a campaign/ad set/ad, runs the ladder, and **overwrites both
-`META_CAPABILITY_MATRIX.md` and this file** with real rows. Budget defaults to
-40 calls and is enforced by the probe itself.
+It resolves that workspace's ad account, decrypts through the **same
+resolve-and-decrypt path the sync workers use** (so it inherits the
+system-user vs per-account distinction rather than reimplementing it), and
+never prints the token.
+
+Fallback, when no database is reachable:
+
+```bash
+META_ACCESS_TOKEN=…  META_AD_ACCOUNT_ID=act_…  npx tsx scripts/run-capability-probe.ts
+```
+
+Either way it discovers a campaign/ad set/ad, runs the baseline-first ladder,
+and **overwrites both `META_CAPABILITY_MATRIX.md` and this file** with real
+rows. Budget defaults to 40 calls and is enforced by the probe itself.
+
+Send back the two files, or the commit. **Do not send the token.**
 
 ---
 

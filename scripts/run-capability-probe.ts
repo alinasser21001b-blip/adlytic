@@ -12,8 +12,13 @@
 //    [PROBE_MAX_CALLS=40] \
 //    npx tsx scripts/run-capability-probe.ts
 //
-//  Or, with a database, resolve the token from a workspace instead:
-//    DATABASE_URL=…  TOKEN_ENCRYPTION_KEY=…  WORKSPACE_ID=…  npx tsx …
+//  PREFERRED on a server: resolve the token from the database instead, so it
+//  never enters the shell or the shell's history. Both variables are already
+//  set on any host that runs the workers.
+//    WORKSPACE_ID=ws_…  npx tsx scripts/run-capability-probe.ts
+//  (reads DATABASE_URL + TOKEN_ENCRYPTION_KEY from the ambient environment,
+//   resolves the workspace's ad account, decrypts through the same path the
+//   sync workers use, and never prints the token)
 //
 //  SAFETY
 //    · GET only. There is no code path here that can POST, PATCH or DELETE.
@@ -26,6 +31,10 @@
 // ════════════════════════════════════════════════════════════════════════
 import { writeFileSync } from 'node:fs';
 
+import { PrismaClient } from '@prisma/client';
+
+import { resolveAccountToken } from '../src/services/accountToken';
+import { decryptToken } from '../src/services/tokenEncryption';
 import {
   PROBE_CANDIDATES,
   runCapabilityProbe,
@@ -40,7 +49,7 @@ function need(name: string): string {
   const v = process.env[name];
   if (!v) {
     console.error(
-      `\n✗ ${name} is not set.\n`
+      `\n✗ ${name} is not set (and WORKSPACE_ID was not given either).\n`
       + `  This script does not invent capability results. Without a real token on a real\n`
       + `  account there is nothing to record, and a matrix filled from documentation is\n`
       + `  exactly the error the probe exists to prevent.\n`,
@@ -233,9 +242,55 @@ ${JSON.stringify(results, null, 2)}
 `;
 }
 
+/**
+ * Resolve a token WITHOUT it ever passing through a shell.
+ *
+ * The first version of this script only accepted META_ACCESS_TOKEN from the
+ * environment, while its own usage block advertised a database path that did
+ * not exist. That is a false promise in a security-sensitive place: someone
+ * following the docstring on a server would fall back to pasting a live Meta
+ * token into their shell, where it lands in history. Implemented here through
+ * the SAME resolve+decrypt path the sync workers use, so it inherits the
+ * system-user / per-account distinction rather than reimplementing it.
+ */
+async function tokenFromWorkspace(workspaceId: string): Promise<{ token: string; account: string }> {
+  const prisma = new PrismaClient();
+  try {
+    const acct = await prisma.adAccount.findFirst({
+      where: { workspaceId },
+      select: {
+        externalAccountId: true, accessTokenEncrypted: true,
+        tokenSource: true, connectionId: true,
+      },
+      orderBy: { createdAt: 'asc' },
+    });
+    if (!acct) throw new Error(`workspace ${workspaceId} has no ad account`);
+
+    const resolved = await resolveAccountToken(prisma, acct as never);
+    if (!resolved.encrypted) throw new Error(`workspace ${workspaceId} has no stored Meta token`);
+
+    // decryptToken throws TokenDecryptError on a key mismatch — deliberately
+    // NOT softened here. A key problem and an expired token are different
+    // incidents with different fixes, and a probe run must not blur them.
+    return { token: decryptToken(resolved.encrypted), account: acct.externalAccountId };
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
 async function main() {
-  const token = need('META_ACCESS_TOKEN');
-  const account = need('META_AD_ACCOUNT_ID');
+  const workspaceId = process.env.WORKSPACE_ID;
+  let token: string;
+  let account: string;
+
+  if (workspaceId) {
+    ({ token, account } = await tokenFromWorkspace(workspaceId));
+    if (process.env.META_AD_ACCOUNT_ID) account = process.env.META_AD_ACCOUNT_ID;
+    console.log(`resolved a token for workspace ${workspaceId} (account ${account}) — not printed`);
+  } else {
+    token = need('META_ACCESS_TOKEN');
+    account = need('META_AD_ACCOUNT_ID');
+  }
   const budget = Number(process.env.PROBE_MAX_CALLS ?? 40);
 
   const since = process.env.PROBE_SINCE ?? new Date(Date.now() - 2 * 86_400_000).toISOString().slice(0, 10);
