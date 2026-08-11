@@ -55,6 +55,7 @@ import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
+import { runCapabilityProbeForWorkspace, redactProbeError } from '../services/metaCapabilityRunner';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
 import { handleStripeWebhookEvent, activateManual, cancelManual, extendSubscription } from '../services/subscriptionService';
@@ -1460,6 +1461,56 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     bustPlatformStatsCache();
     return c.json({ ok: true, bustedAt: Date.now() });
+  });
+
+  /**
+   * POST /api/admin/capability-probe — run the READ-ONLY Meta capability probe.
+   *
+   * Why a route at all: the probe needs a real Meta token, and the only place
+   * one exists is the host that runs the workers. Requiring a shell there
+   * pushes people toward pasting a live token into a terminal, where it lands
+   * in history. This resolves the token through the SAME path the sync workers
+   * use and never returns or logs it.
+   *
+   * It is a POST because it spends the account's Meta quota — that is an
+   * action, not a read of ours, even though every Meta call it makes is a GET.
+   *
+   * The container filesystem is ephemeral, so the two documents are RETURNED
+   * rather than written: writing them into a dyno that is about to be replaced
+   * would produce evidence nobody can retrieve.
+   *
+   * Body: { workspaceId: string, maxCalls?: number, since?: string, until?: string }
+   */
+  app.post('/api/admin/capability-probe', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+
+    const body = (req.body ?? {}) as {
+      workspaceId?: string; maxCalls?: number; since?: string; until?: string;
+    };
+    if (!body.workspaceId) {
+      return c.json({ error: 'workspaceId is required' }, 400);
+    }
+    // A hard ceiling the caller cannot raise. The Marketing API access tier is
+    // gated on a <15% error rate and a prober is a machine for producing
+    // errors — that is its job, so it must stay small whoever triggers it.
+    const maxCalls = Math.min(Math.max(Number(body.maxCalls) || 40, 1), 40);
+
+    try {
+      const result = await runCapabilityProbeForWorkspace(prisma, {
+        workspaceId: body.workspaceId,
+        maxCalls,
+        since: body.since,
+        until: body.until,
+      });
+      return c.json(result);
+    } catch (e) {
+      // Meta echoes the request URL — token and all — in some error payloads,
+      // so the message is never passed through verbatim.
+      const msg = e instanceof Error ? e.message : 'probe failed';
+      return c.json({ error: redactProbeError(msg) }, 500);
+    }
   });
 
   /**

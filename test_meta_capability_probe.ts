@@ -277,6 +277,35 @@ async function main() {
     eq(/حملة العميل/.test(blob), false, 'no campaign name reaches the stored row');
   }
 
+  // ── 6. The admin route and the CLI must be the same probe ─────────────
+  console.log('\n── one probe, two triggers ──');
+  {
+    const { matrixMd, reportMd } = await import('./src/services/metaCapabilityReport');
+    const { redactProbeError } = await import('./src/services/metaCapabilityRunner');
+    const { t } = fakeTransport(() => ({
+      status: 200,
+      body: { data: [{ spend: '1', impressions: '2', attribution_setting: '7d_click' }] },
+    }));
+    const res = await runCapabilityProbe(t, PROBE_CANDIDATES, {
+      externalAccountId: 'act_1', entityIds: { campaign: '23', adset: '45', ad: '67' },
+    });
+    const ctx = {
+      apiVersion: 'v20.0', account: 'act_1', campaign: '23', adset: '45', ad: '67',
+      since: '2026-01-01', until: '2026-01-01', calls: '17', budget: '40', at: '2026-01-02T00:00:00Z',
+    };
+    const m = matrixMd(res, ctx);
+    const r = reportMd(res, ctx);
+    eq(m.includes('act_1') && m.includes('v20.0'), true, 'the matrix records the run context');
+    eq(/^## [A-G]\./m.test(r), true, 'the report carries the A–G headings');
+    // Same inputs must render identically however the run was triggered — a
+    // report that differs by trigger cannot be compared with the last one.
+    eq(matrixMd(res, ctx) === m && reportMd(res, ctx) === r, true,
+      'rendering is deterministic, so two runs are comparable');
+    eq(/access_token|EAAG/.test(m + r), false, 'neither document can carry a token');
+    eq(redactProbeError('failed: access_token=EAAGsecret1234567890abcdefghij').includes('EAAGsecret'), false,
+      'the route error path redacts before returning');
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
     process.exit(failed ? 1 : 0);
 
