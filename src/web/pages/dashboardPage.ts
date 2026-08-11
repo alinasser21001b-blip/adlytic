@@ -2033,17 +2033,24 @@ export function dashboardPage(): string {
     if (!cc || !cc.total) { sec.style.display = 'none'; return; }
     sec.style.display = 'block';
 
-    // Order matches what matters most to the merchant: spending today (the
-    // strongest signal of actually delivering, per classifyCampaignDelivery)
-    // first, then the rest of the delivering window, then dormant, then
-    // stopped. Every count here is real — never invented.
-    var delivering = Math.max(0, cc.deliveringInWindow - cc.spendingToday);
-    var segs = [
-      { n: cc.spendingToday || 0, color: 'var(--success)', label: lbl('spending today', 'تنفق اليوم') },
-      { n: delivering, color: 'var(--accent)', label: lbl('delivering', 'تعمل فعلًا') },
-      { n: cc.dormantActive || 0, color: 'var(--warning)', label: lbl('no spend', 'بدون إنفاق') },
-      { n: (cc.paused || 0) + (cc.archived || 0), color: 'var(--border-2)', label: lbl('stopped', 'متوقفة') },
-    ];
+    // Order matters most-urgent first, and the segmentation is EXHAUSTIVE:
+    // every delivery tier lands in exactly one segment. It used to be built
+    // from four named counters covering four of the eight tiers, so on an
+    // account Meta had suspended for unpaid bills — where every campaign
+    // classifies ACCOUNT_HALTED — this strip showed a title claiming N
+    // campaigns above four zeroes and an empty bar.
+    //
+    // Falls back to tallying the rows when the server tally is absent, so an
+    // older payload degrades to the same answer instead of to silence.
+    var built = campaignStatusSegments(cc.byTier || tallyCampaignTiers(campaigns));
+    var segs = built.segs;
+
+    // If the parts still do not add up to the whole, say so rather than
+    // presenting a partial breakdown as complete.
+    var missing = Math.max(0, (cc.total || 0) - built.accounted);
+    if (missing > 0) {
+      segs = segs.concat([{ n: missing, color: 'var(--text-3)', label: lbl('unclassified', 'غير مصنّفة') }]);
+    }
 
     if (titleEl) {
       titleEl.textContent = lbl('Your ' + cc.total + ' campaigns — where do they really stand?', 'حملاتك الـ' + cc.total + ' — أين تقف فعلًا؟');
@@ -2051,7 +2058,10 @@ export function dashboardPage(): string {
     bar.innerHTML = segs.filter(function (s) { return s.n > 0; }).map(function (s) {
       return '<span style="flex:' + s.n + ';background:' + s.color + '"></span>';
     }).join('');
-    legend.innerHTML = segs.map(function (s) {
+    // Zero-count segments are dropped from the legend too. Printing «موقوفة —
+    // الحساب 0» on a healthy account teaches the merchant to ignore the row
+    // that matters on the day it is not zero.
+    legend.innerHTML = segs.filter(function (s) { return s.n > 0; }).map(function (s) {
       return '<span class="status-strip-item"><span class="status-strip-dot" style="background:' + s.color + '"></span>'
         + escHtml(s.label) + ' <bdi>' + s.n + '</bdi></span>';
     }).join('');
@@ -4061,7 +4071,13 @@ export function dashboardPage(): string {
       var wsNameEl = document.getElementById('ws-name'); if (wsNameEl) wsNameEl.textContent = wsName;
       var subtitleEl = document.getElementById('dash-subtitle');
       if (subtitleEl) {
-        subtitleEl.innerHTML = 'Past 30 days · ' + escHtml(wsName) + ' · <span id="dash-last-updated" class="text-3">—</span>';
+        // Was an unconditional English 'Past 30 days ·' — on the Arabic
+        // dashboard, right under the page title. The i18n gate reads the
+        // SERVER-rendered HTML and this line is written by the browser after
+        // the payload lands, so it sat in the blind spot between the two.
+        subtitleEl.innerHTML = escHtml(lbl('Past 30 days', 'آخر 30 يوماً'))
+          + ' · ' + escHtml(wsName)
+          + ' · <span id="dash-last-updated" class="text-3">—</span>';
       }
       // The chart panel's unit label is owned by renderMainChart — it depends
       // on which metric is selected, and a second writer here would restore

@@ -3131,6 +3131,57 @@ function deltaLabel(kpi) {
   return deltaArrow(kpi.direction) + ' ' + Math.abs(kpi.deltaPct * 100).toFixed(1) + '%';
 }
 
+/* ── Campaign status strip — one exhaustive segmentation ──────────────────
+   Both strips (dashboard and campaigns) answer "where do your N campaigns
+   stand". They used to be built from four named counters that covered four
+   of the eight delivery tiers, so ACCOUNT_HALTED and NOT_DELIVERING campaigns
+   were counted by nothing: an account Meta had suspended for unpaid bills
+   classified EVERY campaign as ACCOUNT_HALTED and the strip rendered a title
+   claiming twelve campaigns above four zeroes and an empty bar. The one
+   moment the merchant most needs this to speak, it went silent.
+
+   Segments are built from the full byTier tally, and the builder returns the
+   number it accounted for so the caller can refuse to render a segmentation
+   that does not add up rather than quietly show a partial one. */
+function campaignStatusSegments(byTier) {
+  var t = byTier || {};
+  var n = function (k) { return Number(t[k]) || 0; };
+  var segs = [
+    { n: n('DELIVERING_TODAY'), color: 'var(--success)', label: 'تنفق اليوم' },
+    { n: n('DELIVERING_WINDOW'), color: 'var(--accent)', label: 'تعمل فعلًا' },
+    { n: n('ACCOUNT_HALTED'), color: 'var(--error)', label: 'موقوفة — الحساب' },
+    { n: n('NOT_DELIVERING'), color: 'var(--warning)', label: 'لا تُعرض' },
+    { n: n('DORMANT_ACTIVE'), color: 'var(--warning)', label: 'بدون إنفاق' },
+    { n: n('PAUSED') + n('ARCHIVED') + n('DELETED'), color: 'var(--border-2)', label: 'متوقفة' },
+  ];
+  var accounted = 0;
+  for (var i = 0; i < segs.length; i++) accounted += segs[i].n;
+  return { segs: segs, accounted: accounted };
+}
+window.campaignStatusSegments = campaignStatusSegments;
+
+/* Count tiers from a list of campaign rows — used where the page holds rows
+   rather than the server's tally. Same shape as CampaignCounts.byTier. */
+function tallyCampaignTiers(campaigns) {
+  var t = {
+    DELIVERING_TODAY: 0, DELIVERING_WINDOW: 0, ACCOUNT_HALTED: 0,
+    DORMANT_ACTIVE: 0, NOT_DELIVERING: 0, PAUSED: 0, ARCHIVED: 0, DELETED: 0,
+  };
+  (campaigns || []).forEach(function (c) {
+    var tier = c && c.deliveryTier;
+    // A row without a tier is not evidence of any state. Fall back to the
+    // status so it is still counted somewhere — an uncounted campaign is the
+    // defect this whole function exists to prevent.
+    if (!tier || t[tier] === undefined) {
+      var st = String((c && c.status) || '').toUpperCase();
+      tier = t[st] !== undefined ? st : 'NOT_DELIVERING';
+    }
+    t[tier] += 1;
+  });
+  return t;
+}
+window.tallyCampaignTiers = tallyCampaignTiers;
+
 function severityBadge(s) {
   const map = { LOW:'badge-gray', MEDIUM:'badge-yellow', HIGH:'badge-yellow', CRITICAL:'badge-red' };
   return '<span class="badge ' + (map[s]||'badge-gray') + '">' + s + '</span>';

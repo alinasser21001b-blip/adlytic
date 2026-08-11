@@ -671,6 +671,19 @@ export function settingsPage(): string {
 </style>`;
 
   const scripts = `<script>
+// The subscription tier and status are Prisma enums. They were printed raw,
+// so an Iraqi merchant read «FREE» and «ACTIVE» — Latin words, in the billing
+// panel, on the screen where the decision to pay is made. Unmapped values
+// fall back to «—» rather than to the code: a code the reader cannot parse is
+// not information, and this is the one place a wrong impression costs money.
+const TIER_AR = { FREE: 'مجاني', PREMIUM: 'مميّز' };
+const SUB_STATUS_AR = {
+  ACTIVE: 'نشط', INACTIVE: 'غير مفعّل',
+  PAST_DUE: 'متأخر السداد', CANCELED: 'ملغى',
+};
+function tierLabelAr(t) { return TIER_AR[t] || TIER_AR.FREE; }
+function subStatusLabelAr(s) { return s ? (SUB_STATUS_AR[s] || '—') : 'بدون اشتراك'; }
+
 (async () => {
   const token = localStorage.getItem('adlytic_token');
   if (!token) { window.location.href = '/login'; return; }
@@ -682,7 +695,7 @@ export function settingsPage(): string {
   document.getElementById('user-email').textContent = me.email;
   document.getElementById('user-avatar').textContent = (me.name||me.email||'?')[0].toUpperCase();
   const wsM = wsId && me.memberships?.find(m => m.workspaceId === wsId);
-  document.getElementById('ws-name').textContent = wsM?.workspace?.name || 'Workspace';
+  document.getElementById('ws-name').textContent = wsM?.workspace?.name || 'مساحة العمل';
 
   document.getElementById('profile-loading').style.display = 'none';
   document.getElementById('profile-form').style.display = 'block';
@@ -897,7 +910,7 @@ export function settingsPage(): string {
         const ws = await apiFetch('/api/workspaces/' + wsId);
         const badge = document.getElementById('ws-tier-badge');
         badge.className = 'badge ' + (ws.tier === 'PREMIUM' ? 'badge-green' : 'badge-gray');
-        badge.textContent = ws.tier || 'FREE';
+        badge.textContent = tierLabelAr(ws.tier);
         const adAccounts = ws._count?.adAccounts ?? ws.adAccountCount ?? '—';
         const campaigns = ws._count?.campaigns ?? '—';
         const members = ws._count?.members ?? ws.memberCount ?? '—';
@@ -978,8 +991,8 @@ export function settingsPage(): string {
         const ws = await apiFetch('/api/workspaces/' + wsId);
         const badge = document.getElementById('billing-tier-badge');
         badge.className = 'badge ' + (ws.tier === 'PREMIUM' ? 'badge-green' : 'badge-gray');
-        badge.textContent = ws.tier || 'FREE';
-        document.getElementById('billing-status-line').textContent = ws.subscriptionStatus || 'بدون اشتراك';
+        badge.textContent = tierLabelAr(ws.tier);
+        document.getElementById('billing-status-line').textContent = subStatusLabelAr(ws.subscriptionStatus);
         if (ws.subscriptionExpiresAt) {
           const expEl = document.getElementById('billing-expiry-line');
           expEl.textContent = 'ينتهي: ' + new Date(ws.subscriptionExpiresAt).toLocaleDateString('ar-u-nu-latn');

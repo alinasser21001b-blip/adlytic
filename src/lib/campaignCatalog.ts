@@ -41,6 +41,35 @@ export interface CampaignCounts {
   withMetrics: number;
   /** Days used for delivering/dormant split. */
   deliveryWindowDays: number;
+  /**
+   * Every campaign, counted under the tier it actually classified as.
+   *
+   * The named counters above cover only four of the eight tiers, and the two
+   * status strips are built from them — so a merchant whose account Meta had
+   * suspended for unpaid bills saw a strip titled «حملاتك الـ12 — أين تقف
+   * فعلًا؟» above four zeroes and an empty bar: every campaign classified
+   * ACCOUNT_HALTED, and nothing counted that. NOT_DELIVERING vanished the
+   * same way.
+   *
+   * This record is exhaustive by construction — sum(byTier) === total — so a
+   * consumer that spends it all can never drop a campaign, and a new tier
+   * added to DeliveryTier is a type error here rather than a silent hole.
+   */
+  byTier: Record<DeliveryTier, number>;
+}
+
+/** A zeroed tally with one slot per tier — the exhaustiveness lives here. */
+export function emptyTierTally(): Record<DeliveryTier, number> {
+  return {
+    DELIVERING_TODAY: 0,
+    DELIVERING_WINDOW: 0,
+    ACCOUNT_HALTED: 0,
+    DORMANT_ACTIVE: 0,
+    NOT_DELIVERING: 0,
+    PAUSED: 0,
+    ARCHIVED: 0,
+    DELETED: 0,
+  };
 }
 
 export interface CampaignCatalogRow {
@@ -79,6 +108,7 @@ export async function getCampaignCounts(
 
   if (!campaigns.length) {
     return {
+      byTier: emptyTierTally(),
       total: 0,
       activeStatus: 0,
       paused: 0,
@@ -135,6 +165,7 @@ export async function getCampaignCounts(
   let spendingToday = 0;
   let deliveringInWindow = 0;
   let dormantActive = 0;
+  const byTier = emptyTierTally();
 
   for (const c of campaigns) {
     const spendToday = spendTodayByCampaign.get(c.id) ?? 0;
@@ -147,12 +178,14 @@ export async function getCampaignCounts(
       daysSinceLastSpend: daysSince(tickToday, lastSpendByCampaign.get(c.id)),
       accountHalted,
     });
+    byTier[tier] += 1;
     if (tier === 'DELIVERING_TODAY') spendingToday += 1;
     if (tier === 'DELIVERING_TODAY' || tier === 'DELIVERING_WINDOW') deliveringInWindow += 1;
     if (tier === 'DORMANT_ACTIVE') dormantActive += 1;
   }
 
   return {
+    byTier,
     total: campaigns.length,
     activeStatus: campaigns.filter((c) => c.status === 'ACTIVE').length,
     paused: campaigns.filter((c) => c.status === 'PAUSED').length,

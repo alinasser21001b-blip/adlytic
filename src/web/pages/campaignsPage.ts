@@ -1240,6 +1240,9 @@ export function campaignsPage(): string {
     campaigns: [],
     insights: [],
     days: 30,
+    // The window the TABLE's server-computed columns represent. Kept apart
+    // from days on purpose — see setDays().
+    tableWindowDays: 30,
     spendChart: null,
     ctrChart: null,
     resultsChart: null,
@@ -1863,16 +1866,6 @@ export function campaignsPage(): string {
   // ── Summary cards ─────────────────────────────────────────────────────────
   // Three merchant-facing signals: spend, delivering, needs review.
   function updateSummary(campaigns, insights) {
-    var deliveringInWindow = campaigns.filter(function(c) {
-      return c.deliveryTier === 'DELIVERING_TODAY' || c.deliveryTier === 'DELIVERING_WINDOW';
-    }).length;
-    var spendingToday = campaigns.filter(function(c) {
-      return c.deliveryTier === 'DELIVERING_TODAY' || c.isCurrentlySpending;
-    }).length;
-    var needsReview = campaigns.filter(function(c) {
-      return c.deliveryTier === 'DORMANT_ACTIVE' || c.isDormantActive;
-    }).length;
-    var paused = campaigns.filter(function(c) { return c.status === 'PAUSED' || c.deliveryTier === 'PAUSED'; }).length;
     var insightsSlice = recentAsc(insights, state.days);
     var totalSpendMinor = insightsSlice.reduce(function(acc, d){ return acc + (Number(d.spend) || 0); }, 0);
 
@@ -1880,31 +1873,35 @@ export function campaignsPage(): string {
     var spendPeriod = document.getElementById('spend-period');
     if (spendPeriod) spendPeriod.textContent = 'آخر ' + state.days + ' يوماً';
 
-    renderCampStatusStrip(campaigns.length, spendingToday, deliveringInWindow, needsReview, paused);
+    renderCampStatusStrip(campaigns);
   }
 
   // One connected strip in place of the old "حملات تعمل"/"تحتاج مراجعة"
   // KPI cards — same non-overlapping segmentation as the dashboard's own
   // status strip (see renderCampaignStatusStrip in dashboardPage.ts), reused
   // here so the exact same counts never read differently on two pages.
-  function renderCampStatusStrip(total, spendingToday, deliveringInWindow, dormant, paused) {
+  // Takes the rows, not five pre-counted numbers: the caller cannot then
+  // forget a tier. campaignStatusSegments (layout.ts) owns the mapping, so
+  // this strip and the dashboard's cannot drift apart.
+  function renderCampStatusStrip(campaigns) {
     var bar = document.getElementById('camp-status-strip-bar');
     var legend = document.getElementById('camp-status-strip-legend');
     var titleEl = document.getElementById('camp-status-strip-title');
     if (!bar || !legend) return;
+    var total = (campaigns || []).length;
     if (!total) { bar.innerHTML = ''; legend.innerHTML = ''; return; }
-    var restDelivering = Math.max(0, deliveringInWindow - spendingToday);
-    var segs = [
-      { n: spendingToday, color: 'var(--success)', label: 'تنفق اليوم' },
-      { n: restDelivering, color: 'var(--accent)', label: 'تعمل فعلًا' },
-      { n: dormant, color: 'var(--warning)', label: 'بدون إنفاق' },
-      { n: paused, color: 'var(--border-2)', label: 'متوقفة' },
-    ];
+
+    var built = campaignStatusSegments(tallyCampaignTiers(campaigns));
+    var segs = built.segs;
+    var missing = Math.max(0, total - built.accounted);
+    if (missing > 0) segs = segs.concat([{ n: missing, color: 'var(--text-3)', label: 'غير مصنّفة' }]);
+
     if (titleEl) titleEl.textContent = 'حملاتك الـ' + total + ' — أين تقف فعلًا؟';
-    bar.innerHTML = segs.filter(function (s) { return s.n > 0; }).map(function (s) {
+    var shown = segs.filter(function (s) { return s.n > 0; });
+    bar.innerHTML = shown.map(function (s) {
       return '<span style="flex:' + s.n + ';background:' + s.color + '"></span>';
     }).join('');
-    legend.innerHTML = segs.map(function (s) {
+    legend.innerHTML = shown.map(function (s) {
       return '<span class="status-strip-item"><span class="status-strip-dot" style="background:' + s.color + '"></span>'
         + escHtml(s.label) + ' <bdi>' + s.n + '</bdi></span>';
     }).join('');
@@ -1929,10 +1926,34 @@ export function campaignsPage(): string {
     LEAD_GENERATION:      'توليد عملاء',
     PRODUCT_CATALOG_SALES:'مبيعات الكتالوج',
     STORE_VISITS:         'زيارات المتجر',
+    // Meta's OUTCOME_* generation of the values above. The analytics layer
+    // classifies all of these (see objectiveKpis.ts / campaignPurpose.ts) but
+    // the map only named the legacy spellings, so an ordinary
+    // OUTCOME_MESSAGES campaign rendered a Latin «MESSAGES» chip among Arabic
+    // ones — the fallback below strips OUTCOME_ and hands the raw code to the
+    // merchant.
+    OUTCOME_MESSAGES:     'رسائل',
+    OUTCOME_CONVERSIONS:  'تحويلات',
+    OUTCOME_LINK_CLICKS:  'نقرات الرابط',
+    OUTCOME_REACH:        'وصول',
+    OUTCOME_VIDEO_VIEWS:  'مشاهدات فيديو',
+    OUTCOME_LEAD_GENERATION: 'توليد عملاء',
+    APP_INSTALLS:         'تثبيت تطبيق',
+    APP_EVENTS:           'أحداث التطبيق',
+    APP_PROMOTION:        'ترويج تطبيق',
+    EVENT_RESPONSES:      'ردود الفعالية',
+    MESSAGING:            'رسائل',
   };
   function translateObjective(obj) {
     if (!obj) return '—';
-    return OBJECTIVE_AR[obj] || obj.replace(/^OUTCOME_/, '').replace(/_/g, ' ');
+    var known = OBJECTIVE_AR[obj];
+    if (known) return known;
+    // Genuinely unknown — a value Meta added after this map was written. Say
+    // so in Arabic instead of printing the code: «OUTCOME_SOMETHING_NEW»
+    // tells an Iraqi merchant nothing, and reads as a broken product rather
+    // than as an objective we have not learned yet. The raw value is still
+    // searchable: applyFilters matches c.objective directly.
+    return 'هدف غير معروف';
   }
 
   /** Prefer purpose-resolved Arabic label (رسائل for ENGAGEMENT+CONVERSATIONS). */
@@ -2376,27 +2397,60 @@ export function campaignsPage(): string {
   // Charts/summary re-slice locally; the per-campaign window columns need the
   // server (aggregated in daily_stats), so re-fetch the list with ?days=.
   var _setDaysGen = 0;
-  function setDays(days) {
-    state.days = days;
-    var gen = ++_setDaysGen;
+  // The window the TABLE's server-computed columns actually represent. It is
+  // not state.days: the charts and the spend card re-slice locally and switch
+  // at once, but results / cost-per-result / CTR / spend-in-window are
+  // aggregated server-side and only change when a fetch comes back.
+  //
+  // These were one variable, and the column header was rewritten the moment
+  // the tab was pressed. So a failed or timed-out re-fetch — the catch below
+  // used to swallow it with the comment "keep showing the previous window's
+  // numbers" — left the 30-day figures sitting under a «(7ي)» header, and the
+  // merchant read a month of spend as a week's. Reproduced in Chromium: the
+  // row was byte-identical before and after, only the label had changed.
+
+  function paintWindowLabel() {
+    var winLabel = document.getElementById('window-label');
+    if (winLabel) winLabel.textContent = '(' + state.tableWindowDays + 'ي)';
+  }
+
+  function paintDayTabs(days) {
     document.querySelectorAll('.tab').forEach(function(btn) {
       if (btn.dataset.days != null) btn.classList.toggle('active', Number(btn.dataset.days) === days);
     });
-    var winLabel = document.getElementById('window-label');
-    if (winLabel) winLabel.textContent = '(' + days + 'ي)';
+  }
+
+  function setDays(days) {
+    var previousDays = state.days;
+    state.days = days;
+    var gen = ++_setDaysGen;
+    paintDayTabs(days);
     updateCharts(state.insights);
     applyFilters();
     if (!state.workspaceId) return;
     apiFetchWithTimeout('/api/workspaces/' + state.workspaceId + '/campaigns?days=' + days, {}, 12000)
       .then(function(camps) {
         if (gen !== _setDaysGen) return;
-        if (Array.isArray(camps)) {
-          state.campaigns = camps;
-          updateSummary(state.campaigns, state.insights);
-          applyFilters();
-        }
+        if (!Array.isArray(camps)) throw new Error('unexpected campaigns payload');
+        state.campaigns = camps;
+        // Only now do the table columns mean the new window.
+        state.tableWindowDays = days;
+        paintWindowLabel();
+        updateSummary(state.campaigns, state.insights);
+        applyFilters();
       })
-      .catch(function() { /* keep showing the previous window's numbers */ });
+      .catch(function() {
+        if (gen !== _setDaysGen) return;
+        // The table still holds the previous window's figures, so the page
+        // goes back to saying so — silently relabelling them would be the
+        // defect this whole branch exists to prevent.
+        state.days = previousDays;
+        paintDayTabs(previousDays);
+        paintWindowLabel();
+        updateCharts(state.insights);
+        applyFilters();
+        toast('تعذّر تحميل نافذة ' + days + ' يوماً — الأرقام المعروضة ما زالت لآخر ' + previousDays + ' يوماً.', 'warning');
+      });
   }
 
   // ── Shared P3/P4/P5 render layer ──────────────────────────────────────────
