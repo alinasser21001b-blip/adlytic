@@ -12,14 +12,50 @@ into the architecture on day one, with nothing downstream able to detect it.
 
 So the pairs are written now, from the code as it stands, with a **success
 criterion declared in advance** for each. After the run, each pair gets exactly
-one of:
+one of four outcomes:
 
-- **SEPARATED** — the pre-declared criterion was met
-- **STILL CONFOUNDED** — it was not
-- **NOT_TESTED** — the probe could not ask
+| outcome | criterion met? | pair separates? | what it is evidence ABOUT | next action |
+|---|---|---|---|---|
+| **SEPARATED** | yes | yes | the capability | build on it |
+| **CRITERION_INVALIDATED** | yes | **no** | **our experiment design** | write a better criterion, test it in a later run |
+| **STILL CONFOUNDED** | no | no | the capability | **withdraw the claim from the product** |
+| **NOT_TESTED** | — | — | the run, not Meta | re-run |
 
 A pair that stays confounded stays confounded. It is announced, not quietly
 dropped, and the diagnoses resting on it must say so to the merchant.
+
+### Why the fourth outcome exists
+
+The first draft of this document had three. That left the most instructive
+result with nowhere to go: **the capability arrived exactly as specified, and
+the two hypotheses still do not separate.**
+
+That is not a fact about Meta. It is a fact about the criterion *I* wrote —
+and filing it as STILL CONFOUNDED would blame the API for a design error of
+ours, then trigger the wrong next action (subtract from the product, instead of
+design a better test).
+
+The realistic shape, for C-1: `quality_ranking` comes back available and
+populated, exactly as the criterion demands — and turns out to be a coarse
+four-value enum that barely moves inside a 30-day window. The criterion was
+met. The discriminating power we assumed it had was not there.
+
+So `CRITERION_INVALIDATED` must record **which assumed property was missing**:
+
+```
+resolution   — too coarse to separate the two
+coverage     — populated for too few entities to be usable
+cadence      — updates too slowly to date a change
+timeliness   — arrives after the decision has to be made
+```
+
+Two rules protect it:
+
+1. **It may never be relaxed into SEPARATED** by loosening what "separate"
+   means after the fact. If the pair did not separate, it did not separate.
+2. **The outcome is recorded before any product change is decided.** Otherwise
+   the label gets chosen for the action we already want to take, and the whole
+   pre-registration becomes decoration.
 
 ## What "confounded" means here
 
@@ -229,23 +265,36 @@ work — not a Meta field. Expected outcome: **NOT_TESTED**.
 
 ## Summary — to be filled only after the run
 
-| pair | what it decides | criterion rests on | outcome |
-|---|---|---|---|
-| C-1 fatigue ⟷ saturation | new creative vs wider audience | ad-level reach + populated `quality_ranking` | _pending_ |
-| C-2 auction ⟷ mix/bid/season | is the creative exonerated | placement decomposition + `bid_strategy` | _pending_ |
-| C-3 landing ⟷ tracking | fix the page vs fix measurement | dataset quality readable + datable | _pending_ |
-| C-4 performance ⟷ attribution | is any of this real | `attribution_setting` returned | _pending_ |
-| C-5 budget ⟷ delivery | raise budget vs investigate | `budget_remaining` returned | _pending_ |
-| C-6 scaling ⟷ variance | intervene vs wait | (no candidate — expected NOT_TESTED) | _pending_ |
+| pair | what it decides | criterion rests on | outcome | if CRITERION_INVALIDATED, suspect |
+|---|---|---|---|---|
+| C-1 fatigue ⟷ saturation | new creative vs wider audience | ad-level reach + populated `quality_ranking` | _pending_ | resolution — a 4-value enum may not move enough to discriminate |
+| C-2 auction ⟷ mix/bid/season | is the creative exonerated | placement decomposition + `bid_strategy` | _pending_ | coverage — a placement mix too concentrated to decompose |
+| C-3 landing ⟷ tracking | fix the page vs fix measurement | dataset quality readable + datable | _pending_ | cadence — quality that cannot be dated to the drop |
+| C-4 performance ⟷ attribution | is any of this real | `attribution_setting` returned | _pending_ | resolution — one setting per account never varies, so no contrast |
+| C-5 budget ⟷ delivery | raise budget vs investigate | `budget_remaining` returned | _pending_ | timeliness — a point-in-time read that arrives after the fact |
+| C-6 scaling ⟷ variance | intervene vs wait | (no candidate — expected NOT_TESTED) | _pending_ | — |
 
-## The rule this list binds us to
+The last column is written **now, in advance**, so that a
+`CRITERION_INVALIDATED` result can be checked against what we predicted might
+go wrong rather than explained after the fact.
 
-A pair may only be marked SEPARATED against the criterion **as written above**,
-not against a criterion adjusted after seeing the data. If a result suggests a
-better criterion, the honest move is to record the pair as STILL CONFOUNDED,
-write the new criterion, and test it in a later run.
+## The rules this list binds us to
+
+1. A pair may be marked **SEPARATED** only against the criterion **as written
+   above**, never against one adjusted after seeing the data.
+2. A criterion that was met without producing separation is
+   **CRITERION_INVALIDATED**, not STILL CONFOUNDED. The first blames our
+   experiment; the second blames the API. They lead to opposite next actions
+   and must not be interchanged for convenience.
+3. Every outcome is recorded **before** deciding what to change in the product.
+4. If a result suggests a better criterion, write it and test it in a **later
+   run**. It does not retroactively change this one.
 
 And the outcome worth wanting is not six SEPARATED rows. If C-4 comes back
 unavailable, the correct product change is to **remove a comparison we
 currently show** — subtraction, driven by evidence. That is a better result
 than adding thirty fields.
+
+A run that returns three CRITERION_INVALIDATED rows would also be a good run:
+it would mean we learned that three of our own tests were badly designed, which
+is cheaper to find out now than after building a state model on top of them.
