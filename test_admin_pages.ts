@@ -1,0 +1,118 @@
+// ════════════════════════════════════════════════════════════════════════
+//  test_admin_pages.ts — the operator consoles get the same script gate.
+//
+//  WHY THIS EXISTS
+//  test_page_scripts.mjs parses the inline <script> of every page in
+//  .mobile-pages. The admin consoles are NOT in that set, so the defect class
+//  that has taken this product down repeatedly — a stray backtick or a `${`
+//  inside a TypeScript template literal, which tsc cannot see because the
+//  browser JS is an opaque string to it — had no gate at all on the very
+//  pages the operator uses to fix an outage.
+//
+//  Found while adding the capability-probe panel: the check had to be run by
+//  hand, which means it would not have been run again.
+// ════════════════════════════════════════════════════════════════════════
+import vm from 'node:vm';
+
+let failed = 0;
+let passed = 0;
+const ok = (m: string) => { console.log('  ✓ ' + m); passed++; };
+const bad = (m: string) => { console.error('  ✗ ' + m); failed++; };
+
+async function main() {
+  // Imported dynamically so a page that cannot even LOAD is reported as a
+  // failure rather than a stack trace. A stray backtick inside the TS template
+  // literal breaks the module itself; tsc catches that, but a gate that dies
+  // with an uncaught throw can be misread as a pass by a pipeline that only
+  // looks at the last line.
+  const PAGES: { name: string; html: string }[] = [];
+  try {
+    const mod = await import('./src/web/pages/adminConsolePage');
+    PAGES.push({ name: 'adminConsolePage', html: (mod.adminConsolePage as unknown as () => string)() });
+  } catch (e) {
+    bad(`adminConsolePage could not be loaded at all — ${(e as Error).message.slice(0, 160)}`);
+  }
+  if (PAGES.length === 0) {
+    console.error('\n════ 1 FAILURES ════\n');
+    process.exit(1);
+  }
+
+  for (const { name, html } of PAGES) {
+    console.log(`\n── ${name} ──`);
+
+    // 1. Every inline script must actually parse.
+    const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+    let m: RegExpExecArray | null;
+    let n = 0;
+    let broke = 0;
+    while ((m = re.exec(html))) {
+      n += 1;
+      try {
+        new vm.Script(m[1], { filename: `${name}#${n}` });
+      } catch (e) {
+        broke += 1;
+        bad(`inline script #${n} does not parse — ${(e as Error).message}`);
+      }
+    }
+    if (n === 0) bad('no inline script found — this gate would be checking nothing');
+    else if (!broke) ok(`${n} inline script(s) parse`);
+
+    // 2. Duplicate ids: getElementById binds to the first match in document
+    //    order, so a duplicate silently steals every read of the visible one.
+    const ids = [...html.matchAll(/id="([a-zA-Z0-9_-]+)"/g)].map((x) => x[1]);
+    const dupes = [...new Set(ids.filter((v, i, a) => a.indexOf(v) !== i))];
+    if (dupes.length) bad(`duplicate element ids: ${dupes.join(', ')}`);
+    else ok(`${ids.length} element ids, none duplicated`);
+
+    // 3. Cooked template escapes — the same rule test_page_scripts.mjs applies
+    //    to the app pages. A single backslash is eaten at cook time, so \d
+    //    reaches the browser as the letter d: it parses, and matches the wrong
+    //    thing forever.
+    const COOKED: [RegExp, string][] = [
+      [/(?<!\\)\bd\{\d+\}/, 'd{n} — a cooked \\d{n} quantifier'],
+      [/\[d,\]/, '[d,] — a cooked [\\d,] class'],
+      [/\(\/s[+*][/(]/, '(/s+/ or (/s*( — a cooked \\s class'],
+    ];
+    let cooked = 0;
+    for (const [pat, what] of COOKED) {
+      const hit = html.match(pat);
+      if (hit) { bad(`cooked template escape reached the browser — ${what} ("${hit[0]}")`); cooked += 1; }
+    }
+    if (!cooked) ok('no cooked template escape');
+  }
+
+  // 4. The capability-probe panel is wired end to end. Every id the runtime
+  //    reads must exist in the markup — a panel whose button reads a missing
+  //    element fails silently, and this page has no other gate to catch it.
+  console.log('\n── the capability-probe panel is wired ──');
+  {
+    const html = PAGES[0].html;
+    const needed = ['view-probe', 'probe-ws', 'probe-run', 'probe-status', 'probe-tally', 'probe-out', 'probe-matrix', 'probe-report'];
+    const missing = needed.filter((id) => !html.includes(`id="${id}"`));
+    if (missing.length) bad(`markup is missing: ${missing.join(', ')}`);
+    else ok(`all ${needed.length} panel ids exist in the markup`);
+
+    for (const id of ['probe-ws', 'probe-run', 'probe-matrix', 'probe-report', 'probe-out', 'probe-tally', 'probe-status']) {
+      if (!html.includes(`getElementById('${id}')`)) bad(`the runtime never reads #${id} — dead markup`);
+    }
+    if (!failed) ok('every panel id is read by the runtime');
+
+    if (!html.includes("'/api/admin/capability-probe'")) bad('the panel does not call the probe route');
+    else ok('the panel calls /api/admin/capability-probe');
+
+    // The run spends the account's Meta quota; a double click must not cost 80
+    // calls. The guard is a flag checked before the request goes out.
+    if (!/if \(probeRunning\) return;/.test(html)) bad('no in-flight guard — a double click would run the probe twice');
+    else ok('a second click while a run is in flight is refused');
+
+    // The panel must never render a token, and the route never returns one —
+    // but the page must not invent a place to put one either.
+    if (/access_token|accessToken/.test(html)) bad('the admin page mentions a token');
+    else ok('no token anywhere in the served page');
+  }
+
+  console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
+  process.exit(failed ? 1 : 0);
+}
+
+main();

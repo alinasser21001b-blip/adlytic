@@ -154,6 +154,28 @@ export function adminConsolePage(): string {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
       background: var(--bg);
     }
+    .probe-doc {
+      background: var(--surface-2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 14px;
+      max-height: 460px;
+      overflow: auto;
+      font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+      /* The two documents are English technical artefacts meant for copying,
+         not UI copy — they read left-to-right inside this RTL page. */
+      direction: ltr;
+      text-align: left;
+    }
+    .probe-tally { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+    .probe-tally span {
+      border: 1px solid var(--border); border-radius: 999px;
+      padding: 3px 12px; font-size: 12px; color: var(--text-2);
+    }
+    .probe-tally span b { color: var(--text); font-weight: 700; }
     .toast {
       position: fixed; bottom: 20px; left: 20px; z-index: 60; padding: 12px 16px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
@@ -190,6 +212,7 @@ export function adminConsolePage(): string {
       <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
       <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
       <div class="nav-label">🎛️ الإعدادات والتحكم</div>
+      <a class="nav-item" href="#probe" data-tab="probe">مرقاب قدرات Meta</a>
       <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
       <a class="nav-item" href="/dashboard">لوحة التحكم</a>
     </nav>
@@ -412,6 +435,35 @@ export function adminConsolePage(): string {
       </section>
 
       <!-- Settings -->
+      <section class="panel view" id="view-probe" style="display:none;">
+        <h2>مرقاب قدرات Meta</h2>
+        <p class="hint">
+          يسأل Meta عن كل قدرة مرشَّحة على حدة ويسجّل ما ردّت به. <strong>قراءة فقط</strong> —
+          لا يكتب شيئاً في Meta ولا في قاعدة بياناتنا. محدود بأربعين نداءً، ويتوقّف عند أول
+          حدّ معدّل بدل استنزاف حصة الحساب.
+        </p>
+        <p class="hint">
+          الناتج وثيقتان جاهزتان للنسخ. حكم «لم يُختبَر» ليس رأياً من Meta — بل يعني أننا لم نسأل.
+        </p>
+        <div class="row">
+          <label for="probe-ws">مساحة العمل</label>
+          <select id="probe-ws"><option value="">جارٍ التحميل…</option></select>
+          <button class="btn" id="probe-run" type="button" disabled>شغّل المرقاب</button>
+          <span id="probe-status" class="hint"></span>
+        </div>
+        <div id="probe-tally" class="probe-tally"></div>
+        <div id="probe-out" style="display:none;">
+          <div class="row">
+            <button class="btn btn-ghost" type="button" data-probe-copy="probe-matrix">نسخ المصفوفة</button>
+            <button class="btn btn-ghost" type="button" data-probe-copy="probe-report">نسخ التقرير</button>
+          </div>
+          <h3>المصفوفة</h3>
+          <pre class="probe-doc" id="probe-matrix"></pre>
+          <h3>التقرير</h3>
+          <pre class="probe-doc" id="probe-report"></pre>
+        </div>
+      </section>
+
       <section class="panel view" id="view-settings" style="display:none;">
         <div class="panel-head">
           <div>
@@ -469,6 +521,117 @@ export function adminConsolePage(): string {
     try { localStorage.removeItem('adlytic_token'); } catch (e) {}
     window.location.href = '/login';
   }
+  // ── Meta capability probe ────────────────────────────────────────────
+  // Read-only against Meta. The run spends the ACCOUNT'S quota, so the button
+  // is disabled while one is in flight — a double-click must not cost 80 calls.
+  var probeLoaded = false;
+  var probeRunning = false;
+
+  async function loadProbeWorkspaces() {
+    if (probeLoaded) return;
+    var sel = document.getElementById('probe-ws');
+    if (!sel) return;
+    try {
+      var data = await api('/api/admin/customers?status=all&take=200');
+      var seen = {};
+      var opts = [];
+      (data.customers || []).forEach(function (u) {
+        (u.memberships || []).forEach(function (m) {
+          var w = m && m.workspace;
+          if (!w || !w.id || seen[w.id]) return;
+          // Only workspaces that HAVE an ad account. The probe needs a token
+          // and an object to ask about; offering the rest guarantees a "no ad
+          // account" error the operator cannot act on.
+          var n = w._count && w._count.adAccounts != null
+            ? w._count.adAccounts
+            : (w.adAccounts || []).length;
+          if (!n) return;
+          seen[w.id] = true;
+          opts.push({ id: w.id, name: w.name || w.id });
+        });
+      });
+      opts.sort(function (a, b) { return String(a.name).localeCompare(String(b.name), 'ar'); });
+      if (!opts.length) {
+        sel.innerHTML = '<option value="">لا توجد مساحة عمل بحساب إعلاني مرتبط</option>';
+        return;
+      }
+      sel.innerHTML = '<option value="">اختر مساحة عمل…</option>'
+        + opts.map(function (o) {
+            return '<option value="' + esc(o.id) + '">' + esc(o.name) + '</option>';
+          }).join('');
+      probeLoaded = true;
+    } catch (e) {
+      sel.innerHTML = '<option value="">تعذّر تحميل مساحات العمل</option>';
+      toast(e.message || 'تعذّر تحميل مساحات العمل', 'err');
+    }
+  }
+
+  function renderProbeTally(results) {
+    var host = document.getElementById('probe-tally');
+    if (!host) return;
+    var tally = {};
+    (results || []).forEach(function (r) { tally[r.verdict] = (tally[r.verdict] || 0) + 1; });
+    var keys = Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; });
+    host.innerHTML = keys.map(function (k) {
+      return '<span>' + esc(k) + ' <b>' + tally[k] + '</b></span>';
+    }).join('');
+  }
+
+  async function runProbe() {
+    if (probeRunning) return;
+    var sel = document.getElementById('probe-ws');
+    var btn = document.getElementById('probe-run');
+    var status = document.getElementById('probe-status');
+    var wsId = sel ? sel.value : '';
+    if (!wsId) { toast('اختر مساحة عمل أولاً', 'err'); return; }
+
+    probeRunning = true;
+    if (btn) { btn.disabled = true; btn.textContent = 'جارٍ التشغيل…'; }
+    if (status) status.textContent = 'يسأل Meta — قد يستغرق دقيقة.';
+    try {
+      var out = await api('/api/admin/capability-probe', {
+        method: 'POST',
+        body: { workspaceId: wsId },
+      });
+      document.getElementById('probe-matrix').textContent = out.matrix || '';
+      document.getElementById('probe-report').textContent = out.report || '';
+      document.getElementById('probe-out').style.display = '';
+      renderProbeTally(out.results);
+      var ctx = out.context || {};
+      if (status) {
+        status.textContent = 'اكتمل — ' + (ctx.calls || '؟') + ' نداء من '
+          + (ctx.budget || '؟') + ' على الحساب ' + (ctx.account || '؟');
+      }
+      toast('اكتمل تشغيل المرقاب', 'ok');
+    } catch (e) {
+      if (status) status.textContent = '';
+      toast(e.message || 'فشل تشغيل المرقاب', 'err');
+    } finally {
+      probeRunning = false;
+      if (btn) { btn.disabled = false; btn.textContent = 'شغّل المرقاب'; }
+    }
+  }
+
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'probe-ws') {
+      var b = document.getElementById('probe-run');
+      if (b) b.disabled = !e.target.value;
+    }
+  });
+  document.addEventListener('click', function (e) {
+    if (!e.target) return;
+    if (e.target.id === 'probe-run') { runProbe(); return; }
+    var copyId = e.target.getAttribute && e.target.getAttribute('data-probe-copy');
+    if (copyId) {
+      var el = document.getElementById(copyId);
+      if (el && navigator.clipboard) {
+        navigator.clipboard.writeText(el.textContent || '')
+          .then(function () { toast('نُسخ إلى الحافظة', 'ok'); })
+          .catch(function () { toast('تعذّر النسخ — حدّد النص يدوياً', 'err'); });
+      }
+    }
+  });
+
   function esc(s) {
     return String(s == null ? '' : s)
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
@@ -536,10 +699,12 @@ export function adminConsolePage(): string {
       create: ['view-create', 'إنشاء حساب زبون'],
       subscriptions: ['view-subscriptions', 'الاشتراكات'],
       ledger: ['view-ledger', 'سجل المدفوعات'],
+      probe: ['view-probe', 'مرقاب قدرات Meta'],
       settings: ['view-settings', 'إعدادات المنصة'],
     };
     var conf = map[name] || map.overview;
     if (name === 'overview') loadOverviewData();
+    if (name === 'probe') loadProbeWorkspaces();
     document.getElementById(conf[0]).style.display = '';
     document.getElementById('page-heading').textContent = conf[1];
   }
