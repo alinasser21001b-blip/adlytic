@@ -181,56 +181,113 @@ function reportMd(results: ProbeResult[], ctx: Record<string, string>): string {
 Run at ${ctx.at} against \`${ctx.account}\` on \`${API_VERSION}\`.
 ${ctx.calls} API calls (budget ${ctx.budget}). Read-only; GET requests only.
 
-## A. What can the current token actually read?
+> **Three of these seven questions the probe can answer. Four it cannot.**
+> A, B and F are facts about the API and are generated below. C, D, E and G are
+> judgements about MEANING — grain, temporal behaviour, diagnostic power — and
+> a script that filled them in would be doing the exact thing this whole phase
+> was built to prevent: turning a capability into a claim without evidence.
+> They are left as prompts, with the evidence needed to answer them attached.
 
-Capabilities where Meta accepted the request **and returned the field**:
+## A. What can we access?
+
+Meta accepted the request **and returned the field**:
 
 ${list(withField)}
 
-## B. Legitimately requestable, but this token/account cannot read
-
-${list([...by('PERMISSION_REQUIRED'), ...by('OBJECT_REQUIRED'), ...by('ACCOUNT_NOT_ELIGIBLE')])}
-
-PERMISSION_REQUIRED rows are the actionable ones: the capability exists, the
-scope does not. That is a request to make, not a capability to abandon.
-
-## C. Documented but unverified
-
-${list([...by('NOT_TESTED'), ...by('RATE_LIMITED'), ...by('UNKNOWN')])}
-
-Plus every capability accepted by Meta whose field never arrived — the account
-may sit below a reporting threshold, so availability is unproven either way:
+Accepted, but the field never arrived — availability is **unproven**, usually an
+account below a reporting threshold:
 
 ${list(acceptedButEmpty)}
 
-## D. Needing a different object level or query structure
+Refused:
 
-${list([...by('LEVEL_REQUIRED'), ...by('BREAKDOWN_CONFLICT')])}
+${list([...by('PERMISSION_REQUIRED'), ...by('OBJECT_REQUIRED'), ...by('ACCOUNT_NOT_ELIGIBLE'), ...by('UNAVAILABLE'), ...by('DEPRECATED')])}
 
-## E. Materially changing the Measurement Kernel
+Never asked — **not a finding about Meta**:
 
-_To be written by a human after reading the rows above. The only automatic
-statement this script will make: if \`field.insights.attribution_setting\` is
-AVAILABLE with the field returned, then stored conversions can be given their
-attribution context, and Phase 1.3's migration has its justification. If it is
-not, the kernel design must change, because conversion comparability cannot be
-established from this API surface._
+${list([...by('NOT_TESTED'), ...by('RATE_LIMITED'), ...by('UNKNOWN')])}
 
-Current status of that row: **${results.find((r) => r.id === 'field.insights.attribution_setting')?.verdict ?? 'NOT_TESTED'}**${
+## B. What can we access at each object level?
+
+Level is a first-class dimension here: a field readable at \`ad\` and refused at
+\`campaign\` is not an absent capability, it is a capability with an address.
+
+| level | baseline readable? | capabilities confirmed at this level |
+|---|---|---|
+${(['account', 'campaign', 'adset', 'ad'] as const).map((lv) => {
+    const baseRow = results.find((r) => r.id.startsWith('baseline.') &&
+      (PROBE_CANDIDATES.find((c) => c.id === r.id)?.level ?? 'account') === lv);
+    const confirmed = withField.filter((r) =>
+      (PROBE_CANDIDATES.find((c) => c.id === r.id)?.level ?? 'account') === lv);
+    return `| \`${lv}\` | ${baseRow ? baseRow.verdict : '—'} | ${confirmed.length ? confirmed.map((r) => '\`' + r.id + '\`').join(', ') : '—'} |`;
+  }).join('\n')}
+
+Any row whose \`baselineVerdict\` is not AVAILABLE says the LEVEL failed, not the
+field. Those are:
+
+${list(results.filter((r) => r.baselineVerdict && r.baselineVerdict !== 'AVAILABLE'))}
+
+## C. What has meaningful temporal semantics? — **human judgement**
+
+The probe cannot answer this: it observes one request, and temporal meaning is
+a property of the field, not of the response.
+
+For every capability in A, decide before it is allowed near storage:
+
+- **point-in-time** (a state read now, e.g. \`budget_remaining\`) — storing it in
+  a daily table fabricates a time series out of whenever the sync happened to
+  run. That is falsifying temporal semantics, not enriching data.
+- **window-scoped** (an aggregate over the requested range) — carries the range
+  in its meaning; comparing two of them across different ranges is invalid.
+- **daily-grained** (one honest value per calendar day, in the account's
+  timezone).
+- **configuration** (changes only when a human changes it — belongs in an event
+  log with a valid-from, never in a metrics table).
+
+Evidence available to you per row: the returned \`type\`, the enum \`sample\`, and
+the time range the request used.
+
+## D. What has useful diagnostic semantics? — **human judgement**
+
+Availability is not diagnostic value. For each capability in A:
+which competing hypothesis does it help *distinguish*? A signal that moves with
+everything else distinguishes nothing.
+
+## E. What can be combined? — **human judgement, informed by F**
+
+The probe proves technical combinability only (F). Whether two signals may be
+combined *analytically* — same grain, same window, same attribution context,
+same entity — is a semantic question. Two fields Meta returns in one row can
+still be incomparable if they were counted under different attribution windows.
+
+## F. What cannot safely be combined? — **evidence below**
+
+The probe answers this directly. A \`BREAKDOWN_CONFLICT\` is Meta stating that
+two dimensions are not jointly reportable:
+
+${list(by('BREAKDOWN_CONFLICT'))}
+
+${by('BREAKDOWN_CONFLICT').length === 0
+    ? '_No breakdown conflict was observed in this run. That is not proof that none exists — only these combinations were tested._'
+    : '_Each row above is a combination that must never be requested together, and a pair of signals that cannot be jointly attributed._'}
+
+## G. Which signals materially expand the campaign state model? — **human judgement**
+
+The question is not "is this new data" but "does the campaign state change
+shape without it". Answer only after C, D and E.
+
+One statement the script will make on its own, because it is mechanical:
+
+\`field.insights.attribution_setting\` is **${results.find((r) => r.id === 'field.insights.attribution_setting')?.verdict ?? 'NOT_TESTED'}**${
     results.find((r) => r.id === 'field.insights.attribution_setting')?.evidence?.present
-      ? ` (field returned: \`${results.find((r) => r.id === 'field.insights.attribution_setting')?.evidence?.sample ?? 'yes'}\`)`
-      : ' (field not returned)'
-  }
+      ? ` and the field returned (\`${results.find((r) => r.id === 'field.insights.attribution_setting')?.evidence?.sample ?? 'yes'}\`)`
+      : ' and the field did not return'
+  }.
 
-## F. Information unavailable through the current data model
-
-_Human judgement required. A field being readable does not mean the data model
-should change: semantics, grain, temporal meaning and compatibility with
-existing signals come first._
-
-## G. Genuine strategic intelligence value
-
-_Human judgement required. Assign tiers only after reading semantics and grain._
+If AVAILABLE with the field present, stored conversions can carry the window
+they were counted under, and comparability across workspaces becomes reachable.
+If not, the honest consequence is that CPA comparisons between workspaces must
+be **withdrawn from the product**, not shown with a caveat.
 
 ---
 
