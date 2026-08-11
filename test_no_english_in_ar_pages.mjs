@@ -31,6 +31,9 @@ const ALLOWED_TOKENS = new Set([
   'Adlytic', 'Meta', 'META', 'WhatsApp', 'Instagram', 'Facebook', 'Stripe',
   'AI', 'API', 'CTR', 'CPC', 'CPM', 'CPA', 'ROAS', 'KPI', 'CSV', 'PDF', 'URL',
   'UTM', 'OK', 'ID', 'IQD', 'USD', 'EUR', 'SAR', 'AED', 'Pro', 'CMO', 'SDK',
+  // Keyboard key legends (shortcuts map, palette hints): these mirror what is
+  // physically printed on the keys — an Arabic keyboard still says Ctrl.
+  'Ctrl', 'Esc', 'Enter', 'Shift',
 ]);
 
 // Whole strings that are allowed as-is, each with the reason it is exempt.

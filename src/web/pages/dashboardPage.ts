@@ -784,7 +784,9 @@ export function dashboardPage(): string {
       txt = Number(v).toLocaleString('en-US');
     }
     var rawLabel = item.dataset && item.dataset.label ? String(item.dataset.label) : '';
-    var name = rawLabel.replace(/\s*\([^)]*\)\s*$/, '').trim();
+    // Double-escaped: template cooking eats single backslashes, and the cooked
+    // /s*([^)]*)s*$/ erased the WHOLE label whenever it had no parentheses.
+    var name = rawLabel.replace(/\\s*\\([^)]*\\)\\s*$/, '').trim();
     return name ? (name + ': ' + txt) : txt;
   }
 
@@ -1501,9 +1503,9 @@ export function dashboardPage(): string {
   }
 
   function insightCopyFingerprint(title, body) {
-    return String(title || '').toLowerCase().replace(/\d+/g, '#')
+    return String(title || '').toLowerCase().replace(/\\d+/g, '#')
       + '||'
-      + String(body || '').toLowerCase().replace(/\d+/g, '#').replace(/\s+/g, ' ').trim().slice(0, 120);
+      + String(body || '').toLowerCase().replace(/\\d+/g, '#').replace(/\\s+/g, ' ').trim().slice(0, 120);
   }
 
   // ── AI Motion Ticker (Enhanced) ──────────────────────────────────────────
@@ -2146,7 +2148,7 @@ export function dashboardPage(): string {
 
   // ── Tier 1: Executive Pulse Banner ──────────────────────────────────────
   function normalizeForDedupe(s) {
-    return String(s || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    return String(s || '').replace(/\\s+/g, ' ').trim().toLowerCase();
   }
   function textsOverlap(a, b) {
     var na = normalizeForDedupe(a);
@@ -3937,7 +3939,7 @@ export function dashboardPage(): string {
       last30.forEach(function (d) {
         var raw = d && d.date;
         var key;
-        if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+        if (typeof raw === 'string' && /^\\d{4}-\\d{2}-\\d{2}/.test(raw)) {
           key = raw.slice(0, 10);
         } else {
           var parsed = new Date(raw);
@@ -4026,7 +4028,7 @@ export function dashboardPage(): string {
       if (dashData.trendSeries && Array.isArray(dashData.trendSeries.dates) && dashData.trendSeries.dates.length) {
         var ts = dashData.trendSeries;
         var tsIso = ts.dates.map(function (d) {
-          if (typeof d === 'string' && /^\d{4}-\d{2}-\d{2}/.test(d)) return d.slice(0, 10);
+          if (typeof d === 'string' && /^\\d{4}-\\d{2}-\\d{2}/.test(d)) return d.slice(0, 10);
           var dateVal = d && typeof d === 'object' ? d.date : d;
           var pd = new Date(dateVal);
           return isNaN(pd.getTime()) ? '' : pd.toISOString().slice(0, 10);

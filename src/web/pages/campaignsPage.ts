@@ -1182,7 +1182,9 @@ export function campaignsPage(): string {
   function fmtShortDate(s) {
     if (!s) return '';
     // Parse YYYY-MM-DD as UTC noon so labels don't shift a day in RTL locales.
-    var m = String(s).match(/^(\d{4})-(\d{2})-(\d{2})/);
+    // Double-escaped — template cooking turned \d into the letter d, so the
+    // UTC-noon branch never ran and every label went through new Date(s).
+    var m = String(s).match(/^(\\d{4})-(\\d{2})-(\\d{2})/);
     var d = m
       ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12))
       : new Date(s);
@@ -1392,7 +1394,7 @@ export function campaignsPage(): string {
                 // Labels already include the metric name; avoid "الإنفاق (USD): 22 USD".
                 var name = item.dataset && item.dataset._tipLabel
                   ? item.dataset._tipLabel
-                  : (item.dataset && item.dataset.label ? String(item.dataset.label).replace(/\s*\([^)]*\)\s*$/, '') : '');
+                  : (item.dataset && item.dataset.label ? String(item.dataset.label).replace(/\\s*\\([^)]*\\)\\s*$/, '') : '');
                 return name ? (name + ': ' + txt) : txt;
               },
             },
@@ -1470,7 +1472,7 @@ export function campaignsPage(): string {
     (insights || []).forEach(function (d) {
       var raw = d && d.date;
       var key;
-      if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      if (typeof raw === 'string' && /^\\d{4}-\\d{2}-\\d{2}/.test(raw)) {
         key = raw.slice(0, 10);
       } else if (raw) {
         var p = new Date(raw);
@@ -2021,7 +2023,7 @@ export function campaignsPage(): string {
     var have = {};
     insights.forEach(function (d) {
       var raw = d && d.date;
-      if (typeof raw === 'string' && /^\d{4}-\d{2}-\d{2}/.test(raw)) {
+      if (typeof raw === 'string' && /^\\d{4}-\\d{2}-\\d{2}/.test(raw)) {
         have[raw.slice(0, 10)] = true;
       } else if (raw) {
         var p = new Date(raw);

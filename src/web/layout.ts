@@ -1166,6 +1166,108 @@ select.form-input { cursor: pointer; }
 .metric-info-causes { margin: 0; padding-inline-start: 18px; font-size: 13px; color: var(--text-2); line-height: 1.6; }
 .metric-info-causes li { margin-bottom: 3px; }
 
+/* ── Command Palette — ported from AdsPulse ─────────────────────────────
+   The pattern proven on the AdsPulse flagship page: one input, a filtered
+   list, arrow-key navigation, Enter to run. Adlytic's version sources its
+   items from the page's own nav (so admin entries appear only when the
+   sidebar rendered them) plus a small set of shell actions. Opened with
+   Ctrl+K (layout-independent via e.code), the slash key, or the topbar
+   button; closed with Esc, backdrop, or running an item. */
+.cmd-overlay {
+  position: fixed; inset: 0; z-index: 300;
+  background: var(--scrim); backdrop-filter: blur(2px);
+  display: none; align-items: flex-start; justify-content: center;
+  padding: 12vh 16px 16px;
+}
+.cmd-overlay.is-open { display: flex; animation: fade-in 0.12s ease; }
+.cmd-box {
+  width: 100%; max-width: 560px;
+  background: var(--surface);
+  border: 1px solid var(--border-2);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  animation: scale-in 0.12s ease;
+}
+.cmd-input-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 2px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.cmd-input-row svg { width: 16px; height: 16px; color: var(--text-3); flex-shrink: 0; }
+.cmd-input {
+  flex: 1; min-width: 0; min-height: 46px;
+  border: none; outline: none; background: transparent; box-shadow: none;
+  color: var(--text); font: inherit; font-size: 15px; padding: 12px 0;
+}
+/* The palette IS the focus context — the whole box lights up instead of a
+   ring around the bare input, which the global field styles draw oddly here. */
+.cmd-input:focus, .cmd-input:focus-visible { border: none; box-shadow: none; outline: none; }
+.cmd-box:focus-within { border-color: var(--accent); }
+.cmd-input::placeholder { color: var(--text-3); }
+.cmd-list { max-height: min(320px, 42vh); overflow-y: auto; padding: 6px; }
+.cmd-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 10px 12px;
+  border: none; background: transparent; border-radius: var(--radius);
+  color: var(--text); font: inherit; font-size: 14px;
+  text-align: start; cursor: pointer;
+}
+/* Same pair as .nav-item.active — the one accent-on-dim combo the palette
+   (colour palette, that is) already certifies for small text. */
+.cmd-item:hover, .cmd-item[aria-selected="true"] { background: var(--accent-dim); color: var(--accent-2); }
+.cmd-item-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cmd-item-kind { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.cmd-empty { padding: 22px 16px; font-size: 13px; color: var(--text-2); text-align: center; }
+.cmd-foot {
+  display: flex; gap: 16px; align-items: center;
+  padding: 8px 16px; border-top: 1px solid var(--border);
+  font-size: 11px; color: var(--text-3);
+}
+.cmd-foot span { display: inline-flex; align-items: center; gap: 5px; }
+kbd.cmd-kbd {
+  display: inline-block; min-width: 18px; padding: 1px 5px;
+  border: 1px solid var(--border-2); border-bottom-width: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2); color: var(--text-2);
+  font-family: inherit; font-size: 10.5px; font-weight: 600;
+  text-align: center; line-height: 1.5;
+}
+/* Topbar trigger: desktop-only. On phones the bottom nav already puts every
+   destination one thumb away; the palette stays reachable but not advertised. */
+/* Two classes, not one: the touch-target layer later in this file re-asserts
+   display on every .topbar-btn, and at equal specificity the later rule wins —
+   which put this button back on phones. .topbar-actions makes hide/show
+   outrank that layer in both directions. */
+.topbar-actions .topbar-btn--cmd { display: none; }
+@media (min-width: 1024px) {
+  .topbar-actions .topbar-btn--cmd {
+    display: inline-flex; align-items: center; gap: 8px;
+    width: auto; padding: 0 12px;
+  }
+  .topbar-btn--cmd .cmd-kbd { pointer-events: none; }
+}
+
+/* ── Shortcuts map (the ؟ overlay) — ported from AdsPulse ──────────────── */
+.kbd-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+  font-size: 13.5px; color: var(--text-2);
+}
+.kbd-row:last-child { border-bottom: none; }
+/* Key sequences read left-to-right regardless of page direction — they
+   mirror what is printed on the physical keyboard. */
+.kbd-keys { display: flex; gap: 4px; direction: ltr; flex-shrink: 0; }
+
+/* ── Density axis — ported from AdsPulse ────────────────────────────────
+   One attribute on <html>, persisted per browser, toggled from the command
+   palette. Desktop-only by media query: on touch screens compact rows would
+   fall below the 44px target minimum the mobile gate enforces. */
+@media (min-width: 1024px) and (pointer: fine) {
+  html[data-density="compact"] th { padding: 7px 12px; }
+  html[data-density="compact"] td { padding: 7px 12px; font-size: 12.5px; }
+  html[data-density="compact"] .card { padding: 16px; }
+}
+
 /* ── Smart Context Actions — chip row under a KPI's delta, only when an
    issue is actively affecting that metric. Quiet by default (no chips on
    healthy metrics), matches the redesign's "recessive unless there's a
@@ -2405,7 +2507,7 @@ function friendlyApiError(err) {
   if (/Insufficient permissions/i.test(msg)) return 'تحتاج صلاحية مدير أو مالك لمزامنة البيانات.';
   if (/No ad account/i.test(msg)) return 'اربط حساب Meta الإعلاني من إعدادات مساحة العمل أولاً.';
   // Never show raw Anthropic / provider JSON blobs in the UI.
-  if (/invalid_request_error|"type"\s*:\s*"error"|request_id|anthropic/i.test(msg)) {
+  if (/invalid_request_error|"type"\\s*:\\s*"error"|request_id|anthropic/i.test(msg)) {
     return 'المساعد الذكي غير متاح مؤقتاً. جرّب بعد لحظات أو راجع التشخيص في لوحة التحكم.';
   }
   return msg;
@@ -2707,6 +2809,227 @@ function toast(msg, type = 'info') {
   setTimeout(() => el.remove(), 3500);
 }
 
+/* ── Density axis — ported from AdsPulse ─────────────────────────────────
+   One attribute on <html>, one localStorage key, toggled from the command
+   palette. CSS scopes the effect to fine-pointer desktop so touch targets
+   never shrink below the 44px minimum. */
+(function () {
+  try {
+    if (localStorage.getItem('adlytic_density') === 'compact') {
+      document.documentElement.setAttribute('data-density', 'compact');
+    }
+  } catch (e) { /* storage unavailable — default density */ }
+})();
+function setDensity(mode) {
+  if (mode === 'compact') document.documentElement.setAttribute('data-density', 'compact');
+  else document.documentElement.removeAttribute('data-density');
+  try { localStorage.setItem('adlytic_density', mode); } catch (e) { /* not persisted */ }
+  toast(mode === 'compact' ? 'كثافة مضغوطة — صفوف أكثر في الشاشة' : 'عدنا إلى الكثافة المريحة', 'info');
+}
+
+/* ── Command palette + shortcuts map — ported from AdsPulse ──────────────
+   The proven pattern from the AdsPulse flagship page: one input, a filtered
+   list, arrows + Enter, Esc out, focus restored to where it was. Items are
+   built on every open from the page's own nav DOM — so the admin entry
+   appears exactly when the sidebar rendered it — plus shell actions.
+   Matching normalises Arabic (hamza forms, teh marbuta, diacritics) and
+   indexes each item's href so Latin queries like "camp" work too. */
+var cmdState = { open: false, items: [], filtered: [], idx: 0, lastFocus: null };
+
+function cmdNorm(s) {
+  return String(s || '').toLowerCase()
+    .replace(/[\\u064B-\\u0652\\u0640]/g, '')
+    .replace(/[أإآ]/g, 'ا').replace(/ة/g, 'ه').replace(/ى/g, 'ي');
+}
+
+function buildCmdItems() {
+  var items = [];
+  var seen = {};
+  var path = window.location.pathname;
+  function add(label, kind, syn, run) {
+    items.push({ label: label, kind: kind, syn: syn || '', run: run });
+  }
+  function addNav(href, label) {
+    if (!href || !label || seen[href]) return;
+    seen[href] = true;
+    add('انتقل إلى ' + label, href === path ? 'أنت هنا' : 'تنقل', href,
+      function () { if (href !== path) window.location.href = href; });
+  }
+  document.querySelectorAll('#nav-list .nav-item, .mobile-bottom-nav .mobile-nav-item').forEach(function (a) {
+    addNav(a.getAttribute('href'), (a.textContent || '').replace(/\\s+/g, ' ').trim());
+  });
+  // Fallback core set — covers beginner mode, where the sidebar is absent.
+  addNav('/dashboard', 'لوحة التحكم');
+  addNav('/settings', 'الإعدادات');
+  addNav('/support', 'الدعم');
+
+  if (document.getElementById('ws-selector')) {
+    add('تبديل مساحة العمل', 'إجراء', 'workspace switch', function () {
+      var el = document.getElementById('ws-selector');
+      if (el) el.click();
+    });
+  }
+  var inactiveMode = document.querySelector('.mode-toggle-btn:not(.active)');
+  if (inactiveMode) {
+    var m = inactiveMode.getAttribute('data-mode');
+    add(m === 'beginner' ? 'التبديل إلى وضع المبتدئ' : 'التبديل إلى الوضع الاحترافي',
+      'إجراء', 'mode ' + (m || ''), function () { if (m === 'pro' || m === 'beginner') setDashboardMode(m); });
+  }
+  var compactNow = document.documentElement.getAttribute('data-density') === 'compact';
+  add(compactNow ? 'كثافة مريحة (المسافات الافتراضية)' : 'كثافة مضغوطة (صفوف أكثر في الشاشة)',
+    'إجراء', 'density compact', function () { setDensity(compactNow ? 'default' : 'compact'); });
+  add('خريطة اختصارات لوحة المفاتيح', 'إجراء', 'shortcuts keyboard help', openShortcuts);
+  add('إعادة تحميل الصفحة', 'إجراء', 'reload refresh', function () { window.location.reload(); });
+  add('تسجيل الخروج', 'إجراء', 'logout', function () { logout(); });
+  return items;
+}
+
+function renderCmdList() {
+  var list = document.getElementById('cmd-list');
+  if (!list) return;
+  if (!cmdState.filtered.length) {
+    list.innerHTML = '<div class="cmd-empty">لا نتيجة — جرّب اسم صفحة أو «كثافة» أو «خروج»</div>';
+    return;
+  }
+  var html = '';
+  for (var i = 0; i < cmdState.filtered.length; i++) {
+    var it = cmdState.filtered[i];
+    html += '<button class="cmd-item" type="button" role="option" data-i="' + i + '"'
+      + ' aria-selected="' + (i === cmdState.idx ? 'true' : 'false') + '">'
+      + '<span class="cmd-item-label">' + escHtml(it.label) + '</span>'
+      + '<span class="cmd-item-kind">' + escHtml(it.kind) + '</span>'
+      + '</button>';
+  }
+  list.innerHTML = html;
+  var sel = list.querySelector('[aria-selected="true"]');
+  if (sel && sel.scrollIntoView) sel.scrollIntoView({ block: 'nearest' });
+}
+
+function filterCmd(q) {
+  var n = cmdNorm(q).trim();
+  if (!n) {
+    cmdState.filtered = cmdState.items.slice(0, 40);
+  } else {
+    var starts = [], contains = [];
+    cmdState.items.forEach(function (it) {
+      var hay = cmdNorm(it.label + ' ' + it.syn);
+      var at = hay.indexOf(n);
+      if (at === 0) starts.push(it);
+      else if (at > 0) contains.push(it);
+    });
+    cmdState.filtered = starts.concat(contains);
+  }
+  cmdState.idx = 0;
+  renderCmdList();
+}
+
+function openCmd() {
+  var overlay = document.getElementById('cmd-overlay');
+  var input = document.getElementById('cmd-input');
+  if (!overlay || cmdState.open) return;
+  closeShortcuts();
+  cmdState.lastFocus = document.activeElement;
+  cmdState.items = buildCmdItems();
+  overlay.classList.add('is-open');
+  cmdState.open = true;
+  if (input) { input.value = ''; input.focus(); }
+  filterCmd('');
+}
+function closeCmd() {
+  var overlay = document.getElementById('cmd-overlay');
+  if (!overlay || !cmdState.open) return;
+  overlay.classList.remove('is-open');
+  cmdState.open = false;
+  if (cmdState.lastFocus && cmdState.lastFocus.focus) cmdState.lastFocus.focus();
+}
+function runCmdIdx(i) {
+  var it = cmdState.filtered[i];
+  closeCmd();
+  if (it && it.run) it.run();
+}
+
+function openShortcuts() {
+  var el = document.getElementById('shortcuts-modal');
+  if (el) el.style.display = 'flex';
+}
+function closeShortcuts() {
+  var el = document.getElementById('shortcuts-modal');
+  if (el) el.style.display = 'none';
+}
+window.openShortcuts = openShortcuts;
+window.closeShortcuts = closeShortcuts;
+window.setDensity = setDensity;
+
+function cmdTypingIn(el) {
+  if (!el) return false;
+  var t = el.tagName;
+  return t === 'INPUT' || t === 'TEXTAREA' || t === 'SELECT' || el.isContentEditable === true;
+}
+
+function initCmdPalette() {
+  var overlay = document.getElementById('cmd-overlay');
+  var input = document.getElementById('cmd-input');
+  if (!overlay || !input) return;
+
+  var openBtn = document.getElementById('cmd-open-btn');
+  if (openBtn) openBtn.addEventListener('click', openCmd);
+
+  overlay.addEventListener('click', function (e) {
+    if (e.target === overlay) { closeCmd(); return; }
+    var item = e.target && e.target.closest ? e.target.closest('.cmd-item') : null;
+    if (item) runCmdIdx(Number(item.getAttribute('data-i')));
+  });
+  input.addEventListener('input', function () { filterCmd(input.value); });
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      cmdState.idx = Math.min(cmdState.idx + 1, cmdState.filtered.length - 1);
+      renderCmdList();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      cmdState.idx = Math.max(cmdState.idx - 1, 0);
+      renderCmdList();
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      runCmdIdx(cmdState.idx);
+    } else if (e.key === 'Tab') {
+      // The input is the palette's only focus stop — Tab must not escape
+      // into the page hidden behind the scrim.
+      e.preventDefault();
+    }
+  });
+
+  document.addEventListener('keydown', function (e) {
+    // e.code is layout-independent: Ctrl+K works on Arabic layouts too,
+    // where e.key at that position is 'ن'.
+    if ((e.ctrlKey || e.metaKey) && e.code === 'KeyK') {
+      e.preventDefault();
+      if (cmdState.open) closeCmd(); else openCmd();
+      return;
+    }
+    if (cmdState.open) {
+      if (e.key === 'Escape') { e.preventDefault(); closeCmd(); }
+      return;
+    }
+    if (cmdTypingIn(document.activeElement)) return;
+    if (e.key === '/') { e.preventDefault(); openCmd(); }
+    else if (e.key === '?' || e.key === '؟') { e.preventDefault(); openShortcuts(); }
+    else if (e.key === 'Escape') closeShortcuts();
+  });
+}
+
+/* First-visit guidance (AdsPulse port): tell desktop users the palette
+   exists, once. Phones keep their bottom nav — no hint there. */
+function maybeShowCmdHint() {
+  if (!getToken()) return;
+  if (!window.matchMedia || !window.matchMedia('(min-width: 1024px) and (pointer: fine)').matches) return;
+  try {
+    if (localStorage.getItem('adlytic_cmd_hint_v1')) return;
+    localStorage.setItem('adlytic_cmd_hint_v1', '1');
+  } catch (e) { return; }
+  setTimeout(function () { toast('جديد: اضغط Ctrl+K للتنقل السريع وتنفيذ الأوامر', 'info'); }, 2500);
+}
+
 var TOKEN_DECRYPT_PAGES = ['/dashboard', '/campaigns', '/workspace'];
 
 function shouldShowTokenDecryptBanner() {
@@ -2859,14 +3182,18 @@ function tickText(el, finalText) {
   if (!el) return;
   var target = String(finalText);
   var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  var m = target.match(/-?[\d,]+(?:\.\d+)?/);
+  // NOTE: this code lives inside a TS template literal — a single backslash
+  // is cooked away before the browser ever sees it (\d becomes the letter d).
+  // Regex classes here MUST be written double-escaped. The gate in
+  // test_page_scripts.mjs scans the rendered pages for cooked leftovers.
+  var m = target.match(/-?[\\d,]+(?:\\.\\d+)?/);
   if (reduced || !m) { el.textContent = target; return; }
   var endNum = parseFloat(m[0].replace(/,/g, ''));
   if (!isFinite(endNum)) { el.textContent = target; return; }
   var decimals = (m[0].split('.')[1] || '').length;
   var prefix = target.slice(0, m.index);
   var suffix = target.slice(m.index + m[0].length);
-  var cur = (el.textContent || '').match(/-?[\d,]+(?:\.\d+)?/);
+  var cur = (el.textContent || '').match(/-?[\\d,]+(?:\\.\\d+)?/);
   var startNum = cur ? parseFloat(cur[0].replace(/,/g, '')) : 0;
   if (!isFinite(startNum) || startNum === endNum) { el.textContent = target; return; }
   var t0 = performance.now(), DUR = 700;
@@ -3352,7 +3679,9 @@ document.addEventListener('DOMContentLoaded', () => {
     startShellLoadingFallback(5000);
     initSidebarNav();
     initModeToggle();
+    maybeShowCmdHint();
   }
+  initCmdPalette();
   // PWA Service Worker registration
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
@@ -3466,6 +3795,14 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
     : `<button class="topbar-btn topbar-btn--menu mobile-menu-btn" id="mobile-menu-btn" type="button" aria-label="فتح القائمة">
     ${ICONS['menu']}
   </button>`;
+  // Command palette trigger (AdsPulse port) — desktop-only via CSS; hidden in
+  // beginner mode, whose whole premise is fewer controls.
+  const cmdBtn = isBeginner
+    ? ''
+    : `<button class="topbar-btn topbar-btn--cmd" type="button" id="cmd-open-btn" title="لوحة الأوامر" aria-label="لوحة الأوامر">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+      <kbd class="cmd-kbd" aria-hidden="true">Ctrl K</kbd>
+    </button>`;
   return `
 <header class="topbar">
   ${menuBtn}
@@ -3482,6 +3819,7 @@ export function topbar(pageTitle: string, currentMode?: 'pro' | 'beginner'): str
       </span>
       <span class="topbar-ws-chevron" aria-hidden="true">${ICONS['chevron']}</span>
     </div>
+    ${cmdBtn}
     ${settingsBtn}
     ${beginnerLogout}
   </div>
@@ -3549,6 +3887,33 @@ export function layout(opts: {
     </div>
   </div>
   ${chromeBottomNav}
+  <div id="cmd-overlay" class="cmd-overlay" role="dialog" aria-modal="true" aria-label="لوحة الأوامر">
+    <div class="cmd-box">
+      <div class="cmd-input-row">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.5" y2="16.5"/></svg>
+        <input id="cmd-input" class="cmd-input" type="text" placeholder="انتقل إلى صفحة أو نفّذ أمراً…" autocomplete="off" spellcheck="false" aria-label="بحث في الأوامر">
+      </div>
+      <div id="cmd-list" class="cmd-list" role="listbox" aria-label="النتائج"></div>
+      <div class="cmd-foot" aria-hidden="true">
+        <span><kbd class="cmd-kbd">↵</kbd> تنفيذ</span>
+        <span><kbd class="cmd-kbd">↑</kbd><kbd class="cmd-kbd">↓</kbd> تنقّل</span>
+        <span><kbd class="cmd-kbd">Esc</kbd> إغلاق</span>
+      </div>
+    </div>
+  </div>
+  <div id="shortcuts-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeShortcuts()">
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-title">اختصارات لوحة المفاتيح</div>
+      <div class="modal-subtitle">تعمل على الحاسوب في أي صفحة — ما دمت لا تكتب داخل حقل.</div>
+      <div class="kbd-row"><span>فتح لوحة الأوامر</span><span class="kbd-keys"><kbd class="cmd-kbd">Ctrl</kbd><kbd class="cmd-kbd">K</kbd></span></div>
+      <div class="kbd-row"><span>فتح لوحة الأوامر (بديل)</span><span class="kbd-keys"><kbd class="cmd-kbd">/</kbd></span></div>
+      <div class="kbd-row"><span>خريطة الاختصارات هذه</span><span class="kbd-keys"><kbd class="cmd-kbd">؟</kbd></span></div>
+      <div class="kbd-row"><span>إغلاق أي نافذة مفتوحة</span><span class="kbd-keys"><kbd class="cmd-kbd">Esc</kbd></span></div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" onclick="closeShortcuts()">إغلاق</button>
+      </div>
+    </div>
+  </div>
   <div id="metric-info-modal" class="modal-overlay" style="display:none;" onclick="if(event.target===this) closeMetricInfo()">
     <div class="modal" style="max-width:420px;">
       <div class="modal-title" id="metric-info-title" style="display:flex;align-items:center;gap:8px;"></div>

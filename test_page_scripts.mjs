@@ -46,6 +46,38 @@ for (const f of readdirSync('.mobile-pages').filter((n) => n.endsWith('.html')))
 }
 console.log(`\n${scripts} inline scripts parsed, ${bad} failed`);
 
+// ── Cooked escapes ────────────────────────────────────────────────────
+// A regex written inside a TS template literal loses single backslashes at
+// cook time: \d reaches the browser as the letter d, \s as s, \( as (.
+// The result PARSES — vm.Script above is blind to it — but matches the
+// wrong thing forever. Found live in production 2026-08: the number ticker
+// matched /-?[d,]+/ (dead), campaign date labels tested /^d{4}-d{2}-d{2}/
+// (never true), and chart label cleanup erased whole labels via /s*([^)]*)s*$/.
+// The fix is double-escaping in the .ts source; this rule keeps the cooked
+// artifacts out of the rendered pages. Each detector is written to have no
+// legitimate match; extend the list when a new cooked pattern is found.
+const COOKED = [
+  [/(?<!\\)\bd\{\d+\}/, 'd{n} — a cooked \\d{n} quantifier'],
+  [/\[d,\]/, '[d,] — a cooked [\\d,] class'],
+  [/\(\/s[+*][/(]/, '(/s+/ or (/s*( — a cooked \\s class at a regex head'],
+];
+let cookedBad = 0;
+for (const f of readdirSync('.mobile-pages').filter((n) => n.endsWith('.html'))) {
+  const html = readFileSync('.mobile-pages/' + f, 'utf8');
+  const re = /<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>/g;
+  let m;
+  while ((m = re.exec(html))) {
+    for (const [pat, what] of COOKED) {
+      const hit = m[1].match(pat);
+      if (hit) {
+        console.error(`✗ ${f}: cooked template escape reached the browser — ${what} (found "${hit[0]}")`);
+        cookedBad++;
+      }
+    }
+  }
+}
+if (!cookedBad) console.log('cooked-escape scan clean');
+
 // ── Breakpoint scale ──────────────────────────────────────────────────
 // 19 ad-hoc breakpoints had accumulated (700, 720, 760, 800 and 768 all in
 // use, meaning four near-identical reflows nobody could reason about).
@@ -353,4 +385,4 @@ for (const f of readdirSync('src/web', { recursive: true })) {
 
 if (!paletteBad) console.log('palette clean: no retired ramp, no var() on canvas, tooltips tokenised, one scrim');
 
-process.exit(bad || scaleBad || contrastBad || rootBad || dupBad || numeralBad || paletteBad ? 1 : 0);
+process.exit(bad || cookedBad || scaleBad || contrastBad || rootBad || dupBad || numeralBad || paletteBad ? 1 : 0);
