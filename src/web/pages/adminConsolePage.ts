@@ -604,7 +604,21 @@ export function adminConsolePage(): string {
       }
       toast('اكتمل تشغيل المرقاب', 'ok');
     } catch (e) {
+      // A toast disappears in three seconds and truncates. A probe failure is
+      // something the operator has to READ and act on, so it stays on screen
+      // with the server's own detail line under it.
       if (status) status.textContent = '';
+      var out = document.getElementById('probe-out');
+      var mx = document.getElementById('probe-matrix');
+      if (mx && out) {
+        mx.textContent = (e.message || 'فشل تشغيل المرقاب')
+          + (e.code ? '\\n\\ncode: ' + e.code : '')
+          + (e.detail ? '\\n\\ndetail: ' + e.detail : '');
+        out.style.display = '';
+        var rep = document.getElementById('probe-report');
+        if (rep) rep.textContent = '';
+      }
+      renderProbeTally([]);
       toast(e.message || 'فشل تشغيل المرقاب', 'err');
     } finally {
       probeRunning = false;
@@ -683,6 +697,7 @@ export function adminConsolePage(): string {
       var err = new Error(data.error || res.statusText || 'Request failed');
       err.code = data.code;
       err.status = res.status;
+      err.detail = data.detail;
       throw err;
     }
     return data;

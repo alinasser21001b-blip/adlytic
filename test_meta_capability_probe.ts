@@ -306,6 +306,49 @@ async function main() {
       'the route error path redacts before returning');
   }
 
+  // ── 7. A failed run must tell the operator what to DO ─────────────────
+  // The first real run returned a bare 500 with a truncated message and no
+  // server-side trace: undiagnosable from either end. Each branch below names
+  // a DIFFERENT next action, which is why they carry different codes and
+  // different statuses.
+  console.log('\n── a failure is classified, not swallowed ──');
+  {
+    const { classifyProbeRunFailure } = await import('./src/services/metaCapabilityRunner');
+    const mk = (name: string, message: string) => Object.assign(new Error(message), { name });
+
+    const decrypt = classifyProbeRunFailure(mk('TokenDecryptError', 'cannot decrypt'));
+    eq(decrypt.code, 'TOKEN_DECRYPT_FAILED', 'a key mismatch is its own outcome');
+    eq(decrypt.status, 424, 'and not a 500 — the server is fine, the key is not');
+    eq(/مفتاح/.test(decrypt.message), true, 'the operator is told it is a key problem');
+    eq(/انتهاء صلاحية|صلاحية رمز/.test(decrypt.message), true,
+      'and told explicitly not to treat it as an expired token — different fix');
+
+    eq(classifyProbeRunFailure(mk('Error', 'workspace ws_1 has no ad account')).code,
+      'NO_AD_ACCOUNT', 'a workspace with nothing to probe is a 400-class input problem');
+    eq(classifyProbeRunFailure(mk('Error', 'workspace ws_1 has no ad account')).status, 400,
+      'and not a server error');
+
+    eq(classifyProbeRunFailure(mk('Error', 'workspace ws_1 has no stored Meta token')).code,
+      'NO_TOKEN', 'a missing token is distinguished from a broken one');
+
+    for (const m of ['fetch failed', 'getaddrinfo ENOTFOUND graph.facebook.com', 'certificate has expired']) {
+      const v = classifyProbeRunFailure(mk('TypeError', m));
+      eq(v.code, 'META_UNREACHABLE', `network failure recognised: "${m.slice(0, 24)}"`);
+      eq(v.status, 502, 'reported as an upstream problem');
+      eq(/قيد شبكة|لا حكم/.test(v.message), true,
+        'and stated as a host constraint — NOT a verdict on any capability');
+    }
+
+    const unknown = classifyProbeRunFailure(mk('Error', 'something nobody predicted'));
+    eq(unknown.code, 'PROBE_FAILED', 'an unrecognised failure is not forced into a bucket');
+    eq(unknown.status, 500, 'and stays a 500');
+    eq(/detail/.test(unknown.message), true, 'while pointing at where the detail is');
+
+    // The classifier must never leak a token through its detail path.
+    const leaky = classifyProbeRunFailure(mk('Error', 'fetch failed for access_token=EAAGsecret1234567890abc'));
+    eq(/EAAGsecret/.test(JSON.stringify(leaky)), false, 'no token reaches the classified output');
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
     process.exit(failed ? 1 : 0);
 

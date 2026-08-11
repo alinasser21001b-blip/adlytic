@@ -55,7 +55,7 @@ import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
-import { runCapabilityProbeForWorkspace, redactProbeError } from '../services/metaCapabilityRunner';
+import { runCapabilityProbeForWorkspace, redactProbeError, classifyProbeRunFailure } from '../services/metaCapabilityRunner';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
 import { handleStripeWebhookEvent, activateManual, cancelManual, extendSubscription } from '../services/subscriptionService';
@@ -1506,10 +1506,20 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       });
       return c.json(result);
     } catch (e) {
+      // A bare 500 with a truncated message told the operator nothing and left
+      // no trace on the server — so the FIRST real run produced a failure
+      // nobody could diagnose. Classify what happened, say what to do about
+      // it, and log enough (name + redacted message) to follow up.
+      //
       // Meta echoes the request URL — token and all — in some error payloads,
-      // so the message is never passed through verbatim.
-      const msg = e instanceof Error ? e.message : 'probe failed';
-      return c.json({ error: redactProbeError(msg) }, 500);
+      // so nothing is passed through verbatim.
+      const err = e instanceof Error ? e : new Error('probe failed');
+      const safe = redactProbeError(err.message);
+      const kind = classifyProbeRunFailure(err);
+      console.error(
+        `[capability-probe] workspace=${body.workspaceId} kind=${kind.code} ${err.name}: ${safe}`,
+      );
+      return c.json({ error: kind.message, code: kind.code, detail: safe }, kind.status as 400 | 424 | 500 | 502);
     }
   });
 

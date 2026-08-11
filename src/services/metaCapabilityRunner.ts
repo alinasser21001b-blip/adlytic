@@ -46,6 +46,59 @@ export function redactProbeError(msg: string): string {
   return redact(msg);
 }
 
+/**
+ * Turn a thrown probe failure into something an operator can act on.
+ *
+ * The first real run returned a bare 500 with a truncated message and left no
+ * server-side trace, so the failure was undiagnosable from either end. Every
+ * branch here names a DIFFERENT next action — that is the point of splitting
+ * them, and why they do not share a status code either.
+ */
+export function classifyProbeRunFailure(err: Error): {
+  code: string; status: number; message: string;
+} {
+  const m = err.message.toLowerCase();
+
+  if (err.name === 'TokenDecryptError') {
+    return {
+      code: 'TOKEN_DECRYPT_FAILED',
+      status: 424,
+      message: 'تعذّر فكّ تشفير رمز Meta المحفوظ لهذه المساحة — مفتاح التشفير تغيّر. '
+        + 'أعد ربط الحساب، ولا تُعالجها كانتهاء صلاحية رمز: السببان مختلفان والإصلاحان مختلفان.',
+    };
+  }
+  if (m.includes('no ad account')) {
+    return {
+      code: 'NO_AD_ACCOUNT',
+      status: 400,
+      message: 'هذه المساحة بلا حساب إعلاني مرتبط — لا يوجد ما يُسأل عنه.',
+    };
+  }
+  if (m.includes('no stored meta token')) {
+    return {
+      code: 'NO_TOKEN',
+      status: 424,
+      message: 'الحساب الإعلاني موجود لكن بلا رمز Meta محفوظ. اربط الحساب أولاً.',
+    };
+  }
+  // fetch() rejects (rather than resolving with a status) only when the
+  // request never completed: DNS, TLS, or egress policy.
+  if (m.includes('fetch failed') || m.includes('econnrefused') || m.includes('enotfound')
+    || m.includes('getaddrinfo') || m.includes('certificate')) {
+    return {
+      code: 'META_UNREACHABLE',
+      status: 502,
+      message: 'تعذّر الوصول إلى graph.facebook.com من الخادم. '
+        + 'هذا قيد شبكة على المضيف، لا حكم على أي قدرة.',
+    };
+  }
+  return {
+    code: 'PROBE_FAILED',
+    status: 500,
+    message: 'فشل تشغيل المرقاب. التفاصيل في الحقل detail وفي سجل الخادم.',
+  };
+}
+
 function isoDaysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
 }
