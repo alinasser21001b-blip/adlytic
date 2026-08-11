@@ -158,8 +158,8 @@ async function main() {
       externalAccountId: 'act_1', entityIds: { campaign: '23', adset: '45', ad: '67' },
     });
     eq(res[0].verdict, 'RATE_LIMITED', 'the throttled candidate is RATE_LIMITED');
-    eq(res.slice(1).every((r) => r.verdict === 'UNKNOWN'), true,
-      'and the untested remainder is UNKNOWN — not UNAVAILABLE');
+    eq(res.slice(1).every((r) => r.verdict === 'NOT_TESTED'), true,
+      'and the untested remainder is NOT_TESTED — neither UNAVAILABLE nor UNKNOWN');
     eq(calls.length, 1, 'the run stopped instead of burning the rest of the quota');
   }
 
@@ -177,8 +177,8 @@ async function main() {
     const { t, calls } = fakeTransport(() => ({ status: 200, body: { data: [{}] } }));
     const adsetOnly: ProbeCandidate[] = PROBE_CANDIDATES.filter((c) => c.level === 'adset');
     const res = await runCapabilityProbe(t, adsetOnly, { externalAccountId: 'act_1' });   // no adset id
-    eq(res.every((r) => r.verdict === 'UNKNOWN'), true,
-      'a candidate with no entity to probe is UNKNOWN, never UNAVAILABLE');
+    eq(res.every((r) => r.verdict === 'NOT_TESTED'), true,
+      'a candidate with no entity to probe is NOT_TESTED, never UNAVAILABLE');
     eq(calls.length, 0, 'and it costs no API call');
   }
 
@@ -189,12 +189,95 @@ async function main() {
     eq(noReason.length, 0, 'every candidate states why it is worth an API call');
     const dupes = PROBE_CANDIDATES.map((c) => c.id).filter((id, i, a) => a.indexOf(id) !== i);
     eq(dupes.length, 0, 'candidate ids are unique (they are the matrix row keys)');
-    const attribution = PROBE_CANDIDATES.find((c) => c.id === 'insights.attribution_setting');
-    eq(!!attribution, true, 'attribution_setting is probed — it is the one field that makes stored conversions comparable');
+    const attribution = PROBE_CANDIDATES.find((c) => c.id === 'field.insights.attribution_setting');
+    eq(!!attribution, true, 'attribution_setting is probed — the one field that makes stored conversions comparable');
     eq(attribution?.fields.includes('attribution_setting'), true, 'and it is actually requested');
+    eq(attribution?.evidenceField, 'attribution_setting', 'and its presence in the response is the recorded evidence');
+
+    // Every non-baseline candidate must isolate exactly one dimension.
+    const noBaseline = PROBE_CANDIDATES.filter((c) => !c.baseline && !c.id.startsWith('baseline.'));
+    eq(noBaseline.length, 0,
+      'every candidate except the baselines declares a baseline, so a refusal is attributable to one dimension');
+    const noEvidence = PROBE_CANDIDATES.filter((c) => !c.evidenceField);
+    eq(noEvidence.length, 0, 'every candidate names the field whose presence is the evidence');
+
+    // The unified-attribution probe must not adopt the setting in production.
+    const unified = PROBE_CANDIDATES.find((c) => c.id === 'config.unified_attribution');
+    eq(unified?.dimension, 'REPORTING_CONFIG', 'the unified-attribution probe is a REPORTING_CONFIG question');
+    eq(/NOT adopted|not adopted/.test(unified?.rationale ?? ''), true,
+      'and its rationale records that it is probed, never switched on — doing so would change stored numbers');
   }
 
-    console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
+    // ── 5. Dimension isolation ────────────────────────────────────────────
+  console.log('\n── a refusal is attributable to ONE dimension ──');
+  {
+    // Baseline fails → the candidate was never really tested.
+    const { t, calls } = fakeTransport((c) => (
+      'attribution_setting' in (c.params.fields ? { [c.params.fields]: 1 } : {})
+        ? { status: 200, body: { data: [{}] } }
+        : { status: 400, body: metaErr({ code: 100, error_subcode: 33, message: 'Unsupported get request' }) }
+    ));
+    const cand = PROBE_CANDIDATES.find((c) => c.id === 'field.insights.attribution_setting')!;
+    const res = await runCapabilityProbe(t, [cand], { externalAccountId: 'act_1', entityIds: { campaign: '23' } });
+    eq(res[0].verdict, 'NOT_TESTED',
+      'when the baseline fails, the candidate is NOT_TESTED — the object is at fault, not the field');
+    eq(res[0].baselineVerdict, 'OBJECT_REQUIRED', 'and the baseline failure itself is recorded');
+    eq(calls.length, 1, 'and no second call is wasted on a request that could not have been meaningful');
+  }
+  {
+    // Baseline passes, candidate fails → attributable to the isolated thing.
+    let n = 0;
+    const { t } = fakeTransport(() => {
+      n += 1;
+      return n === 1
+        ? { status: 200, body: { data: [{ spend: '1', impressions: '2' }] } }
+        : { status: 400, body: metaErr({ code: 100, message: '(#100) param fields must be a valid field' }) };
+    });
+    const cand = PROBE_CANDIDATES.find((c) => c.id === 'field.insights.attribution_setting')!;
+    const res = await runCapabilityProbe(t, [cand], { externalAccountId: 'act_1', entityIds: { campaign: '23' } });
+    eq(res[0].baselineVerdict, 'AVAILABLE', 'the baseline succeeded');
+    eq(res[0].verdict, 'UNAVAILABLE', 'so the refusal belongs to the isolated field');
+    eq(res[0].dimension, 'FIELD', 'and the dimension is recorded on the row');
+    eq(res[0].calls, 2, 'the candidate cost exactly baseline + test');
+  }
+  {
+    // Evidence: the field arriving is what proves the capability.
+    const { t } = fakeTransport(() => ({
+      status: 200,
+      body: { data: [{ spend: '1', impressions: '2', attribution_setting: '7d_click' }] },
+    }));
+    const cand = PROBE_CANDIDATES.find((c) => c.id === 'field.insights.attribution_setting')!;
+    const res = await runCapabilityProbe(t, [cand], { externalAccountId: 'act_1', entityIds: { campaign: '23' } });
+    eq(res[0].evidence?.present, true, 'evidence records that the field actually arrived');
+    eq(res[0].evidence?.sample, '7d_click', 'an enum-shaped value is sampled — it IS the semantics');
+    eq(res[0].request?.path, '/23/insights', 'the exact request is recorded for reproducibility');
+    eq(res[0].request ? !('access_token' in res[0].request.params) : false, true,
+      'and the recorded request carries no token');
+  }
+  {
+    // A 200 that omits the field is NOT proof of availability.
+    const { t } = fakeTransport(() => ({ status: 200, body: { data: [{ spend: '1', impressions: '2' }] } }));
+    const cand = PROBE_CANDIDATES.find((c) => c.id === 'field.insights.ad_relevance')!;
+    const res = await runCapabilityProbe(t, [cand], { externalAccountId: 'act_1', entityIds: { ad: '67' } });
+    eq(res[0].verdict, 'AVAILABLE', 'Meta accepted the request');
+    eq(res[0].evidence?.present, false,
+      'but the field did not arrive — recorded, so the matrix cannot claim a capability Meta never returned');
+  }
+  {
+    // Free-form customer content must never be sampled into the report.
+    const { t } = fakeTransport(() => ({
+      status: 200,
+      body: { data: [{ id: '45', name: 'حملة العميل الخاصة — تفاصيل داخلية', learning_stage_info: { status: 'LEARNING' } }] },
+    }));
+    const cand = PROBE_CANDIDATES.find((c) => c.id === 'field.adset.learning_stage_info')!;
+    const res = await runCapabilityProbe(t, [cand], { externalAccountId: 'act_1', entityIds: { adset: '45' } });
+    eq(res[0].evidence?.type, 'object', 'a structured value records its type');
+    eq(res[0].evidence?.sample, null, 'and is NOT sampled — the report is evidence about the API, not client data');
+    const blob = JSON.stringify(res[0]);
+    eq(/حملة العميل/.test(blob), false, 'no campaign name reaches the stored row');
+  }
+
+  console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
     process.exit(failed ? 1 : 0);
 
 }

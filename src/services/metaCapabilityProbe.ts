@@ -40,7 +40,33 @@ export type ProbeVerdict =
   | 'UNAVAILABLE'          // field unknown to this API version
   | 'DEPRECATED'           // removed in this or a newer version
   | 'RATE_LIMITED'         // hit a quota; says nothing about the capability
-  | 'UNKNOWN';             // classified nothing — record and read by hand
+  | 'NOT_TESTED'           // never asked — no token, no budget, no object, or a
+                           // prerequisite rung failed. NOT a Meta opinion.
+  | 'UNKNOWN';             // asked, refused, and the refusal was not recognised
+
+/**
+ * The seven dimensions a capability claim can fail on. A probe that tests
+ * several at once produces an unattributable verdict: request three
+ * breakdowns together, get a refusal, and you have learned that some
+ * unidentified part of the request was wrong.
+ *
+ * Each candidate therefore isolates ONE dimension and declares a `baseline`
+ * — the same request minus the thing under test. The baseline runs first:
+ *
+ *   baseline fails  → the failure belongs to the OBJECT / LEVEL / PERMISSION,
+ *                     and the candidate is NOT_TESTED, not UNAVAILABLE.
+ *   baseline passes → any failure now belongs to the isolated dimension.
+ *
+ * That is the difference between evidence and a guess.
+ */
+export type CapabilityDimension =
+  | 'API_VERSION'      // does v20.0 know this at all
+  | 'PERMISSION'       // does the app/token hold the scope
+  | 'TOKEN_ACCESS'     // can THIS token reach THIS object
+  | 'ENTITY_LEVEL'     // is it valid at the level we asked
+  | 'FIELD'            // is the field itself readable
+  | 'BREAKDOWN'        // is the breakdown combinable here
+  | 'REPORTING_CONFIG'; // attribution / action_breakdowns / time_increment
 
 /** One thing worth asking Meta about. */
 export interface ProbeCandidate {
@@ -50,33 +76,88 @@ export interface ProbeCandidate {
   kind: 'insights' | 'node';
   /** Which entity this must be asked of. */
   level?: 'account' | 'campaign' | 'adset' | 'ad';
-  /** Fields to request. One candidate should isolate ONE unknown. */
+  /** Fields to request. One candidate isolates ONE unknown. */
   fields: string[];
   /** Breakdowns to request, when the candidate is about a breakdown. */
   breakdowns?: string[];
-  /** Extra query params (e.g. action_breakdowns). */
+  /** Extra query params (e.g. action_breakdowns, attribution windows). */
   params?: Record<string, string>;
+  /** Which single dimension this candidate isolates. */
+  dimension: CapabilityDimension;
+  /**
+   * The same request WITHOUT the thing under test. Run first; if it fails,
+   * the candidate is NOT_TESTED and the failure is reported against the
+   * baseline instead. Omit only for a candidate that IS the baseline.
+   */
+  baseline?: { fields: string[]; breakdowns?: string[]; params?: Record<string, string> };
+  /** The specific field whose presence in the response is the evidence. */
+  evidenceField?: string;
   /** Why this is worth an API call — recorded in the matrix. */
   rationale: string;
+}
+
+/** What actually came back for one field, without persisting customer data. */
+export interface FieldEvidence {
+  field: string;
+  present: boolean;
+  /** JS type of the value — 'string' | 'number' | 'object' | 'array' | 'null'. */
+  type: string | null;
+  /**
+   * A sample, ONLY for enum-shaped values (short, no spaces, e.g. "7d_click",
+   * "above_average"). Those are semantics and are needed to interpret the
+   * capability. Anything longer or free-form is withheld: this file is
+   * evidence about the API, not a copy of the client's data.
+   */
+  sample: string | null;
 }
 
 export interface ProbeResult {
   id: string;
   verdict: ProbeVerdict;
+  dimension: CapabilityDimension;
+  /** Exact request, for reproducibility. Never carries a token. */
+  request: { path: string; params: Record<string, string> } | null;
   /** HTTP status, when a response came back. */
   status: number | null;
   /** Meta's own error code / subcode, when present. */
   metaCode: number | null;
   metaSubcode: number | null;
-  /** Meta's message, truncated. Never contains our token — see redact(). */
+  /** Meta's message, truncated and redacted. */
   detail: string | null;
   /** Which field names actually came back on the first row, when AVAILABLE. */
   returnedFields: string[] | null;
+  /** Did the field under test actually arrive, and in what shape. */
+  evidence: FieldEvidence | null;
   /** True when the request succeeded but the result set was empty. An empty
    *  result is NOT proof the field is unavailable — the account may simply
    *  have no data in the window. Recorded so the matrix can say so. */
   emptyResult: boolean;
+  /** How the baseline (same request minus the thing under test) fared. */
+  baselineVerdict: ProbeVerdict | null;
+  /** Wall-clock ms and how many calls this candidate cost. */
+  elapsedMs: number | null;
+  calls: number;
   probedAt: string;
+}
+
+/** Enum-shaped: short, single token, no whitespace. Safe to record. */
+function enumSample(v: unknown): string | null {
+  if (typeof v !== 'string') return null;
+  if (v.length > 24 || !/^[A-Za-z0-9_.,:-]+$/.test(v)) return null;
+  return v;
+}
+
+function typeOf(v: unknown): string {
+  if (v === null) return 'null';
+  if (Array.isArray(v)) return 'array';
+  return typeof v;
+}
+
+function fieldEvidence(row: Record<string, unknown> | null, field: string | undefined): FieldEvidence | null {
+  if (!field) return null;
+  if (!row || !(field in row)) return { field, present: false, type: null, sample: null };
+  const v = row[field];
+  return { field, present: true, type: typeOf(v), sample: enumSample(v) };
 }
 
 /** Meta error codes, from the Marketing API error reference. */
@@ -196,96 +277,139 @@ export async function runCapabilityProbe(
   opts: ProbeRunOptions,
 ): Promise<ProbeResult[]> {
   const max = opts.maxCalls ?? DEFAULT_MAX_CALLS;
-  const day = opts.since ?? isoDaysAgo(2);
+  const since = opts.since ?? isoDaysAgo(2);
   const until = opts.until ?? isoDaysAgo(2);
   const results: ProbeResult[] = [];
   let calls = 0;
+  let quotaHit = false;
 
-  for (const c of candidates) {
-    const now = new Date().toISOString();
-
-    if (calls >= max) {
-      results.push(blank(c.id, 'UNKNOWN', `probe budget of ${max} calls exhausted before this candidate`, now));
-      continue;
-    }
-
-    const target = resolveTarget(c, opts);
-    if (!target) {
-      results.push(blank(c.id, 'UNKNOWN', `no ${c.level} id available in this workspace to probe against`, now));
-      continue;
-    }
-
-    const params: Record<string, string> = { fields: c.fields.join(',') };
-    if (c.kind === 'insights') {
-      params.level = c.level ?? 'account';
-      params.time_range = JSON.stringify({ since: day, until });
-      params.limit = '1';
-      if (c.breakdowns?.length) params.breakdowns = c.breakdowns.join(',');
-    }
-    Object.assign(params, c.params ?? {});
-
-    const path = c.kind === 'insights' ? `/${target}/insights` : `/${target}`;
-
-    calls += 1;
+  /** One request. Returns the classified outcome plus the row it got back. */
+  async function ask(
+    path: string,
+    params: Record<string, string>,
+  ): Promise<{ verdict: ProbeVerdict; status: number | null; code: number | null; sub: number | null;
+               detail: string | null; row: Record<string, unknown> | null; rows: number; ms: number }> {
+    const t0 = Date.now();
     let status: number;
     let body: unknown;
     try {
       ({ status, body } = await transport.rawGet(path, params));
     } catch (e) {
-      results.push(blank(c.id, 'UNKNOWN', redact(e instanceof Error ? e.message : String(e)), now));
-      continue;
+      return { verdict: 'UNKNOWN', status: null, code: null, sub: null,
+        detail: redact(e instanceof Error ? e.message : String(e)), row: null, rows: 0, ms: Date.now() - t0 };
     }
-
+    const ms = Date.now() - t0;
     if (status >= 200 && status < 300) {
       const rows = extractRows(body);
-      results.push({
-        id: c.id,
-        verdict: 'AVAILABLE',
-        status,
-        metaCode: null,
-        metaSubcode: null,
-        detail: null,
-        // Which of the fields we asked for actually came back. Meta silently
-        // omits fields it has no value for, so this is the difference between
-        // "the field exists" and "the field exists AND this account has it".
-        returnedFields: rows.length ? Object.keys(rows[0] as Record<string, unknown>) : [],
-        emptyResult: rows.length === 0,
-        probedAt: now,
-      });
+      return { verdict: 'AVAILABLE', status, code: null, sub: null, detail: null,
+        row: (rows[0] as Record<string, unknown>) ?? null, rows: rows.length, ms };
+    }
+    const cls = classifyProbeFailure(status, body);
+    return { verdict: cls.verdict, status, code: cls.metaCode, sub: cls.metaSubcode,
+      detail: cls.detail, row: null, rows: 0, ms };
+  }
+
+  function buildParams(
+    c: ProbeCandidate,
+    variant: { fields: string[]; breakdowns?: string[]; params?: Record<string, string> },
+  ): Record<string, string> {
+    const p: Record<string, string> = { fields: variant.fields.join(',') };
+    if (c.kind === 'insights') {
+      p.level = c.level ?? 'account';
+      p.time_range = JSON.stringify({ since, until });
+      p.limit = '1';
+      if (variant.breakdowns?.length) p.breakdowns = variant.breakdowns.join(',');
+    }
+    Object.assign(p, variant.params ?? {});
+    return p;
+  }
+
+  for (const c of candidates) {
+    const now = new Date().toISOString();
+    const base = (verdict: ProbeVerdict, detail: string, extra: Partial<ProbeResult> = {}): ProbeResult => ({
+      id: c.id, verdict, dimension: c.dimension, request: null, status: null, metaCode: null,
+      metaSubcode: null, detail, returnedFields: null, evidence: null, emptyResult: false,
+      baselineVerdict: null, elapsedMs: null, calls: 0, probedAt: now, ...extra,
+    });
+
+    // Untested is not a Meta opinion — four separate reasons, all NOT_TESTED.
+    if (quotaHit) {
+      results.push(base('NOT_TESTED', 'the account hit a Meta rate limit earlier in this run; nothing after that point was asked'));
+      continue;
+    }
+    if (calls >= max) {
+      results.push(base('NOT_TESTED', `probe budget of ${max} calls was exhausted before this candidate`));
+      continue;
+    }
+    const target = resolveTarget(c, opts);
+    if (!target) {
+      results.push(base('NOT_TESTED', `no ${c.level} id was available in this workspace to probe against`));
       continue;
     }
 
-    const cls = classifyProbeFailure(status, body);
+    const path = c.kind === 'insights' ? `/${target}/insights` : `/${target}`;
+    let spent = 0;
+    let elapsed = 0;
+    let baselineVerdict: ProbeVerdict | null = null;
+
+    // ── Rung 0: the baseline ────────────────────────────────────────────
+    // The same request WITHOUT the thing under test. If this fails, the
+    // failure belongs to the object, the level or the permission — NOT to
+    // the field/breakdown/config we came to ask about. Reporting that as
+    // UNAVAILABLE would be the exact lie this module exists to prevent.
+    if (c.baseline) {
+      if (calls >= max) {
+        results.push(base('NOT_TESTED', `probe budget exhausted before this candidate's baseline`));
+        continue;
+      }
+      const bParams = buildParams(c, c.baseline);
+      calls += 1; spent += 1;
+      const b = await ask(path, bParams);
+      elapsed += b.ms;
+      baselineVerdict = b.verdict;
+      if (b.verdict === 'RATE_LIMITED') quotaHit = true;
+      if (b.verdict !== 'AVAILABLE') {
+        results.push(base('NOT_TESTED',
+          `baseline failed before the isolated dimension could be tested: ${b.verdict}`
+          + (b.detail ? ` — ${b.detail}` : ''),
+          { request: { path, params: bParams }, status: b.status, metaCode: b.code,
+            metaSubcode: b.sub, baselineVerdict: b.verdict, elapsedMs: elapsed, calls: spent }));
+        continue;
+      }
+    }
+
+    // ── Rung 1: the candidate, differing from the baseline by ONE thing ──
+    if (calls >= max) {
+      results.push(base('NOT_TESTED', `probe budget exhausted after the baseline`,
+        { baselineVerdict, elapsedMs: elapsed, calls: spent }));
+      continue;
+    }
+    const params = buildParams(c, { fields: c.fields, breakdowns: c.breakdowns, params: c.params });
+    calls += 1; spent += 1;
+    const r = await ask(path, params);
+    elapsed += r.ms;
+    if (r.verdict === 'RATE_LIMITED') quotaHit = true;
+
     results.push({
       id: c.id,
-      verdict: cls.verdict,
-      status,
-      metaCode: cls.metaCode,
-      metaSubcode: cls.metaSubcode,
-      detail: cls.detail,
-      returnedFields: null,
-      emptyResult: false,
+      verdict: r.verdict,
+      dimension: c.dimension,
+      request: { path, params },
+      status: r.status,
+      metaCode: r.code,
+      metaSubcode: r.sub,
+      detail: r.detail,
+      returnedFields: r.verdict === 'AVAILABLE' ? Object.keys(r.row ?? {}) : null,
+      evidence: r.verdict === 'AVAILABLE' ? fieldEvidence(r.row, c.evidenceField) : null,
+      emptyResult: r.verdict === 'AVAILABLE' && r.rows === 0,
+      baselineVerdict,
+      elapsedMs: elapsed,
+      calls: spent,
       probedAt: now,
     });
-
-    // A quota refusal means every later candidate would be answered by the
-    // quota rather than by Meta's opinion of the field. Stop and say so.
-    if (cls.verdict === 'RATE_LIMITED') {
-      for (const rest of candidates.slice(candidates.indexOf(c) + 1)) {
-        results.push(blank(rest.id, 'UNKNOWN', 'run stopped: the account hit a Meta rate limit earlier in this pass', now));
-      }
-      break;
-    }
   }
 
   return results;
-}
-
-function blank(id: string, verdict: ProbeVerdict, detail: string, at: string): ProbeResult {
-  return {
-    id, verdict, status: null, metaCode: null, metaSubcode: null,
-    detail, returnedFields: null, emptyResult: false, probedAt: at,
-  };
 }
 
 /**
@@ -322,85 +446,166 @@ function isoDaysAgo(n: number): string {
 //  decision value, because the budget may run out.
 // ════════════════════════════════════════════════════════════════════════
 export const PROBE_CANDIDATES: ProbeCandidate[] = [
+  // ── Rung 0 for everything: can this token read this object at all? ────
   {
-    id: 'insights.attribution_setting',
-    kind: 'insights',
-    level: 'campaign',
-    fields: ['spend', 'actions', 'attribution_setting'],
+    id: 'baseline.account.insights',
+    kind: 'insights', level: 'account',
+    fields: ['spend', 'impressions'],
+    dimension: 'TOKEN_ACCESS',
+    evidenceField: 'spend',
     rationale:
-      'Adlytic stores conversion counts with NO record of the attribution window they were counted under. '
-      + 'Two accounts are therefore not comparable, and a client changing their window in Ads Manager silently '
-      + 'rewrites the meaning of our history. This field REPORTS the applied setting without changing any number, '
-      + 'so capturing it is the one measurement fix that costs nothing downstream.',
+      'The floor. If this fails, every other verdict in the run is about the token or the account, '
+      + 'not about any field — and the whole matrix must be read as NOT_TESTED rather than as absence.',
   },
   {
-    id: 'insights.action_breakdowns.action_type',
-    kind: 'insights',
-    level: 'campaign',
-    fields: ['actions', 'cost_per_action_type'],
-    params: { action_breakdowns: 'action_type' },
-    rationale:
-      'Establishes whether action rows can be split further than the default, which decides whether '
-      + 'result composition can be reconstructed rather than inferred.',
+    id: 'baseline.campaign.insights',
+    kind: 'insights', level: 'campaign',
+    fields: ['spend', 'impressions'],
+    dimension: 'ENTITY_LEVEL',
+    evidenceField: 'spend',
+    rationale: 'Confirms the campaign object is readable before any campaign-level field is blamed.',
   },
   {
-    id: 'insights.breakdown.publisher_platform+position+device',
-    kind: 'insights',
-    level: 'campaign',
-    fields: ['spend', 'impressions', 'clicks', 'actions'],
+    id: 'baseline.adset.node',
+    kind: 'node', level: 'adset',
+    fields: ['id', 'name'],
+    dimension: 'ENTITY_LEVEL',
+    evidenceField: 'id',
+    rationale: 'Confirms the ad-set object is readable before any ad-set field is blamed.',
+  },
+  {
+    id: 'baseline.ad.insights',
+    kind: 'insights', level: 'ad',
+    fields: ['spend', 'impressions'],
+    dimension: 'ENTITY_LEVEL',
+    evidenceField: 'spend',
+    rationale: 'Confirms ad-level insights are readable before any ad-level field is blamed.',
+  },
+
+  // ── FIELD dimension ──────────────────────────────────────────────────
+  {
+    id: 'field.insights.attribution_setting',
+    kind: 'insights', level: 'campaign',
+    fields: ['spend', 'impressions', 'attribution_setting'],
+    baseline: { fields: ['spend', 'impressions'] },
+    dimension: 'FIELD',
+    evidenceField: 'attribution_setting',
+    rationale:
+      'THE priority. Adlytic stores conversion counts with no record of the attribution window they were '
+      + 'counted under, so two accounts are not comparable and a client changing the window in Ads Manager '
+      + 'silently rewrites the meaning of our history. This field REPORTS the applied setting without '
+      + 'selecting one, so capturing it changes no existing number — the only measurement fix with zero '
+      + 'blast radius.',
+  },
+  {
+    id: 'field.insights.ad_relevance',
+    kind: 'insights', level: 'ad',
+    fields: ['impressions', 'quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking'],
+    baseline: { fields: ['impressions'] },
+    dimension: 'FIELD',
+    evidenceField: 'quality_ranking',
+    rationale:
+      'Already requested in production (syncAccount.ts). Probed to learn whether it is POPULATED for this '
+      + 'account — Meta withholds these below an impression threshold, and a fatigue diagnosis resting on a '
+      + 'permanently null field rests on nothing. present:false here is the finding.',
+  },
+  {
+    id: 'field.adset.attribution_spec',
+    kind: 'node', level: 'adset',
+    fields: ['id', 'name', 'attribution_spec'],
+    baseline: { fields: ['id', 'name'] },
+    dimension: 'FIELD',
+    evidenceField: 'attribution_spec',
+    rationale:
+      'The CONFIGURED window at the ad set. With insights.attribution_setting it lets a reporting change be '
+      + 'separated from a performance change — the hypothesis the diagnostic engine currently cannot ask.',
+  },
+  {
+    id: 'field.adset.auction_config',
+    kind: 'node', level: 'adset',
+    fields: ['id', 'name', 'billing_event', 'bid_strategy', 'optimization_goal'],
+    baseline: { fields: ['id', 'name'] },
+    dimension: 'FIELD',
+    evidenceField: 'bid_strategy',
+    rationale:
+      'Auction context Adlytic never reads. optimization_goal is already synced; billing_event and '
+      + 'bid_strategy decide whether "CPM rose" means auction pressure or a bid-strategy consequence.',
+  },
+  {
+    id: 'field.adset.learning_stage_info',
+    kind: 'node', level: 'adset',
+    fields: ['id', 'name', 'learning_stage_info'],
+    baseline: { fields: ['id', 'name'] },
+    dimension: 'FIELD',
+    evidenceField: 'learning_stage_info',
+    rationale:
+      'Already requested by listAdSets. Probed to confirm it is genuinely populated rather than silently '
+      + 'omitted — the difference between an observed LEARNING regime and an invented one.',
+  },
+  {
+    id: 'field.campaign.budget_remaining',
+    kind: 'node', level: 'campaign',
+    fields: ['id', 'name', 'budget_remaining', 'bid_strategy'],
+    baseline: { fields: ['id', 'name'] },
+    dimension: 'FIELD',
+    evidenceField: 'budget_remaining',
+    rationale:
+      '"Spend fell" and "the budget ran out" are opposite diagnoses with opposite actions, and Adlytic '
+      + 'currently cannot tell them apart.',
+  },
+
+  // ── BREAKDOWN dimension — one breakdown added at a time ───────────────
+  {
+    id: 'breakdown.impression_device',
+    kind: 'insights', level: 'campaign',
+    fields: ['spend', 'impressions'],
     breakdowns: ['publisher_platform', 'platform_position', 'impression_device'],
+    // The baseline is the PAIR Adlytic already uses in production, so a
+    // refusal here is attributable to adding impression_device specifically.
+    baseline: { fields: ['spend', 'impressions'], breakdowns: ['publisher_platform', 'platform_position'] },
+    dimension: 'BREAKDOWN',
+    evidenceField: 'impression_device',
     rationale:
-      'Adlytic already uses publisher_platform+platform_position. Adding impression_device tests whether the '
-      + 'three combine — Meta rejects some triples — which decides whether placement inefficiency can be '
-      + 'separated from device inefficiency.',
+      'Decides whether placement inefficiency separates from device inefficiency. Baseline is the pair '
+      + 'already in production, so a failure names the third breakdown rather than the trio.',
   },
   {
-    id: 'adset.attribution_spec',
-    kind: 'node',
-    level: 'adset',
-    fields: ['id', 'attribution_spec', 'optimization_goal', 'billing_event', 'bid_strategy'],
-    rationale:
-      'attribution_spec is the CONFIGURED window at the ad set. Together with insights.attribution_setting it '
-      + 'lets a reporting change be distinguished from a performance change — the hypothesis the diagnostic '
-      + 'engine currently cannot test at all. billing_event and bid_strategy are auction context we never read.',
-  },
-  {
-    id: 'adset.learning_stage_info',
-    kind: 'node',
-    level: 'adset',
-    fields: ['id', 'learning_stage_info'],
-    rationale:
-      'Already requested by listAdSets as learning_stage_info{status}. Probed here to confirm it is genuinely '
-      + 'populated for this account rather than silently omitted — the difference between a real LEARNING regime '
-      + 'and one we would be inventing.',
-  },
-  {
-    id: 'insights.ad_relevance_at_ad_level',
-    kind: 'insights',
-    level: 'ad',
-    fields: ['quality_ranking', 'engagement_rate_ranking', 'conversion_rate_ranking'],
-    rationale:
-      'Adlytic already requests these at ad level. Probed to confirm they are POPULATED for this account — Meta '
-      + 'withholds them below an impression threshold, and a fatigue diagnosis built on a permanently null field '
-      + 'would be built on nothing.',
-  },
-  {
-    id: 'campaign.budget_and_pacing',
-    kind: 'node',
-    level: 'campaign',
-    fields: ['id', 'daily_budget', 'lifetime_budget', 'budget_remaining', 'bid_strategy', 'special_ad_categories'],
-    rationale:
-      'budget_remaining and bid_strategy are the difference between "spend fell" and "the budget was exhausted", '
-      + 'which are opposite diagnoses with opposite actions.',
-  },
-  {
-    id: 'insights.time_increment.hourly',
-    kind: 'insights',
-    level: 'campaign',
+    id: 'breakdown.hourly',
+    kind: 'insights', level: 'campaign',
     fields: ['spend', 'impressions'],
     breakdowns: ['hourly_stats_aggregated_by_advertiser_time_zone'],
+    baseline: { fields: ['spend', 'impressions'] },
+    dimension: 'BREAKDOWN',
+    evidenceField: 'hourly_stats_aggregated_by_advertiser_time_zone',
     rationale:
-      'Decides whether intra-day pacing is observable. Adlytic infers velocity from date_preset=today snapshots; '
-      + 'an hourly breakdown would make it measured instead of inferred.',
+      'Adlytic infers intra-day velocity from date_preset=today snapshots. An hourly breakdown would make '
+      + 'pacing measured instead of inferred.',
+  },
+
+  // ── REPORTING_CONFIG dimension ───────────────────────────────────────
+  {
+    id: 'config.action_breakdowns.action_type',
+    kind: 'insights', level: 'campaign',
+    fields: ['actions', 'cost_per_action_type'],
+    params: { action_breakdowns: 'action_type' },
+    baseline: { fields: ['actions', 'cost_per_action_type'] },
+    dimension: 'REPORTING_CONFIG',
+    evidenceField: 'actions',
+    rationale:
+      'Whether action rows can be split further than the default — decides if result composition can be '
+      + 'reconstructed rather than inferred.',
+  },
+  {
+    id: 'config.unified_attribution',
+    kind: 'insights', level: 'campaign',
+    fields: ['spend', 'actions', 'attribution_setting'],
+    params: { use_unified_attribution_setting: 'true' },
+    baseline: { fields: ['spend', 'actions', 'attribution_setting'] },
+    dimension: 'REPORTING_CONFIG',
+    evidenceField: 'attribution_setting',
+    rationale:
+      'READ-ONLY probe of whether the parameter is ACCEPTED. It is deliberately NOT adopted: switching it on '
+      + 'would change the conversion numbers Adlytic already stores, and §32 forbids replacing a production '
+      + 'number without a discrepancy report first. This run only establishes that the option exists.',
   },
 ];
