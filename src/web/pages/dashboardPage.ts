@@ -332,7 +332,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="hero-30-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="hero-30-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="spend" data-good="neutral"></canvas>
+            <button type="button" class="kpi-spark-btn" data-chart-metric="spend" aria-pressed="false" aria-label="اعرض الإنفاق اليومي في الرسم البياني" title="اعرض الإنفاق اليومي في الرسم البياني"><canvas class="kpi-spark" width="140" height="34" data-spark="spend" data-good="neutral"></canvas></button>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-spend" dir="auto"></div>
         </div>
@@ -344,7 +344,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="hero-7-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="hero-7-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="spend7" data-good="neutral"></canvas>
+            <button type="button" class="kpi-spark-btn" data-chart-metric="spend7" aria-pressed="false" aria-label="اعرض إنفاق آخر 7 أيام في الرسم البياني" title="اعرض إنفاق آخر 7 أيام في الرسم البياني"><canvas class="kpi-spark" width="140" height="34" data-spark="spend7" data-good="neutral"></canvas></button>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-spend7" dir="auto"></div>
         </div>
@@ -368,7 +368,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="kpi-ctr-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="kpi-ctr-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="ctr" data-good="up"></canvas>
+            <button type="button" class="kpi-spark-btn" data-chart-metric="ctr" aria-pressed="false" aria-label="اعرض معدل النقر اليومي في الرسم البياني" title="اعرض معدل النقر اليومي في الرسم البياني"><canvas class="kpi-spark" width="140" height="34" data-spark="ctr" data-good="up"></canvas></button>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-ctr" dir="auto"></div>
         </div>
@@ -380,7 +380,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="kpi-messages-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="kpi-messages-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="messages" data-good="up"></canvas>
+            <button type="button" class="kpi-spark-btn" data-chart-metric="messages" aria-pressed="false" aria-label="اعرض المحادثات اليومية في الرسم البياني" title="اعرض المحادثات اليومية في الرسم البياني"><canvas class="kpi-spark" width="140" height="34" data-spark="messages" data-good="up"></canvas></button>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-messages" dir="auto"></div>
         </div>
@@ -392,7 +392,7 @@ export function dashboardPage(): string {
           <div class="hero-value" id="kpi-cpm-val">—</div>
           <div class="kpi-cmd-bottom">
             <span class="hero-delta flat" id="kpi-cpm-delta">→ —</span>
-            <canvas class="kpi-spark" width="140" height="34" data-spark="cpm" data-good="down"></canvas>
+            <button type="button" class="kpi-spark-btn" data-chart-metric="cpm" aria-pressed="false" aria-label="اعرض التكلفة لكل 1000 ظهور في الرسم البياني" title="اعرض التكلفة لكل 1000 ظهور في الرسم البياني"><canvas class="kpi-spark" width="140" height="34" data-spark="cpm" data-good="down"></canvas></button>
           </div>
           <div class="kpi-cmd-insight" id="kpi-insight-cpm" dir="auto"></div>
         </div>
@@ -426,7 +426,7 @@ export function dashboardPage(): string {
         </div>
         <div class="chart-panel">
           <div class="chart-panel-head">
-            <div class="chart-panel-title">الإنفاق اليومي</div>
+            <div class="chart-panel-title" id="chart-panel-title">الإنفاق اليومي</div>
             <div class="chart-panel-meta" id="chart-panel-meta">—</div>
           </div>
           <div class="chart-panel-canvas"><canvas id="chart-spend-main"></canvas><div class="chart-empty" id="chart-spend-main-empty" style="display:none;">لا توجد بيانات إنفاق في هذه الفترة</div></div>
@@ -951,6 +951,196 @@ export function dashboardPage(): string {
         buildDataset(lbl('Frequency', 'التكرار'), p.freqSeries, cssVar('--series-3', '#7B4B7E'), cssVarAlpha('--series-3', 0.10, '#7B4B7E'), true, 'freq'),
       ]);
     }
+  }
+
+  // ── KPI cards drive the main chart (AdsPulse port) ──────────────────────
+  // One table owns the metric axis: panel title, which day series to read,
+  // the line colour, the tooltip format, and what to say when the series is
+  // empty. Adding a metric means adding a row, not editing a render.
+  //
+  // A metric appears here ONLY when a real day series exists for it — which
+  // is the same condition under which its card draws a sparkline, so the
+  // affordance and the data can never disagree. The lifetime card is
+  // deliberately absent: it is an account total, and inventing a daily
+  // lifetime line would be manufacturing history, which this product does
+  // not do — and that card has no sparkline for exactly the same reason.
+  var MAIN_CHART_METRICS = {
+    spend: {
+      titleAr: 'الإنفاق اليومي', nameEn: 'Spend', nameAr: 'الإنفاق',
+      series: 'spend', token: '--series-1', hex: '#0E4034', fmt: 'currency', unit: 'currency',
+      emptyAr: 'لا توجد بيانات إنفاق في هذه الفترة',
+    },
+    spend7: {
+      titleAr: 'الإنفاق اليومي · آخر 7 أيام', nameEn: 'Spend', nameAr: 'الإنفاق',
+      series: 'spend', tail: 7, token: '--series-1', hex: '#0E4034', fmt: 'currency', unit: 'currency',
+      emptyAr: 'لا توجد بيانات إنفاق في آخر 7 أيام',
+    },
+    ctr: {
+      titleAr: 'معدل النقر اليومي', nameEn: 'CTR (%)', nameAr: 'معدل النقر (٪)',
+      series: 'ctr', token: '--series-5', hex: '#5F8A7D', fmt: 'pct', unitAr: '٪ من الظهور',
+      emptyAr: 'لم تصلنا قراءات تفاعل في هذه الفترة',
+    },
+    messages: {
+      titleAr: 'المحادثات اليومية', nameEn: 'Conversations', nameAr: 'المحادثات',
+      series: 'messages', token: '--series-3', hex: '#7B4B7E', fmt: 'num', unitAr: 'محادثة / يوم',
+      emptyAr: 'لم تصلنا قراءات محادثات في هذه الفترة',
+    },
+    cpm: {
+      titleAr: 'التكلفة لكل 1000 ظهور · يومياً', nameEn: 'CPM', nameAr: 'CPM',
+      series: 'cpm', token: '--series-4', hex: '#B8873B', fmt: 'currency', unit: 'currency',
+      emptyAr: 'لم تصلنا قراءات CPM في هذه الفترة',
+    },
+  };
+  var MAIN_CHART_DEFAULT = 'spend';
+  var mainChartData = null;
+  var mainChartSelectionSettled = false;
+
+  function readStoredMainMetric() {
+    try {
+      var v = localStorage.getItem('adlytic_main_chart_metric');
+      return v && MAIN_CHART_METRICS[v] ? v : MAIN_CHART_DEFAULT;
+    } catch (e) { return MAIN_CHART_DEFAULT; }
+  }
+  var mainChartMetric = readStoredMainMetric();
+
+  /* The remembered metric belongs to whoever last clicked, not to this
+     workspace. Landing on a messages chart in an account that sells orders
+     means an empty panel on arrival for a choice the user made elsewhere, so
+     the FIRST paint after data arrives falls back to spend when the stored
+     metric has nothing to draw. This changes which series is preselected —
+     never what a series says — and only once per page load: an explicit
+     click afterwards is always honoured, empty or not. */
+  function settleInitialMainMetric() {
+    if (mainChartSelectionSettled) return;
+    mainChartSelectionSettled = true;
+    if (mainChartMetric === MAIN_CHART_DEFAULT) return;
+    var spec = MAIN_CHART_METRICS[mainChartMetric];
+    if (spec && !hasPoints(mainChartSeriesFor(spec).values)
+      && hasPoints(mainChartSeriesFor(MAIN_CHART_METRICS[MAIN_CHART_DEFAULT]).values)) {
+      mainChartMetric = MAIN_CHART_DEFAULT;
+    }
+  }
+
+  /** The metric's series, already windowed by its tail if it declares one. */
+  function mainChartSeriesFor(spec) {
+    if (!mainChartData) return { labels: [], values: [], isoDates: [] };
+    var values = mainChartData[spec.series];
+    var labels = mainChartData.labels;
+    var isoDates = mainChartData.isoDates;
+    if (!Array.isArray(values)) return { labels: [], values: [], isoDates: [] };
+    if (spec.tail && values.length > spec.tail) {
+      return {
+        values: values.slice(-spec.tail),
+        labels: labels.slice(-spec.tail),
+        isoDates: isoDates.slice(-spec.tail),
+      };
+    }
+    return { values: values, labels: labels, isoDates: isoDates };
+  }
+
+  function hasPoints(values) {
+    return Array.isArray(values) && values.some(function (v) {
+      return v != null && Number.isFinite(Number(v)) && Number(v) > 0;
+    });
+  }
+
+  /** Paint the main panel for the currently selected metric. */
+  function renderMainChart() {
+    var spec = MAIN_CHART_METRICS[mainChartMetric] || MAIN_CHART_METRICS[MAIN_CHART_DEFAULT];
+    var titleEl = document.getElementById('chart-panel-title');
+    if (titleEl) titleEl.textContent = spec.titleAr;
+
+    // The unit label belongs to the metric, not to the panel. It used to be
+    // set once to the account currency and never touched again, so selecting
+    // CTR produced a percentage axis captioned "IQD" — a unit that lies is
+    // worse than no unit, because the reader trusts it.
+    var metaEl = document.getElementById('chart-panel-meta');
+    if (metaEl) {
+      metaEl.textContent = spec.unit === 'currency'
+        ? (state.currency || '')
+        : (spec.unitAr || '');
+    }
+
+    var emptyEl = document.getElementById('chart-spend-main-empty');
+    var canvasEl = document.getElementById('chart-spend-main');
+    var picked = mainChartSeriesFor(spec);
+
+    if (!picked.labels.length || !hasPoints(picked.values)) {
+      // Say which reading is missing. A generic "no data" under a title the
+      // user just chose reads as a broken product rather than a quiet metric.
+      if (emptyEl) { emptyEl.textContent = spec.emptyAr; emptyEl.style.display = 'flex'; }
+      if (canvasEl) canvasEl.style.display = 'none';
+      destroyChart('chart-spend-main');
+      return;
+    }
+    if (emptyEl) emptyEl.style.display = 'none';
+    if (canvasEl) canvasEl.style.display = '';
+
+    var datasets = [
+      buildDataset(
+        lbl(spec.nameEn, spec.nameAr), picked.values,
+        cssVar(spec.token, spec.hex), cssVarAlpha(spec.token, 0.12, spec.hex),
+        true, spec.fmt,
+      ),
+    ];
+    var markerDataset = buildIssueMarkerDataset(picked.labels, picked.isoDates, state.lastIssueDates);
+    if (markerDataset) datasets.push(markerDataset);
+    makeLineChart('chart-spend-main', picked.labels, datasets, { maxTicks: 10 });
+  }
+
+  /** Reflect the current selection on the cards, and disclose empty metrics. */
+  function syncChartableCards() {
+    document.querySelectorAll('[data-chart-metric]').forEach(function (btn) {
+      var key = btn.getAttribute('data-chart-metric');
+      var spec = MAIN_CHART_METRICS[key];
+      if (!spec) return;
+      var on = key === mainChartMetric;
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      var card = btn.closest ? btn.closest('.kpi-cmd-card') : null;
+      if (card) card.classList.toggle('is-charting', on);
+      // A card whose series is empty stays selectable — pressing it explains
+      // WHY it is empty, which is more useful than a control that does
+      // nothing. It is only marked, so the state is visible before the click.
+      var empty = mainChartData ? !hasPoints(mainChartSeriesFor(spec).values) : false;
+      if (card) card.classList.toggle('is-chart-empty', empty);
+    });
+  }
+
+  function selectMainChartMetric(key) {
+    if (!MAIN_CHART_METRICS[key] || key === mainChartMetric) return;
+    mainChartMetric = key;
+    try { localStorage.setItem('adlytic_main_chart_metric', key); } catch (e) { /* not persisted */ }
+    // Order matters: the old chart must go before the new title lands, or a
+    // hovered tooltip from the previous metric survives the swap and shows a
+    // CPM reading under a CTR axis.
+    destroyChart('chart-spend-main');
+    syncChartableCards();
+    renderMainChart();
+    var panel = document.querySelector('.chart-panel');
+    // On a phone the panel sits well below the cards; a silent swap off-screen
+    // reads as a dead control.
+    if (panel && window.matchMedia && window.matchMedia('(max-width: 900px)').matches) {
+      panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    }
+  }
+
+  function wireChartableCards() {
+    var grid = document.getElementById('hero-grid');
+    if (!grid) return;
+    grid.addEventListener('click', function (e) {
+      if (!e.target || !e.target.closest) return;
+      // The metric-explain button is a separate control living in the same
+      // card; a click on it is not a request to redraw the chart.
+      if (e.target.closest('.info-btn')) return;
+      var btn = e.target.closest('[data-chart-metric]');
+      var card = btn ? null : e.target.closest('.kpi-cmd-card');
+      var key = btn
+        ? btn.getAttribute('data-chart-metric')
+        : (card && card.querySelector('[data-chart-metric]')
+            ? card.querySelector('[data-chart-metric]').getAttribute('data-chart-metric')
+            : null);
+      if (key) selectMainChartMetric(key);
+    });
   }
 
   // buildIssueMarkerDataset — provided by SHARED_JS (layout.ts).
@@ -3873,8 +4063,9 @@ export function dashboardPage(): string {
       if (subtitleEl) {
         subtitleEl.innerHTML = 'Past 30 days · ' + escHtml(wsName) + ' · <span id="dash-last-updated" class="text-3">—</span>';
       }
-      var chartMeta = document.getElementById('chart-panel-meta');
-      if (chartMeta) chartMeta.textContent = state.currency;
+      // The chart panel's unit label is owned by renderMainChart — it depends
+      // on which metric is selected, and a second writer here would restore
+      // the currency over a percentage axis on every refresh.
       updateLastUpdatedLabel(dashData);
       state.lastSyncedAt = (dashData.workspace && dashData.workspace.lastSyncedAt) || null;
       state.lastIssues = Array.isArray(dashData.issues) ? dashData.issues : [];
@@ -3976,6 +4167,12 @@ export function dashboardPage(): string {
       var freqSeries = [];
       var cpmSeries = [];
       var cprSeries = [];
+      // Conversations per day, as its OWN unit. Deliberately not folded into
+      // resultsSeries: that column is whatever single unit this account
+      // reports, which may be orders or leads. The messages KPI card means
+      // conversations and nothing else, so its chart reads the messages
+      // column directly.
+      var messagesSeries = [];
       for (var i = 29; i >= 0; i--) {
         var key = new Date(endMs - i * 86400000).toISOString().slice(0, 10);
         isoDates.push(key);
@@ -3990,6 +4187,7 @@ export function dashboardPage(): string {
           freqSeries.push(null);
           cpmSeries.push(null);
           cprSeries.push(null);
+          messagesSeries.push(null);
         } else {
           var spendMaj = (Number(row.spend) || 0) / state.minorFactor;
           var imp = Number(row.impressions) || 0;
@@ -4022,6 +4220,8 @@ export function dashboardPage(): string {
             cpmSeries.push(Number.isFinite(spendMaj) ? (spendMaj / imp) * 1000 : null);
           }
           cprSeries.push(dayRes != null && dayRes > 0 && spendMaj > 0 ? spendMaj / dayRes : null);
+          var dayMsg = Number(row.messages);
+          messagesSeries.push(Number.isFinite(dayMsg) && dayMsg > 0 ? dayMsg : null);
         }
       }
 
@@ -4068,6 +4268,12 @@ export function dashboardPage(): string {
           var v = Number(ts.cpm[i]);
           return Number.isFinite(v) && v > 0 ? v : null;
         });
+        messagesSeries = isoDates.map(function (iso) {
+          var i = tsByIdx[iso];
+          if (i == null || !Array.isArray(ts.messages) || ts.messages[i] == null) return null;
+          var v = Number(ts.messages[i]);
+          return Number.isFinite(v) && v > 0 ? v : null;
+        });
         cprSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
           if (i == null) return null;
@@ -4093,25 +4299,22 @@ export function dashboardPage(): string {
         cpmSeries: cpmSeries,
         cprSeries: cprSeries,
       };
-      var _chartLabels = labels, _chartIsoDates = isoDates, _spendSeriesMajor = spendSeriesMajor;
+      // The main panel is driven by whichever KPI card is selected, so the
+      // day series it can draw are stashed here rather than closed over by a
+      // single render. Re-rendering on a card click must NOT refetch.
+      mainChartData = {
+        labels: labels,
+        isoDates: isoDates,
+        spend: spendSeriesMajor,
+        ctr: ctrSeries,
+        cpm: cpmSeries,
+        messages: messagesSeries,
+      };
       requestAnimationFrame(function () {
         safeRender('charts', function () {
-          var hasSpend = _spendSeriesMajor.some(function(v){ return v != null && v > 0; });
-          var emptyEl = document.getElementById('chart-spend-main-empty');
-          var canvasEl = document.getElementById('chart-spend-main');
-          if (!hasSpend || !_chartLabels.length) {
-            if (emptyEl) emptyEl.style.display = 'flex';
-            if (canvasEl) canvasEl.style.display = 'none';
-          } else {
-            if (emptyEl) emptyEl.style.display = 'none';
-            if (canvasEl) canvasEl.style.display = '';
-            var spendDatasets = [
-              buildDataset(lbl('Spend', 'الإنفاق'), _spendSeriesMajor, cssVar('--series-1', '#0E4034'), cssVarAlpha('--series-1', 0.12, '#0E4034'), true, 'currency'),
-            ];
-            var markerDataset = buildIssueMarkerDataset(_chartLabels, _chartIsoDates, state.lastIssueDates);
-            if (markerDataset) spendDatasets.push(markerDataset);
-            makeLineChart('chart-spend-main', _chartLabels, spendDatasets, { maxTicks: 10 });
-          }
+          settleInitialMainMetric();
+          syncChartableCards();
+          renderMainChart();
           renderAdvancedCharts(false);
         });
       });
@@ -4129,6 +4332,7 @@ export function dashboardPage(): string {
   async function init() {
     try {
       wireMainMoveActions();
+      wireChartableCards();
       wireConnectivityState();
       wireStateRetry();
       wireFilterSheet();

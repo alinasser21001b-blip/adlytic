@@ -145,5 +145,53 @@ if (gridRule < 0) {
   }
 }
 
+// ── The main chart's axis may not be captioned with the wrong unit ────
+// The KPI cards drive the main chart, so its unit caption changes with the
+// selection. It was previously written ONCE with the account currency and
+// never touched again — selecting CTR produced a percentage axis captioned
+// "IQD". A unit that lies is worse than no unit: the reader trusts it.
+//
+// Three rules keep that fixed:
+//   1. every metric row declares its unit (currency, or an explicit label),
+//   2. renderMainChart is the only writer of the caption element,
+//   3. no metric may be listed that has no day series to draw — the table
+//      is what the sparkline affordance promises, and `lifetime` is an
+//      account total with no honest daily line.
+console.log('\n── the main chart names its own unit ──');
+const dashSrc = readFileSync('src/web/pages/dashboardPage.ts', 'utf8');
+
+const tableStart = dashSrc.indexOf('var MAIN_CHART_METRICS = {');
+if (tableStart < 0) {
+  fail('MAIN_CHART_METRICS not found — the KPI-driven chart lost its metric table');
+} else {
+  const tableEnd = dashSrc.indexOf('\n  };', tableStart);
+  const table = dashSrc.slice(tableStart, tableEnd);
+
+  const rows = [...table.matchAll(/^\s{4}(\w+):\s*\{/gm)].map((m) => m[1]);
+  if (!rows.length) fail('MAIN_CHART_METRICS parsed to zero rows — this rule is checking nothing');
+
+  for (const row of rows) {
+    const body = table.slice(table.indexOf(row + ': {'));
+    const end = body.indexOf('\n    },');
+    const spec = body.slice(0, end);
+    if (!/unit:\s*'currency'/.test(spec) && !/unitAr:\s*'[^']+'/.test(spec)) {
+      fail(`MAIN_CHART_METRICS.${row} declares no unit — its axis would inherit whatever caption the previous metric left`);
+    }
+  }
+  if (rows.includes('lifetime')) {
+    fail('MAIN_CHART_METRICS lists `lifetime` — that is an account total with no day series; charting it would manufacture history');
+  }
+  if (!bad) console.log(`  ✓ ${rows.length} metrics, each declaring a unit, none of them a running total`);
+}
+
+const metaWrites = [...dashSrc.matchAll(/chart-panel-meta'\)[\s\S]{0,120}?textContent\s*=/g)].length;
+if (metaWrites !== 1) {
+  fail(`the chart unit caption has ${metaWrites} writers — it must have exactly one (renderMainChart), or a refresh restores the currency over a percentage axis`);
+} else {
+  const owner = dashSrc.lastIndexOf('function renderMainChart', dashSrc.search(/chart-panel-meta'\)[\s\S]{0,120}?textContent\s*=/));
+  if (owner < 0) fail('the single unit-caption writer is not inside renderMainChart');
+  else console.log('  ✓ the unit caption has exactly one writer, and it is renderMainChart');
+}
+
 console.log(`\n════ ${bad === 0 ? 'UI state integrity OK' : bad + ' FAILURES'} ════\n`);
 process.exit(bad ? 1 : 0);

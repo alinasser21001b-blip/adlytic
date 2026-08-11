@@ -541,6 +541,51 @@ export const dashboardStyles = `<style>
       box-shadow: none;
       transform: translateY(-2px);
     }
+
+    /* ── KPI cards drive the main chart (AdsPulse port) ─────────────────
+       The sparkline IS the control: pressing the small chart draws the big
+       one. That mapping also keeps the affordance honest — a card only has
+       a sparkline when a real day series exists, so a card can never offer
+       to chart something there is no series for. The lifetime card has no
+       sparkline and therefore no control, which is the correct answer for
+       an account total. */
+    .kpi-spark-btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      padding: 3px; margin: -3px;
+      background: transparent;
+      /* A resting boundary, not just a hover one: before this the sparkline
+         looked like decoration and nobody would learn it was pressable.
+         --border-control is the token for a control's edge, same as every
+         input and icon button in the product. */
+      border: 1px solid var(--border-control);
+      border-radius: 8px; cursor: pointer;
+      transition: border-color 0.15s, background 0.15s;
+    }
+    .kpi-spark-btn:hover { border-color: var(--accent); background: var(--surface-2); }
+    .kpi-cmd-card:has(.kpi-spark-btn) { cursor: pointer; }
+    .kpi-cmd-card.is-charting {
+      border-color: var(--accent);
+    }
+    /* The selected card carries a marker on the block-start edge. Logical
+       inset so it lands on the correct side in RTL without a mirror rule. */
+    .kpi-cmd-card.is-charting::after {
+      content: "";
+      position: absolute; inset-block-start: 0; inset-inline: 0;
+      height: 3px; background: var(--accent);
+    }
+    .kpi-cmd-card.is-charting .kpi-spark-btn {
+      border-color: var(--accent);
+      background: var(--accent-dim);
+    }
+    /* Marked before the click, not after: a metric with no readings in the
+       period still selects (pressing it says WHY it is empty), but the card
+       says so up front instead of looking broken. */
+    .kpi-cmd-card.is-chart-empty .kpi-spark-btn { opacity: 0.45; }
+
+    /* The canvas is 34px tall, so the button around it needs the touch floor.
+       It is NOT declared here: .kpi-spark-btn joins the shared icon-control
+       floor in layout.ts, so this control is governed by the same rule and
+       the same breakpoint as every other icon button in the product. */
     .kpi-cmd-top {
       display: flex; align-items: center; gap: 8px;
       margin-bottom: 8px;

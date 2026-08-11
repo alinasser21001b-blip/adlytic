@@ -1978,7 +1978,7 @@ export const MOBILE_FLOORS_CSS = `
   }
 
   /* Icon-only controls: keep the glyph small, grow the hit area around it. */
-  .info-btn, .topbar-btn, .icon-btn, .cmd-refresh-btn {
+  .info-btn, .topbar-btn, .icon-btn, .cmd-refresh-btn, .kpi-spark-btn {
     min-width: 44px; min-height: 44px;
     display: inline-flex; align-items: center; justify-content: center;
   }
