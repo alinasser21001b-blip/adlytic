@@ -18,6 +18,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { TOKENS_CSS_PATH } from '../layout';
+import { adminSurfaceNav } from './adminSurfaceNav';
 
 export function metaReadinessPage(): string {
   return `<!DOCTYPE html>
@@ -58,6 +59,7 @@ export function metaReadinessPage(): string {
     .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
     .nav-item:hover { background: var(--surface-2); color: var(--text); }
+    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 10px 12px 4px; letter-spacing: 0.04em; }
     .nav-item.active { background: var(--accent-dim); color: var(--accent); }
     .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
     .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
@@ -147,18 +149,7 @@ export function metaReadinessPage(): string {
   <aside class="sidebar">
     <div class="sidebar-logo">Ad<span>lytic</span></div>
     <nav class="sidebar-nav">
-      <a class="nav-item" href="/dashboard">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-        Dashboard
-      </a>
-      <a class="nav-item" href="/admin">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l8 4v6c0 5-3.5 9-8 10-4.5-1-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/></svg>
-        Admin
-      </a>
-      <a class="nav-item active" href="/admin/meta-readiness">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-        Meta Readiness
-      </a>
+      ${adminSurfaceNav('readiness')}
     </nav>
     <div class="sidebar-bottom">
       <div class="nav-item" id="sidebar-user" style="pointer-events:none;">

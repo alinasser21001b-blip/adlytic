@@ -102,6 +102,8 @@ export function adminConsolePage(): string {
       padding: 16px; border-radius: 12px; border: 1px solid var(--border);
       background: linear-gradient(145deg, var(--accent-dim), var(--surface));
     }
+    .kpi[data-goto] { cursor: pointer; transition: border-color 0.15s; }
+    .kpi[data-goto]:hover { border-color: var(--accent); }
     .kpi-label { font-size: 12px; color: var(--text-3); font-weight: 700; margin-bottom: 6px; }
     .kpi-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
     .kpi-value.gold { color: var(--accent); }
@@ -221,22 +223,24 @@ export function adminConsolePage(): string {
       <div class="logo-sub">لوحة المالك · إدارة المنصة</div>
     </div>
     <nav class="nav">
-      <div class="nav-label">📊 النظرة العامة</div>
+      <div class="nav-label">📊 الرئيسية</div>
       <a class="nav-item active" href="#overview" data-tab="overview">لوحة الحالة</a>
-      <div class="nav-label">⚙️ العمليات</div>
+      <div class="nav-label">👥 الزبائن</div>
       <a class="nav-item" href="#customers" data-tab="customers">الزبائن</a>
       <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
-      <a class="nav-item" href="/admin/add-client">إضافة عميل</a>
+      <a class="nav-item" href="/admin/add-client">إضافة عميل (المعالج)</a>
+      <div class="nav-label">💳 الإيرادات</div>
       <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
-      <a class="nav-item" href="/admin/inbox">صندوق بريد العملاء</a>
+      <div class="nav-label">🛟 الدعم</div>
+      <a class="nav-item" href="/admin/inbox">صندوق الدعم</a>
       <div class="nav-label">🔧 البنية التحتية</div>
       <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
       <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
-      <div class="nav-label">🎛️ الإعدادات والتحكم</div>
       <a class="nav-item" href="#probe" data-tab="probe">مرقاب قدرات Meta</a>
+      <div class="nav-label">🎛️ الإعدادات</div>
       <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
-      <a class="nav-item" href="/dashboard">لوحة التحكم</a>
+      <a class="nav-item" href="/dashboard">⌂ العودة للتطبيق</a>
     </nav>
     <div class="nav-foot">
       <div class="muted" id="admin-email">—</div>
@@ -266,26 +270,26 @@ export function adminConsolePage(): string {
         </div>
         <div class="panel-body">
           <div class="kpi-grid" id="kpi-grid">
-            <div class="kpi"><div class="kpi-label">إجمالي الزبائن</div><div class="kpi-value" id="kpi-users">—</div></div>
-            <div class="kpi"><div class="kpi-label">نشطون</div><div class="kpi-value" id="kpi-active">—</div></div>
-            <div class="kpi"><div class="kpi-label">بانتظار التفعيل</div><div class="kpi-value" id="kpi-pending">—</div></div>
-            <div class="kpi"><div class="kpi-label">اشتراكات Premium</div><div class="kpi-value gold" id="kpi-premium">—</div></div>
+            <div class="kpi" data-goto="#customers"><div class="kpi-label">إجمالي الزبائن</div><div class="kpi-value" id="kpi-users">—</div></div>
+            <div class="kpi" data-goto="#customers"><div class="kpi-label">نشطون</div><div class="kpi-value" id="kpi-active">—</div></div>
+            <div class="kpi" data-goto="#customers"><div class="kpi-label">بانتظار التفعيل</div><div class="kpi-value" id="kpi-pending">—</div></div>
+            <div class="kpi" data-goto="#subscriptions"><div class="kpi-label">اشتراكات Premium</div><div class="kpi-value gold" id="kpi-premium">—</div></div>
           </div>
 
           <div class="kpi-grid" id="kpi-grid-2" style="margin-top:16px;">
             <div class="kpi"><div class="kpi-label">مساحات العمل</div><div class="kpi-value" id="kpi-workspaces">—</div></div>
-            <div class="kpi"><div class="kpi-label">المزامنة (7 أيام)</div><div class="kpi-value" id="kpi-syncs">—</div></div>
+            <div class="kpi" data-goto="/admin/observability"><div class="kpi-label">المزامنة (7 أيام)</div><div class="kpi-value" id="kpi-syncs">—</div></div>
             <div class="kpi"><div class="kpi-label">محادثات AI (7 أيام)</div><div class="kpi-value" id="kpi-ai">—</div></div>
-            <div class="kpi"><div class="kpi-label">أحداث الدفع (7 أيام)</div><div class="kpi-value" id="kpi-payments">—</div></div>
+            <div class="kpi" data-goto="#ledger"><div class="kpi-label">أحداث الدفع (7 أيام)</div><div class="kpi-value" id="kpi-payments">—</div></div>
           </div>
 
           <div style="margin-top:20px;">
             <div class="panel-title" style="font-size:14px;margin-bottom:12px;">الدعم الفني</div>
             <div class="kpi-grid" id="kpi-support">
-              <div class="kpi"><div class="kpi-label">تحتاج رد</div><div class="kpi-value" id="kpi-support-open" style="color:var(--error);">—</div></div>
-              <div class="kpi"><div class="kpi-label">بانتظار العميل</div><div class="kpi-value" id="kpi-support-awaiting" style="color:var(--accent);">—</div></div>
-              <div class="kpi"><div class="kpi-label">عاجل</div><div class="kpi-value" id="kpi-support-urgent" style="color:var(--error);">—</div></div>
-              <div class="kpi"><div class="kpi-label">تم الحل</div><div class="kpi-value" id="kpi-support-resolved">—</div></div>
+              <div class="kpi" data-goto="/admin/inbox"><div class="kpi-label">تحتاج رد</div><div class="kpi-value" id="kpi-support-open" style="color:var(--error);">—</div></div>
+              <div class="kpi" data-goto="/admin/inbox"><div class="kpi-label">بانتظار العميل</div><div class="kpi-value" id="kpi-support-awaiting" style="color:var(--accent);">—</div></div>
+              <div class="kpi" data-goto="/admin/inbox"><div class="kpi-label">عاجل</div><div class="kpi-value" id="kpi-support-urgent" style="color:var(--error);">—</div></div>
+              <div class="kpi" data-goto="/admin/inbox"><div class="kpi-label">تم الحل</div><div class="kpi-value" id="kpi-support-resolved">—</div></div>
             </div>
           </div>
 
@@ -1315,6 +1319,18 @@ export function adminConsolePage(): string {
       e.preventDefault();
       showView(el.getAttribute('data-tab'));
     });
+  });
+
+  // KPI cards on the overview are doors, not just numbers: the count of
+  // pending activations IS the customers tab filtered mentally — take the
+  // operator there in one click.
+  document.body.addEventListener('click', function (e) {
+    var g = e.target.closest && e.target.closest('[data-goto]');
+    if (!g) return;
+    var dest = g.getAttribute('data-goto');
+    if (!dest) return;
+    if (dest.charAt(0) === '#') showView(dest.slice(1));
+    else window.location.href = dest;
   });
 
   document.body.addEventListener('click', function (e) {

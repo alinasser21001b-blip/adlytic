@@ -1,4 +1,5 @@
 import { TOKENS_CSS_PATH } from '../layout';
+import { adminSurfaceNav } from './adminSurfaceNav';
 
 export function adminInboxPage(): string {
   return `<!DOCTYPE html>
@@ -178,6 +179,7 @@ export function adminInboxPage(): string {
       <div class="logo-sub">صندوق الدعم · Customer Inbox</div>
     </div>
     <nav class="nav">
+      ${adminSurfaceNav('inbox')}
       <div class="nav-label">صندوق الوارد</div>
       <a class="nav-item active" data-filter="OPEN">
         <span>تحتاج رد</span>

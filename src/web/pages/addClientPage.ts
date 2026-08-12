@@ -22,6 +22,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { TOKENS_CSS_PATH } from '../layout';
+import { adminSurfaceNav } from './adminSurfaceNav';
 
 export function addClientPage(): string {
   return `<!DOCTYPE html>
@@ -336,11 +337,7 @@ export function addClientPage(): string {
       <div class="logo-sub">لوحة المالك · إضافة عميل</div>
     </div>
     <nav class="nav">
-      <div class="nav-label">⚙️ العمليات</div>
-      <a class="nav-item" href="/admin">لوحة الإدارة</a>
-      <a class="nav-item active" href="/admin/add-client">إضافة عميل</a>
-      <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
-      <a class="nav-item" href="/dashboard">لوحة التحكم</a>
+      ${adminSurfaceNav('add-client')}
     </nav>
     <div class="nav-foot">
       <div class="muted" id="admin-email">—</div>

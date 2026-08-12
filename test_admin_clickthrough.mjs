@@ -112,6 +112,13 @@ for (const [name, doc] of [['inbox', html.inbox], ['observability', html.observa
   const errs = errors.filter((e) => !e.includes('favicon'));
   if (errs.length) { for (const e of errs) { report.push(['FAIL', `${name}: ${e}`]); failures++; } }
   else report.push(['ok', `${name}: loaded with zero JS errors`]);
+
+  // The inbox once had NO way back to the console — a dead end. Every admin
+  // surface must carry the full shared nav so no page can regress into one.
+  const SURFACE_HREFS = ['/admin', '/admin/inbox', '/admin/add-client', '/admin/observability', '/admin/meta-readiness', '/dashboard'];
+  const missing = SURFACE_HREFS.filter((h) => !doc.includes(`href="${h}"`));
+  if (missing.length) { report.push(['FAIL', `${name}: surface nav missing links: ${missing.join(', ')}`]); failures++; }
+  else report.push(['ok', `${name}: full surface nav present (${SURFACE_HREFS.length} destinations)`]);
   await page.close();
 }
 
