@@ -76,6 +76,7 @@ import { buildActivationWhatsappLink } from '../services/activationWhatsappLink'
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { adminConsolePage } from '../web/pages/adminConsolePage';
+import { adminSessionSyncPage } from '../web/pages/adminSessionSyncPage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
@@ -628,7 +629,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   async function adminPage(c: Context, render: () => string) {
     const cookie = readSessionCookie(c.req.header('cookie'));
     const userId = await getUserId(cookie);
-    if (!userId) return c.redirect('/login', 302);
+    // No valid cookie ≠ no valid session: the SPA's localStorage JWT may be
+    // perfectly alive while the cookie expired on its own 30-day clock. Serve
+    // the sync page (spinner only, leaks nothing) — it re-issues the cookie
+    // from the bearer and reloads, or sends a truly logged-out visitor to
+    // /login. The old hard redirect here was the "admin item logs me out" bug.
+    if (!userId) return c.html(adminSessionSyncPage());
     const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
     if (!user || !isPlatformAdminEmail(user.email)) return c.redirect('/dashboard', 302);
     return c.html(render());
@@ -770,6 +776,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   const INACTIVE_ALLOWED_API = new Set([
     '/api/auth/me',
     '/api/activation/whatsapp-link',
+    // Cookie re-issue for the /admin SSR gate. A platform admin's own user row
+    // may be inactive (admin status lives in PLATFORM_ADMIN_EMAILS, not in
+    // isActive) — blocking this here would strand exactly that admin in a
+    // login loop the sync page exists to prevent.
+    '/api/auth/session-cookie',
   ]);
 
   // Block inactive accounts from all authenticated APIs except the allowlist above.
@@ -1113,6 +1124,29 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    */
   app.post('/api/auth/logout', (c) => {
     clearSessionCookie(c);
+    return c.json({ success: true });
+  });
+
+  /**
+   * POST /api/auth/session-cookie — re-issue the session cookie from a valid
+   * bearer token.
+   *
+   * The SPA's localStorage JWT and the /admin SSR cookie run on independent
+   * clocks and desynchronize legitimately (cookie Max-Age expiry, a
+   * tokenVersion bump, a logout that only cleared localStorage). Called by
+   * the admin session-sync page to heal that split instead of bouncing a
+   * validly-authenticated operator to /login.
+   *
+   * Same trust chain as every API call: verifyToken + tokenVersion revocation
+   * check inside getUserId. The cookie stores the SAME JWT the caller already
+   * holds — this route grants nothing, it only changes where the proof lives.
+   */
+  app.post('/api/auth/session-cookie', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    setSessionCookie(c, req.bearerToken);
     return c.json({ success: true });
   });
 

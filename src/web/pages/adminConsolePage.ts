@@ -81,7 +81,23 @@ export function adminConsolePage(): string {
     .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
-    @media (max-width: 1024px) { .kpi-grid { grid-template-columns: repeat(2, 1fr); } .sidebar { display: none; } }
+    /* ≤1024px: the sidebar used to be display:none here, which removed the ONLY
+       navigation the console has — on a tablet no tab was reachable at all.
+       It folds into a horizontal strip instead. */
+    @media (max-width: 1024px) {
+      .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+      .app { flex-direction: column; }
+      .sidebar {
+        position: static; width: 100%; height: auto;
+        border-left: none; border-bottom: 1px solid var(--border);
+      }
+      .logo { display: none; }
+      .nav { flex-direction: row; overflow-x: auto; padding: 8px 10px; gap: 6px; -webkit-overflow-scrolling: touch; }
+      .nav-label { display: none; }
+      .nav-item { white-space: nowrap; padding: 8px 12px; flex-shrink: 0; }
+      .nav-foot { display: none; }
+    }
+    @media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; } }
     .kpi {
       padding: 16px; border-radius: 12px; border: 1px solid var(--border);
       background: linear-gradient(145deg, var(--accent-dim), var(--surface));
@@ -154,6 +170,12 @@ export function adminConsolePage(): string {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
       background: var(--bg);
     }
+    .hint { font-size: 12.5px; color: var(--text-3); line-height: 1.7; margin-bottom: 10px; max-width: 720px; }
+    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+    .row label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+    .btn-ghost { background: var(--surface-2); border: 1px solid var(--border-control); color: var(--text-2); }
+    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+    .probe-h { font-size: 13px; font-weight: 800; color: var(--accent-2); margin: 14px 0 8px; }
     .probe-doc {
       background: var(--surface-2);
       border: 1px solid var(--border);
@@ -434,33 +456,40 @@ export function adminConsolePage(): string {
         </div>
       </section>
 
-      <!-- Settings -->
+      <!-- Meta capability probe -->
       <section class="panel view" id="view-probe" style="display:none;">
-        <h2>مرقاب قدرات Meta</h2>
-        <p class="hint">
-          يسأل Meta عن كل قدرة مرشَّحة على حدة ويسجّل ما ردّت به. <strong>قراءة فقط</strong> —
-          لا يكتب شيئاً في Meta ولا في قاعدة بياناتنا. محدود بأربعين نداءً، ويتوقّف عند أول
-          حدّ معدّل بدل استنزاف حصة الحساب.
-        </p>
-        <p class="hint">
-          الناتج وثيقتان جاهزتان للنسخ. حكم «لم يُختبَر» ليس رأياً من Meta — بل يعني أننا لم نسأل.
-        </p>
-        <div class="row">
-          <label for="probe-ws">مساحة العمل</label>
-          <select id="probe-ws"><option value="">جارٍ التحميل…</option></select>
-          <button class="btn" id="probe-run" type="button" disabled>شغّل المرقاب</button>
-          <span id="probe-status" class="hint"></span>
-        </div>
-        <div id="probe-tally" class="probe-tally"></div>
-        <div id="probe-out" style="display:none;">
-          <div class="row">
-            <button class="btn btn-ghost" type="button" data-probe-copy="probe-matrix">نسخ المصفوفة</button>
-            <button class="btn btn-ghost" type="button" data-probe-copy="probe-report">نسخ التقرير</button>
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">مرقاب قدرات Meta</div>
+            <div class="panel-sub">قراءة فقط · حدّ أقصى ٤٠ نداءً · يتوقّف عند أول حدّ معدّل</div>
           </div>
-          <h3>المصفوفة</h3>
-          <pre class="probe-doc" id="probe-matrix"></pre>
-          <h3>التقرير</h3>
-          <pre class="probe-doc" id="probe-report"></pre>
+        </div>
+        <div class="panel-body">
+          <p class="hint">
+            يسأل Meta عن كل قدرة مرشَّحة على حدة ويسجّل ما ردّت به. <strong>قراءة فقط</strong> —
+            لا يكتب شيئاً في Meta ولا في قاعدة بياناتنا. محدود بأربعين نداءً، ويتوقّف عند أول
+            حدّ معدّل بدل استنزاف حصة الحساب.
+          </p>
+          <p class="hint">
+            الناتج وثيقتان جاهزتان للنسخ. حكم «لم يُختبَر» ليس رأياً من Meta — بل يعني أننا لم نسأل.
+          </p>
+          <div class="row">
+            <label for="probe-ws">مساحة العمل</label>
+            <select class="field field-sm" id="probe-ws" style="min-width:220px;"><option value="">جارٍ التحميل…</option></select>
+            <button class="btn btn-primary btn-sm" id="probe-run" type="button" disabled>شغّل المرقاب</button>
+            <span id="probe-status" class="hint" style="margin-bottom:0;"></span>
+          </div>
+          <div id="probe-tally" class="probe-tally"></div>
+          <div id="probe-out" style="display:none;">
+            <div class="row">
+              <button class="btn btn-ghost btn-sm" type="button" data-probe-copy="probe-matrix">نسخ المصفوفة</button>
+              <button class="btn btn-ghost btn-sm" type="button" data-probe-copy="probe-report">نسخ التقرير</button>
+            </div>
+            <h3 class="probe-h">المصفوفة</h3>
+            <pre class="probe-doc" id="probe-matrix"></pre>
+            <h3 class="probe-h">التقرير</h3>
+            <pre class="probe-doc" id="probe-report"></pre>
+          </div>
         </div>
       </section>
 
@@ -519,7 +548,11 @@ export function adminConsolePage(): string {
   function token() { try { return localStorage.getItem('adlytic_token'); } catch (e) { return null; } }
   function logout() {
     try { localStorage.removeItem('adlytic_token'); } catch (e) {}
-    window.location.href = '/login';
+    // The SSR /admin gate reads an HttpOnly cookie the browser cannot clear
+    // itself. Leaving it alive after clearing localStorage is exactly the
+    // desync that bounced admins between /admin and /login.
+    var go = function () { window.location.href = '/login'; };
+    try { fetch('/api/auth/logout', { method: 'POST' }).then(go, go); } catch (e) { go(); }
   }
   // ── Meta capability probe ────────────────────────────────────────────
   // Read-only against Meta. The run spends the ACCOUNT'S quota, so the button
@@ -535,16 +568,18 @@ export function adminConsolePage(): string {
       var data = await api('/api/admin/customers?status=all&take=200');
       var seen = {};
       var opts = [];
+      // The endpoint returns FLATTENED rows: u.workspaces[] with adAccountCount
+      // (see listCustomers in adminConsole.ts) — NOT raw Prisma membership
+      // rows. The first version of this loader read the raw shape, found
+      // nothing, and reported "no workspace with an ad account" forever —
+      // which blocked the probe from the panel built to run it.
       (data.customers || []).forEach(function (u) {
-        (u.memberships || []).forEach(function (m) {
-          var w = m && m.workspace;
+        (u.workspaces || []).forEach(function (w) {
           if (!w || !w.id || seen[w.id]) return;
           // Only workspaces that HAVE an ad account. The probe needs a token
           // and an object to ask about; offering the rest guarantees a "no ad
           // account" error the operator cannot act on.
-          var n = w._count && w._count.adAccounts != null
-            ? w._count.adAccounts
-            : (w.adAccounts || []).length;
+          var n = w.adAccountCount != null ? w.adAccountCount : (w.adAccounts || []).length;
           if (!n) return;
           seen[w.id] = true;
           opts.push({ id: w.id, name: w.name || w.id });
@@ -718,11 +753,24 @@ export function adminConsolePage(): string {
       settings: ['view-settings', 'إعدادات المنصة'],
     };
     var conf = map[name] || map.overview;
+    if (!map[name]) name = 'overview';
     if (name === 'overview') loadOverviewData();
     if (name === 'probe') loadProbeWorkspaces();
     document.getElementById(conf[0]).style.display = '';
     document.getElementById('page-heading').textContent = conf[1];
+    // Deep links and refresh land on the same tab instead of resetting to
+    // overview. replaceState (not location.hash=) so this never re-triggers
+    // the hashchange listener and loops.
+    if (('#' + name) !== location.hash) {
+      try { history.replaceState(null, '', '#' + name); } catch (e) {}
+    }
   }
+
+  function tabFromHash() {
+    var h = (location.hash || '').replace('#', '');
+    return h || 'overview';
+  }
+  window.addEventListener('hashchange', function () { showView(tabFromHash()); });
 
   function statusBadge(active) {
     return active
@@ -951,6 +999,9 @@ export function adminConsolePage(): string {
       if (accessGate) accessGate.classList.add('hidden');
       document.querySelector('.app').style.display = 'flex';
       document.getElementById('admin-email').textContent = me.email || (me.user && me.user.email) || '';
+      // Re-arm the cookie-sync loop guard: a future cookie/bearer desync may
+      // heal again now that this load proved the session sound.
+      try { sessionStorage.removeItem('adm_sync'); } catch (e) {}
       return true;
     } catch (e) {
       // 401 already redirected inside api(). For any other failure we cannot
@@ -989,6 +1040,9 @@ export function adminConsolePage(): string {
       renderCustomers(state.customers);
       renderSubscriptions();
       renderLedger(state.events);
+      // Alerts read state.overview (pending-activation count); refresh them
+      // now that it exists instead of leaving the boot-time render stale.
+      loadOverviewData();
     } catch (e) {
       gate.style.display = '';
       if (e.status === 403 || e.status === 503) {
@@ -1286,7 +1340,7 @@ export function adminConsolePage(): string {
   if (!token()) { window.location.replace('/login'); return; }
   ensureAdmin().then(function (ok) {
     if (!ok) return;
-    showView('overview');
+    showView(tabFromHash());
     loadAll();
     loadSettings();
   });

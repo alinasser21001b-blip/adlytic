@@ -32,6 +32,12 @@ async function main() {
   } catch (e) {
     bad(`adminConsolePage could not be loaded at all — ${(e as Error).message.slice(0, 160)}`);
   }
+  try {
+    const mod = await import('./src/web/pages/adminSessionSyncPage');
+    PAGES.push({ name: 'adminSessionSyncPage', html: (mod.adminSessionSyncPage as unknown as () => string)() });
+  } catch (e) {
+    bad(`adminSessionSyncPage could not be loaded at all — ${(e as Error).message.slice(0, 160)}`);
+  }
   if (PAGES.length === 0) {
     console.error('\n════ 1 FAILURES ════\n');
     process.exit(1);
@@ -109,6 +115,52 @@ async function main() {
     // but the page must not invent a place to put one either.
     if (/access_token|accessToken/.test(html)) bad('the admin page mentions a token');
     else ok('no token anywhere in the served page');
+
+    // API-shape guard. /api/admin/customers returns FLATTENED rows —
+    // u.workspaces[] with adAccountCount — not raw Prisma memberships. The
+    // probe workspace loader once read `u.memberships[].workspace`, found
+    // nothing, and reported "no workspace with an ad account" forever, which
+    // blocked the probe from the very panel built to run it. tsc cannot see
+    // this: the script is an opaque string to it.
+    if (/\.memberships\b/.test(html)) bad('the console script reads .memberships — the customers API returns flattened .workspaces');
+    else if (!html.includes('adAccountCount')) bad('the console script no longer reads adAccountCount — probe dropdown shape drifted');
+    else ok('probe workspace loader reads the flattened customers shape');
+
+    // Every class the probe panel uses must exist in the page CSS. The panel
+    // once shipped with .hint/.row/.btn-ghost undefined and rendered as bare
+    // unstyled text.
+    const probeSection = html.slice(html.indexOf('id="view-probe"'), html.indexOf('id="view-settings"'));
+    const usedClasses = [...new Set([...probeSection.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)))];
+    // A class earns its keep either as a CSS rule or as a JS selector hook
+    // (querySelectorAll('.view')); only a class referenced NOWHERE outside its
+    // own class="" attribute is dead styling.
+    const css = html.slice(0, html.indexOf('</style>'));
+    const script = html.slice(html.indexOf('</style>'));
+    const undefinedClasses = usedClasses.filter((cls) => {
+      if (!cls) return false;
+      const escd = cls.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return !new RegExp(`\\.${escd}[\\s,{.:]`).test(css) && !script.includes(`'.${cls}'`);
+    });
+    if (undefinedClasses.length) bad(`probe panel uses CSS classes never defined: ${undefinedClasses.join(', ')}`);
+    else ok(`all ${usedClasses.length} probe-panel classes are defined in the page CSS`);
+  }
+
+  // 5. The session-sync page heals the cookie/bearer desync without looping.
+  console.log('\n── the session-sync page is safe ──');
+  {
+    const sync = PAGES.find((p) => p.name === 'adminSessionSyncPage');
+    if (!sync) bad('adminSessionSyncPage missing from the checked set');
+    else {
+      const h = sync.html;
+      if (!h.includes("'/api/auth/session-cookie'")) bad('sync page does not call the cookie re-issue route');
+      else ok('sync page calls /api/auth/session-cookie');
+      if (!h.includes('adm_sync')) bad('sync page has no loop guard — a dead bearer would reload forever');
+      else ok('one-attempt loop guard present');
+      if (!h.includes("location.replace('/login')")) bad('sync page has no logged-out fallback to /login');
+      else ok('logged-out visitors fall back to /login');
+      if (/kpi|customers|drawer|admin-email/.test(h)) bad('sync page leaks admin markup to unauthenticated viewers');
+      else ok('no admin structure leaks before authentication');
+    }
   }
 
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
