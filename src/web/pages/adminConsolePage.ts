@@ -172,6 +172,22 @@ export function adminConsolePage(): string {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
       background: var(--bg);
     }
+    .ps-split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 900px) { .ps-split { grid-template-columns: 1fr; } }
+    .ps-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; }
+    .ps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+    .ps-title { font-size: 14px; font-weight: 800; }
+    .ps-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px; }
+    .ps-label { font-size: 11px; font-weight: 700; color: var(--text-3); letter-spacing: 0.03em; margin-bottom: 4px; }
+    .ps-value { font-size: 24px; font-weight: 800; line-height: 1.1; }
+    .ps-cov.ok { color: var(--success); }
+    .ps-cov.warn { color: var(--warning); }
+    .ps-cov.err { color: var(--error); }
+    .ps-fresh {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+      padding: 10px 14px; margin-bottom: 18px; flex-wrap: wrap;
+    }
     .hint { font-size: 12.5px; color: var(--text-3); line-height: 1.7; margin-bottom: 10px; max-width: 720px; }
     .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
     .row label { font-size: 12px; font-weight: 700; color: var(--text-2); }
@@ -269,6 +285,44 @@ export function adminConsolePage(): string {
           </div>
         </div>
         <div class="panel-body">
+          <!-- منصة كاملة في نظرة: الوصول ثم صحة الذكاء — نفس أرقام
+               /api/admin/platform-stats التي كانت حبيسة صفحة المراقبة. -->
+          <div class="ps-split">
+            <div class="ps-card">
+              <div class="ps-head"><span class="ps-title">الوصول</span><span class="muted">كل مساحات العمل</span></div>
+              <div class="ps-grid">
+                <div><div class="ps-label">مساحات العمل</div><div class="ps-value" id="ps-workspaces">—</div></div>
+                <div><div class="ps-label">حسابات إعلانية</div><div class="ps-value" id="ps-adaccounts">—</div></div>
+                <div><div class="ps-label">حسابات نشطة</div><div class="ps-value" id="ps-active-accounts">—</div></div>
+                <div><div class="ps-label">حملات نشطة</div><div class="ps-value" id="ps-campaigns">—</div></div>
+              </div>
+            </div>
+            <div class="ps-card">
+              <div class="ps-head"><span class="ps-title">صحة الذكاء</span><span class="muted" id="ps-brain-window">—</span></div>
+              <div class="ps-grid">
+                <div><div class="ps-label">لقطات</div><div class="ps-value" id="ps-snapshots">—</div></div>
+                <div><div class="ps-label">مسرودة</div><div class="ps-value" id="ps-narrated">—</div></div>
+                <div style="grid-column:1/-1;"><div class="ps-label">التغطية السردية</div><div class="ps-value ps-cov" id="ps-coverage">—</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="ps-card" style="margin-bottom:14px;">
+            <div class="ps-head">
+              <span class="ps-title">الأموال المُدارة</span>
+              <span class="muted">العملة الأصلية · ميزانيات يومية (حملات نشطة)</span>
+            </div>
+            <table class="data">
+              <thead><tr><th>العملة</th><th>حملات نشطة</th><th>الميزانية اليومية</th><th>شهريًا (×30)</th></tr></thead>
+              <tbody id="ps-money-tbody"><tr><td colspan="4" class="empty">جارٍ التحميل…</td></tr></tbody>
+            </table>
+          </div>
+
+          <div class="ps-fresh" id="ps-fresh">
+            <span><span class="badge badge-muted" id="ps-fresh-badge">—</span> <span class="muted" id="ps-fresh-at"></span></span>
+            <button class="btn btn-primary btn-sm" id="ps-refresh">إعادة الحساب الآن</button>
+          </div>
+
           <div class="kpi-grid" id="kpi-grid">
             <div class="kpi" data-goto="#customers"><div class="kpi-label">إجمالي الزبائن</div><div class="kpi-value" id="kpi-users">—</div></div>
             <div class="kpi" data-goto="#customers"><div class="kpi-label">نشطون</div><div class="kpi-value" id="kpi-active">—</div></div>
@@ -785,7 +839,7 @@ export function adminConsolePage(): string {
     };
     var conf = map[name] || map.overview;
     if (!map[name]) name = 'overview';
-    if (name === 'overview') loadOverviewData();
+    if (name === 'overview') { loadOverviewData(); loadPlatformStats(); }
     if (name === 'probe') loadProbeWorkspaces();
     document.getElementById(conf[0]).style.display = '';
     document.getElementById('page-heading').textContent = conf[1];
@@ -837,6 +891,81 @@ export function adminConsolePage(): string {
     if (pay) pay.textContent = num(o.paymentEvents7d);
   }
 
+  // ── Platform stats: the observability numbers, now on the landing tab ──
+  var psLast = null;
+  function fmtMajor(n) {
+    try { return new Intl.NumberFormat('ar-u-nu-latn', { maximumFractionDigits: 2 }).format(n); }
+    catch (e) { return String(n); }
+  }
+  function agoLabel(ms) {
+    var s = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (s < 60) return 'محسوبة منذ ' + s + ' ثانية';
+    var m = Math.round(s / 60);
+    if (m < 60) return 'محسوبة منذ ' + m + ' دقيقة';
+    return 'محسوبة منذ ' + Math.round(m / 60) + ' ساعة';
+  }
+  function renderPlatformStats(s) {
+    if (!s) return;
+    psLast = s;
+    var set = function (id, v) {
+      var el = document.getElementById(id);
+      if (el) el.textContent = v == null ? '—' : String(v);
+    };
+    set('ps-workspaces', s.reach && s.reach.totalWorkspaces);
+    set('ps-adaccounts', s.reach && s.reach.totalAdAccounts);
+    set('ps-active-accounts', s.reach && s.reach.activeAdAccounts);
+    set('ps-campaigns', s.reach && s.reach.activeCampaigns);
+    set('ps-snapshots', s.brain && s.brain.snapshotsLastNDays);
+    set('ps-narrated', s.brain && s.brain.narrationsLastNDays);
+    set('ps-brain-window', s.brain ? 'آخر ' + s.brain.lookbackDays + ' أيام' : '—');
+    var cov = document.getElementById('ps-coverage');
+    if (cov) {
+      var pct = s.brain ? s.brain.narrationCoveragePct : null;
+      cov.textContent = pct == null ? 'لا لقطات بعد' : pct + '%';
+      cov.className = 'ps-value ps-cov ' + (pct == null ? '' : pct >= 70 ? 'ok' : pct >= 40 ? 'warn' : 'err');
+    }
+    var tbody = document.getElementById('ps-money-tbody');
+    if (tbody) {
+      var rows = (s.money && s.money.byCurrency) || [];
+      tbody.innerHTML = rows.map(function (r) {
+        return '<tr>'
+          + '<td><span class="badge badge-muted">' + esc(r.currency) + '</span></td>'
+          + '<td>' + r.activeCampaigns + '</td>'
+          + '<td style="font-weight:700;">' + fmtMajor(r.totalDailyBudgetMajor) + ' ' + esc(r.currency) + '</td>'
+          + '<td style="font-weight:700;">' + fmtMajor(r.impliedMonthlyMajor) + ' ' + esc(r.currency) + '</td>'
+          + '</tr>';
+      }).join('') || '<tr><td colspan="4" class="empty">لا حملات نشطة بميزانية يومية.</td></tr>';
+    }
+    var badge = document.getElementById('ps-fresh-badge');
+    if (badge) {
+      badge.textContent = s.fromCache ? 'من الذاكرة' : 'طازجة';
+      badge.className = 'badge ' + (s.fromCache ? 'badge-muted' : 'badge-ok');
+    }
+    var at = document.getElementById('ps-fresh-at');
+    if (at) at.textContent = agoLabel(s.computedAt);
+  }
+  async function loadPlatformStats() {
+    try {
+      renderPlatformStats(await api('/api/admin/platform-stats'));
+    } catch (e) {
+      var at = document.getElementById('ps-fresh-at');
+      if (at) at.textContent = e.message || 'تعذّر تحميل إحصاءات المنصة';
+    }
+  }
+  async function recomputePlatformStats() {
+    var btn = document.getElementById('ps-refresh');
+    if (btn) { btn.disabled = true; btn.textContent = 'جارٍ الحساب…'; }
+    try {
+      await api('/api/admin/cache/bust', { method: 'POST', body: {} });
+      await loadPlatformStats();
+      toast('أُعيد حساب إحصاءات المنصة', 'ok');
+    } catch (e) {
+      toast(e.message || 'فشلت إعادة الحساب', 'err');
+    } finally {
+      if (btn) { btn.disabled = false; btn.textContent = 'إعادة الحساب الآن'; }
+    }
+  }
+
   async function loadOverviewData() {
     try {
       var counts = await api('/api/admin/support/counts');
@@ -853,6 +982,12 @@ export function adminConsolePage(): string {
       if (counts && counts.open > 5) alerts.push('📬 ' + counts.open + ' طلبات مفتوحة في صندوق البريد');
       if (state.overview) {
         if (state.overview.usersPending > 0) alerts.push('👤 ' + state.overview.usersPending + ' حسابات بانتظار التفعيل');
+        // Zero syncs across the whole platform for a week is an outage
+        // signature, not a quiet week — the workers or every token died.
+        if (state.overview.syncs7d === 0) alerts.push('🛑 لا مزامنة واحدة خلال 7 أيام — افحص العمال والرموز في «مراقبة المنصة»');
+      }
+      if (psLast && psLast.brain && psLast.brain.narrationCoveragePct != null && psLast.brain.narrationCoveragePct < 40) {
+        alerts.push('🧠 التغطية السردية ' + psLast.brain.narrationCoveragePct + '% — أغلب اللقطات بلا سرد');
       }
       var alertsEl = document.getElementById('overview-alerts');
       if (alertsEl) {
@@ -1294,6 +1429,7 @@ export function adminConsolePage(): string {
   document.getElementById('btn-refresh').addEventListener('click', function () {
     loadAll();
     loadSettings();
+    loadPlatformStats();
     // The workspace list behind the probe dropdown is cached per page-load;
     // "refresh" should mean everything the console shows.
     probeLoaded = false;
@@ -1420,6 +1556,7 @@ export function adminConsolePage(): string {
     }
   });
 
+  document.getElementById('ps-refresh').addEventListener('click', function () { recomputePlatformStats(); });
   document.getElementById('btn-seed-settings').addEventListener('click', function () { seedSettings(); });
   document.getElementById('btn-add-setting').addEventListener('click', function () { addSetting(); });
 

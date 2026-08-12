@@ -33,6 +33,13 @@ const STUBS = {
   '/api/admin/payment-events': { events: [{ createdAt: '2026-08-01T00:00:00Z', workspace: { name: 'متجر النور' }, eventType: 'ACTIVATED', source: 'MANUAL', amountMinor: 2500, currency: 'USD', note: 'زين كاش' }] },
   '/api/admin/settings': { settings: [{ key: 'features.demo', value: 'true', valueType: 'boolean', group: 'features', label: 'تجريبي', updatedAt: '2026-08-01T00:00:00Z' }] },
   '/api/admin/support/counts': { open: 1, awaiting: 0, urgent: 0, resolved: 5 },
+  '/api/admin/platform-stats': {
+    computedAt: Date.now(), fromCache: false,
+    reach: { totalWorkspaces: 3, totalAdAccounts: 2, activeAdAccounts: 1, activeCampaigns: 4 },
+    money: { byCurrency: [{ currency: 'USD', activeCampaigns: 4, totalDailyBudgetMajor: 28, impliedMonthlyMajor: 840 }] },
+    brain: { snapshotsLastNDays: 32, narrationsLastNDays: 12, narrationCoveragePct: 37.5, lookbackDays: 7 },
+  },
+  '/api/admin/cache/bust': { ok: true },
 };
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -87,6 +94,18 @@ async function newPage(doc) {
     report.push([okRow ? 'ok' : 'FAIL', `console: tab ${tab} → visible=${visible}${others.length ? ' leaking: ' + others.join(',') : ''}`]);
     if (!okRow) failures++;
   }
+
+  // the landing tab now carries the platform dashboard — verify it RENDERS
+  // the stats, not merely that the markup exists
+  const ps = await page.evaluate(() => ({
+    ws: document.getElementById('ps-workspaces') && document.getElementById('ps-workspaces').textContent,
+    cov: document.getElementById('ps-coverage') && document.getElementById('ps-coverage').textContent,
+    covClass: document.getElementById('ps-coverage') && document.getElementById('ps-coverage').className,
+    money: document.querySelectorAll('#ps-money-tbody tr').length,
+  }));
+  const psOk = ps.ws === '3' && ps.cov === '37.5%' && /err/.test(ps.covClass || '') && ps.money === 1;
+  report.push([psOk ? 'ok' : 'FAIL', `console: platform dashboard renders on landing (ws=${ps.ws} cov=${ps.cov} moneyRows=${ps.money} class=${ps.covClass})`]);
+  if (!psOk) failures++;
 
   // customers table rendered rows from the stub?
   const rows = await page.evaluate(() => document.querySelectorAll('#customers-tbody tr').length);
