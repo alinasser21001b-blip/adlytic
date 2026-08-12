@@ -772,15 +772,30 @@ export function adminConsolePage(): string {
     }
   }
 
+  // AVAILABLE ≠ POPULATED. Meta accepting a request and Meta returning a
+  // value are different observations, and the matrix already records the
+  // difference in evidence.present. A tally that counts them as one number
+  // silently upgrades "we asked and got nothing" into "we have this signal"
+  // — the exact conflation the whole probe was built to prevent, committed
+  // in the one place an operator actually reads.
   function renderProbeTally(results) {
     var host = document.getElementById('probe-tally');
     if (!host) return;
     var tally = {};
-    (results || []).forEach(function (r) { tally[r.verdict] = (tally[r.verdict] || 0) + 1; });
+    (results || []).forEach(function (r) {
+      var k = r.verdict;
+      if (k === 'AVAILABLE') {
+        k = (r.evidence && r.evidence.present) ? 'AVAILABLE + عاد الحقل' : 'AVAILABLE بلا حقل';
+      }
+      tally[k] = (tally[k] || 0) + 1;
+    });
     var keys = Object.keys(tally).sort(function (a, b) { return tally[b] - tally[a]; });
     host.innerHTML = keys.map(function (k) {
       return '<span>' + esc(k) + ' <b>' + tally[k] + '</b></span>';
-    }).join('');
+    }).join('')
+      + (keys.length
+          ? '<span class="muted" style="border:none;padding-right:0;">«AVAILABLE بلا حقل» ليس قدرة مُثبَتة — قُبل الطلب ولم يعد الحقل.</span>'
+          : '');
   }
 
   async function runProbe() {

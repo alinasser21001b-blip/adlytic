@@ -163,6 +163,45 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
   }
 
   // ── 2. Workspaces + accounts (the spine) ───────────────────────────────
+  //
+  // THE TRAP THIS GUARDS: this snapshot both REPORTS ON the database and
+  // READS FROM it. When the database is down every query below throws, the
+  // route returns a generic 500, and the operator — who opened the console
+  // precisely BECAUSE something is broken — learns nothing about what.
+  //
+  // So a database failure short-circuits into a snapshot that still answers.
+  // Every other subsystem degrades to UNKNOWN rather than HEALTHY: with an
+  // unreadable database we have no evidence about them either, and a green
+  // badge resting on an unread query is the exact lie this console forbids.
+  if (dbStatus !== 'HEALTHY') {
+    const blind: SubsystemHealth[] = [
+      {
+        key: 'database', status: 'ERROR',
+        summary: 'لا يستجيب — لا يمكن قراءة أي حالة أخرى بثقة',
+        ...(dbDetail ? { detail: dbDetail } : {}),
+      },
+      ...(['redis', 'queue', 'workers', 'meta', 'intelligence'] as const).map((key) => ({
+        key,
+        status: 'UNKNOWN' as OpsStatus,
+        summary: 'غير معروف — تعذّرت قراءة قاعدة البيانات',
+      })),
+    ];
+    return {
+      computedAt: new Date().toISOString(),
+      overall: 'ERROR',
+      known: ['database'],
+      unknown: ['redis', 'queue', 'workers', 'meta', 'intelligence'],
+      subsystems: blind,
+      attention: [{
+        id: 'db', severity: 'ERROR',
+        title: 'قاعدة البيانات لا تستجيب',
+        because: 'كل شيء في المنصة يتوقف — لا قراءة ولا كتابة. وبقية حالات النظام غير معروفة لأنها تُقرأ من القاعدة نفسها.',
+        action: 'افحص خدمة Postgres في Railway',
+      }],
+      workspaces: [],
+    };
+  }
+
   const workspaces = await prisma.workspace.findMany({
     select: {
       id: true,
@@ -365,15 +404,9 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
   ];
 
   // ── 5. Attention queue — ONLY things a human must act on ───────────────
+  // (A database outage is handled by the short-circuit above and can no
+  // longer reach here — tsc proved the old branch unreachable.)
   const attention: AttentionItem[] = [];
-  if (dbStatus === 'ERROR') {
-    attention.push({
-      id: 'db', severity: 'ERROR',
-      title: 'قاعدة البيانات لا تستجيب',
-      because: 'كل شيء في المنصة يتوقف — لا قراءة ولا كتابة.',
-      action: 'افحص خدمة Postgres في Railway',
-    });
-  }
   if (redisConfigured && !redisOk) {
     attention.push({
       id: 'redis', severity: 'ERROR',

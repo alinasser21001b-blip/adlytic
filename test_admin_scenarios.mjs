@@ -72,7 +72,14 @@ const SCENARIOS = {
     __probeOk: {
       matrix: '| capability | verdict |\n| a | AVAILABLE |\n| b | NOT_TESTED |',
       report: '# REPORT\nmixed',
-      results: [{ verdict: 'AVAILABLE' }, { verdict: 'AVAILABLE' }, { verdict: 'NOT_TESTED' }, { verdict: 'PERMISSION_REQUIRED' }],
+      // Two AVAILABLE rows that mean DIFFERENT things: one returned the
+      // field, one did not. A tally that shows "AVAILABLE 2" has lied.
+      results: [
+        { verdict: 'AVAILABLE', evidence: { present: true, sample: 'x' } },
+        { verdict: 'AVAILABLE', evidence: { present: false } },
+        { verdict: 'NOT_TESTED' },
+        { verdict: 'PERMISSION_REQUIRED' },
+      ],
       context: { calls: '12', budget: '40', account: 'act_1' },
     },
   },
@@ -228,7 +235,16 @@ const readTop = (page) => page.evaluate(() => ({
   await page.close();
   const joined = tally.join(' | ');
   if (!/AVAILABLE/.test(joined) || !/NOT_TESTED/.test(joined)) bad(`S4: verdict tally does not separate outcomes — "${joined}"`);
-  else ok(`S4: mixed verdicts summarised before the raw matrix — ${joined}`);
+  else ok(`S4: mixed verdicts summarised before the raw matrix`);
+
+  // THE CONFLATION TEST: two AVAILABLE rows meaning different things must
+  // NOT collapse into one count. AVAILABLE ≠ POPULATED is the probe's
+  // founding distinction; losing it in the summary loses it entirely.
+  if (/AVAILABLE\s*2\b/.test(joined.replace(/\s+/g, ' '))) {
+    bad(`S4: tally shows "AVAILABLE 2" — a returned field and an empty one counted as the same capability`);
+  } else if (!/بلا حقل/.test(joined)) {
+    bad(`S4: tally does not distinguish AVAILABLE-with-field from AVAILABLE-without — "${joined}"`);
+  } else ok(`S4: AVAILABLE split by whether the field returned — ${joined.slice(0, 90)}`);
 }
 
 // ── S5 vs S7: "healthy with unknowns" vs "healthy, verified" ─────────────
