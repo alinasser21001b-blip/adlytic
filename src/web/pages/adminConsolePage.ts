@@ -409,7 +409,7 @@ export function adminConsolePage(): string {
               <option value="ACTIVE">نشط</option>
               <option value="INACTIVE">غير نشط</option>
               <option value="CANCELED">ملغى</option>
-              <option value="PAST_DUE">متأخر</option>
+              <option value="PAST_DUE">متأخر السداد</option>
             </select>
           </div>
         </div>
@@ -710,6 +710,33 @@ export function adminConsolePage(): string {
     if (m === 'WHATSAPP_MANUAL') return 'واتساب / يدوي';
     return '—';
   }
+  // Raw Latin enums on an Arabic operator screen are the same defect class the
+  // billing panel audit flagged (raw FREE/ACTIVE). Every enum the API can send
+  // gets an Arabic label AND a state colour; an unknown value falls back to
+  // the raw string in a muted badge rather than vanishing.
+  var SUB_STATUS = {
+    ACTIVE:   ['نشط', 'badge-ok'],
+    INACTIVE: ['غير نشط', 'badge-muted'],
+    PAST_DUE: ['متأخر السداد', 'badge-warn'],
+    CANCELED: ['ملغى', 'badge-err'],
+  };
+  function subStatusBadge(s) {
+    var c = SUB_STATUS[s] || [s || '—', 'badge-muted'];
+    return '<span class="badge ' + c[1] + '">' + esc(c[0]) + '</span>';
+  }
+  var EVENT_TYPE = {
+    ACTIVATED:  ['تفعيل', 'badge-ok'],
+    RENEWED:    ['تجديد', 'badge-ok'],
+    CANCELED:   ['إلغاء', 'badge-err'],
+    EXPIRED:    ['انتهاء', 'badge-warn'],
+    REFUNDED:   ['استرداد', 'badge-warn'],
+    UPGRADED:   ['ترقية', 'badge-gold'],
+    DOWNGRADED: ['تخفيض', 'badge-muted'],
+  };
+  function eventTypeBadge(t) {
+    var c = EVENT_TYPE[t] || [t || '—', 'badge-muted'];
+    return '<span class="badge ' + c[1] + '">' + esc(c[0]) + '</span>';
+  }
   function toast(msg, kind) {
     var el = document.getElementById('toast');
     el.textContent = msg;
@@ -789,18 +816,21 @@ export function adminConsolePage(): string {
 
   function renderOverview(o) {
     if (!o) return;
-    document.getElementById('kpi-users').textContent = o.usersTotal;
-    document.getElementById('kpi-active').textContent = o.usersActive;
-    document.getElementById('kpi-pending').textContent = o.usersPending;
-    document.getElementById('kpi-premium').textContent = o.premiumActive;
+    // "|| dash" turned a real zero into a dash — on an operator screen "0
+    // syncs in 7 days" is an ALARM, not missing data. Only null may dash.
+    var num = function (v) { return v == null ? '—' : String(v); };
+    document.getElementById('kpi-users').textContent = num(o.usersTotal);
+    document.getElementById('kpi-active').textContent = num(o.usersActive);
+    document.getElementById('kpi-pending').textContent = num(o.usersPending);
+    document.getElementById('kpi-premium').textContent = num(o.premiumActive);
     var ws = document.getElementById('kpi-workspaces');
-    if (ws) ws.textContent = o.workspacesTotal || '—';
+    if (ws) ws.textContent = num(o.workspacesTotal);
     var sy = document.getElementById('kpi-syncs');
-    if (sy) sy.textContent = o.syncs7d || '—';
+    if (sy) sy.textContent = num(o.syncs7d);
     var ai = document.getElementById('kpi-ai');
-    if (ai) ai.textContent = o.aiConvos7d || '—';
+    if (ai) ai.textContent = num(o.aiConvos7d);
     var pay = document.getElementById('kpi-payments');
-    if (pay) pay.textContent = o.paymentEvents7d || '—';
+    if (pay) pay.textContent = num(o.paymentEvents7d);
   }
 
   async function loadOverviewData() {
@@ -843,11 +873,20 @@ export function adminConsolePage(): string {
     table.style.display = '';
     tbody.innerHTML = rows.map(function (u) {
       var wsNames = (u.workspaces || []).map(function (w) { return w.name; }).join(' · ') || '—';
+      // Whether a customer's workspaces have a Meta account linked decides
+      // what the operator can DO for them (sync, probe, diagnose). Surfacing
+      // it here saves opening every drawer to find out.
+      var metaCount = (u.workspaces || []).reduce(function (n, w) {
+        return n + (w.adAccountCount != null ? w.adAccountCount : (w.adAccounts || []).length);
+      }, 0);
+      var metaBadge = metaCount
+        ? '<span class="badge badge-ok">Meta ×' + metaCount + '</span>'
+        : '<span class="badge badge-warn">بلا حساب Meta</span>';
       return '<tr>'
         + '<td><div style="font-weight:700;">' + esc(u.name) + '</div><div class="muted">' + esc(u.email) + '</div></td>'
         + '<td>' + statusBadge(u.isActive) + '</td>'
         + '<td>' + tierBadge(u.hasPremium) + '</td>'
-        + '<td><div>' + esc(wsNames) + '</div><div class="muted">' + (u.workspaces || []).length + ' مساحة</div></td>'
+        + '<td><div>' + esc(wsNames) + '</div><div class="muted" style="margin:2px 0 4px;">' + (u.workspaces || []).length + ' مساحة</div>' + metaBadge + '</td>'
         + '<td class="muted">' + esc(fmtShort(u.createdAt)) + '</td>'
         + '<td><div class="actions">'
         +   '<button class="btn btn-secondary btn-sm" data-open="' + esc(u.id) + '">تفاصيل</button>'
@@ -885,7 +924,7 @@ export function adminConsolePage(): string {
         + '<td><div style="font-weight:700;">' + esc(w.name) + '</div><div class="muted">' + esc(w.id) + '</div></td>'
         + '<td>' + esc(owner) + '</td>'
         + '<td>' + tierBadge(false, w.tier, w.subscriptionStatus) + '</td>'
-        + '<td><span class="badge badge-muted">' + esc(w.subscriptionStatus) + '</span></td>'
+        + '<td>' + subStatusBadge(w.subscriptionStatus) + '</td>'
         + '<td class="muted">' + esc(payMethodLabel(w.paymentMethod)) + '</td>'
         + '<td class="muted">' + esc(fmtShort(w.subscriptionExpiresAt)) + '</td>'
         + '<td><div class="actions">'
@@ -903,7 +942,7 @@ export function adminConsolePage(): string {
       return '<tr>'
         + '<td class="muted">' + esc(fmtDate(e.createdAt)) + '</td>'
         + '<td>' + esc(e.workspace && e.workspace.name) + '</td>'
-        + '<td><span class="badge badge-gold">' + esc(e.eventType) + '</span></td>'
+        + '<td>' + eventTypeBadge(e.eventType) + '</td>'
         + '<td class="muted">' + esc(e.source) + '</td>'
         + '<td class="muted">' + esc(fmtAmount(e.amountMinor, e.currency)) + '</td>'
         + '<td>' + esc(e.note || e.externalRef || '—') + '</td>'
@@ -924,7 +963,7 @@ export function adminConsolePage(): string {
       var wsHtml = (d.workspaces || []).map(function (w) {
         return '<div class="list-card">'
           + '<div style="font-weight:700;">' + esc(w.name) + ' ' + tierBadge(false, w.tier, w.subscriptionStatus) + '</div>'
-          + '<div class="muted">الحالة: ' + esc(w.subscriptionStatus) + ' · طريقة الدفع: ' + esc(payMethodLabel(w.paymentMethod)) + ' · ينتهي: ' + esc(fmtShort(w.subscriptionExpiresAt)) + '</div>'
+          + '<div class="muted">الحالة: ' + subStatusBadge(w.subscriptionStatus) + ' · طريقة الدفع: ' + esc(payMethodLabel(w.paymentMethod)) + ' · ينتهي: ' + esc(fmtShort(w.subscriptionExpiresAt)) + '</div>'
           + '<div class="actions" style="margin-top:8px;">'
           +   '<button class="btn btn-success btn-sm" data-grant="' + esc(w.id) + '">' + (w.subscriptionStatus === 'ACTIVE' ? 'تجديد' : 'تفعيل') + ' Premium</button>'
           +   (w.subscriptionStatus === 'ACTIVE' ? '<button class="btn btn-secondary btn-sm" data-extend="' + esc(w.id) + '">تمديد</button>' : '')
@@ -1017,6 +1056,13 @@ export function adminConsolePage(): string {
   async function loadAll() {
     var gate = document.getElementById('gate-error');
     gate.style.display = 'none';
+    // A slow response must read as "loading", never as "no customers".
+    var loadingRow = function (cols) {
+      return '<tr><td colspan="' + cols + '" class="empty">جارٍ التحميل…</td></tr>';
+    };
+    if (!state.customers.length) document.getElementById('customers-tbody').innerHTML = loadingRow(6);
+    if (!state.subscriptions.length) document.getElementById('subs-tbody').innerHTML = loadingRow(7);
+    if (!state.events.length) document.getElementById('ledger-tbody').innerHTML = loadingRow(6);
     try {
       var q = document.getElementById('search-q').value.trim();
       var status = document.getElementById('filter-status').value;
@@ -1214,7 +1260,24 @@ export function adminConsolePage(): string {
     }
   }
 
+  // Deletion is the one action here with no undo — it purges the user, the
+  // workspaces and their synced data. It used to run on a single click with
+  // no confirmation at all. Now the operator must TYPE the account's email:
+  // a copy-paste-proof pause that a reflexive "OK" click cannot skip.
+  function customerEmailById(userId) {
+    if (state.detail && state.detail.user && state.detail.user.id === userId) return state.detail.user.email;
+    var row = (state.customers || []).find(function (u) { return u.id === userId; });
+    return row ? row.email : null;
+  }
   async function deleteCustomerNow(userId) {
+    var email = customerEmailById(userId);
+    if (!email) { toast('تعذّر تحديد الحساب — حدّث القائمة أولاً', 'err'); return; }
+    var typed = prompt('حذف نهائي — سيُمحى الحساب ومساحاته وبياناته ولا يمكن التراجع.\\n\\nاكتب بريد الحساب كاملاً للتأكيد:\\n' + email);
+    if (typed === null) return;
+    if (typed.trim().toLowerCase() !== email.toLowerCase()) {
+      toast('البريد غير مطابق — لم يُحذف شيء', 'err');
+      return;
+    }
     await api('/api/admin/customers/' + encodeURIComponent(userId), {
       method: 'DELETE',
     });
@@ -1224,7 +1287,14 @@ export function adminConsolePage(): string {
   }
 
   document.getElementById('btn-logout').addEventListener('click', logout);
-  document.getElementById('btn-refresh').addEventListener('click', function () { loadAll(); });
+  document.getElementById('btn-refresh').addEventListener('click', function () {
+    loadAll();
+    loadSettings();
+    // The workspace list behind the probe dropdown is cached per page-load;
+    // "refresh" should mean everything the console shows.
+    probeLoaded = false;
+    if (location.hash === '#probe') loadProbeWorkspaces();
+  });
   document.getElementById('btn-search').addEventListener('click', function () { loadAll(); });
   document.getElementById('search-q').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') loadAll();

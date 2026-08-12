@@ -1799,6 +1799,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const target = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
     if (!target) return c.json({ error: 'User not found' }, 404);
 
+    // A platform admin deleting the platform-admin account (their own
+    // included) locks the console with no one left to reopen it. The reset
+    // path for THAT mistake is a database session — not a UI we can build.
+    if (isPlatformAdminEmail(target.email)) {
+      return c.json({ error: 'لا يمكن حذف حساب مسؤول منصّة من هذه الواجهة', code: 'ADMIN_ACCOUNT' }, 403);
+    }
+
     try {
       const result = await deleteCustomer(prisma, userId);
       return c.json(safeJson({ ok: true, ...result }));

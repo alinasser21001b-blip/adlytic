@@ -143,6 +143,19 @@ async function main() {
     });
     if (undefinedClasses.length) bad(`probe panel uses CSS classes never defined: ${undefinedClasses.join(', ')}`);
     else ok(`all ${usedClasses.length} probe-panel classes are defined in the page CSS`);
+
+    // Deleting a customer is the console's only un-undoable action. It once
+    // ran on a single click; the guard is typing the account's email.
+    if (!html.includes('customerEmailById') || !/typed\.trim\(\)\.toLowerCase\(\) !== email\.toLowerCase\(\)/.test(html)) {
+      bad('customer delete lost its type-the-email confirmation');
+    } else ok('customer delete requires typing the account email');
+
+    // Every enum value the API can send must have an Arabic label — raw Latin
+    // enums on the operator screen are the audited billing-panel defect class.
+    const enumVals = ['ACTIVE', 'INACTIVE', 'PAST_DUE', 'CANCELED', 'ACTIVATED', 'RENEWED', 'EXPIRED', 'REFUNDED', 'UPGRADED', 'DOWNGRADED'];
+    const missingEnum = enumVals.filter((v) => !new RegExp(`${v}:\\s*\\[`).test(html));
+    if (missingEnum.length) bad(`enum values with no Arabic label mapping: ${missingEnum.join(', ')}`);
+    else ok(`all ${enumVals.length} subscription/payment enum values carry Arabic labels`);
   }
 
   // 5. The session-sync page heals the cookie/bearer desync without looping.
