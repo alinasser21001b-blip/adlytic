@@ -1,6 +1,6 @@
 import { chromium } from 'playwright';
 import { execSync } from 'node:child_process';
-const html = execSync(`npx tsx -e "import { adminConsolePage } from './src/web/pages/adminConsolePage'; process.stdout.write(adminConsolePage());"`, { cwd: '/home/user/adlytic', maxBuffer: 64e6 }).toString();
+const html = execSync(`npx tsx -e "import { adminOsPage } from './src/web/pages/adminOsPage'; process.stdout.write(adminOsPage());"`, { cwd: '/home/user/adlytic', maxBuffer: 64e6 }).toString();
 const O = 'http://a.test';
 const S = { '/api/auth/me': { isPlatformAdmin: true, email: 'a@t' },
   '/api/admin/ops': { computedAt: new Date().toISOString(), overall: 'WARNING', known: ['database'], unknown: ['intelligence'],
@@ -25,14 +25,14 @@ for (const w of [390, 430, 768, 1024, 1440]) {
   await p.waitForTimeout(500);
   const m = await p.evaluate((vw) => {
     const de = document.documentElement;
-    const over = [...document.querySelectorAll('.sys-card,.att-item,#ws-tbody tr,.ps-card,.kpi')].filter((e) => e.getBoundingClientRect().width > vw + 1).length;
-    const nav = document.querySelector('.sidebar');
+    const over = [...document.querySelectorAll('#ops-sys .card,.att,#ws-body tr,.bnd')].filter((e) => e.getBoundingClientRect().width > vw + 1).length;
+    const nav = document.querySelector('.rail');
     return { hScroll: de.scrollWidth - de.clientWidth, over, navVisible: nav ? getComputedStyle(nav).display !== 'none' : false,
-      navReachable: [...document.querySelectorAll('.nav-item[data-tab]')].filter((e) => e.getBoundingClientRect().width > 0).length };
+      navReachable: [...document.querySelectorAll('.nav-item[data-view]')].filter((e) => e.getBoundingClientRect().width > 0).length };
   }, w);
-  await p.click('.nav-item[data-tab="workspaces"]').catch(() => {});
+  await p.click('.nav-item[data-view="workspaces"]').catch(() => {});
   await p.waitForTimeout(200);
-  const tbl = await p.evaluate(() => { const t = document.querySelector('#ws-tbody tr td'); return t ? getComputedStyle(t).display : 'none'; });
+  const tbl = await p.evaluate(() => { const t = document.querySelector('#ws-body tr td'); return t ? getComputedStyle(t).display : 'none'; });
   const bad = m.hScroll > 1 || m.over > 0 || !m.navVisible || m.navReachable === 0;
   if (bad) fail++;
   console.log(`  ${bad ? '✗' : '✓'} ${w}px — hScroll=${m.hScroll} overflow=${m.over} navVisible=${m.navVisible} tabs=${m.navReachable} tableCell=${tbl}`);

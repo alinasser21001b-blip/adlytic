@@ -9,12 +9,14 @@ const { execSync } = await import('node:child_process');
 const html = JSON.parse(execSync(
   `npx tsx -e "
     import { adminConsolePage } from './src/web/pages/adminConsolePage';
+    import { adminOsPage } from './src/web/pages/adminOsPage';
     import { adminInboxPage } from './src/web/pages/adminInboxPage';
     import { adminDashboardPage } from './src/web/pages/adminDashboardPage';
     import { metaReadinessPage } from './src/web/pages/metaReadinessPage';
     import { addClientPage } from './src/web/pages/addClientPage';
     const out = {
       console: adminConsolePage(),
+      os: adminOsPage(),
       inbox: adminInboxPage(),
       observability: adminDashboardPage(),
       readiness: metaReadinessPage(),
@@ -173,7 +175,7 @@ async function newPage(doc) {
 }
 
 // ── 2. The other four admin pages: load clean, no JS errors ──
-for (const [name, doc] of [['inbox', html.inbox], ['observability', html.observability], ['readiness', html.readiness], ['addClient', html.addClient]]) {
+for (const [name, doc] of [['adminOS', html.os], ['inbox', html.inbox], ['observability', html.observability], ['readiness', html.readiness], ['addClient', html.addClient]]) {
   const { page, errors } = await newPage(doc);
   await page.waitForTimeout(700);
   const errs = errors.filter((e) => !e.includes('favicon'));
@@ -183,7 +185,11 @@ for (const [name, doc] of [['inbox', html.inbox], ['observability', html.observa
   // The inbox once had NO way back to the console — a dead end. Every admin
   // surface must carry the full shared nav so no page can regress into one.
   const SURFACE_HREFS = ['/admin', '/admin/inbox', '/admin/add-client', '/admin/observability', '/admin/meta-readiness', '/dashboard'];
-  const missing = SURFACE_HREFS.filter((h) => !doc.includes(`href="${h}"`));
+  // A page need not link to ITSELF — the Admin OS *is* /admin, and demanding
+  // a self-link would be the guard misreading its own rule. Every other
+  // destination must still be reachable, so no page can become an island.
+  const SELF = { adminOS: '/admin' };
+  const missing = SURFACE_HREFS.filter((h) => h !== SELF[name] && !doc.includes(`href="${h}"`));
   if (missing.length) { report.push(['FAIL', `${name}: surface nav missing links: ${missing.join(', ')}`]); failures++; }
   else report.push(['ok', `${name}: full surface nav present (${SURFACE_HREFS.length} destinations)`]);
   await page.close();

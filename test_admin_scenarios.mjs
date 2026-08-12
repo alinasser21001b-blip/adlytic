@@ -19,7 +19,7 @@ import { chromium } from 'playwright';
 import { execSync } from 'node:child_process';
 
 const html = execSync(
-  `npx tsx -e "import { adminConsolePage } from './src/web/pages/adminConsolePage'; process.stdout.write(adminConsolePage());"`,
+  `npx tsx -e "import { adminOsPage } from './src/web/pages/adminOsPage'; process.stdout.write(adminOsPage());"`,
   { cwd: '/home/user/adlytic', maxBuffer: 64 * 1024 * 1024 },
 ).toString();
 
@@ -166,11 +166,11 @@ async function open(scenario) {
 
 /** What the operator actually reads at the top of the console. */
 const readTop = (page) => page.evaluate(() => ({
-  overall: (document.getElementById('ops-overall') || {}).textContent || '',
-  attention: [...document.querySelectorAll('#ops-attention .att-item .att-title')].map((e) => e.textContent),
-  cleared: !!document.querySelector('#ops-attention .att-clear'),
-  subs: [...document.querySelectorAll('#ops-subsystems .sys-card')].map((c) => ({
-    name: c.querySelector('.sys-name').textContent,
+  overall: (document.getElementById('pulse-st') || {}).textContent || '',
+  attention: [...document.querySelectorAll('#att-all .att .att-t')].map((e) => e.textContent),
+  cleared: !!document.querySelector('#att-all .clear'),
+  subs: [...document.querySelectorAll('#ops-sys .card')].map((c) => ({
+    name: c.querySelector('.h2').textContent,
     st: (c.querySelector('.st') || {}).textContent || '',
   })),
 }));
@@ -179,12 +179,12 @@ const readTop = (page) => page.evaluate(() => ({
 {
   const a = await open(SCENARIOS['S1 token expired']);
   const t1 = await readTop(a.page);
-  const r1 = await a.page.evaluate(() => [...document.querySelectorAll('#ws-tbody tr')].map((r) => r.textContent));
+  const r1 = await a.page.evaluate(() => [...document.querySelectorAll('#ws-body tr')].map((r) => r.textContent));
   await a.page.close();
 
   const b = await open(SCENARIOS['S2 connected but stale']);
   const t2 = await readTop(b.page);
-  const r2 = await b.page.evaluate(() => [...document.querySelectorAll('#ws-tbody tr')].map((r) => r.textContent));
+  const r2 = await b.page.evaluate(() => [...document.querySelectorAll('#ws-body tr')].map((r) => r.textContent));
   await b.page.close();
 
   if (t1.overall === t2.overall) bad(`S1/S2: both read "${t1.overall}" at the top — expired token and stale data are indistinguishable`);
@@ -197,7 +197,7 @@ const readTop = (page) => page.evaluate(() => ({
   // The critical separation: connection healthy while data is not.
   const s2Sep = await (async () => {
     const p = await open(SCENARIOS['S2 connected but stale']);
-    const cells = await p.page.evaluate(() => [...document.querySelectorAll('#ws-tbody tr td')].map((t) => t.getAttribute('data-th') + '=' + t.textContent.replace(/\\s+/g, ' ').trim()));
+    const cells = await p.page.evaluate(() => [...document.querySelectorAll('#ws-body tr td')].map((t) => t.getAttribute('data-th') + '=' + t.textContent.replace(/\\s+/g, ' ').trim()));
     await p.page.close();
     return cells;
   })();
@@ -210,12 +210,12 @@ const readTop = (page) => page.evaluate(() => ({
 // ── S3: a probe RUN failure must not read as a capability verdict ────────
 {
   const { page } = await open(SCENARIOS['S3 probe failed']);
-  await page.click('.nav-item[data-tab="probe"]');
+  await page.click('.nav-item[data-view="experiments"]');
   await page.waitForTimeout(300);
-  await page.selectOption('#probe-ws', { index: 1 }).catch(() => {});
-  await page.click('#probe-run');
+  await page.selectOption('#pr-ws', { index: 1 }).catch(() => {});
+  await page.click('#pr-run');
   await page.waitForTimeout(600);
-  const txt = await page.evaluate(() => (document.getElementById('probe-matrix') || {}).textContent || '');
+  const txt = await page.evaluate(() => (document.getElementById('pr-interp') || {}).textContent || '');
   await page.close();
   if (!/TOKEN_DECRYPT_FAILED/.test(txt)) bad('S3: failure code not shown');
   else if (!/ما العمل/.test(txt)) bad('S3: failure shows a code with no remediation');
@@ -226,12 +226,12 @@ const readTop = (page) => page.evaluate(() => ({
 // ── S4: mixed verdicts must be countable without reading the raw matrix ──
 {
   const { page } = await open(SCENARIOS['S4 probe mixed verdicts']);
-  await page.click('.nav-item[data-tab="probe"]');
+  await page.click('.nav-item[data-view="experiments"]');
   await page.waitForTimeout(300);
-  await page.selectOption('#probe-ws', { index: 1 }).catch(() => {});
-  await page.click('#probe-run');
+  await page.selectOption('#pr-ws', { index: 1 }).catch(() => {});
+  await page.click('#pr-run');
   await page.waitForTimeout(600);
-  const tally = await page.evaluate(() => [...document.querySelectorAll('#probe-tally span')].map((s) => s.textContent.trim()));
+  const tally = await page.evaluate(() => [...document.querySelectorAll('#pr-tally span')].map((s) => s.textContent.trim()));
   await page.close();
   const joined = tally.join(' | ');
   if (!/AVAILABLE/.test(joined) || !/NOT_TESTED/.test(joined)) bad(`S4: verdict tally does not separate outcomes — "${joined}"`);
@@ -265,7 +265,7 @@ const readTop = (page) => page.evaluate(() => ({
   // …and it must NAME what it could not observe, not merely hedge the word.
   const cert = await (async () => {
     const p = await open(SCENARIOS['S5 healthy but intelligence untested']);
-    const c = await p.page.evaluate(() => (document.getElementById('ops-certainty') || {}).textContent || '');
+    const c = await p.page.evaluate(() => (document.getElementById('pulse-unknown') || {}).textContent || '');
     await p.page.close();
     return c;
   })();
@@ -276,9 +276,9 @@ const readTop = (page) => page.evaluate(() => ({
 // ── S6: two causes → two distinct rows, each naming its own cause ────────
 {
   const { page } = await open(SCENARIOS['S6 two different causes']);
-  await page.click('.nav-item[data-tab="workspaces"]');
+  await page.click('.nav-item[data-view="workspaces"]');
   await page.waitForTimeout(300);
-  const rows = await page.evaluate(() => [...document.querySelectorAll('#ws-tbody tr')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
+  const rows = await page.evaluate(() => [...document.querySelectorAll('#ws-body tr')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
   await page.close();
   if (rows.length !== 2) bad(`S6: expected 2 workspace rows, saw ${rows.length}`);
   else if (!/رمز/.test(rows[0]) || !/مزامنة/.test(rows[1])) bad(`S6: rows do not name distinct causes — ${JSON.stringify(rows)}`);
@@ -293,6 +293,81 @@ const readTop = (page) => page.evaluate(() => ({
   if (t.attention.length) bad(`S7: attention queue shows items when nothing is actionable — ${JSON.stringify(t.attention)}`);
   else if (!t.cleared) bad('S7: empty attention queue renders blank instead of stating the result');
   else ok('S7: empty queue renders an explicit "nothing needs you now"');
+}
+
+// ── OS-specific: the Knowledge Boundary is a first-class destination ─────
+{
+  const { page } = await open({
+    ...SCENARIOS['S5 healthy but intelligence untested'],
+    boundary: [
+      { state: 'NOT_TESTED', subject: 'قدرات Meta الفعلية', why: 'المرقاب لم يُشغَّل بعد.', resolvedBy: 'شغّل المرقاب' },
+      { state: 'UNKNOWN', subject: 'حياة العمّال', why: 'لا نرصد خدمة منفصلة.', resolvedBy: 'نبضة صحّة' },
+    ],
+    activity: [{ at: now(), workspaceName: 'مساحة', kind: 'SYNC', status: 'FAILED', detail: 'HTTP 500' }],
+  });
+  const b = await page.evaluate(() => ({
+    navHasBoundary: !!document.querySelector('.nav-item[data-view="boundary"]'),
+    onHome: document.querySelectorAll('#now-bnd .bnd').length,
+    onPage: document.querySelectorAll('#bnd-all .bnd').length,
+    // Every boundary item must name what would RESOLVE it. A blind spot
+    // with no exit is a shrug; with an exit it is a work item.
+    allResolvable: [...document.querySelectorAll('#bnd-all .bnd')].every((e) => /يُحسم بـ/.test(e.textContent)),
+    activityRows: document.querySelectorAll('#act-body tr').length,
+  }));
+  await page.close();
+  if (!b.navHasBoundary) bad('OS: knowledge boundary is not a navigation destination');
+  else ok('OS: knowledge boundary is a first-class destination in the rail');
+  if (b.onHome < 2 || b.onPage < 2) bad(`OS: boundary items not rendered (home=${b.onHome} page=${b.onPage})`);
+  else ok(`OS: boundary surfaces on home (${b.onHome}) and its own view (${b.onPage})`);
+  if (!b.allResolvable) bad('OS: a boundary item states no way to resolve it');
+  else ok('OS: every boundary item names what would resolve it');
+  if (!b.activityRows) bad('OS: activity feed rendered no observed events');
+  else ok(`OS: activity feed renders ${b.activityRows} observed event(s)`);
+}
+
+// ── OS-specific: command bar reaches every view and every workspace ──────
+{
+  const { page } = await open(SCENARIOS['S6 two different causes']);
+  await page.keyboard.press('Control+k');
+  await page.waitForTimeout(200);
+  const opened = await page.evaluate(() => document.getElementById('cmd').classList.contains('open'));
+  await page.fill('#cmd-in', 'بيتا');
+  await page.waitForTimeout(200);
+  const hits = await page.evaluate(() => [...document.querySelectorAll('.cmd-row')].map((r) => r.textContent));
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(300);
+  const landed = await page.evaluate(() => (document.getElementById('ws-detail') || {}).textContent || '');
+  await page.close();
+  if (!opened) bad('OS: Ctrl+K does not open the command bar');
+  else ok('OS: Ctrl+K opens the command bar');
+  if (!hits.some((h) => /بيتا/.test(h))) bad(`OS: command bar cannot find a workspace by name — ${JSON.stringify(hits)}`);
+  else ok('OS: command bar finds workspaces by name');
+  if (!/مزامنة/.test(landed)) bad('OS: selecting a workspace from the command bar does not open its evidence');
+  else ok('OS: command bar navigates straight into workspace evidence');
+}
+
+// ── OS-specific: fact and interpretation are visually separated ──────────
+{
+  const { page } = await open(SCENARIOS['S1 token expired']);
+  await page.click('.nav-item[data-view="workspaces"]');
+  await page.waitForTimeout(200);
+  await page.click('#ws-body tr');
+  await page.waitForTimeout(300);
+  const d = await page.evaluate(() => {
+    const host = document.getElementById('ws-detail');
+    return {
+      hasReading: /قراءتنا/.test(host.textContent),
+      hasFacts: /الوقائع المرصودة/.test(host.textContent),
+      // Observed technical values must render LTR mono, never RTL prose.
+      evLtr: [...host.querySelectorAll('.ev')].every((e) => getComputedStyle(e).direction === 'ltr'),
+      evCount: host.querySelectorAll('.ev').length,
+    };
+  });
+  await page.close();
+  if (!d.hasReading || !d.hasFacts) bad('OS: workspace detail does not separate our reading from observed facts');
+  else ok('OS: workspace detail separates interpretation from evidence');
+  if (!d.evCount || !d.evLtr) bad(`OS: technical values not rendered LTR (count=${d.evCount} allLtr=${d.evLtr})`);
+  else ok(`OS: ${d.evCount} technical values render LTR mono inside the RTL page`);
 }
 
 await browser.close();

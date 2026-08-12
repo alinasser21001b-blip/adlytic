@@ -123,6 +123,37 @@ export interface AdminOpsSnapshot {
   subsystems: SubsystemHealth[];
   attention: AttentionItem[];
   workspaces: WorkspaceOpsRow[];
+  /** What changed recently — observed events, never inferred narrative. */
+  activity: ActivityItem[];
+  /**
+   * The knowledge boundary: a first-class list of what this console cannot
+   * currently determine, and what would resolve each gap.
+   *
+   * This is not an apology for missing features. An operator who knows the
+   * edge of the map navigates better than one shown a map with no edge —
+   * and a console that hides its blind spots trains its reader to believe
+   * green means "verified" when it only ever meant "nothing objected".
+   */
+  boundary: BoundaryItem[];
+}
+
+export interface ActivityItem {
+  at: string;
+  workspaceName: string;
+  kind: 'SYNC';
+  status: string;
+  detail?: string;
+}
+
+export interface BoundaryItem {
+  /** UNKNOWN = we tried and could not determine. NOT_TESTED = we never asked. */
+  state: 'UNKNOWN' | 'NOT_TESTED';
+  subject: string;
+  /** Why it is unresolved — the mechanism, not a shrug. */
+  why: string;
+  /** What would actually close this gap. */
+  resolvedBy: string;
+  href?: string;
 }
 
 /** True when a status means "we did not find out", not "we found it fine". */
@@ -199,6 +230,13 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
         action: 'افحص خدمة Postgres في Railway',
       }],
       workspaces: [],
+      activity: [],
+      boundary: [{
+        state: 'UNKNOWN',
+        subject: 'كل حالات النظام عدا قاعدة البيانات',
+        why: 'تُقرأ من قاعدة البيانات نفسها، وهي لا تستجيب.',
+        resolvedBy: 'استعادة خدمة Postgres',
+      }],
     };
   }
 
@@ -451,6 +489,65 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     });
   }
 
+  // ── 6. Activity — observed events, in time order. No narrative. ────────
+  const nameByAccount = new Map<string, string>();
+  for (const w of workspaces) for (const a of w.adAccounts) nameByAccount.set(a.id, w.name);
+  const activity: ActivityItem[] = latestSyncs
+    .slice()
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .slice(0, 20)
+    .map((s) => ({
+      at: s.createdAt.toISOString(),
+      workspaceName: nameByAccount.get(s.adAccountId) ?? '—',
+      kind: 'SYNC' as const,
+      status: s.status,
+      ...(s.error ? { detail: s.error.slice(0, 160) } : {}),
+    }));
+
+  // ── 7. The knowledge boundary ──────────────────────────────────────────
+  const boundary: BoundaryItem[] = [];
+  for (const s of subsystems) {
+    if (!isUndetermined(s.status)) continue;
+    if (s.key === 'workers') {
+      boundary.push({
+        state: s.status as 'UNKNOWN' | 'NOT_TESTED',
+        subject: 'حياة العمّال الخلفيين',
+        why: 'هذه العملية لا تستطيع رصد خدمة عمّال منفصلة — نستدل فقط من وجود مزامنة حديثة.',
+        resolvedBy: 'نبضة صحّة يكتبها العامل نفسه، أو مزامنة ناجحة واحدة',
+      });
+    } else if (s.key === 'intelligence') {
+      boundary.push({
+        state: 'NOT_TESTED',
+        subject: 'صحة نظام الذكاء',
+        why: 'لا يوجد فحص حيّ. التغطية السردية مؤشر جانبي، لا قياس لصحة المحرك.',
+        resolvedBy: 'فحص صحّة فعلي لمسار الذكاء — غير مبنيّ بعد',
+      });
+    } else if (s.key === 'meta') {
+      boundary.push({
+        state: 'NOT_TESTED',
+        subject: 'تكامل Meta',
+        why: 'لا حساب إعلاني مرتبط، فلا شيء نلاحظه.',
+        resolvedBy: 'ربط حساب إعلاني بمساحة عمل',
+      });
+    } else {
+      boundary.push({
+        state: s.status as 'UNKNOWN' | 'NOT_TESTED',
+        subject: s.key === 'redis' ? 'Redis' : s.key === 'queue' ? 'طابور المهام' : s.key,
+        why: s.summary,
+        resolvedBy: 'ضبط الإعداد ثم إعادة التشغيل',
+      });
+    }
+  }
+  // Meta capabilities are NOT_TESTED as a standing fact until the probe runs.
+  // It belongs on the boundary permanently, not as an error state.
+  boundary.push({
+    state: 'NOT_TESTED',
+    subject: 'قدرات Meta الفعلية',
+    why: 'مرقاب القدرات لم يُشغَّل على حساب حقيقي بعد — كل حكم قدرة غير مُختبَر.',
+    resolvedBy: 'شغّل المرقاب على مساحة لها حساب إعلاني',
+    href: '/admin#experiments',
+  });
+
   const observed = subsystems.filter((s) => !isUndetermined(s.status));
   return {
     computedAt: new Date().toISOString(),
@@ -460,5 +557,7 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     subsystems,
     attention,
     workspaces: rows,
+    activity,
+    boundary,
   };
 }

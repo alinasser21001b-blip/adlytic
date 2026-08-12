@@ -77,6 +77,7 @@ import { buildActivationWhatsappLink } from '../services/activationWhatsappLink'
 import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { adminConsolePage } from '../web/pages/adminConsolePage';
+import { adminOsPage } from '../web/pages/adminOsPage';
 import { adminSessionSyncPage } from '../web/pages/adminSessionSyncPage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
@@ -641,7 +642,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     return c.html(render());
   }
 
-  app.get('/admin',                (c) => adminPage(c, adminConsolePage));
+  // The Admin OS is the console now. The previous console stays reachable
+  // at /admin/classic: it still owns settings, subscriptions and the
+  // customer drawer, and deleting surfaces before their replacements exist
+  // would trade one gap for another.
+  app.get('/admin',                (c) => adminPage(c, adminOsPage));
+  app.get('/admin/classic',        (c) => adminPage(c, adminConsolePage));
   app.get('/admin/inbox',          (c) => adminPage(c, adminInboxPage));
   app.get('/admin/observability',  (c) => adminPage(c, adminDashboardPage));
   app.get('/admin/meta-readiness', (c) => adminPage(c, metaReadinessPage));
