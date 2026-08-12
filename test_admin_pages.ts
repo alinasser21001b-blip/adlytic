@@ -156,6 +156,25 @@ async function main() {
     const missingEnum = enumVals.filter((v) => !new RegExp(`${v}:\\s*\\[`).test(html));
     if (missingEnum.length) bad(`enum values with no Arabic label mapping: ${missingEnum.join(', ')}`);
     else ok(`all ${enumVals.length} subscription/payment enum values carry Arabic labels`);
+
+    // Every ops status must have a glyph + Arabic word. A status rendered as
+    // colour alone is invisible to a colour-blind operator and to any
+    // greyscale screenshot pasted into a support thread.
+    const opsStatuses = ['HEALTHY', 'RUNNING', 'UNKNOWN', 'NOT_TESTED', 'DEGRADED', 'WARNING', 'BLOCKED', 'ERROR'];
+    const missingSt = opsStatuses.filter((v) => !new RegExp(`${v}:\\s*\\[`).test(html));
+    if (missingSt.length) bad(`ops statuses with no glyph/label mapping: ${missingSt.join(', ')}`);
+    else ok(`all ${opsStatuses.length} ops statuses carry a glyph and an Arabic word`);
+
+    // Every failure code the route can return must name a remediation.
+    const probeCodes = ['TOKEN_DECRYPT_FAILED', 'NO_AD_ACCOUNT', 'NO_TOKEN', 'META_UNREACHABLE', 'PROBE_FAILED'];
+    const missingFix = probeCodes.filter((v) => !new RegExp(`${v}:\\s*'`).test(html));
+    if (missingFix.length) bad(`probe failure codes with no remediation text: ${missingFix.join(', ')}`);
+    else ok(`all ${probeCodes.length} probe failure codes name a next action`);
+
+    // The concurrency truth must stay on screen: the guard is per-page, not
+    // per-account. Claiming otherwise would be a lie the UI cannot back.
+    if (!/تبويب آخر أو مسؤول آخر/.test(html)) bad('the probe panel no longer states that concurrency is page-level only');
+    else ok('probe panel states the concurrency limit honestly');
   }
 
   // 5. The session-sync page heals the cookie/bearer desync without looping.

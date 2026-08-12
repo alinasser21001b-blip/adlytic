@@ -40,6 +40,25 @@ const STUBS = {
     brain: { snapshotsLastNDays: 32, narrationsLastNDays: 12, narrationCoveragePct: 37.5, lookbackDays: 7 },
   },
   '/api/admin/cache/bust': { ok: true },
+  '/api/admin/ops': {
+    computedAt: new Date().toISOString(),
+    overall: 'ERROR',
+    subsystems: [
+      { key: 'database', status: 'HEALTHY', summary: 'يستجيب' },
+      { key: 'redis', status: 'ERROR', summary: 'غير متصل — العدّادات تقرأ صفراً', detail: 'ENOTFOUND redis.railway.internal' },
+      { key: 'queue', status: 'NOT_TESTED', summary: 'الطابور معطّل بالإعداد' },
+      { key: 'workers', status: 'UNKNOWN', summary: 'لا مزامنة خلال 48 ساعة', detail: 'role=combined' },
+      { key: 'meta', status: 'HEALTHY', summary: '1 حساب متصل' },
+      { key: 'intelligence', status: 'NOT_TESTED', summary: 'لا يوجد فحص حي بعد' },
+    ],
+    attention: [
+      { id: 'redis', severity: 'ERROR', title: 'Redis غير متصل', because: 'عدّادات استخدام Meta تقرأ صفراً.', action: 'افحص REDIS_URL', href: '/admin/meta-readiness' },
+    ],
+    workspaces: [
+      { workspaceId: 'w1', workspaceName: 'متجر النور', ownerEmail: 'c@x.iq', adAccountId: 'a1', adAccountName: 'حساب', externalAccountId: 'act_123', currency: 'IQD', hasToken: true, tokenSource: 'USER_OAUTH', tokenExpiresAt: null, metaAccountStatus: 1, lastSyncedAt: '2026-08-11T00:00:00Z', lastSyncStatus: 'COMPLETED', lastSyncError: null, freshestDataDate: '2026-08-11', dataAgeDays: 1, connection: 'HEALTHY', data: 'HEALTHY', overall: 'HEALTHY', headline: 'سليم' },
+      { workspaceId: 'w2', workspaceName: 'مساحة بلا ربط', ownerEmail: 'z@x.iq', adAccountId: null, adAccountName: null, externalAccountId: null, currency: null, hasToken: false, tokenSource: null, tokenExpiresAt: null, metaAccountStatus: null, lastSyncedAt: null, lastSyncStatus: null, lastSyncError: null, freshestDataDate: null, dataAgeDays: null, connection: 'NOT_TESTED', data: 'NOT_TESTED', overall: 'NOT_TESTED', headline: 'بلا حساب إعلاني — لم يُربط بعد' },
+    ],
+  },
 };
 
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
@@ -82,7 +101,7 @@ async function newPage(doc) {
   report.push([appVisible ? 'ok' : 'FAIL', 'console: app shell revealed after ensureAdmin']);
   if (!appVisible) failures++;
 
-  for (const tab of ['customers', 'create', 'subscriptions', 'ledger', 'probe', 'settings', 'overview']) {
+  for (const tab of ['workspaces', 'customers', 'create', 'subscriptions', 'ledger', 'probe', 'settings', 'overview']) {
     await page.click(`.nav-item[data-tab="${tab}"]`);
     await page.waitForTimeout(250);
     const visible = await page.evaluate((t) => {
@@ -106,6 +125,35 @@ async function newPage(doc) {
   const psOk = ps.ws === '3' && ps.cov === '37.5%' && /err/.test(ps.covClass || '') && ps.money === 1;
   report.push([psOk ? 'ok' : 'FAIL', `console: platform dashboard renders on landing (ws=${ps.ws} cov=${ps.cov} moneyRows=${ps.money} class=${ps.covClass})`]);
   if (!psOk) failures++;
+
+  // ops snapshot: subsystems, attention queue, workspace rows
+  const ops = await page.evaluate(() => ({
+    sys: document.querySelectorAll('#ops-subsystems .sys-card').length,
+    att: document.querySelectorAll('#ops-attention .att-item').length,
+    ws: document.querySelectorAll('#ws-tbody tr').length,
+    overall: document.getElementById('ops-overall') && document.getElementById('ops-overall').textContent,
+    // Status must never be colour-only: every chip carries a glyph element.
+    glyphless: [...document.querySelectorAll('.st')].filter((el) => !el.querySelector('.st-glyph')).length,
+  }));
+  const opsOk = ops.sys === 6 && ops.att === 1 && ops.ws === 2 && /خطأ/.test(ops.overall || '') && ops.glyphless === 0;
+  report.push([opsOk ? 'ok' : 'FAIL',
+    `console: ops snapshot renders (subsystems=${ops.sys} attention=${ops.att} workspaces=${ops.ws} overall=${JSON.stringify(ops.overall)} colourOnlyChips=${ops.glyphless})`]);
+  if (!opsOk) failures++;
+
+  // Workspace filter narrows to problems only. The control lives inside the
+  // workspaces view, so switch to it first — a hidden <select> is not
+  // selectable, and that is correct behaviour, not a defect.
+  await page.click('.nav-item[data-tab="workspaces"]');
+  await page.waitForTimeout(200);
+  await page.selectOption('#ws-filter', 'problems');
+  await page.waitForTimeout(150);
+  const filtered = await page.evaluate(() => document.querySelectorAll('#ws-tbody tr').length);
+  const filterOk = filtered === 1; // the NOT_TESTED row is not a "problem"
+  report.push([filterOk ? 'ok' : 'FAIL', `console: workspace 'problems' filter → ${filtered} row(s), expected 1`]);
+  if (!filterOk) failures++;
+  await page.selectOption('#ws-filter', 'all');
+  await page.click('.nav-item[data-tab="overview"]');
+  await page.waitForTimeout(200);
 
   // customers table rendered rows from the stub?
   const rows = await page.evaluate(() => document.querySelectorAll('#customers-tbody tr').length);

@@ -172,6 +172,52 @@ export function adminConsolePage(): string {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
       background: var(--bg);
     }
+    /* ── Status system ──────────────────────────────────────────────────
+       Status NEVER relies on colour alone: every chip carries a glyph and a
+       word. A red dot and an amber dot are the same dot to a colour-blind
+       operator, and identical in a greyscale screenshot pasted into a
+       support thread. */
+    .st { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+    .st-glyph { width: 16px; text-align: center; font-size: 11px; line-height: 1; }
+    .st-HEALTHY, .st-SUCCESS { color: var(--success); }
+    .st-RUNNING { color: var(--accent-2); }
+    .st-DEGRADED, .st-WARNING { color: var(--warning); }
+    .st-ERROR, .st-BLOCKED { color: var(--error); }
+    .st-UNKNOWN, .st-NOT_TESTED { color: var(--text-3); }
+    .sys-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+    @media (max-width: 900px) { .sys-grid { grid-template-columns: repeat(2, 1fr); } }
+    @media (max-width: 560px) { .sys-grid { grid-template-columns: 1fr; } }
+    .sys-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 12px 14px; }
+    .sys-name { font-size: 12px; font-weight: 800; color: var(--text-2); margin-bottom: 6px; }
+    .sys-sum { font-size: 12.5px; color: var(--text-2); line-height: 1.6; margin-top: 6px; }
+    .sys-detail {
+      direction: ltr; text-align: left; font-family: ui-monospace, "SF Mono", Consolas, monospace;
+      font-size: 11px; color: var(--text-3); margin-top: 6px; word-break: break-all;
+    }
+    .att-item {
+      display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
+      border: 1px solid var(--border); border-right-width: 3px; border-radius: 10px;
+      background: var(--surface); margin-bottom: 8px;
+    }
+    .att-ERROR { border-right-color: var(--error); }
+    .att-WARNING { border-right-color: var(--warning); }
+    .att-INFO { border-right-color: var(--accent); }
+    .att-title { font-weight: 800; font-size: 13.5px; margin-bottom: 3px; }
+    .att-because { font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+    .att-action { font-size: 12px; color: var(--accent-2); font-weight: 700; margin-top: 5px; display: inline-block; }
+    .att-clear { padding: 18px; text-align: center; color: var(--success); font-weight: 700; font-size: 13px;
+      border: 1px solid var(--success); border-radius: 10px; background: var(--success-dim); }
+    /* Mobile tables become cards: a squeezed 8-column table is unreadable,
+       and horizontal scrolling hides exactly the status column that matters. */
+    @media (max-width: 760px) {
+      table.data thead { display: none; }
+      table.data tr { display: block; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 6px 0; }
+      table.data td { display: flex; justify-content: space-between; gap: 12px; border: none; padding: 7px 12px; }
+      table.data td::before {
+        content: attr(data-th); font-size: 11px; font-weight: 700; color: var(--text-3); flex-shrink: 0;
+      }
+      table.data td:empty { display: none; }
+    }
     .ps-split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 14px; }
     @media (max-width: 900px) { .ps-split { grid-template-columns: 1fr; } }
     .ps-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; }
@@ -241,6 +287,7 @@ export function adminConsolePage(): string {
     <nav class="nav">
       <div class="nav-label">📊 الرئيسية</div>
       <a class="nav-item active" href="#overview" data-tab="overview">لوحة الحالة</a>
+      <a class="nav-item" href="#workspaces" data-tab="workspaces">مساحات العمل</a>
       <div class="nav-label">👥 الزبائن</div>
       <a class="nav-item" href="#customers" data-tab="customers">الزبائن</a>
       <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
@@ -285,8 +332,25 @@ export function adminConsolePage(): string {
           </div>
         </div>
         <div class="panel-body">
-          <!-- منصة كاملة في نظرة: الوصول ثم صحة الذكاء — نفس أرقام
-               /api/admin/platform-stats التي كانت حبيسة صفحة المراقبة. -->
+          <!-- الترتيب مقصود ويجيب أسئلة المشغّل بترتيبها:
+               ١. هل النظام سليم؟  → صحة النظام
+               ٢. ما الذي يحتاجني؟ → قائمة الانتباه
+               ٣. ما الحجم/الأثر؟  → الوصول والأموال والذكاء
+               المؤشرات العامة تأتي أخيراً لأنها سياق، لا إنذار. -->
+          <div class="ps-head" style="margin-bottom:10px;">
+            <span class="ps-title">صحة النظام</span>
+            <span class="st" id="ops-overall"><span class="st-glyph">○</span><span>جارٍ الفحص…</span></span>
+          </div>
+          <div class="sys-grid" id="ops-subsystems"></div>
+
+          <div class="ps-head" style="margin-bottom:10px;">
+            <span class="ps-title">يحتاج انتباهك</span>
+            <span class="muted" id="ops-attention-count"></span>
+          </div>
+          <div id="ops-attention" style="margin-bottom:18px;">
+            <div class="muted">جارٍ التحميل…</div>
+          </div>
+
           <div class="ps-split">
             <div class="ps-card">
               <div class="ps-head"><span class="ps-title">الوصول</span><span class="muted">كل مساحات العمل</span></div>
@@ -351,6 +415,45 @@ export function adminConsolePage(): string {
             <div class="panel-title" style="font-size:14px;margin-bottom:12px;">تنبيهات مهمة</div>
             <div id="overview-alerts" style="color:var(--text-2);font-size:13px;">جاري التحميل...</div>
           </div>
+        </div>
+      </section>
+
+      <!-- Workspaces — operational health, one row per workspace.
+           Answers "which workspace has a problem, and why" without opening
+           a single drawer: connection axis and data axis stay SEPARATE
+           because a dead token and stale data are different incidents. -->
+      <section class="panel view" id="view-workspaces" style="display:none;">
+        <div class="panel-head">
+          <div>
+            <div class="panel-title">مساحات العمل — الحالة التشغيلية</div>
+            <div class="panel-sub">الاتصال · آخر مزامنة · طزاجة البيانات · أقدم مشكلة</div>
+          </div>
+          <div class="toolbar">
+            <input class="field field-sm" id="ws-search" placeholder="بحث بالاسم أو المالك…" style="min-width:200px;" />
+            <select class="field field-sm" id="ws-filter">
+              <option value="all">كل الحالات</option>
+              <option value="problems">المشاكل فقط</option>
+              <option value="BLOCKED">محجوب</option>
+              <option value="WARNING">تحذير</option>
+              <option value="HEALTHY">سليم</option>
+              <option value="NOT_TESTED">لم يُربط</option>
+            </select>
+          </div>
+        </div>
+        <div class="panel-body" style="padding:0;">
+          <table class="data" id="ws-table">
+            <thead>
+              <tr>
+                <th>مساحة العمل</th>
+                <th>الحالة</th>
+                <th>الاتصال</th>
+                <th>البيانات</th>
+                <th>آخر مزامنة</th>
+                <th>حساب Meta</th>
+              </tr>
+            </thead>
+            <tbody id="ws-tbody"><tr><td colspan="6" class="empty">جارٍ التحميل…</td></tr></tbody>
+          </table>
         </div>
       </section>
 
@@ -537,6 +640,12 @@ export function adminConsolePage(): string {
             <button class="btn btn-primary btn-sm" id="probe-run" type="button" disabled>شغّل المرقاب</button>
             <span id="probe-status" class="hint" style="margin-bottom:0;"></span>
           </div>
+          <!-- ما سيحدث قبل أن يحدث: المشغّل ينفق حصة نداءات حقيقية على
+               حساب عميل حقيقي، فيجب أن يرى الأثر قبل الضغط لا بعده. -->
+          <div class="sys-card" id="probe-preflight" style="display:none;margin-bottom:12px;">
+            <div class="sys-name">قبل التشغيل</div>
+            <div id="probe-preflight-body" class="sys-sum"></div>
+          </div>
           <div id="probe-tally" class="probe-tally"></div>
           <div id="probe-out" style="display:none;">
             <div class="row">
@@ -704,9 +813,15 @@ export function adminConsolePage(): string {
       var out = document.getElementById('probe-out');
       var mx = document.getElementById('probe-matrix');
       if (mx && out) {
+        // WHAT happened, WHY it matters, WHAT to do — then the technical
+        // detail underneath. A bare code teaches nothing; a bare sentence
+        // cannot be searched or reported.
         mx.textContent = (e.message || 'فشل تشغيل المرقاب')
+          + (e.code && PROBE_FIX[e.code] ? '\\n\\nما العمل: ' + PROBE_FIX[e.code] : '')
+          + '\\n\\nلم تُسجَّل أي نتيجة قدرة — هذا فشل تشغيل، وليس حكماً على أي قدرة في Meta.'
           + (e.code ? '\\n\\ncode: ' + e.code : '')
-          + (e.detail ? '\\n\\ndetail: ' + e.detail : '');
+          + (e.status ? '\\nhttp: ' + e.status : '')
+          + (e.detail ? '\\ndetail: ' + e.detail : '');
         out.style.display = '';
         var rep = document.getElementById('probe-report');
         if (rep) rep.textContent = '';
@@ -719,10 +834,50 @@ export function adminConsolePage(): string {
     }
   }
 
+  // What a failure MEANS and what to do about it. The route already returns
+  // a distinct code per incident; without this map the operator reads five
+  // different problems as one generic red box.
+  var PROBE_FIX = {
+    TOKEN_DECRYPT_FAILED: 'مفتاح التشفير تغيّر — أعد ربط حساب Meta لهذه المساحة. لا تعالجها كانتهاء صلاحية: السببان مختلفان.',
+    NO_AD_ACCOUNT: 'اربط حساباً إعلانياً بهذه المساحة أولاً، أو اختر مساحة أخرى.',
+    NO_TOKEN: 'الحساب موجود بلا رمز محفوظ — أعد الربط من صفحة العميل.',
+    META_UNREACHABLE: 'قيد شبكة على الخادم، وليس حكماً على أي قدرة. أعد المحاولة، وإن تكرر فافحص خروج الشبكة في Railway.',
+    PROBE_FAILED: 'فشل غير مصنَّف — التفاصيل في الحقل detail وفي سجلّ الخادم (ابحث: capability-probe).',
+    OPS_SNAPSHOT_FAILED: 'تعذّر بناء لقطة التشغيل — راجع سجلّ الخادم.',
+  };
+
+  function renderPreflight() {
+    var host = document.getElementById('probe-preflight');
+    var body = document.getElementById('probe-preflight-body');
+    var sel = document.getElementById('probe-ws');
+    if (!host || !body || !sel) return;
+    var id = sel.value;
+    if (!id) { host.style.display = 'none'; return; }
+    var row = null;
+    if (opsState.snapshot) {
+      row = (opsState.snapshot.workspaces || []).find(function (w) { return w.workspaceId === id; }) || null;
+    }
+    host.style.display = '';
+    body.innerHTML =
+      '<div>سيُرسَل <b>حتى ٤٠ نداء قراءة</b> إلى Meta على حساب هذه المساحة، وتُحتسب على حصتها.</div>'
+      + '<div>لا يكتب المرقاب شيئاً في Meta ولا في قاعدة بياناتنا — كل النداءات GET.</div>'
+      + (row
+          ? '<div style="margin-top:6px;">الحساب: <span class="sys-detail" style="display:inline;">'
+            + esc(row.externalAccountId || '—') + '</span> · حالة الاتصال: ' + statusChip(row.connection)
+            + (row.connection === 'BLOCKED'
+                ? '<div style="color:var(--error);font-weight:700;margin-top:4px;">الاتصال محجوب — التشغيل الآن سيفشل على الأرجح: '
+                  + esc(row.headline) + '</div>'
+                : '')
+            + '</div>'
+          : '<div class="muted" style="margin-top:6px;">حالة الاتصال غير معروفة — لم تُحمَّل لقطة التشغيل بعد.</div>')
+      + '<div class="muted" style="margin-top:6px;">حارس النقر يمنع تشغيلين من <b>هذه الصفحة</b> فقط. لا يوجد قفل على مستوى الحساب بعد — تبويب آخر أو مسؤول آخر يستطيع بدء تشغيل موازٍ.</div>';
+  }
+
   document.addEventListener('change', function (e) {
     if (e.target && e.target.id === 'probe-ws') {
       var b = document.getElementById('probe-run');
       if (b) b.disabled = !e.target.value;
+      renderPreflight();
     }
   });
   document.addEventListener('click', function (e) {
@@ -830,6 +985,7 @@ export function adminConsolePage(): string {
     });
     var map = {
       overview: ['view-overview', 'النظرة العامة'],
+      workspaces: ['view-workspaces', 'مساحات العمل'],
       customers: ['view-customers', 'إدارة الزبائن'],
       create: ['view-create', 'إنشاء حساب زبون'],
       subscriptions: ['view-subscriptions', 'الاشتراكات'],
@@ -839,7 +995,10 @@ export function adminConsolePage(): string {
     };
     var conf = map[name] || map.overview;
     if (!map[name]) name = 'overview';
-    if (name === 'overview') { loadOverviewData(); loadPlatformStats(); }
+    if (name === 'overview') { loadOverviewData(); loadPlatformStats(); loadOps(); }
+    // The workspaces table reads the SAME snapshot the overview does; fetch
+    // only when we have none, so switching tabs is not a network round trip.
+    if (name === 'workspaces') { if (opsState.snapshot) renderWorkspaces(); else loadOps(); }
     if (name === 'probe') loadProbeWorkspaces();
     document.getElementById(conf[0]).style.display = '';
     document.getElementById('page-heading').textContent = conf[1];
@@ -889,6 +1048,131 @@ export function adminConsolePage(): string {
     if (ai) ai.textContent = num(o.aiConvos7d);
     var pay = document.getElementById('kpi-payments');
     if (pay) pay.textContent = num(o.paymentEvents7d);
+  }
+
+  // ── Operations snapshot: system health, attention queue, workspaces ────
+  // Every status carries a GLYPH and a WORD as well as a colour. Colour is
+  // reinforcement, never the signal — greyscale and colour-blind readers get
+  // the same information.
+  var ST = {
+    HEALTHY:    ['●', 'سليم'],
+    RUNNING:    ['◐', 'قيد التشغيل'],
+    UNKNOWN:    ['?', 'غير معروف'],
+    NOT_TESTED: ['○', 'لم يُختبَر'],
+    DEGRADED:   ['◑', 'متدهور'],
+    WARNING:    ['▲', 'تحذير'],
+    BLOCKED:    ['■', 'محجوب'],
+    ERROR:      ['✕', 'خطأ'],
+  };
+  function statusChip(s) {
+    var d = ST[s] || ['?', s || 'غير معروف'];
+    return '<span class="st st-' + esc(s) + '"><span class="st-glyph" aria-hidden="true">' + d[0]
+      + '</span><span>' + esc(d[1]) + '</span></span>';
+  }
+  var SYS_LABEL = {
+    database: 'قاعدة البيانات', redis: 'Redis', queue: 'طابور المهام',
+    workers: 'العمّال الخلفيون', meta: 'تكامل Meta', intelligence: 'الذكاء',
+  };
+  var opsState = { snapshot: null };
+
+  function renderOps(snap) {
+    opsState.snapshot = snap;
+    // Mutate in place — replacing via outerHTML would re-declare the id and
+    // leave two nodes claiming it if this ever ran twice.
+    var ov = document.getElementById('ops-overall');
+    if (ov) {
+      var d = ST[snap.overall] || ['?', snap.overall];
+      ov.className = 'st st-' + snap.overall;
+      ov.innerHTML = '<span class="st-glyph" aria-hidden="true">' + d[0] + '</span><span>' + esc(d[1]) + '</span>';
+    }
+
+    var grid = document.getElementById('ops-subsystems');
+    if (grid) {
+      grid.innerHTML = (snap.subsystems || []).map(function (s) {
+        return '<div class="sys-card">'
+          + '<div class="sys-name">' + esc(SYS_LABEL[s.key] || s.key) + '</div>'
+          + statusChip(s.status)
+          + '<div class="sys-sum">' + esc(s.summary) + '</div>'
+          + (s.detail ? '<div class="sys-detail">' + esc(s.detail) + '</div>' : '')
+          + (s.actionHref ? '<a class="att-action" href="' + esc(s.actionHref) + '">' + esc(s.actionLabel || 'افتح') + ' ←</a>' : '')
+          + '</div>';
+      }).join('');
+    }
+
+    var host = document.getElementById('ops-attention');
+    var cnt = document.getElementById('ops-attention-count');
+    var items = snap.attention || [];
+    if (cnt) cnt.textContent = items.length ? items.length + ' بند' : '';
+    if (host) {
+      host.innerHTML = items.length
+        ? items.map(function (a) {
+            return '<div class="att-item att-' + esc(a.severity) + '">'
+              + '<div style="flex:1;min-width:0;">'
+              + '<div class="att-title">' + esc(a.title) + '</div>'
+              + '<div class="att-because">' + esc(a.because) + '</div>'
+              + (a.action ? (a.href
+                  ? '<a class="att-action" href="' + esc(a.href) + '">' + esc(a.action) + ' ←</a>'
+                  : '<div class="att-action">' + esc(a.action) + '</div>') : '')
+              + '</div></div>';
+          }).join('')
+        // An empty attention queue is a RESULT, not an empty state. Saying so
+        // explicitly is what makes the queue trustworthy when it is not empty.
+        : '<div class="att-clear">✓ لا شيء يحتاج تدخلاً الآن</div>';
+    }
+    renderWorkspaces();
+  }
+
+  function filteredWorkspaces() {
+    var snap = opsState.snapshot;
+    if (!snap) return [];
+    var qEl = document.getElementById('ws-search');
+    var fEl = document.getElementById('ws-filter');
+    var q = (qEl && qEl.value || '').trim().toLowerCase();
+    var f = (fEl && fEl.value) || 'all';
+    return (snap.workspaces || []).filter(function (r) {
+      if (f === 'problems' && (r.overall === 'HEALTHY' || r.overall === 'NOT_TESTED')) return false;
+      if (f !== 'all' && f !== 'problems' && r.overall !== f) return false;
+      if (!q) return true;
+      var hay = ((r.workspaceName || '') + ' ' + (r.ownerEmail || '') + ' ' + (r.adAccountName || '')).toLowerCase();
+      return hay.indexOf(q) !== -1;
+    });
+  }
+
+  function renderWorkspaces() {
+    var tbody = document.getElementById('ws-tbody');
+    if (!tbody) return;
+    var rows = filteredWorkspaces();
+    // data-th feeds the mobile card layout via CSS ::before — the header row
+    // is hidden below 760px, so each cell must carry its own label.
+    tbody.innerHTML = rows.map(function (r) {
+      var sync = r.lastSyncedAt ? fmtShort(r.lastSyncedAt) : 'لم تحدث';
+      if (r.lastSyncStatus === 'FAILED') sync += ' (فشلت)';
+      var age = r.dataAgeDays == null ? 'لا بيانات' : r.dataAgeDays === 0 ? 'اليوم' : 'قبل ' + r.dataAgeDays + ' يوم';
+      return '<tr>'
+        + '<td data-th="مساحة العمل"><div><div style="font-weight:700;">' + esc(r.workspaceName) + '</div>'
+        +   '<div class="muted">' + esc(r.ownerEmail || '—') + '</div></div></td>'
+        + '<td data-th="الحالة"><div>' + statusChip(r.overall)
+        +   '<div class="muted" style="margin-top:3px;">' + esc(r.headline) + '</div></div></td>'
+        + '<td data-th="الاتصال">' + statusChip(r.connection) + '</td>'
+        + '<td data-th="البيانات"><div>' + statusChip(r.data)
+        +   '<div class="muted" style="margin-top:3px;">' + esc(age) + '</div></div></td>'
+        + '<td data-th="آخر مزامنة"><span class="muted">' + esc(sync) + '</span></td>'
+        + '<td data-th="حساب Meta"><span class="sys-detail" style="margin:0;">'
+        +   esc(r.externalAccountId || '—') + '</span></td>'
+        + '</tr>';
+    }).join('') || '<tr><td colspan="6" class="empty">لا مساحات مطابقة.</td></tr>';
+  }
+
+  async function loadOps() {
+    try {
+      renderOps(await api('/api/admin/ops'));
+    } catch (e) {
+      var host = document.getElementById('ops-attention');
+      if (host) host.innerHTML = '<div class="error-box">' + esc(e.message || 'تعذّر تحميل لقطة التشغيل')
+        + (e.code ? ' <span class="sys-detail" style="display:inline;">' + esc(e.code) + '</span>' : '') + '</div>';
+      var tb = document.getElementById('ws-tbody');
+      if (tb) tb.innerHTML = '<tr><td colspan="6" class="empty">تعذّر التحميل.</td></tr>';
+    }
   }
 
   // ── Platform stats: the observability numbers, now on the landing tab ──
@@ -1430,6 +1714,7 @@ export function adminConsolePage(): string {
     loadAll();
     loadSettings();
     loadPlatformStats();
+    loadOps();
     // The workspace list behind the probe dropdown is cached per page-load;
     // "refresh" should mean everything the console shows.
     probeLoaded = false;
@@ -1557,6 +1842,8 @@ export function adminConsolePage(): string {
   });
 
   document.getElementById('ps-refresh').addEventListener('click', function () { recomputePlatformStats(); });
+  document.getElementById('ws-search').addEventListener('input', function () { renderWorkspaces(); });
+  document.getElementById('ws-filter').addEventListener('change', function () { renderWorkspaces(); });
   document.getElementById('btn-seed-settings').addEventListener('click', function () { seedSettings(); });
   document.getElementById('btn-add-setting').addEventListener('click', function () { addSetting(); });
 

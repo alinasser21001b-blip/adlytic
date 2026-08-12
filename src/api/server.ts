@@ -54,6 +54,7 @@ import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelli
 import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
+import { getAdminOpsSnapshot } from '../services/adminOpsHealth';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { runCapabilityProbeForWorkspace, redactProbeError, classifyProbeRunFailure } from '../services/metaCapabilityRunner';
 import { requireActiveUser } from '../services/accountAccess';
@@ -1476,6 +1477,29 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    * (see `getPlatformStats.ts`); the DTO carries `fromCache` so admins can
    * see whether they're looking at a fresh or cached row.
    */
+  /**
+   * GET /api/admin/ops — the Operations Console snapshot.
+   *
+   * Subsystem health + attention queue + per-workspace operational rows in a
+   * bounded query count. Reports observed plumbing state only; it never reads
+   * or re-derives a metric, so measurement semantics stay frozen.
+   *
+   * Returns no token, no encrypted column, no connection string — only
+   * booleans about their presence.
+   */
+  app.get('/api/admin/ops', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    try {
+      return c.json(safeJson(await getAdminOpsSnapshot(prisma)));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown';
+      console.error('[admin-ops] snapshot failed:', msg);
+      return c.json({ error: 'تعذّر بناء لقطة التشغيل', code: 'OPS_SNAPSHOT_FAILED', detail: msg.slice(0, 300) }, 500);
+    }
+  });
+
   app.get('/api/admin/platform-stats', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);
