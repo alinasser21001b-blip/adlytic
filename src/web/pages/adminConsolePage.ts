@@ -338,9 +338,13 @@ export function adminConsolePage(): string {
                ٣. ما الحجم/الأثر؟  → الوصول والأموال والذكاء
                المؤشرات العامة تأتي أخيراً لأنها سياق، لا إنذار. -->
           <div class="ps-head" style="margin-bottom:10px;">
-            <span class="ps-title">صحة النظام</span>
+            <span class="ps-title">حالة النظام</span>
             <span class="st" id="ops-overall"><span class="st-glyph">○</span><span>جارٍ الفحص…</span></span>
           </div>
+          <!-- ما نعرفه مفصولاً عمّا لا نعرفه. مقياس واحد لا يستطيع حمل
+               «يعمل» و«فيه مجهولات» معاً — ودمجهما هو بالضبط ادّعاء اليقين
+               الذي بُني هذا الكونسول ليمنعه. -->
+          <div class="muted" id="ops-certainty" style="margin:-4px 0 12px;"></div>
           <div class="sys-grid" id="ops-subsystems"></div>
 
           <div class="ps-head" style="margin-bottom:10px;">
@@ -1077,13 +1081,31 @@ export function adminConsolePage(): string {
 
   function renderOps(snap) {
     opsState.snapshot = snap;
-    // Mutate in place — replacing via outerHTML would re-declare the id and
-    // leave two nodes claiming it if this ever ran twice.
+    // The headline reports only what was OBSERVED, and never claims plain
+    // health while something is undetermined. "يعمل — مع مجهولين" is the
+    // honest reading of a system that answers on every axis we could check
+    // and stays silent on two we could not.
+    var unknown = snap.unknown || [];
+    var known = snap.known || [];
     var ov = document.getElementById('ops-overall');
     if (ov) {
       var d = ST[snap.overall] || ['?', snap.overall];
-      ov.className = 'st st-' + snap.overall;
-      ov.innerHTML = '<span class="st-glyph" aria-hidden="true">' + d[0] + '</span><span>' + esc(d[1]) + '</span>';
+      var word = d[1];
+      if (snap.overall === 'HEALTHY' && unknown.length) {
+        word = 'يعمل — مع ' + unknown.length + ' مجهول';
+      }
+      ov.className = 'st st-' + (unknown.length && snap.overall === 'HEALTHY' ? 'UNKNOWN' : snap.overall);
+      ov.innerHTML = '<span class="st-glyph" aria-hidden="true">' + (unknown.length && snap.overall === 'HEALTHY' ? '◐' : d[0])
+        + '</span><span>' + esc(word) + '</span>';
+    }
+    var cert = document.getElementById('ops-certainty');
+    if (cert) {
+      var nameOf = function (k) { return SYS_LABEL[k] || k; };
+      cert.innerHTML = 'مرصود: ' + (known.length ? known.map(nameOf).map(esc).join(' · ') : '—')
+        + (unknown.length
+            ? ' &nbsp;|&nbsp; <span style="color:var(--warning);font-weight:700;">غير مرصود: '
+              + unknown.map(nameOf).map(esc).join(' · ') + '</span>'
+            : '');
     }
 
     var grid = document.getElementById('ops-subsystems');

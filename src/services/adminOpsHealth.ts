@@ -105,10 +105,29 @@ export interface WorkspaceOpsRow {
 
 export interface AdminOpsSnapshot {
   computedAt: string;
+  /**
+   * Worst status among subsystems we could actually OBSERVE.
+   *
+   * Deliberately excludes UNKNOWN and NOT_TESTED, because folding them in
+   * makes one scalar carry two incompatible claims. A single value can say
+   * "something is broken" or "nothing we checked is broken" — it cannot also
+   * say "and here is what we never checked". That belongs in `unknown`, and
+   * an audit caught this console claiming plain health while a subsystem was
+   * untested, which is exactly the manufactured certainty it exists to avoid.
+   */
   overall: OpsStatus;
+  /** Subsystem keys whose state was positively observed. */
+  known: string[];
+  /** Subsystem keys we could NOT determine — never counted as healthy. */
+  unknown: string[];
   subsystems: SubsystemHealth[];
   attention: AttentionItem[];
   workspaces: WorkspaceOpsRow[];
+}
+
+/** True when a status means "we did not find out", not "we found it fine". */
+export function isUndetermined(s: OpsStatus): boolean {
+  return s === 'UNKNOWN' || s === 'NOT_TESTED';
 }
 
 const DAY_MS = 86_400_000;
@@ -399,9 +418,12 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     });
   }
 
+  const observed = subsystems.filter((s) => !isUndetermined(s.status));
   return {
     computedAt: new Date().toISOString(),
-    overall: worstOf(subsystems.map((s) => s.status)),
+    overall: worstOf(observed.map((s) => s.status)),
+    known: observed.map((s) => s.key),
+    unknown: subsystems.filter((s) => isUndetermined(s.status)).map((s) => s.key),
     subsystems,
     attention,
     workspaces: rows,
