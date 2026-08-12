@@ -79,6 +79,12 @@ function getDedicatedClient(): Redis | null {
   }
 
   const c = new IORedis(url, {
+    // Same as src/lib/redis.ts: Railway-internal hostnames are IPv6-only and
+    // ioredis defaults to IPv4 DNS — without family: 0 this client never
+    // connects on Railway, which silently stops EVERY queued job (sync,
+    // maintenance, brain) while the app looks healthy.
+    family: 0,
+
     // BullMQ requirement: blocking commands (BRPOPLPUSH etc.) must not be
     // capped at 1 retry, otherwise they reject mid-block.
     maxRetriesPerRequest: null,

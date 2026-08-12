@@ -43,6 +43,13 @@ let lastError: string | null = null;
 
 function buildClient(url: string): Redis {
   const opts: RedisOptions = {
+    // Railway's private network resolves *.railway.internal over IPv6 ONLY,
+    // and ioredis defaults to an IPv4 (A-record) lookup — the connection dies
+    // at DNS with ENOTFOUND and every counter silently reads zero. family: 0
+    // lets the resolver return whichever family exists; harmless for public
+    // hosts, mandatory for Railway-internal ones.
+    family: 0,
+
     // Connect eagerly so an unreachable Redis surfaces in the boot logs,
     // not on the first cache-read hours later.
     lazyConnect: false,
