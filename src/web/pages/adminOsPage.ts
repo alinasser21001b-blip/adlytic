@@ -44,6 +44,7 @@ const NAV = [
     { id: 'operations', label: 'العمليات', hint: 'حالة البنية' },
   ] },
   { group: 'معرفة', items: [
+    { id: 'intelligence', label: 'الذكاء', hint: 'من الواقعة إلى التوصية' },
     { id: 'boundary', label: 'حدود المعرفة', hint: 'ما لا نعرفه' },
     { id: 'experiments', label: 'التجارب', hint: 'مرقاب قدرات Meta' },
   ] },
@@ -197,6 +198,21 @@ export function adminOsPage(): string {
     .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
     :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+    /* ── The epistemic ladder: four layers, visually unmergeable ─────── */
+    .ladder { display: flex; flex-direction: column; gap: 0; }
+    .rung { border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+      padding: 14px 16px; position: relative; }
+    .rung + .rung { margin-top: 22px; }
+    /* The connector is the argument: each layer RESTS on the one below it,
+       and a break anywhere below invalidates everything above. */
+    .rung + .rung::before { content: '\\2193'; position: absolute; top: -19px; right: 26px;
+      color: var(--text-3); font-size: 15px; }
+    .rung-n { font-size: 10.5px; font-weight: 800; color: var(--text-3); letter-spacing: 0.08em; }
+    .rung-t { font-size: 15px; font-weight: 800; margin: 3px 0 6px; }
+    .rung-d { font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+    .rung-ex { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+    .rung-lbl { font-size: 10.5px; font-weight: 800; color: var(--text-3); letter-spacing: 0.05em; }
+
     /* ── Step flow for the probe: configure → review → run → results ──── */
     .steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
     .step { font-size: 11.5px; font-weight: 700; color: var(--text-3); padding: 5px 11px;
@@ -346,6 +362,16 @@ export function adminOsPage(): string {
         <div class="stack" id="bnd-all"></div>
       </section>
 
+      <!-- ══ الذكاء — the epistemic ladder made visible ══ -->
+      <section class="view" id="v-intelligence">
+        <p class="muted" style="line-height:1.8;margin-bottom:16px;max-width:72ch;">
+          كل رقم يعرضه Adlytic يقع على واحدة من أربع طبقات. الخلط بينها هو أصل
+          «أنا أشكّ بالأرقام» — فرقمٌ مُلاحَظ ورقمٌ مُستنتَج يبدوان متطابقين على الشاشة
+          بينما يستحقان ثقتين مختلفتين تماماً. هذه الصفحة تفصلهما.
+        </p>
+        <div class="ladder" id="intel-ladder"></div>
+      </section>
+
       <!-- ══ التجارب — probe as a flow ══ -->
       <section class="view" id="v-experiments">
         <div class="steps">
@@ -433,6 +459,7 @@ export function adminOsPage(): string {
   var TITLES = { now: ['الآن', 'ما الذي يحدث في المنصة'], attention: ['الانتباه', 'ما يحتاج تدخلاً'],
     activity: ['النشاط', 'ما تغيّر مؤخراً'], workspaces: ['مساحات العمل', 'من المتأثر ولماذا'],
     operations: ['العمليات', 'حالة البنية التحتية'], boundary: ['حدود المعرفة', 'ما لا نستطيع تحديده'],
+    intelligence: ['الذكاء', 'أين تنتهي الملاحظة ويبدأ الاستدلال'],
     experiments: ['التجارب', 'مرقاب قدرات Meta'], customers: ['الزبائن', ''],
     revenue: ['الإيرادات', ''], platform: ['إعدادات المنصة', ''] };
 
@@ -490,6 +517,7 @@ export function adminOsPage(): string {
     if (v === 'experiments') loadProbeWs();
     if (v === 'customers') renderCustomers();
     if (v === 'revenue') renderRevenue();
+    if (v === 'intelligence') renderIntel();
   }
   window.addEventListener('hashchange', function () { show((location.hash || '').replace('#', '') || 'now'); });
 
@@ -561,6 +589,7 @@ export function adminOsPage(): string {
     }).join('') || '<tr><td colspan="4" class="empty">لا نشاط مسجّل.</td></tr>';
 
     renderWs();
+    renderIntel();
     var nc = document.querySelector('[data-view="attention"] .nav-item-hint');
     if (nc) nc.textContent = att.length ? att.length + ' بند' : 'لا شيء';
   }
@@ -644,6 +673,64 @@ export function adminOsPage(): string {
       '<div class="pulse-main">' + (s.brain && s.brain.narrationCoveragePct != null ? s.brain.narrationCoveragePct + '%' : 'لا لقطات') + '</div>' +
       '<div class="muted" style="margin-top:6px;">' + ((s.brain && s.brain.snapshotsLastNDays) || 0) + ' لقطة \\u00B7 ' +
       ((s.brain && s.brain.narrationsLastNDays) || 0) + ' مسرودة</div></div>';
+  }
+
+
+  // ── The epistemic ladder ─────────────────────────────────────────────
+  // Four layers, each labelled with what it IS and what we currently know
+  // about it. The state on each rung is derived ONLY from evidence we hold:
+  // observation from the ops snapshot, calculation from narration coverage,
+  // and the top two rungs stay NOT_TESTED because no live check exists —
+  // which is the honest answer, not a gap to paper over.
+  function renderIntel() {
+    var host = document.getElementById('intel-ladder');
+    if (!host) return;
+    var o = S.ops, st = S.stats;
+    var fresh = o ? (o.workspaces || []).filter(function (w) { return w.data === 'HEALTHY'; }).length : 0;
+    var connected = o ? (o.workspaces || []).filter(function (w) { return w.adAccountId; }).length : 0;
+    var cov = st && st.brain ? st.brain.narrationCoveragePct : null;
+    var snaps = st && st.brain ? st.brain.snapshotsLastNDays : 0;
+
+    var rungs = [
+      { n: '\u0661 \u00B7 OBSERVED FACT', t: 'واقعة مرصودة',
+        d: 'ما قالته Meta حرفياً، أو ما قرأناه من قاعدة بياناتنا. لا تفسير، لا حساب.',
+        state: connected ? (fresh ? 'HEALTHY' : 'WARNING') : 'NOT_TESTED',
+        ev: connected
+          ? fresh + ' من ' + connected + ' حساب ببيانات طازجة (يوم أو أقل)'
+          : 'لا حساب إعلاني مرتبط — لا وقائع تُرصَد',
+        note: 'المصدر: daily_stats \u00B7 sync_jobs \u00B7 ad_accounts' },
+      { n: '\u0662 \u00B7 DERIVED SIGNAL', t: 'إشارة مشتقّة',
+        d: 'ما حسبناه نحن من الوقائع: CTR، التكرار، الاتجاهات. صحيحة حسابياً بقدر صحّة مدخلاتها فقط.',
+        state: fresh ? 'HEALTHY' : connected ? 'DEGRADED' : 'NOT_TESTED',
+        ev: fresh
+          ? 'تُحسب من الحسابات الطازجة أعلاه'
+          : 'بلا بيانات طازجة تحتها، أي إشارة مشتقّة تصف الماضي لا الحاضر',
+        note: 'الاعتماد: كل ما في الطبقة \u0661' },
+      { n: '\u0663 \u00B7 INTERPRETATION', t: 'تفسير',
+        d: 'حكم النظام على الإشارات: «إرهاق إعلان»، «تشبّع جمهور». هنا يبدأ الاستدلال، وهنا يبدأ احتمال الخطأ.',
+        state: 'NOT_TESTED',
+        ev: snaps ? snaps + ' لقطة \u00B7 تغطية سردية ' + (cov == null ? '\u2014' : cov + '%')
+                  : 'لا لقطات في نافذة الرصد',
+        note: 'لا فحص حيّ لصحّة محرّك التفسير \u2014 التغطية السردية مؤشر جانبي، لا قياس' },
+      { n: '\u0664 \u00B7 RECOMMENDATION', t: 'توصية',
+        d: 'ما نطلب من التاجر فعله. لا تكون أقوى من التفسير تحتها، ولا التفسير أقوى من إشارته.',
+        state: 'NOT_TESTED',
+        ev: 'لم تُقَس دقّة التوصيات مقابل نتائج حقيقية',
+        note: 'يُحسم بـ: تتبّع أثر التوصيات المطبَّقة \u2014 غير مبنيّ' }
+    ];
+
+    host.innerHTML = rungs.map(function (r) {
+      return '<div class="rung">' +
+        '<div class="rung-n">' + r.n + '</div>' +
+        '<div class="rung-t">' + esc(r.t) + ' ' + chip(r.state) + '</div>' +
+        '<div class="rung-d">' + esc(r.d) + '</div>' +
+        '<div class="rung-ex">' +
+          '<div class="rung-lbl">ما نعرفه الآن</div>' +
+          '<div class="rung-d">' + esc(r.ev) + '</div>' +
+          '<div class="muted" style="margin-top:5px;line-height:1.7;">' + esc(r.note) +
+            (r.tech ? ' <span class="ev ev-inline">' + esc(r.tech) + '</span>' : '') + '</div>' +
+        '</div></div>';
+    }).join('');
   }
 
   // ── Probe: configure → review → run → results → evidence ─────────────
@@ -859,7 +946,7 @@ export function adminOsPage(): string {
         '<div class="ev" style="margin-top:6px;">code: ' + esc(e.code || '\\u2014') + '</div></div>';
     });
     api('/api/admin/customers?take=100').then(function (d) { S.customers = d.customers || []; renderCustomers(); }, function () {});
-    api('/api/admin/platform-stats').then(function (d) { S.stats = d; if (S.view === 'revenue') renderRevenue(); }, function () {});
+    api('/api/admin/platform-stats').then(function (d) { S.stats = d; renderIntel(); if (S.view === 'revenue') renderRevenue(); }, function () {});
   }
   boot();
 })();

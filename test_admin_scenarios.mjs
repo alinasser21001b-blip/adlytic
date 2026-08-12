@@ -370,6 +370,33 @@ const readTop = (page) => page.evaluate(() => ({
   else ok(`OS: ${d.evCount} technical values render LTR mono inside the RTL page`);
 }
 
+// ── RTL integrity: Arabic must never render inside the LTR mono treatment ─
+// Caught for real: the Intelligence ladder put Arabic prose notes in .ev,
+// which reverses spacing and makes them read wrong. .ev is for technical
+// tokens (ids, table names, codes) ONLY.
+{
+  const { page } = await open(SCENARIOS['S5 healthy but intelligence untested']);
+  for (const v of ['now', 'workspaces', 'operations', 'boundary', 'intelligence', 'activity']) {
+    await page.click('.nav-item[data-view="' + v + '"]').catch(() => {});
+    await page.waitForTimeout(120);
+  }
+  const bad_ = await page.evaluate(() => {
+    const AR = /[\u0600-\u06FF]/;
+    return [...document.querySelectorAll('.ev')]
+      .filter((e) => e.offsetParent !== null || true)
+      .map((e) => (e.textContent || '').trim())
+      .filter((t) => {
+        if (!AR.test(t)) return false;
+        // A short Arabic label prefixing a technical token is acceptable only
+        // if the element is mostly technical; three or more Arabic words is prose.
+        return (t.match(/[\u0600-\u06FF]+/g) || []).length >= 3;
+      });
+  });
+  await page.close();
+  if (bad_.length) bad(`RTL: Arabic prose rendered in the LTR mono treatment — ${JSON.stringify(bad_.slice(0, 2))}`);
+  else ok('RTL: no Arabic prose inside the LTR evidence treatment');
+}
+
 await browser.close();
 for (const [s, m] of out) console.log((s === 'ok' ? '  ✓ ' : '  ✗ ') + m);
 console.log(`\n════ ${failures === 0 ? out.length + ' passed, 0 failed' : failures + ' FAILURES'} ════\n`);
