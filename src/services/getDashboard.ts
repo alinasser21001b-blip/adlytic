@@ -262,8 +262,9 @@ export interface DashboardDTO {
     dates: string[];
     /** Messaging conversions only — kept for AI/compat; prefer `results` in UI. */
     messages: number[];
-    /** Outcome volume: messages + purchases + leads (Meta-style results). */
-    results: number[];
+    /** ONE coherent result unit only (resultSemantics.ts) — null per day when
+     *  the account mixes purposes; never a cross-unit sum. */
+    results: Array<number | null>;
     spend: number[];
     /** Daily CTR %; null when Meta did not return a rate (no impressions). */
     ctr: Array<number | null>;
@@ -557,10 +558,19 @@ function windowCpm(rows: { [k: string]: any }[], factor: number): number | null 
  * KPI badge deltas: current N-day window vs the prior N-day window from daily_stats.
  * metric_trends (AnalyticsEngine, default 7d + 2d lag) remains for Rules Engine only.
  */
-function computeWindowTrendDeltas(
+/**
+ * `resultsColumn` is the account's single resolved result column (see
+ * `resolveResultsColumn` below), or null when the account mixes purposes.
+ * Results volume is only meaningful in ONE coherent unit (resultSemantics.ts:
+ * 84 conversations + 12 orders is not 96 of anything) — a mixed account has
+ * no correct cross-unit sum, so resultsTrend is honestly null rather than
+ * built on one.
+ */
+export function computeWindowTrendDeltas(
   current: { [k: string]: any }[],
   prior: { [k: string]: any }[],
   factor: number,
+  resultsColumn: string | null,
 ): {
   spendTrend: number | null;
   resultsTrend: number | null;
@@ -569,15 +579,49 @@ function computeWindowTrendDeltas(
   frequencyTrend: number | null;
 } {
   const resultsVolume = (rows: { [k: string]: any }[]) =>
-    sum(rows, "messages") + sum(rows, "purchases") + sum(rows, "leads");
+    resultsColumn ? sum(rows, resultsColumn) : null;
   return {
     spendTrend: pctTrend(sum(current, "spend"), sum(prior, "spend")),
-    // Align with trendSeries.results (messages + purchases + leads), not messages alone.
     resultsTrend: pctTrend(resultsVolume(current), resultsVolume(prior), { minSignal: 3 }),
     ctrTrend: pctTrend(windowCtr(current), windowCtr(prior), { noiseFloor: 0.02 }),
     cpmTrend: pctTrend(windowCpm(current, factor), windowCpm(prior, factor), { noiseFloor: 0.02 }),
     frequencyTrend: pctTrend(avg(current, "frequency"), avg(prior, "frequency"), { noiseFloor: 0.02 }),
   };
+}
+
+/**
+ * The account's single result column, or null when purposes mix.
+ *
+ * Same resolution `src/web/pages/dashboardPage.ts` already applies to the raw
+ * insights it renders (`resultsUnitColumn`, derived from this same
+ * `resultBreakdown` DTO) — this makes the DTO's own trend series agree with
+ * it, instead of the DTO separately fabricating a cross-unit sum. Delegates
+ * entirely to `resultSemantics.ts`'s `aggregateMixedResults` output (via
+ * `buildResultBreakdown`); this is not a second semantic resolver, just the
+ * existing one's decision read once and reused.
+ */
+export function resolveResultsColumn(breakdown: { byUnit: { dailyColumn: string }[] } | null): string | null {
+  return breakdown && breakdown.byUnit.length === 1 ? breakdown.byUnit[0]!.dailyColumn : null;
+}
+
+/**
+ * Per-day results / cost-per-result, gated to the account's single resolved
+ * unit. Null for every day when `resultsColumn` is null (mixed account) —
+ * honest absence, never a fabricated total.
+ */
+export function buildResultsAndCostSeries(
+  daily: { [k: string]: any }[],
+  resultsColumn: string | null,
+  factor: number,
+): { results: (number | null)[]; costPerResult: (number | null)[] } {
+  const results = daily.map((d) => (resultsColumn ? Number(d[resultsColumn] ?? 0) : null));
+  const costPerResult = daily.map((d, i) => {
+    const r = results[i];
+    if (r == null || r <= 0) return null;
+    const spendMajor = Number(d.spend) / factor;
+    return Number.isFinite(spendMajor) ? spendMajor / r : null;
+  });
+  return { results, costPerResult };
 }
 
 type KpiLocale = "EN" | "AR";
@@ -877,8 +921,18 @@ export async function getDashboard(
   const priorDaily = allDaily.filter((d) => d.date.getTime() < sinceMs);
   const score = healthRow?.score ?? null;
 
+  // Per-unit result subtotals — moved ahead of window-trend/KPI computation
+  // (previously computed later, alongside diagnosis) because trend deltas
+  // below need the same ONE-coherent-unit result column the diagnosis does;
+  // a cross-unit sum has no correct value (resultSemantics.ts).
+  const accountResults = await buildResultBreakdown(account.id, prisma, sinceDate)
+    .catch(() => null);
+  const accountResultBreakdown = accountResults?.dto ?? null;
+  const accountResultsSingleUnit = accountResults?.singleUnitCount ?? null;
+  const resultsColumn = resolveResultsColumn(accountResultBreakdown);
+
   // 4. KPI badge deltas — 30d window totals vs prior 30d (not metric_trends 7d).
-  const windowTrends = computeWindowTrendDeltas(daily, priorDaily, factor);
+  const windowTrends = computeWindowTrendDeltas(daily, priorDaily, factor, resultsColumn);
 
   // 5. KPIs — current-window aggregates + aligned window-total deltas.
   // ── Math audit note ──────────────────────────────────────────────────
@@ -965,6 +1019,7 @@ export async function getDashboard(
   // recompute from spend÷impressions so cents never plot as dollars
   // (e.g. Meta CPM $3.21 stored as 321 → wrongly shown as $321).
   // CTR / frequency: null when the day had no delivery — never invent 0% / 0×.
+  const resultsSeriesAndCost = buildResultsAndCostSeries(daily, resultsColumn, factor);
   const trendSeries = {
     // UTC YYYY-MM-DD — matches client calendar mappers (no local TZ drift).
     dates: daily.map((d: any) => {
@@ -975,9 +1030,8 @@ export async function getDashboard(
       return `${y}-${m}-${day}`;
     }),
     messages: daily.map((d: any) => Number(d.messages)),
-    results: daily.map((d: any) =>
-      Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0),
-    ),
+    // ONE coherent unit only (resultSemantics.ts) — see resultsColumn above.
+    results: resultsSeriesAndCost.results,
     spend: daily.map((d: any) => Number(d.spend)),
     ctr: daily.map((d: any) => {
       const imp = Number(d.impressions) || 0;
@@ -998,13 +1052,7 @@ export async function getDashboard(
       if (!Number.isFinite(spendMajor)) return null;
       return (spendMajor / imp) * 1000;
     }),
-    costPerResult: daily.map((d: any) => {
-      const results =
-        Number(d.messages || 0) + Number(d.purchases || 0) + Number(d.leads || 0);
-      if (results <= 0) return null;
-      const spendMajor = Number(d.spend) / factor;
-      return Number.isFinite(spendMajor) ? spendMajor / results : null;
-    }),
+    costPerResult: resultsSeriesAndCost.costPerResult,
   };
 
   // 7. Issues — join detected_issues → knowledge_rules (detected already loaded in parallel).
@@ -1119,14 +1167,6 @@ export async function getDashboard(
     }
   }
 
-  // 7a-bis. Per-unit result subtotals. Computed here rather than alongside the
-  // later enrichment stages because the diagnosis below depends on it: it needs
-  // a result count in ONE coherent unit, not a cross-unit sum.
-  const accountResults = await buildResultBreakdown(account.id, prisma, sinceDate)
-    .catch(() => null);
-  const accountResultBreakdown = accountResults?.dto ?? null;
-  const accountResultsSingleUnit = accountResults?.singleUnitCount ?? null;
-
   // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
   const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
     issueCode: d.issueCode,
@@ -1166,17 +1206,17 @@ export async function getDashboard(
   const diagnoses = diagnose(issueRecords, signals);
 
   // 7c. Attribution — decompose results change into impressions × CTR × CVR.
-  // Use the same results volume as trendSeries (messages + purchases + leads).
+  // Only meaningful in ONE coherent result unit (resultSemantics.ts) — a
+  // mixed account has no single results figure to decompose, so attribution
+  // is withheld rather than built on a fabricated cross-unit sum.
   const priorImpr = sum(priorDaily, "impressions");
   const priorClicks = sum(priorDaily, "clicks");
-  const currentResultsVol =
-    sum(daily, "messages") + sum(daily, "purchases") + sum(daily, "leads");
-  const priorResultsVol =
-    sum(priorDaily, "messages") + sum(priorDaily, "purchases") + sum(priorDaily, "leads");
-  const resultAttribution = attributeChange(
-    { impressions: totalImpr, clicks: totalClicks, results: currentResultsVol },
-    { impressions: priorImpr, clicks: priorClicks, results: priorResultsVol },
-  );
+  const resultAttribution = resultsColumn
+    ? attributeChange(
+        { impressions: totalImpr, clicks: totalClicks, results: sum(daily, resultsColumn) },
+        { impressions: priorImpr, clicks: priorClicks, results: sum(priorDaily, resultsColumn) },
+      )
+    : null;
 
   // 8. Priority action — recommendation already loaded in parallel.
   // Sanitize every issue at the product boundary — UI and AI never see codes/jargon.

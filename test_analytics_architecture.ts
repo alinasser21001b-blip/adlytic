@@ -349,24 +349,27 @@ check('the dashboard does not derive ratio metrics in the browser', () => {
     `frontend files deriving analytics ratios: ${offenders.join(', ')}`);
 });
 
-check('the frontend never sums results across purposes', () => {
-  // The bug this encodes, twice shipped:
+check('nothing sums results across purposes (frontend or service layer)', () => {
+  // The bug this encodes, twice shipped in src/web/** — and, until this
+  // check widened past that prefix, a third time undetected in
+  // src/services/getDashboard.ts (trendSeries.results/costPerResult and the
+  // account funnel's resultAttribution all did the same sum):
   //
   //   (Number(d.messages) || 0) + (Number(d.purchases) || 0) + (Number(d.leads) || 0)
   //
   // Conversations, orders and leads are different UNITS. Their sum is not a
   // quantity — an account with 84 conversations and 12 orders does not have
   // 96 of anything. resultSemantics.ts makes this unrepresentable server-side
-  // (MixedResultTotal has no cross-unit total field), but nothing stopped the
-  // browser from re-deriving it from the raw per-type columns, and both the
-  // campaigns page and the dashboard did exactly that.
+  // (MixedResultTotal has no cross-unit total field); this check now covers
+  // src/web/** AND src/services/** so a regression in either is caught — the
+  // authoritative calculation lives in services, not just its rendering.
   //
   // Matches an addition chain that mixes any two distinct result counters,
   // in either the daily (messages) or windowed (messagesWindow) naming.
   const COUNTERS = ['messages', 'purchases', 'leads', 'conversations'];
   const offenders: string[] = [];
   for (const { path, code } of FILES) {
-    if (!/^src\/web\//.test(path)) continue;
+    if (!/^src\/(web|services)\//.test(path)) continue;
     // Strip comments so the explanations above (and in the fixed code) do not
     // trip the rule that they document.
     const stripped = code
@@ -392,12 +395,13 @@ check('the frontend never sums results across purposes', () => {
     `frontend summing across result units: ${[...new Set(offenders)].join(', ')}`);
 });
 
-check('the frontend does not substitute another objective\'s counter as a fallback', () => {
+check('nothing substitutes another objective\'s counter as a fallback (frontend or service layer)', () => {
   // `return Number(c.messagesWindow) || 0` as the fallback for an unresolved
   // result made a sales campaign report its conversation count as its result
   // count. When the server declines to resolve a result, the answer is "—".
+  // Covers src/services/** too, not only src/web/**.
   const offenders = FILES.filter(({ path, code }) => {
-    if (!/^src\/web\//.test(path)) return false;
+    if (!/^src\/(web|services)\//.test(path)) return false;
     const stripped = code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
     return /return\s+Number\([a-zA-Z_$][\w$]*\.(messages|purchases|leads)(Window)?\)\s*\|\|\s*0\s*;/.test(stripped);
   }).map((f) => f.path);
