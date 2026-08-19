@@ -24,8 +24,11 @@
 //    · GET only. There is no code path here that can POST, PATCH or DELETE.
 //    · Hard call budget (default 40) enforced by the probe itself.
 //    · Stops the whole run on the first rate limit rather than burning quota.
-//    · The token is read from the environment, never printed, never written
-//      to either output file, and stripped out of Meta's own error messages.
+//    · The token travels in the Authorization header, NEVER the query
+//      string: a URL-borne token leaks into proxy logs, caches, Referer
+//      headers and Meta's own echoed error payloads.
+//    · It is read from the environment, never printed, never written to
+//      either output file, and stripped out of Meta's own error messages.
 //    · Entity ids are discovered with ordinary list calls that production
 //      already makes; those count against the budget like any other call.
 // ════════════════════════════════════════════════════════════════════════
@@ -42,6 +45,7 @@ import {
   type ProbeTransport,
 } from '../src/services/metaCapabilityProbe';
 import { matrixMd, reportMd } from '../src/services/metaCapabilityReport';
+import { metaGetRequest } from '../src/services/metaCapabilityRunner';
 
 const API_VERSION = process.env.META_API_VERSION ?? 'v20.0';
 const BASE = `https://graph.facebook.com/${API_VERSION}`;
@@ -66,8 +70,8 @@ function httpTransport(token: string): ProbeTransport & { calls: number } {
     calls: 0,
     async rawGet(path: string, params: Record<string, string>) {
       t.calls += 1;
-      const qs = new URLSearchParams({ ...params, access_token: token });
-      const res = await fetch(`${BASE}${path}?${qs.toString()}`, { method: 'GET' });
+      const { url, init } = metaGetRequest(BASE, path, params, token);
+      const res = await fetch(url, init);
       let body: unknown = null;
       try { body = await res.json(); } catch { body = null; }
       return { status: res.status, body };
@@ -82,8 +86,8 @@ async function discoverEntities(token: string, account: string, budget: { left: 
   const get = async (path: string, params: Record<string, string>) => {
     if (budget.left <= 0) return null;
     budget.left -= 1;
-    const qs = new URLSearchParams({ ...params, access_token: token });
-    const res = await fetch(`${BASE}${path}?${qs.toString()}`, { method: 'GET' });
+    const { url, init } = metaGetRequest(BASE, path, params, token);
+    const res = await fetch(url, init);
     if (!res.ok) return null;
     const j = (await res.json()) as { data?: { id?: string }[] };
     return j.data?.[0]?.id ?? null;

@@ -103,14 +103,40 @@ function isoDaysAgo(n: number): string {
   return new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
 }
 
+/**
+ * Build a Meta GET request with the token in the AUTHORIZATION HEADER.
+ *
+ * A token in the query string leaks along paths nobody audits: proxy access
+ * logs, browser and CDN caches, `Referer` headers, APM traces, and — the one
+ * that bites hardest here — Meta's own error payloads, which echo the
+ * request URL back to us and which we then persist as probe evidence. The
+ * header never appears in any of those.
+ *
+ * redact() stays as defence in depth. Two independent guarantees are not
+ * redundancy; the first one failing is exactly when the second matters.
+ *
+ * Exported so a test can assert on the real construction rather than on a
+ * reimplementation of it.
+ */
+export function metaGetRequest(
+  base: string, path: string, params: Record<string, string>, token: string,
+): { url: string; init: RequestInit } {
+  const qs = new URLSearchParams(params);
+  const q = qs.toString();
+  return {
+    url: `${base}${path}${q ? '?' + q : ''}`,
+    init: { method: 'GET', headers: { Authorization: `Bearer ${token}` } },
+  };
+}
+
 /** GET-only transport. Deliberately exposes no method parameter. */
 function httpTransport(token: string, base: string): ProbeTransport & { calls: number } {
   const t = {
     calls: 0,
     async rawGet(path: string, params: Record<string, string>) {
       t.calls += 1;
-      const qs = new URLSearchParams({ ...params, access_token: token });
-      const res = await fetch(`${base}${path}?${qs.toString()}`, { method: 'GET' });
+      const { url, init } = metaGetRequest(base, path, params, token);
+      const res = await fetch(url, init);
       let body: unknown = null;
       try { body = await res.json(); } catch { body = null; }
       return { status: res.status, body };
@@ -153,8 +179,8 @@ export async function runCapabilityProbeForWorkspace(
   const listOne = async (path: string): Promise<string | undefined> => {
     if (remaining.left <= 0) return undefined;
     remaining.left -= 1;
-    const qs = new URLSearchParams({ fields: 'id', limit: '1', access_token: token });
-    const res = await fetch(`${base}${path}?${qs.toString()}`, { method: 'GET' });
+    const { url, init } = metaGetRequest(base, path, { fields: 'id', limit: '1' }, token);
+    const res = await fetch(url, init);
     if (!res.ok) return undefined;
     const j = (await res.json()) as { data?: { id?: string }[] };
     return j.data?.[0]?.id;

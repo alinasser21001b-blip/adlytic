@@ -66,6 +66,11 @@ export const META_RESOURCES: MetaResource[] = [
   F('purchase_roas'), F('date_start'), F('date_stop'),
   F('quality_ranking', 'src/services/metaClient.ts:AD_RELEVANCE_FIELDS'),
   F('engagement_rate_ranking', 'src/services/metaClient.ts:AD_RELEVANCE_FIELDS'),
+  // Caught by test_dependency_drift.ts on its very first run: requested in
+  // production, absent from this registry. Exactly the silence the gate
+  // exists to break — the radar would have answered "we do not depend on
+  // that" about a live dependency, and answered it confidently.
+  F('conversion_rate_ranking', 'src/services/metaClient.ts:AD_RELEVANCE_FIELDS'),
   { id: 'endpoint:insights', kind: 'ENDPOINT', name: '/{object}/insights', declaredIn: 'src/services/metaClient.ts' },
   { id: 'perm:ads_read', kind: 'PERMISSION', name: 'ads_read', declaredIn: 'src/services/metaOAuth.ts' },
   { id: 'version:graph', kind: 'API_VERSION', name: 'META_API_VERSION', declaredIn: 'src/config.ts' },
@@ -123,7 +128,7 @@ export const PRODUCT_FEATURES: ProductFeature[] = [
   {
     id: 'feat:ad-relevance', name: 'تشخيصات جودة الإعلان',
     userImpact: 'تصنيف Meta لجودة الإعلان مقابل المنافسين',
-    dependsOn: ['field:quality_ranking', 'field:engagement_rate_ranking'],
+    dependsOn: ['field:quality_ranking', 'field:engagement_rate_ranking', 'field:conversion_rate_ranking'],
     implementedIn: ['src/knowledge/adRelevanceIntelligence.ts'],
     failureMode: 'VISIBLE_ABSENCE',
   },
