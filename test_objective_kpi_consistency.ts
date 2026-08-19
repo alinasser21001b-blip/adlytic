@@ -132,7 +132,7 @@ check('unknown/unsupported objective → falls back to messaging family (existin
   assert.equal(resultCountForObjective('SOME_FUTURE_OBJECTIVE_NOT_YET_SUPPORTED', t), 42);
 });
 
-check('missing linkClicks (legacy caller, e.g. src/engine/BaselineCalculator-based) degrades to clicks — documented, deliberate, unchanged from pre-fix behavior for that caller', () => {
+check('missing linkClicks (any caller that omits it — e.g. a hand-built test fixture, or a future producer not yet updated) degrades to clicks — documented, deliberate fallback contract, independent of any specific caller', () => {
   const legacyTotals = { spendMinor: 0, impressions: 100, reach: 50, clicks: 100, messages: 0, purchases: 0, leads: 0, revenueMinor: 0 };
   assert.equal(resultCountForObjective('OUTCOME_TRAFFIC', legacyTotals), 100);
 });
