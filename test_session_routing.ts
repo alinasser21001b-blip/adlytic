@@ -190,6 +190,79 @@ async function main() {
     } else ok('server authority is still allowlist + tokenVersion, untouched');
   }
 
+
+  console.log('\n── 8. routing ownership: one file decides identity ──');
+  {
+    // sessionRouter.ts is the ONLY place allowed to RANK the roles. Guards
+    // elsewhere may act on a resolved identity, but a page that re-derives
+    // the ordering can drift from it silently — which is precisely how the
+    // original defect survived in several copies at once.
+    const ROUTER = 'src/web/auth/sessionRouter.ts';
+    const CONSUMERS = [
+      'src/web/layout.ts',
+      'src/web/pages/loginPage.ts',
+      'src/web/pages/adminOsPage.ts',
+      'src/web/pages/adminLoginPage.ts',
+    ];
+    // The real invariant is not "never mention both roles" — a guard must
+    // act on both. It is that no consumer may CONTRADICT the router:
+    //   · a file that tests isActive must also handle admin, or it will
+    //     strand an inactive platform admin on /pending-activation (the
+    //     original defect, in miniature);
+    //   · and admin must be handled FIRST, matching the frozen ordering.
+    const offenders: string[] = [];
+    for (const f of CONSUMERS) {
+      const src = readFileSync(f, 'utf8');
+      const adminAt = Math.min(
+        ...['isPlatformAdmin === true', "kind === 'ADMIN'"]
+          .map((n) => { const i = src.indexOf(n); return i < 0 ? Number.POSITIVE_INFINITY : i; }),
+      );
+      const activeAt = Math.min(
+        ...['isActive === false', "kind === 'PENDING'"]
+          .map((n) => { const i = src.indexOf(n); return i < 0 ? Number.POSITIVE_INFINITY : i; }),
+      );
+      const testsActive = Number.isFinite(activeAt);
+      const testsAdmin = Number.isFinite(adminAt);
+      if (testsActive && !testsAdmin) offenders.push(`${f} (tests activation, ignores admin)`);
+      else if (testsActive && testsAdmin && adminAt > activeAt) {
+        offenders.push(`${f} (activation ranked BEFORE admin — contradicts the router)`);
+      }
+    }
+    if (offenders.length) {
+      bad(`consumers contradict the frozen ordering in ${ROUTER}: ${offenders.join(', ')}`);
+    } else ok(`every consumer handles admin before activation — no contradiction of ${ROUTER}`);
+
+    // And the router itself must still contain the ordering.
+    const router = readFileSync(ROUTER, 'utf8');
+    const adminAt = router.indexOf("isPlatformAdmin === true");
+    const pendingAt = router.indexOf("isActive === false");
+    if (adminAt < 0 || pendingAt < 0) bad('the router no longer contains both role checks');
+    else if (adminAt > pendingAt) bad('ADMIN is no longer checked BEFORE PENDING — the frozen ordering was inverted');
+    else ok('the router checks ADMIN before PENDING (frozen ordering intact)');
+
+    // The policy comment must survive: a future maintainer reading only the
+    // code would reasonably mistake this for an inactive-user bypass.
+    if (!/ROLE POLICY — FROZEN/.test(router)) bad('the frozen role-policy rationale was removed from the router');
+    else ok('the role-policy rationale is documented at the decision point');
+  }
+
+  console.log('\n── 9. an inactive PLATFORM ADMIN still resolves ADMIN ──');
+  {
+    const INACTIVE_ADMIN = { id: 'u', email: 'a@x', isActive: false, isPlatformAdmin: true, memberships: [] };
+    const s = sandbox(INACTIVE_ADMIN); s.store['adlytic_token'] = 't';
+    const id = await s.S['resolveSessionIdentity']!();
+    if (id.kind !== 'ADMIN') {
+      bad(`an inactive platform admin resolved ${id.kind} — activation is not the admin gate, and routing them to /pending-activation locks the operator out with a flag that has no authority over the console`);
+    } else ok('isPlatformAdmin=true + isActive=false → ADMIN (revocation proven in test_admin_revocation.ts)');
+
+    let opened = false;
+    await s.S['requireAdminSurface']!(() => { opened = true; }, () => {});
+    if (!opened) bad('an inactive platform admin was refused the admin surface');
+    else ok('an inactive platform admin still reaches the admin surface');
+    if (s.nav.length) bad(`an inactive admin was navigated away to ${s.nav.join(', ')}`);
+    else ok('an inactive admin is not redirected anywhere');
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES`} ════\n`);
   process.exit(failed ? 1 : 0);
 }

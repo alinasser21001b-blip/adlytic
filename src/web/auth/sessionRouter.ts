@@ -80,9 +80,34 @@ export const SESSION_ROUTER_JS = `
     var me;
     try { me = await res.json(); } catch (e) { return { kind: 'UNRESOLVED', reason: 'parse' }; }
 
-    // ORDER IS THE FIX. Admin outranks activation, which outranks customer.
-    // A platform admin whose own user row is inactive is still an admin:
-    // admin status lives in PLATFORM_ADMIN_EMAILS, not in isActive.
+    // ══ ROLE POLICY — FROZEN. Read before changing this ordering. ══
+    //
+    // Two INDEPENDENT authorities exist in this system, and they are not
+    // ranked against each other by accident:
+    //
+    //   CUSTOMER ACTIVATION   = User.isActive
+    //       A manual WhatsApp onboarding gate. It governs whether a paying
+    //       customer may use the customer PRODUCT. It is a business
+    //       lifecycle flag, not a security control.
+    //
+    //   PLATFORM ADMIN AUTH   = PLATFORM_ADMIN_EMAILS + valid JWT
+    //                           + matching tokenVersion
+    //       Re-derived server-side on every admin call by
+    //       requirePlatformAdmin(). This is the security control.
+    //
+    // Therefore ADMIN outranks PENDING deliberately: a platform admin whose
+    // own user row happens to be inactive is STILL an admin, because
+    // isActive never granted them admin rights in the first place and so
+    // cannot revoke them. Routing such a person into /pending-activation
+    // would lock the operator out of the console using a flag that has no
+    // authority over the console.
+    //
+    // THIS IS NOT AN INACTIVE-USER AUTHORIZATION BYPASS. Nothing here
+    // authorizes anything; it decides which screen to show. The admin kill
+    // switch is removal from PLATFORM_ADMIN_EMAILS or a tokenVersion bump —
+    // both proven in test_admin_revocation.ts. If you are here because
+    // "an inactive user reached the admin surface" looks alarming, the
+    // question to ask is whether their email is still on the allowlist.
     if (me && me.isPlatformAdmin === true) return { kind: 'ADMIN', me: me };
     if (me && me.isActive === false) return { kind: 'PENDING', me: me };
     return { kind: 'CUSTOMER', me: me };
