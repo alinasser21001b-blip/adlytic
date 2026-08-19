@@ -151,6 +151,24 @@ export function saveRecommendationHandler(): ToolHandler<SaveRecommendationArgs,
       const existing = await prisma.recommendation.findUnique({ where: compositeKey });
       const deduplicated = existing != null;
 
+      // Ownership guard (P0-02): this tool may create or refresh only rows it
+      // owns. A row already exists for this exact action slot but was NOT
+      // authored by the AI agent — almost always the deterministic engine
+      // (source=V1_RULES) or the V5 shadow system. Overwriting it here would
+      // silently replace a different producer's recommendation with no
+      // cross-source policy authorizing that; refuse instead.
+      if (existing != null && existing.source !== RecommendationSource.AI_AGENT) {
+        return fail(
+          'FORBIDDEN',
+          `A ${existing.source} recommendation already uses action "${args.actionCode}" for this entity today — the AI agent may not overwrite a recommendation it did not author.`,
+          {
+            field: 'actionCode',
+            retryable: false,
+            suggestion: 'Choose a different actionCode, or call list_campaigns / get_campaign_details to see the existing recommendation instead of replacing it.',
+          },
+        );
+      }
+
       const rec = await prisma.recommendation.upsert({
         where: compositeKey,
         create: {
