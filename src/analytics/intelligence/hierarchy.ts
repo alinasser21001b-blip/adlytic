@@ -233,10 +233,40 @@ export interface ReconciledIntelligence {
   trace: Array<{ layer: IntelligenceLayer; conclusion: string }>;
 }
 
-/** Actions that only make sense when the CLICK stage is the problem. */
-const CREATIVE_ACTIONS = ['REFRESH_CREATIVE', 'REFRESH_CREATIVES', 'CHANGE_CREATIVE', 'NEW_CREATIVE'];
-/** Actions that only make sense when DELIVERY is the problem. */
-const AUDIENCE_ACTIONS = ['EXPAND_AUDIENCE', 'WIDEN_TARGETING', 'INCREASE_BUDGET'];
+/**
+ * Actions that only make sense when the CLICK stage is the problem.
+ *
+ * Two producers emit action codes in different vocabularies for the same
+ * concept — analytics/intelligence/recommend.ts's templateFor()
+ * (REFRESH_CREATIVE) and engines/recommendation/compositionRules.ts's
+ * deterministic ActionCode enum (REFRESH_CREATIVES, IMPROVE_HOOKS — a
+ * creative's opening hook). Both are listed so permitAction() recognizes
+ * either producer's phrasing of "the creative" (P1-01) — CHANGE_CREATIVE /
+ * NEW_CREATIVE are not currently emitted by any producer but are kept as
+ * defensive synonyms.
+ */
+const CREATIVE_ACTIONS = [
+  'REFRESH_CREATIVE', 'REFRESH_CREATIVES', 'CHANGE_CREATIVE', 'NEW_CREATIVE',
+  'IMPROVE_HOOKS',
+];
+/**
+ * Actions that only make sense when DELIVERY is the problem.
+ *
+ * Same cross-vocabulary reasoning as CREATIVE_ACTIONS above: EXPAND_AUDIENCE
+ * (recommend.ts) and BROADEN_AUDIENCE / CHECK_TARGETING / REVIEW_BUDGET_
+ * PACING (compositionRules.ts) all describe widening/adjusting who or how
+ * much is targeted, as opposed to touching the creative. WIDEN_TARGETING /
+ * INCREASE_BUDGET are not currently emitted by any producer but are kept as
+ * defensive synonyms.
+ *
+ * PAUSE_AND_RELAUNCH (compositionRules.ts) is deliberately NOT listed here
+ * or under CREATIVE_ACTIONS — it is not clearly one or the other, and
+ * guessing would be inventing a semantic claim this module doesn't own.
+ */
+const AUDIENCE_ACTIONS = [
+  'EXPAND_AUDIENCE', 'WIDEN_TARGETING', 'INCREASE_BUDGET',
+  'BROADEN_AUDIENCE', 'CHECK_TARGETING', 'REVIEW_BUDGET_PACING',
+];
 
 /**
  * Collapse every layer into ONE verdict, enforcing the hierarchy.
@@ -373,10 +403,18 @@ export function reconcileIntelligence(input: ReconcileInput): ReconciledIntellig
  * Returns null when the action contradicts a measured-healthy stage. Used by
  * the recommendation layer so "change your creative" cannot survive a
  * POST_CLICK diagnosis, however confident the heuristic that produced it.
+ *
+ * Accepts any object carrying just the two fields this function reads —
+ * not only a full ReconciledIntelligence — so a second producer's own
+ * primary action (e.g. priorityAction, built from a DIFFERENT reconciled
+ * object's exposed forbiddenActions) can be checked against the SAME policy
+ * without needing that producer's call site to reconstruct or import the
+ * complete internal shape (P1-01). Every existing caller passing a full
+ * ReconciledIntelligence continues to satisfy this unchanged.
  */
 export function permitAction(
   actionCode: string | null | undefined,
-  reconciled: ReconciledIntelligence,
+  reconciled: Pick<ReconciledIntelligence, 'forbiddenActions' | 'problemClass'>,
 ): { allowed: boolean; reason?: string } {
   if (!actionCode) return { allowed: true };
   if (reconciled.forbiddenActions.includes(actionCode)) {

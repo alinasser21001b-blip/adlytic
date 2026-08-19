@@ -4263,13 +4263,15 @@ export function dashboardPage(): string {
           var v = Number(ts.ctr[i]);
           return Number.isFinite(v) ? v : null;
         });
+        // ts.results is unit-safe server-side (getDashboard.ts resultsColumn) —
+        // null for a mixed-purpose account or when no single unit resolved. No
+        // messages fallback: substituting one objective's counter for another
+        // is the exact fabrication this field exists to prevent.
         resultsSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];
-          if (i == null) return null;
-          var v = null;
-          if (Array.isArray(ts.results) && ts.results[i] != null) v = Number(ts.results[i]);
-          else if (Array.isArray(ts.messages) && ts.messages[i] != null) v = Number(ts.messages[i]);
-          return v != null && v > 0 ? v : null;
+          if (i == null || !Array.isArray(ts.results) || ts.results[i] == null) return null;
+          var v = Number(ts.results[i]);
+          return v > 0 ? v : null;
         });
         freqSeries = isoDates.map(function (iso) {
           var i = tsByIdx[iso];

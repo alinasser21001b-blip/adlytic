@@ -65,6 +65,7 @@ export function signalsFromCampaignRaw(
     messages: Number.isFinite(raw.messages) ? raw.messages : 0,
     purchases: Number.isFinite(raw.purchases) ? Number(raw.purchases) : 0,
     leads: Number.isFinite(raw.leads) ? Number(raw.leads) : 0,
+    linkClicks: Number.isFinite(raw.linkClicks) ? Number(raw.linkClicks) : undefined,
   });
   return absoluteLevelSignals({
     currentCtr: Number.isFinite(raw.ctr) ? raw.ctr : null,

@@ -9,6 +9,13 @@ export interface CampaignRawData {
   spend: number;
   impressions: number;
   clicks: number;
+  /**
+   * Meta inline_link_clicks — the canonical traffic/app result column
+   * (src/lib/objectiveKpis.ts SPECS.traffic/app). Optional: producers that
+   * haven't been updated simply omit it, and resultCountForObjective()
+   * falls back to `clicks`, unchanged from before this field existed.
+   */
+  linkClicks?: number;
   ctr: number;
   frequency: number;
   messages: number;

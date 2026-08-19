@@ -16,11 +16,14 @@
 
 import { type PrismaClient, EntityType } from '@prisma/client';
 import { generateStructured, isAIAvailable } from './ai/aiService';
+import { resolveAccountResultKey } from '../analytics/accountResultKey';
 
 export interface WeeklyMetrics {
   spend: number;
   spendDisplay: string;
-  results: number;
+  /** ONE coherent unit only (resultSemantics.ts) — null when the account
+   *  mixes purposes; there is no correct cross-unit sum to report. */
+  results: number | null;
   impressions: number;
   clicks: number;
   ctr: number | null;
@@ -40,7 +43,8 @@ export interface WeeklyCampaignHighlight {
   campaignId: string;
   campaignName: string;
   spend: number;
-  results: number;
+  /** Same ONE-coherent-unit rule as WeeklyMetrics.results. */
+  results: number | null;
   ctr: number | null;
   healthScore: number | null;
   pattern: string | null;
@@ -135,11 +139,17 @@ export async function generateWeeklyReport(
 
   if (thisWeekStats.length === 0) return null;
 
-  const thisWeek = aggregateMetrics(thisWeekStats, factor, currency);
-  const lastWeek = aggregateMetrics(lastWeekStats, factor, currency);
+  // The account's single result column, or null when purposes mix — resolved
+  // once, over the full two-week comparison window, and reused for both
+  // weeks' aggregates so "this week" and "last week" are never accidentally
+  // resolved to different units.
+  const { resultKey } = await resolveAccountResultKey(prisma, account.id, prevWeekStart, weekEnd);
+
+  const thisWeek = aggregateMetrics(thisWeekStats, factor, currency, resultKey);
+  const lastWeek = aggregateMetrics(lastWeekStats, factor, currency, resultKey);
   const delta = computeDeltas(thisWeek, lastWeek);
 
-  const campaignPerformance = buildCampaignPerformance(thisWeekStats, snapshots, factor, nameMap);
+  const campaignPerformance = buildCampaignPerformance(thisWeekStats, snapshots, factor, nameMap, resultKey);
   const sorted = [...campaignPerformance].sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0));
   const bestCampaign = sorted[0] ?? null;
   const worstCampaign = sorted.length > 1 ? sorted[sorted.length - 1]! : null;
@@ -223,21 +233,32 @@ type DailyStatRow = {
   frequency: number | null;
 };
 
-function aggregateMetrics(stats: DailyStatRow[], factor: number, currency: string): WeeklyMetrics {
-  let spend = 0, impressions = 0, clicks = 0, results = 0, freqSum = 0, freqCount = 0;
+function aggregateMetrics(
+  stats: DailyStatRow[],
+  factor: number,
+  currency: string,
+  resultsColumn: string | null,
+): WeeklyMetrics {
+  let spend = 0, impressions = 0, clicks = 0, freqSum = 0, freqCount = 0;
+  // ONE coherent unit only (resultSemantics.ts) — null stays null (mixed
+  // account); otherwise sum just the resolved column, never messages+
+  // purchases+leads as though they were one quantity.
+  let results: number | null = resultsColumn ? 0 : null;
 
   for (const s of stats) {
     spend += Number(s.spend);
     impressions += Number(s.impressions);
     clicks += Number(s.clicks);
-    results += Number(s.messages) + Number(s.purchases) + Number(s.leads);
+    if (resultsColumn) {
+      results = (results ?? 0) + Number((s as unknown as Record<string, bigint | number>)[resultsColumn] ?? 0);
+    }
     if (s.frequency != null) { freqSum += s.frequency; freqCount++; }
   }
 
   const spendMajor = spend / factor;
   const ctr = impressions > 0 ? +(clicks / impressions * 100).toFixed(2) : null;
   const cpm = impressions > 0 ? +(spendMajor / impressions * 1000).toFixed(2) : null;
-  const costPerResult = results > 0 ? +(spendMajor / results).toFixed(2) : null;
+  const costPerResult = results != null && results > 0 ? +(spendMajor / results).toFixed(2) : null;
   const frequency = freqCount > 0 ? +(freqSum / freqCount).toFixed(2) : null;
 
   const display = currency === 'IQD'
@@ -250,7 +271,9 @@ function aggregateMetrics(stats: DailyStatRow[], factor: number, currency: strin
 function computeDeltas(thisWeek: WeeklyMetrics, lastWeek: WeeklyMetrics): WeeklyDelta {
   return {
     spendPct: pctChange(thisWeek.spend, lastWeek.spend),
-    resultsPct: pctChange(thisWeek.results, lastWeek.results),
+    resultsPct: thisWeek.results != null && lastWeek.results != null
+      ? pctChange(thisWeek.results, lastWeek.results)
+      : null,
     ctrPct: thisWeek.ctr != null && lastWeek.ctr != null && lastWeek.ctr > 0
       ? +((thisWeek.ctr - lastWeek.ctr) / lastWeek.ctr * 100).toFixed(1)
       : null,
@@ -268,12 +291,16 @@ function buildCampaignPerformance(
   snapshots: Array<{ campaignId: string; finalScore: number; patternSignature: string; action: string }>,
   factor: number,
   nameMap: Map<string, string>,
+  resultsColumn: string | null,
 ): WeeklyCampaignHighlight[] {
-  const byCampaign = new Map<string, { spend: number; results: number; impressions: number; clicks: number }>();
+  const byCampaign = new Map<string, { spend: number; results: number | null; impressions: number; clicks: number }>();
   for (const s of stats) {
-    const existing = byCampaign.get(s.entityId) ?? { spend: 0, results: 0, impressions: 0, clicks: 0 };
+    const existing = byCampaign.get(s.entityId) ?? { spend: 0, results: resultsColumn ? 0 : null, impressions: 0, clicks: 0 };
     existing.spend += Number(s.spend);
-    existing.results += Number(s.messages) + Number(s.purchases) + Number(s.leads);
+    // ONE coherent unit only (resultSemantics.ts) — see aggregateMetrics.
+    if (resultsColumn) {
+      existing.results = (existing.results ?? 0) + Number((s as unknown as Record<string, bigint | number>)[resultsColumn] ?? 0);
+    }
     existing.impressions += Number(s.impressions);
     existing.clicks += Number(s.clicks);
     byCampaign.set(s.entityId, existing);
@@ -365,7 +392,11 @@ function buildDeterministicSummary(input: SummaryInput): { summaryAr: string; re
 
   const parts: string[] = [];
   parts.push(`خلال الأسبوع الماضي أنفقت ${thisWeek.spendDisplay} على ${activeCampaigns} حملة نشطة`);
-  parts.push(`وحققت ${thisWeek.results} نتيجة`);
+  // Withheld, not "null نتيجة", when the account mixes purposes and has no
+  // single result unit to report (resultSemantics.ts).
+  if (thisWeek.results != null) {
+    parts.push(`وحققت ${thisWeek.results} نتيجة`);
+  }
 
   if (delta.spendPct != null) {
     if (delta.spendPct > 5) parts.push(`بزيادة في الإنفاق مقارنة بالأسبوع السابق`);

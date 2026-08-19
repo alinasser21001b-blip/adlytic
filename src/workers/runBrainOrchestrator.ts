@@ -304,7 +304,7 @@ async function loadRawDataForCampaigns(
       entityId: true,
       date: true,
       spend: true, impressions: true, clicks: true, messages: true,
-      ctr: true, cpc: true, cpm: true, frequency: true,
+      ctr: true, cpc: true, cpm: true, frequency: true, linkClicks: true,
     },
   });
 
@@ -340,7 +340,7 @@ async function loadRawDataForCampaigns(
       destinationTypes: c.adSets.map((a) => a.destinationType),
       messagesWindow: Number(r.messages),
       clicksWindow: Number(r.clicks),
-      linkClicksWindow: Number((r as any).linkClicks ?? 0),
+      linkClicksWindow: Number(r.linkClicks ?? 0),
       messagingCtaAds: c.messagingCtaAds,
     });
     // Pass the RESOLVED family straight through. Converting it back into a
@@ -356,6 +356,7 @@ async function loadRawDataForCampaigns(
       spend:        spendMajor,
       impressions:  Number(r.impressions),
       clicks:       Number(r.clicks),
+      linkClicks:   Number(r.linkClicks ?? 0),
       messages:     Number(r.messages),
       ctr:          r.ctr ?? 0,
       cpc:          cpcMajor,
