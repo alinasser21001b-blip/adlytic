@@ -3186,6 +3186,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           impressions,
           reach,
           clicks,
+          linkClicks,
           messages,
           purchases,
           leads,
@@ -3540,6 +3541,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       impressions: impressionsN,
       reach: reachN,
       clicks: clicksN,
+      linkClicks: Number(linkClicksW),
       messages: messagesN,
       purchases: purchasesN,
       leads: leadsN,
@@ -3616,13 +3618,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     /** Window totals → volume + derived ratios. Mirrors the summary block above. */
     function deriveWindowMetrics(rows: typeof dailyStats) {
-      let sM = 0n, imp = 0n, clk = 0n, msg = 0n, purch = 0n, leadsW = 0n, rev = 0n;
+      let sM = 0n, imp = 0n, clk = 0n, lnk = 0n, msg = 0n, purch = 0n, leadsW = 0n, rev = 0n;
       let reachMax = 0n;
       let fq = 0, fqN = 0;
       for (const r of rows) {
         sM  += r.spend;
         imp += r.impressions;
         clk += r.clicks;
+        lnk += r.linkClicks;
         msg += r.messages;
         purch += r.purchases;
         leadsW += r.leads;
@@ -3636,6 +3639,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         impressions: Number(imp),
         reach: Number(reachMax),
         clicks: Number(clk),
+        linkClicks: Number(lnk),
         messages: Number(msg),
         purchases: Number(purch),
         leads: Number(leadsW),
@@ -3882,6 +3886,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           impressions: Number(d.impressions),
           reach: Number(d.reach),
           clicks: Number(d.clicks),
+          linkClicks: Number(d.linkClicks),
           messages: Number(d.messages),
           purchases: Number(d.purchases),
           leads: Number(d.leads),

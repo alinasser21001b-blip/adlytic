@@ -23,6 +23,7 @@ export type ResultMetricKey =
   | 'impressions'
   | 'reach'
   | 'clicks'
+  | 'linkClicks'
   | 'messages'
   | 'purchases'
   | 'leads';
@@ -73,11 +74,15 @@ const SPECS: Record<ObjectiveKpiFamily, ObjectiveKpiSpec> = {
   },
   traffic: {
     family: 'traffic',
-    resultKey: 'clicks',
-    resultLabelAr: 'النقرات',
+    // linkClicks, not clicks (P1-02): metricDictionary.ts's own definition —
+    // "Clicks that actually opened the destination... this — not all-clicks
+    // — is what Ads Manager means by traffic." Matches objectiveKpiCards.ts,
+    // which already used linkClicks here.
+    resultKey: 'linkClicks',
+    resultLabelAr: 'النقرات على الرابط',
     efficiencyKey: 'cpc',
     efficiencyLabelAr: 'تكلفة النقرة',
-    resultInfoId: 'clicks',
+    resultInfoId: 'link_clicks',
     efficiencyInfoId: 'cpc',
     signalKeys: ['ctr', 'cpc', 'cpm'],
   },
@@ -123,11 +128,12 @@ const SPECS: Record<ObjectiveKpiFamily, ObjectiveKpiSpec> = {
   },
   app: {
     family: 'app',
-    resultKey: 'clicks',
-    resultLabelAr: 'النقرات',
+    // Same reasoning as traffic above (P1-02).
+    resultKey: 'linkClicks',
+    resultLabelAr: 'النقرات على الرابط',
     efficiencyKey: 'cpc',
     efficiencyLabelAr: 'تكلفة النقرة',
-    resultInfoId: 'clicks',
+    resultInfoId: 'link_clicks',
     efficiencyInfoId: 'cpc',
     signalKeys: ['ctr', 'cpc', 'cpm'],
   },
@@ -258,19 +264,36 @@ export interface WindowTotals {
   /** Best-effort unique reach for the window (max daily reach — not additive). */
   reach: number;
   clicks: number;
+  /** Clicks that opened the destination — the traffic/app result (P1-02). */
+  linkClicks: number;
   messages: number;
   purchases: number;
   leads: number;
   revenueMinor: number;
 }
 
-/** Pick the objective's result count from window totals. */
+/**
+ * Pick the objective's result count from window totals.
+ *
+ * `linkClicks` is optional on the input type for one reason: callers built
+ * on src/engine/BaselineCalculator's CampaignRawData (the deterministic
+ * Brain/rule-grounding pipeline — src/engines/rules/campaignSignals.ts)
+ * do not carry that field, and extending CampaignRawData is architecture
+ * work outside this fix's boundary (P1-02 follow-up, reported not silently
+ * expanded into). For an objective whose canonical result is linkClicks
+ * (traffic, app), such a caller degrades to the legacy `clicks` reading
+ * rather than crash or silently return 0 — every other caller now supplies
+ * `linkClicks` and gets the corrected value.
+ */
 export function resultCountForObjective(
   objective: string | null | undefined,
-  totals: Pick<WindowTotals, ResultMetricKey>,
+  totals: Pick<WindowTotals, Exclude<ResultMetricKey, 'linkClicks'>> & { linkClicks?: number },
 ): number {
   const key = getObjectiveKpiSpec(objective).resultKey;
-  return Number(totals[key]) || 0;
+  if (key === 'linkClicks') {
+    return totals.linkClicks ?? (Number(totals.clicks) || 0);
+  }
+  return Number(totals[key as Exclude<ResultMetricKey, 'linkClicks'>]) || 0;
 }
 
 /**
