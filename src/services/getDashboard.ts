@@ -100,6 +100,7 @@ import {
   buildEntityObjectiveKpis,
   type EntityFunnelResult,
 } from "./entityIntelligence";
+import { permitAction } from "../analytics/intelligence/hierarchy";
 import { accountDeliveryHold, type AccountDeliveryHold } from "../lib/campaignLifecycle";
 import { classificationConfidenceFromReason } from "../analytics/confidence";
 import { resolveAccountResultKey } from "../analytics/accountResultKey";
@@ -1407,6 +1408,21 @@ export async function getDashboard(
     ),
   ]);
 
+  // Reconciled cross-engine intelligence — moved ahead of priorityAction's
+  // construction (previously computed much later, alongside the headline
+  // health score) so the SAME consistency guard buildRecommendation() already
+  // applies to intelligence.recommendation can also gate priorityAction
+  // below (P1-01). buildEntityIntelligence is pure over accountFunnel's
+  // already-resolved fields, so this is a pure relocation, not a behavior
+  // change to the computation itself.
+  const accountIntelligence = accountFunnel
+    ? buildEntityIntelligence(
+        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
+        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
+        accountFunnel.resultApproximate,
+      )
+    : undefined;
+
   const campaignCounts = await timedStage('campaignCounts', () =>
     getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),
   );
@@ -1476,6 +1492,24 @@ export async function getDashboard(
       expectation,
       evidence: filteredIssues.slice(0, 3).map((i) => i.title),
     };
+  }
+
+  // Cross-engine consistency guard (P1-01). buildRecommendation() already
+  // rejects an intelligence.recommendation that contradicts the reconciled
+  // funnel diagnosis (permitAction(), hierarchy.ts) — priorityAction is the
+  // merchant's PRIMARY CTA and was not covered by that same guard, so the
+  // exact contradiction it exists to prevent (e.g. "refresh your creative"
+  // surviving a measured-healthy CLICK stage) could still reach the merchant
+  // through this field. Same guard, same policy, no second mechanism — only
+  // extended to this call site. Applied here, after priorityAction reaches
+  // its final shape and before hasActionItems/steadyState below read it, so
+  // a suppressed action is treated as absent consistently throughout the
+  // rest of this function, not just at the DTO boundary.
+  if (priorityAction && accountIntelligence) {
+    const permission = permitAction(priorityAction.actionCode, accountIntelligence);
+    if (!permission.allowed) {
+      priorityAction = null;
+    }
   }
 
   // ── Morning story — deterministic, from real numbers only ─────────────
@@ -1621,14 +1655,6 @@ export async function getDashboard(
         money,
         moneyMajor,
       })
-    : undefined;
-
-  const accountIntelligence = accountFunnel
-    ? buildEntityIntelligence(
-        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
-        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
-        accountFunnel.resultApproximate,
-      )
     : undefined;
 
   // ── ONE health number ──────────────────────────────────────────────────

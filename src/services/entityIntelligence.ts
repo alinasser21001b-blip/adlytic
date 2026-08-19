@@ -267,6 +267,15 @@ export function buildEntityIntelligence(
     alert: reconciled.alert,
     evidence: reconciled.evidence,
     trace: reconciled.trace,
+    /**
+     * Action codes this SAME reconciliation forbids (hierarchy.ts's
+     * permitAction() already applied it to `recommendation` above). Exposed
+     * so a second call site — priorityAction, a different producer's
+     * primary CTA — can be checked against the identical reconciled state
+     * rather than a separately-recomputed one, which would risk the two
+     * checks silently drifting apart (P1-01).
+     */
+    forbiddenActions: reconciled.forbiddenActions,
     anomaly: { significant: verdict.significant, kind: verdict.kind, confidence: verdict.confidence },
     fatigue: fatigue.confidence === 'INSUFFICIENT_DATA' ? null : {
       frequency: fatigue.frequency, severity: fatigue.severity,
