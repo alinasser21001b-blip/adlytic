@@ -78,6 +78,7 @@ import type { SubscriptionTier } from '@prisma/client';
 import { adminDashboardPage } from '../web/pages/adminDashboardPage';
 import { adminConsolePage } from '../web/pages/adminConsolePage';
 import { adminOsPage } from '../web/pages/adminOsPage';
+import { adminLoginPage } from '../web/pages/adminLoginPage';
 import { adminSessionSyncPage } from '../web/pages/adminSessionSyncPage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
@@ -646,6 +647,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // at /admin/classic: it still owns settings, subscriptions and the
   // customer drawer, and deleting surfaces before their replacements exist
   // would trade one gap for another.
+  // Public by design: this is the admin DOOR. Gating it behind the admin
+  // gate would make a locked-out operator unable to reach the only page
+  // that can unlock them.
+  app.get('/admin/login',          (c) => c.html(adminLoginPage()));
   app.get('/admin',                (c) => adminPage(c, adminOsPage));
   app.get('/admin/classic',        (c) => adminPage(c, adminConsolePage));
   app.get('/admin/inbox',          (c) => adminPage(c, adminInboxPage));

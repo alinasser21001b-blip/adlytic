@@ -10,6 +10,7 @@ const html = JSON.parse(execSync(
   `npx tsx -e "
     import { adminConsolePage } from './src/web/pages/adminConsolePage';
     import { adminOsPage } from './src/web/pages/adminOsPage';
+    import { adminLoginPage } from './src/web/pages/adminLoginPage';
     import { adminInboxPage } from './src/web/pages/adminInboxPage';
     import { adminDashboardPage } from './src/web/pages/adminDashboardPage';
     import { metaReadinessPage } from './src/web/pages/metaReadinessPage';
@@ -17,6 +18,7 @@ const html = JSON.parse(execSync(
     const out = {
       console: adminConsolePage(),
       os: adminOsPage(),
+      adminLogin: adminLoginPage(),
       inbox: adminInboxPage(),
       observability: adminDashboardPage(),
       readiness: metaReadinessPage(),
@@ -66,6 +68,8 @@ const STUBS = {
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 let failures = 0;
 const report = [];
+const ok = (m) => report.push(['ok', m]);
+const bad = (m) => { report.push(['FAIL', m]); failures++; };
 
 // Pages are served from a FAKE ORIGIN the router owns end-to-end: relative
 // fetch('/api/…') must resolve against a real http origin — under a data:
@@ -193,6 +197,116 @@ for (const [name, doc] of [['adminOS', html.os], ['inbox', html.inbox], ['observ
   if (missing.length) { report.push(['FAIL', `${name}: surface nav missing links: ${missing.join(', ')}`]); failures++; }
   else report.push(['ok', `${name}: full surface nav present (${SURFACE_HREFS.length} destinations)`]);
   await page.close();
+}
+
+// ── Identity isolation: the five switching scenarios, in a real browser ──
+{
+  const AS_ADMIN = { id: 'u', email: 'a@t.local', name: 'A', isActive: true, isPlatformAdmin: true, memberships: [{ workspaceId: 'w1' }] };
+  const AS_CUSTOMER = { id: 'u', email: 'c@t.local', name: 'C', isActive: true, isPlatformAdmin: false, memberships: [{ workspaceId: 'w9' }] };
+
+  async function openAs(doc, me, opts = {}) {
+    const page = await browser.newPage();
+    const errs = [];
+    const navs = [];
+    page.on('pageerror', (e) => errs.push(e.message));
+    await page.addInitScript((seed) => {
+      for (const [k, v] of Object.entries(seed)) localStorage.setItem(k, v);
+    }, opts.seed || {});
+    await page.route(ORIGIN + '/**', async (route) => {
+      const p = new URL(route.request().url()).pathname;
+      navs.push(p);
+      if (p === '/api/auth/me') {
+        if (opts.meFails) return route.abort('failed');
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(me) });
+      }
+      if (p.startsWith('/api/')) return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      if (p.endsWith('.css')) return route.fulfill({ status: 200, contentType: 'text/css', body: ':root{--bg:#fff}' });
+      return route.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: doc });
+    });
+    await page.goto(ORIGIN + (opts.path || '/admin'), { waitUntil: 'domcontentloaded' });
+    await page.waitForTimeout(600);
+    return { page, errs, navs };
+  }
+
+  // Scenario B — admin lands on the admin OS, shell revealed, no customer chrome.
+  {
+    const { page, errs } = await openAs(html.os, AS_ADMIN, { seed: { adlytic_token: 't', adlytic_workspace_id: 'w9' } });
+    const r = await page.evaluate(() => ({
+      shell: document.getElementById('os') && getComputedStyle(document.getElementById('os')).display !== 'none',
+      gateHidden: document.getElementById('gate').classList.contains('hidden'),
+      ws: localStorage.getItem('adlytic_workspace_id'),
+      mode: localStorage.getItem('adlytic_session_mode'),
+      url: location.pathname,
+    }));
+    await page.close();
+    if (!r.shell || !r.gateHidden) bad(`admin: shell not revealed (shell=${r.shell} gateHidden=${r.gateHidden})`);
+    else ok('admin: admin shell revealed after identity confirmed');
+    if (r.ws) bad(`admin: inherited a customer workspace id (${r.ws}) — invariant 2 violated`);
+    else ok('admin: stale customer workspace id cleared on adoption');
+    if (r.mode !== 'admin') bad(`admin: session mode is ${r.mode}`);
+    else ok('admin: session mode hint set to admin');
+    if (errs.length) bad(`admin: JS errors ${JSON.stringify(errs.slice(0, 1))}`);
+    else ok('admin: zero JS errors');
+  }
+
+  // Scenario C — a customer must never see admin chrome. The page redirects,
+  // so evaluate() may race the navigation: that race IS the correct
+  // behaviour, and the test reads it as evidence rather than as an error.
+  {
+    const { page, navs } = await openAs(html.os, AS_CUSTOMER, { seed: { adlytic_token: 't' } });
+    let r = null;
+    try {
+      r = await page.evaluate(() => ({
+        shell: document.getElementById('os') && getComputedStyle(document.getElementById('os')).display !== 'none',
+        body: document.body.innerText.slice(0, 400),
+      }));
+    } catch (e) {
+      r = { redirected: true };
+    }
+    const url = page.url();
+    await page.close();
+    const leftAdmin = r.redirected || /\/dashboard/.test(url) || navs.includes('/dashboard');
+    if (r.shell) bad('customer: the admin shell became visible — invariant 7 violated');
+    else ok('customer: admin shell never revealed');
+    if (!leftAdmin) bad(`customer: stayed on the admin surface (url=${url})`);
+    else ok('customer: redirected off the admin surface');
+    if (r.body && /مساحات العمل|حدود المعرفة/.test(r.body)) bad('customer: admin navigation text was rendered visibly');
+    else ok('customer: no admin data or navigation rendered');
+  }
+
+  // Scenario D — /api/auth/me fails; an admin must NOT become a customer.
+  {
+    const { page, navs } = await openAs(html.os, AS_ADMIN, { seed: { adlytic_token: 't' }, meFails: true });
+    const r = await page.evaluate(() => ({
+      shell: document.getElementById('os') && getComputedStyle(document.getElementById('os')).display !== 'none',
+      gate: document.getElementById('gate').innerText,
+    }));
+    await page.close();
+    if (r.shell) bad('network failure: admin shell revealed without identity confirmation');
+    else ok('network failure: shell stays hidden');
+    if (!/أعد المحاولة/.test(r.gate)) bad(`network failure: no retry gate — saw "${r.gate.slice(0, 60)}"`);
+    else ok('network failure: neutral retry gate shown');
+    if (navs.includes('/dashboard')) bad('network failure: navigated to /dashboard — invariant 5 violated');
+    else ok('network failure: never navigates to the customer dashboard');
+  }
+
+  // Scenario E — a stale CUSTOMER token must not bounce /admin/login away.
+  {
+    const { page } = await openAs(html.adminLogin, AS_CUSTOMER, { seed: { adlytic_token: 'stale' }, path: '/admin/login' });
+    const r = await page.evaluate(() => ({
+      formVisible: !!document.getElementById('f') && document.getElementById('gate').classList.contains('hidden'),
+      msg: document.getElementById('m').innerText,
+      token: localStorage.getItem('adlytic_token'),
+      url: location.pathname,
+    }));
+    await page.close();
+    if (!r.formVisible) bad('/admin/login: form not shown to a stale customer session');
+    else ok('/admin/login: shows the form instead of bouncing a stale customer session');
+    if (r.token) bad('/admin/login: the stale customer token was left intact');
+    else ok('/admin/login: stale customer session suspended (token cleared)');
+    if (!/جلسة عميل/.test(r.msg)) bad('/admin/login: did not explain why the session was suspended');
+    else ok('/admin/login: explains the suspension');
+  }
 }
 
 await browser.close();

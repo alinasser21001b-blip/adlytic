@@ -31,6 +31,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { TOKENS_CSS_PATH } from '../layout';
+import { SESSION_ROUTER_JS } from '../auth/sessionRouter';
 
 /** Navigation grouped by operator job. Order is the order of work. */
 const NAV = [
@@ -445,6 +446,7 @@ export function adminOsPage(): string {
   </div>
 </div>
 
+<script>${SESSION_ROUTER_JS}</script>
 <script>
 (function () {
   var S = { ops: null, customers: [], stats: null, view: 'now' };
@@ -494,8 +496,11 @@ export function adminOsPage(): string {
     return d;
   }
   function logout() {
-    try { localStorage.removeItem('adlytic_token'); } catch (e) {}
-    var go = function () { window.location.href = '/login'; };
+    // Clears the token, the session-mode hint and every customer-scoped key,
+    // then returns to the ADMIN door. Sending an admin to /login on logout is
+    // what let a stale customer session reassert itself on the next visit.
+    window.AdlyticSession.clearSession();
+    var go = function () { window.location.replace('/admin/login'); };
     try { fetch('/api/auth/logout', { method: 'POST' }).then(go, go); } catch (e) { go(); }
   }
 
@@ -923,16 +928,18 @@ export function adminOsPage(): string {
   document.getElementById('logout').addEventListener('click', logout);
 
   async function boot() {
-    if (!token()) { window.location.replace('/login'); return; }
-    var me;
-    try { me = await api('/api/auth/me'); } catch (e) {
-      if (e.message !== 'Unauthorized') {
-        document.getElementById('gate').innerHTML =
-          '<div style="text-align:center;line-height:1.8;">تعذّر التحقق. <a href="javascript:location.reload()" style="color:var(--accent);">أعد المحاولة</a>.</div>';
-      }
-      return;
-    }
-    if (!me || !me.isPlatformAdmin) { window.location.replace('/dashboard'); return; }
+    // One shared guard. A network failure yields UNRESOLVED and holds the
+    // gate — it must never be read as "this admin became a customer", which
+    // is the demotion that produced the /admin ↔ /dashboard bounce loop.
+    await window.AdlyticSession.requireAdminSurface(onAdminReady, function (kind, reason) {
+      document.getElementById('gate').innerHTML =
+        '<div style="text-align:center;line-height:1.9;max-width:340px;">تعذّر التحقق من الهوية '
+        + '<span class="ev">(' + String(reason || kind) + ')</span><br>لم يتغيّر حسابك — هذه مشكلة اتصال. '
+        + '<a href="javascript:location.reload()" style="color:var(--accent);">أعد المحاولة</a></div>';
+    });
+  }
+
+  function onAdminReady(me) {
     document.getElementById('gate').classList.add('hidden');
     document.getElementById('os').style.display = 'flex';
     document.getElementById('who').textContent = me.email || '';

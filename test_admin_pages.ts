@@ -39,6 +39,12 @@ async function main() {
     bad(`adminOsPage could not be loaded at all — ${(e as Error).message.slice(0, 160)}`);
   }
   try {
+    const mod = await import('./src/web/pages/adminLoginPage');
+    PAGES.push({ name: 'adminLoginPage', html: (mod.adminLoginPage as unknown as () => string)() });
+  } catch (e) {
+    bad(`adminLoginPage could not be loaded at all — ${(e as Error).message.slice(0, 160)}`);
+  }
+  try {
     const mod = await import('./src/web/pages/adminSessionSyncPage');
     PAGES.push({ name: 'adminSessionSyncPage', html: (mod.adminSessionSyncPage as unknown as () => string)() });
   } catch (e) {

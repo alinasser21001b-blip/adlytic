@@ -3,6 +3,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { BASE_CSS_PATH, FLOORS_CSS_PATH } from '../layout';
+import { SESSION_ROUTER_JS } from '../auth/sessionRouter';
 import { AUTH_STYLES, logoSvg } from './authShared';
 
 /**
@@ -233,17 +234,21 @@ export function loginPage(): string {
     </div>
   </div>
 
+  <script>${SESSION_ROUTER_JS}</script>
   <script>
     async function redirectIfLoggedIn() {
-      if (!localStorage.getItem('adlytic_token')) return;
-      try {
-        const meRes = await fetch('/api/auth/me', {
-          headers: { Authorization: 'Bearer ' + localStorage.getItem('adlytic_token') },
-        });
-        if (!meRes.ok) return;
-        const me = await meRes.json();
-        window.location.href = me.isActive === false ? '/pending-activation' : '/dashboard';
-      } catch (_) { /* stay on login */ }
+      // ONE routing decision, shared with every other surface. This branch
+      // previously asked only "is the user active?" and sent everyone else
+      // to /dashboard — which is how a platform admin ended up inside the
+      // customer product with a workspace selected for them.
+      const id = await window.AdlyticSession.resolveSessionIdentity();
+      if (id.kind === 'ANONYMOUS' || id.kind === 'UNRESOLVED') return; // stay on login
+      if (id.kind === 'ADMIN') {
+        window.AdlyticSession.adoptAdminSession(null);
+        window.location.replace('/admin');
+        return;
+      }
+      window.location.replace(window.AdlyticSession.destinationFor(id));
     }
     redirectIfLoggedIn();
 
@@ -383,15 +388,28 @@ export function loginPage(): string {
         });
         if (meRes.ok) {
           const me = await meRes.json();
+          // ADMIN OUTRANKS EVERYTHING BELOW. A platform admin must never have
+          // a workspace selected for them, never be asked to connect Meta for
+          // their own identity, and never touch customer onboarding — an
+          // admin inspects a CUSTOMER's connection, they do not own one.
+          if (me.isPlatformAdmin === true) {
+            window.AdlyticSession.adoptAdminSession(data.token);
+            showSuccess('تم — جارٍ فتح نظام الإدارة…');
+            window.location.replace('/admin');
+            return;
+          }
           if (me.isActive === false) {
             showSuccess('تم تسجيل الدخول! جارٍ التحويل…');
-            setTimeout(() => { window.location.href = '/pending-activation'; }, 400);
+            setTimeout(() => { window.location.replace('/pending-activation'); }, 400);
             return;
           }
           const wsId = me.memberships?.[0]?.workspaceId;
-          if (wsId) localStorage.setItem('adlytic_workspace_id', wsId);
-          else if (firstWs) localStorage.setItem('adlytic_workspace_id', firstWs);
+          window.AdlyticSession.adoptCustomerSession(data.token, wsId || firstWs || null);
         } else if (firstWs) {
+          // /api/auth/me did not answer, so we do NOT know the role. Storing a
+          // workspace here is a guess; it is retained only because the legacy
+          // path depends on it, and the customer-surface guard re-checks the
+          // identity before any chrome is shown.
           localStorage.setItem('adlytic_workspace_id', firstWs);
         }
 

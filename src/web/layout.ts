@@ -2767,6 +2767,19 @@ async function ensureAccountActive() {
   try {
     var me = await apiFetch('/api/auth/me');
     if (!me) return false;
+    // CUSTOMER-SURFACE GUARD. A confirmed platform admin has no business in
+    // the customer product: they would be shown a workspace, an onboarding
+    // flow, and an invitation to connect Meta for an identity that must
+    // never own an ad account. Admin outranks the activation check below,
+    // because admin status lives in PLATFORM_ADMIN_EMAILS, not in isActive.
+    if (me.isPlatformAdmin === true) {
+      try {
+        localStorage.removeItem('adlytic_workspace_id');
+        localStorage.setItem('adlytic_session_mode', 'admin');
+      } catch (e) {}
+      window.location.replace('/admin');
+      return false;
+    }
     if (me.isActive === false) {
       window.location.href = '/pending-activation';
       return false;
