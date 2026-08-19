@@ -17,6 +17,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { config } from '../config';
+import { getBuildIdentity, type BuildIdentity } from '../lib/buildIdentity';
 import { isQueueEnabled, lastQueueError } from '../lib/queue';
 import { isRedisHealthy, lastRedisError } from '../lib/redis';
 
@@ -135,6 +136,18 @@ export interface AdminOpsSnapshot {
    * green means "verified" when it only ever meant "nothing objected".
    */
   boundary: BoundaryItem[];
+  /**
+   * Which commit is running.
+   *
+   * Every other field here describes the state of a system; this one
+   * describes which VERSION of the system produced those descriptions. An
+   * operator comparing two probe runs, or asking whether a fix is live, was
+   * previously forced to assume it from git history — and git history records
+   * what was pushed, not what is executing. When it cannot be resolved it
+   * appears in `boundary` as an admitted blind spot rather than being quietly
+   * omitted.
+   */
+  build: BuildIdentity;
 }
 
 export interface ActivityItem {
@@ -236,7 +249,8 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
         subject: 'كل حالات النظام عدا قاعدة البيانات',
         why: 'تُقرأ من قاعدة البيانات نفسها، وهي لا تستجيب.',
         resolvedBy: 'استعادة خدمة Postgres',
-      }],
+      }, ...buildBoundary()],
+      build: getBuildIdentity(),
     };
   }
 
@@ -558,6 +572,25 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     attention,
     workspaces: rows,
     activity,
-    boundary,
+    boundary: [...boundary, ...buildBoundary()],
+    build: getBuildIdentity(),
   };
+}
+
+/**
+ * A build we cannot identify is a blind spot, and it belongs on the map.
+ *
+ * Nothing is added when the commit resolves — the boundary list is for what
+ * we could NOT determine, and padding it with resolved items would dilute the
+ * signal it exists to carry.
+ */
+function buildBoundary(): BoundaryItem[] {
+  if (getBuildIdentity().resolved) return [];
+  return [{
+    state: 'UNKNOWN',
+    subject: 'أي إصدار من الشيفرة يعمل الآن',
+    why: 'لم تُحقن أي بصمة commit في العملية، فلا يمكن إثبات ما هو منشور فعلاً — '
+      + 'وسجلّ git يوثّق ما دُفع، لا ما يُنفَّذ.',
+    resolvedBy: 'فعّل ربط المستودع في Railway أو اضبط ADLYTIC_BUILD_COMMIT، ثم راجع GET /api/health',
+  }];
 }

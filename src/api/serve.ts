@@ -23,6 +23,7 @@ import { buildRoutes, ROUTE_COUNT } from './server';
 import { getActiveProviderName } from '../services/ai/providerManager';
 import { getMetaOAuthConfigStatus } from '../services/metaOAuth';
 import { config, reportConfig } from '../config';
+import { buildIdentityLine } from '../lib/buildIdentity';
 import { shutdownQueueWorkers } from '../workers/queue';
 import { startBackgroundWork, cleanupOrphanedSyncJobs } from '../workers/backgroundScheduler';
 
@@ -92,6 +93,11 @@ async function main(): Promise<void> {
     { fetch: app.fetch, port: PORT },
     (info) => {
       console.log(`[adlytic] Server listening on http://localhost:${info.port}`);
+      // The first line of every deploy log now names the commit that is
+      // actually executing. Reading it out of the log is the cheapest way to
+      // settle "was this deployed?" without trusting git history, which
+      // records what was pushed and knows nothing about what is running.
+      console.log(`[adlytic] ${buildIdentityLine()}`);
       console.log(`[adlytic] Routes mounted: ${ROUTE_COUNT}`);
       console.log(`[adlytic] Health:     GET http://localhost:${info.port}/api/health`);
       console.log(`[adlytic] Dashboard:  GET http://localhost:${info.port}/api/dashboard/:workspaceId`);

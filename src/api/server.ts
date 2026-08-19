@@ -56,6 +56,7 @@ import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { getAdminOpsSnapshot } from '../services/adminOpsHealth';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
+import { getBuildIdentity } from '../lib/buildIdentity';
 import { runCapabilityProbeForWorkspace, redactProbeError, classifyProbeRunFailure } from '../services/metaCapabilityRunner';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
@@ -1272,7 +1273,21 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   //  HEALTH
   // ════════════════════════════════════════════════════════════════════════
 
-  /** GET /api/health — process liveness + DB readiness. */
+  /**
+   * GET /api/health — process liveness + DB readiness + WHICH COMMIT IS RUNNING.
+   *
+   * `version` is a hardcoded literal and always has been; it is kept only so
+   * nothing that already parses it breaks, and it is explicitly NOT the answer
+   * to "what is deployed". `build` is. Without it the deployed commit is
+   * unobservable from outside the platform dashboard, which means every
+   * statement about what production is executing is an assumption — and an
+   * assumption is precisely what a probe run must never rest on.
+   *
+   * A commit SHA is not a secret: it names a revision of a private repository
+   * and grants no access to it. Publishing it unauthenticated is deliberate,
+   * because the person who most needs to check the deploy is often the person
+   * who cannot currently log in.
+   */
   app.get('/api/health', async (c) => {
     // role/bullmq are surfaced so `curl /api/health` on each Railway service
     // confirms which one is the API and which runs background sync.
@@ -1280,6 +1295,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       role: config.role,
       runsBackgroundSync: config.role !== 'api',
       bullmq: config.features.bullmqEnabled ? 'enabled' : 'disabled',
+      build: getBuildIdentity(),
     };
     try {
       await prisma.$queryRaw`SELECT 1`;

@@ -62,10 +62,18 @@ them into `UNAVAILABLE` would abandon a real one. They stay in their own class.
 chain `campaign → adsets → ads` stopped at the first campaign, and if that
 campaign held no adsets the chain truncated — taking six candidates with it.
 
-Fixed in the runner: discovery now falls back to the account-level endpoints
-(`/act_X/adsets`, `/act_X/ads`), which span all campaigns. The fallback fires
-only when the chain came back empty, so a healthy account still spends three
-calls.
+> **AMENDED after the second run.** This section originally closed by saying
+> the runner had been fixed with an account-level fallback. That was true of
+> the repository and false of production: the second run reported the same 16
+> calls, which `test_probe_discovery.ts` proves is the strict chain's
+> signature and unreachable by the fallback build. The fallback was pushed and
+> never deployed, and has since been replaced by unconditional account-level
+> discovery with a recorded trace.
+>
+> The paragraph is left visible rather than deleted, because "the code is
+> fixed" and "the fix is running" being written as the same sentence is the
+> defect this whole investigation is about. See
+> `META_PROBE_DISCOVERY_FORENSICS.md`.
 
 ---
 

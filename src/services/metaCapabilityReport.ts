@@ -6,7 +6,9 @@
 //  depends on how it was triggered is a probe run you cannot compare against
 //  the last one.
 // ════════════════════════════════════════════════════════════════════════
+import type { BuildIdentity } from '../lib/buildIdentity';
 import { PROBE_CANDIDATES, type ProbeResult } from './metaCapabilityProbe';
+import { summariseDiscovery, type DiscoveryOutcome } from './metaEntityDiscovery';
 
 /** Everything about the run that is not a result row. Never a token. */
 export interface ProbeRunContext {
@@ -18,8 +20,68 @@ export interface ProbeRunContext {
   since: string;
   until: string;
   calls: string;
+  /** Split out because the two halves answer different questions, and the
+   *  discovery half is a signature of which build executed. */
+  discoveryCalls?: string;
+  probeCalls?: string;
   budget: string;
   at: string;
+  /** Which commit produced this evidence. Optional so older stored reports
+   *  still render — but an absent build is displayed as UNKNOWN, never as
+   *  "current". */
+  build?: BuildIdentity;
+  discovery?: DiscoveryOutcome;
+}
+
+function buildLineFor(ctx: ProbeRunContext): string {
+  const b = ctx.build;
+  if (!b || !b.resolved) {
+    return '`UNKNOWN` — no commit was injected into the running process. '
+      + 'Do not infer it from git history.';
+  }
+  return `\`${b.shortCommit}\`${b.branch ? ` on \`${b.branch}\`` : ''}`
+    + `${b.deploymentId ? ` (deployment \`${b.deploymentId}\`)` : ''}`;
+}
+
+/**
+ * The discovery trace, rendered.
+ *
+ * This section exists because two consecutive runs reported "ad set probed:
+ * none found" and the reports contained nothing that could explain it. Every
+ * column here is one of the things that had to be guessed at.
+ */
+export function discoveryMd(d: DiscoveryOutcome | undefined): string {
+  if (!d) {
+    return '_This run predates discovery instrumentation — no trace was recorded. '
+      + 'A missing trace is not evidence that discovery succeeded._';
+  }
+  const rows = d.steps.map((s) => `| ${s.step} | \`${s.endpointClass}\` | ${s.level} | `
+    + `${s.status ?? '—'} | ${s.metaCode ?? '—'}${s.metaSubcode != null ? '/' + s.metaSubcode : ''} | `
+    + `${s.returned ?? '—'} | ${s.totalCount ?? '**unproven**'} | ${s.hasNextPage ? 'yes' : 'no'} | `
+    + `${s.pickedId ? '`' + s.pickedId + '`' : '—'} | ${s.anomalies.join(', ') || '—'} | `
+    + `${s.detail ? s.detail.replace(/\|/g, '\\|').slice(0, 120) : '—'} |`);
+
+  const count = (v: number | null) => (v === null ? '**UNPROVEN**' : String(v));
+
+  return `| count | value |
+|---|---|
+| \`ACCOUNT_CAMPAIGN_COUNT\` | ${count(d.counts.campaigns)} |
+| \`ACCOUNT_ADSET_COUNT\` | ${count(d.counts.adsets)} |
+| \`ACCOUNT_AD_COUNT\` | ${count(d.counts.ads)} |
+
+**UNPROVEN is not zero.** It means Meta returned no \`summary.total_count\`, or
+the call was refused, or the budget ran out before it was made.
+
+| # | endpoint class | level | HTTP | meta code | rows | total_count | next page | picked | anomalies | detail |
+|---|---|---|---|---|---|---|---|---|---|---|
+${rows.join('\n')}
+
+${summariseDiscovery(d).map((l) => '- ' + l).join('\n')}
+
+Discovery requests carry **no insights parameters** — no \`time_range\`, no
+\`level\`, no \`date_preset\`, no attribution or action configuration. Whether an
+object EXISTS cannot depend on whether it spent money on the day the probe
+happened to ask about.`;
 }
 
 export const VERDICT_NOTE: Record<string, string> = {
@@ -56,14 +118,19 @@ real request; nothing here comes from documentation.
 
 | context | value |
 |---|---|
+| **build that produced this** | ${buildLineFor(ctx)} |
 | API version | \`${ctx.apiVersion}\` |
 | ad account | \`${ctx.account}\` |
-| campaign probed | \`${ctx.campaign || '(none found)'}\` |
-| ad set probed | \`${ctx.adset || '(none found)'}\` |
-| ad probed | \`${ctx.ad || '(none found)'}\` |
+| campaign probed | \`${ctx.campaign || '(not resolved — see the discovery trace)'}\` |
+| ad set probed | \`${ctx.adset || '(not resolved — see the discovery trace)'}\` |
+| ad probed | \`${ctx.ad || '(not resolved — see the discovery trace)'}\` |
 | time range | ${ctx.since} → ${ctx.until} |
-| total API calls | ${ctx.calls} (budget ${ctx.budget}) |
+| total API calls | ${ctx.calls} (budget ${ctx.budget})${ctx.discoveryCalls ? ` — ${ctx.discoveryCalls} discovery + ${ctx.probeCalls ?? '?'} probe` : ''} |
 | run at | ${ctx.at} |
+
+## Entity discovery
+
+${discoveryMd(ctx.discovery)}
 
 ## Rows
 
@@ -100,7 +167,16 @@ export function reportMd(results: ProbeResult[], ctx: ProbeRunContext): string {
   return `# META_CAPABILITY_PROBE_REPORT
 
 Run at ${ctx.at} against \`${ctx.account}\` on \`${ctx.apiVersion}\`.
-${ctx.calls} API calls (budget ${ctx.budget}). Read-only; GET requests only.
+Build: ${buildLineFor(ctx)}
+${ctx.calls} API calls (budget ${ctx.budget})${ctx.discoveryCalls ? ` — ${ctx.discoveryCalls} discovery + ${ctx.probeCalls ?? '?'} probe` : ''}. Read-only; GET requests only.
+
+## 0. Could we find anything to probe?
+
+Every NOT_TESTED verdict below traces back to this section. A capability the
+run never asked about is a fact about the run, and this is where that fact is
+either explained or admitted.
+
+${discoveryMd(ctx.discovery)}
 
 > **Three of these seven questions the probe can answer. Four it cannot.**
 > A, B and F are facts about the API and are generated below. C, D, E and G are
