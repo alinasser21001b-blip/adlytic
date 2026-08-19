@@ -43,7 +43,10 @@ function main() {
     // ONLY when it declares itself as such. Otherwise it is a phantom
     // dependency that inflates every blast radius it appears in.
     const phantom = META_RESOURCES.filter(
-      (r) => r.kind === 'FIELD' && !production.has(r.name) && !/not requested/i.test(r.declaredIn),
+      // The rule is that an unrequested entry DECLARES itself; the earlier
+      // pattern demanded the exact words "not requested" and so rejected the
+      // more honest "proven available, not yet requested".
+      (r) => r.kind === 'FIELD' && !production.has(r.name) && !/not\s+(yet\s+)?requested/i.test(r.declaredIn),
     );
     if (phantom.length) {
       bad(`registry declares ${phantom.length} field(s) production never requests, without saying so: `

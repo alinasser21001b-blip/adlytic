@@ -186,10 +186,25 @@ export async function runCapabilityProbeForWorkspace(
     return j.data?.[0]?.id;
   };
 
+  // ── Entity discovery, with a fallback ladder ───────────────────────────
+  //
+  // ROUND 1 EVIDENCE: the strict chain campaign → adsets → ads produced no
+  // adset and no ad, so six candidates came back NOT_TESTED — not because
+  // Meta refused them, but because we never had an object to ask about.
+  // That is an honest verdict and a wasted run: a probe that cannot find a
+  // subject tests nothing at the levels that matter most.
+  //
+  // The account-level endpoints are not a different question, they are a
+  // wider net for the same one: /act_X/adsets returns adsets across ALL
+  // campaigns, so a first campaign that happens to be empty no longer
+  // truncates discovery. The fallback only fires when the chain came back
+  // empty, so a healthy account still spends exactly three calls.
   const entityIds: { campaign?: string; adset?: string; ad?: string } = {};
   entityIds.campaign = await listOne(`/${account}/campaigns`);
   if (entityIds.campaign) entityIds.adset = await listOne(`/${entityIds.campaign}/adsets`);
+  if (!entityIds.adset) entityIds.adset = await listOne(`/${account}/adsets`);
   if (entityIds.adset) entityIds.ad = await listOne(`/${entityIds.adset}/ads`);
+  if (!entityIds.ad) entityIds.ad = await listOne(`/${account}/ads`);
   const discoveryCalls = budget - remaining.left;
 
   const since = input.since ?? isoDaysAgo(2);
