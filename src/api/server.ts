@@ -120,7 +120,7 @@ import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { privacyPage } from '../web/pages/privacyPage';
 import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
-import { buildAiContextV5 } from '../services/aiContextBuilderV5';
+import { buildAiContextV5, formatCanonicalGroundingForV5Context } from '../services/aiContextBuilderV5';
 import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
 import { buildAiUnavailableReply } from '../services/aiOfflineReply';
@@ -4670,6 +4670,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let reply: string;
     try {
       let context: string | null = null;
+      let usedV5Context = false;
       let primaryAccount: { id: string; currency: string; timezone: string } | undefined;
       try {
         const ws = await prisma.workspace.findUnique({
@@ -4684,10 +4685,22 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           });
           // V5 returns a "not yet available" fallback string when no report exists.
           // Detect that and drop back to V1 rather than sending the weaker fallback.
-          if (!/Intelligence data not yet available/i.test(v5)) context = v5;
+          if (!/Intelligence data not yet available/i.test(v5)) { context = v5; usedV5Context = true; }
         }
       } catch (err) {
         console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
+      }
+      // V5's issues/recommendations are computed independently of the
+      // canonical detected_issues → reconcileIntelligence() → permitAction()
+      // chain (a documented divergence, not a duplicate) — when V5 supplies
+      // the primary context, prepend the same canonical verdict the
+      // dashboard's guarded CTA uses, so the model has an authoritative fact
+      // to check V5's content against instead of nothing. See
+      // formatCanonicalGroundingForV5Context()'s own comment for why this
+      // does not retire or merge the two context builders.
+      if (usedV5Context && context) {
+        const grounding = formatCanonicalGroundingForV5Context(dto);
+        if (grounding) context = `${grounding}\n\n${context}`;
       }
       if (!context) {
         // Use the shared constant rather than a second hand-written empty DTO.

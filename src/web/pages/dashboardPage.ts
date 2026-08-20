@@ -2436,7 +2436,10 @@ export function dashboardPage(): string {
     var ctaEl = document.getElementById('exec-pulse-cta');
 
     if (detailEl && dashData.health) {
-      var recs = dashData.aiRecommendations;
+      // aiRecommendations is {recommendations, generatedAt, source} — not an
+      // array itself. Array.isArray(dashData.aiRecommendations) was always
+      // false, so urgentCount was always 0.
+      var recs = dashData.aiRecommendations && dashData.aiRecommendations.recommendations;
       var urgentCount = 0;
       if (Array.isArray(recs)) {
         for (var ri = 0; ri < recs.length; ri++) {

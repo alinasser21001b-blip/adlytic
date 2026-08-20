@@ -884,7 +884,7 @@ export async function getDashboard(
   const priorSinceDate = accountLocalDateFloor(account.timezone, windowDays * 2);
 
   // 2. Independent account reads in parallel (biggest latency win).
-  const [allDaily, healthRow, detected, latestTrend, rec] = await Promise.all([
+  const [allDaily, healthRow, detected, latestTrend, rec, accountFunnel] = await Promise.all([
     timedStage('accountDailyStats', () =>
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
@@ -916,7 +916,39 @@ export async function getDashboard(
         orderBy: [{ priority: "desc" }, { date: "desc" }],
       }),
     ),
+    // Moved into this batch (was fetched later, alongside brain/predictions/
+    // aiRecommendations) so the reconciled intelligence it feeds is available
+    // BEFORE detected_issues is read into `issues`/`issueRecords` below —
+    // see the suppressedIssueCodes filter right after this Promise.all.
+    softStage('funnel', null, () =>
+      buildAccountFunnel(account.id, prisma).catch(() => null),
+    ),
   ]);
+
+  // Reconciled cross-engine intelligence — computed here, immediately after
+  // accountFunnel resolves, so it is available before detected_issues is
+  // read below. reconcileIntelligence() already decides which issue codes a
+  // higher layer has already explained (suppressedIssueCodes — e.g.
+  // HIGH_FREQUENCY when the funnel's own fatigue signal is the explanation);
+  // that field existed in hierarchy.ts (P5 work, proven by test_intelligence.ts
+  // and documented in docs/ANALYTICS_ARCHITECTURE_FINAL.md) but was never
+  // read by any consumer. Filtering `detected` by it HERE, once, keeps every
+  // downstream reader (the knowledge lookup, `issues`, `issueRecords` →
+  // diagnose() → merchantTasks) consistent with what intelligence.problemClass
+  // says, instead of two independently-computed "what's wrong" surfaces
+  // (the dashboard's #main-move-card and #command-center) able to disagree
+  // for the same account with no arbitration between them.
+  const accountIntelligence = accountFunnel
+    ? buildEntityIntelligence(
+        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
+        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
+        accountFunnel.resultApproximate,
+      )
+    : undefined;
+  const suppressedIssueCodes = new Set(accountIntelligence?.suppressedIssueCodes ?? []);
+  const detectedFiltered = suppressedIssueCodes.size
+    ? (detected as any[]).filter((d) => !suppressedIssueCodes.has(d.issueCode))
+    : detected;
 
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
@@ -1060,13 +1092,13 @@ export async function getDashboard(
   // 7. Issues — join detected_issues → knowledge_rules (detected already loaded in parallel).
   const knowledgeMap = await timedStage('knowledgeLookup', () =>
     knowledge.lookupMany({
-      issueCodes: (detected as any[]).map(d => d.issueCode as IssueCode),
+      issueCodes: (detectedFiltered as any[]).map(d => d.issueCode as IssueCode),
       locale,
       industryProfileId: ws.industryProfileId,
     }),
   );
 
-  const issues: DashboardDTO["issues"] = (detected as any[]).map(di => {
+  const issues: DashboardDTO["issues"] = (detectedFiltered as any[]).map(di => {
     const entry = knowledgeMap.get(di.issueCode as IssueCode);
     return {
       code: di.issueCode,
@@ -1177,7 +1209,7 @@ export async function getDashboard(
   // this dashboard read can land in that transition window.
   // issueEvidenceFieldsFromJson() degrades an old row honestly instead of
   // it being misinterpreted as having the new fields.
-  const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
+  const issueRecords: IssueRecord[] = (detectedFiltered as any[]).map(d => ({
     issueCode: d.issueCode,
     severity: d.severity,
     ...issueEvidenceFieldsFromJson(d.evidenceJson),
@@ -1370,12 +1402,9 @@ export async function getDashboard(
   // weekly report, creative health): a slow secondary panel must degrade to null,
   // never blank the whole dashboard. softStage() turns a stage timeout into the
   // fallback; each builder's own `.catch(() => null)` handles non-timeout errors.
-  const [cards, accountFunnel, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
+  const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
-    ),
-    softStage('funnel', null, () =>
-      buildAccountFunnel(account.id, prisma).catch(() => null),
     ),
     softStage('brainSection', null, () =>
       buildBrainSection(
@@ -1416,20 +1445,10 @@ export async function getDashboard(
     ),
   ]);
 
-  // Reconciled cross-engine intelligence — moved ahead of priorityAction's
-  // construction (previously computed much later, alongside the headline
-  // health score) so the SAME consistency guard buildRecommendation() already
-  // applies to intelligence.recommendation can also gate priorityAction
-  // below (P1-01). buildEntityIntelligence is pure over accountFunnel's
-  // already-resolved fields, so this is a pure relocation, not a behavior
-  // change to the computation itself.
-  const accountIntelligence = accountFunnel
-    ? buildEntityIntelligence(
-        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
-        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
-        accountFunnel.resultApproximate,
-      )
-    : undefined;
+  // accountIntelligence / accountFunnel: computed earlier now (right after
+  // the first Promise.all, alongside the detected_issues suppression filter)
+  // instead of here — P1-01's priorityAction guard below and everything else
+  // in this function still just reads the same `accountIntelligence` binding.
 
   const campaignCounts = await timedStage('campaignCounts', () =>
     getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),

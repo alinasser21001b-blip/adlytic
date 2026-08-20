@@ -25,6 +25,7 @@ import {
   severityLabelAr,
   simplifyMerchantText,
 } from "../lib/plainArabicAdvice";
+import type { DashboardDTO } from "./getDashboard";
 
 // ── types ─────────────────────────────────────────────────────────────────
 
@@ -252,4 +253,60 @@ export async function buildAiContextV5(
 
   lines.push("", `## Question: ${safeMessage}`);
   return sanitizeLlmUserContent(lines.join("\n"));
+}
+
+// ── canonical grounding boundary ─────────────────────────────────────────
+//
+// server.ts's /ai/chat route prefers buildAiContextV5() above over the V1
+// DashboardDTO-derived context whenever a V5 report exists — V5's issues use
+// its own independently-computed rule set (a known, documented divergence
+// from the canonical detectors on at least one threshold) and its
+// recommendations never pass through reconcileIntelligence()/permitAction()
+// (P1-01's guard). Left alone, the chat assistant's ENTIRE grounding for a
+// one-shot question would be V5's opinion, with no canonical fact to check
+// it against in the same request — the same authority-boundary defect Phase
+// 3.5 closed for Brain narration and Phase 4 closed for the AI agent's
+// detect_anomaly tool, here for a third reasoning surface.
+//
+// Do NOT retire the V5-preferred branch (V5 is a live, load-bearing context
+// source, not a shadow write) and do NOT merge the two context builders —
+// instead, whenever V5 context is used, this canonical summary travels
+// alongside it, clearly labelled authoritative, so the model has something
+// to check V5's claims against instead of nothing.
+
+/**
+ * A short, clearly-labelled summary of the SAME canonical facts the
+ * dashboard's guarded primary CTA is built from (reconcileIntelligence()'s
+ * problemClass/recommendation, already passed through permitAction() and,
+ * as of Phase 5, already filtered against the same reconciled state's
+ * suppressedIssueCodes). Returns null when the account has no canonical
+ * verdict yet (e.g. funnel data insufficient) — nothing to compare V5
+ * against, so no empty section is forced in.
+ */
+export function formatCanonicalGroundingForV5Context(dto: DashboardDTO | null | undefined): string | null {
+  if (!dto) return null;
+  const intel = dto.intelligence;
+  const priorityAction = dto.priorityAction;
+  if (!intel && !priorityAction) return null;
+
+  const lines: string[] = [
+    "## Canonical account verdict (AUTHORITATIVE — reconciled across the deterministic engines, permitAction()-guarded)",
+  ];
+  if (intel) {
+    lines.push(`- Problem class: ${intel.problemClass} | Confidence: ${intel.confidence}`);
+    if (intel.recommendation) {
+      lines.push(`- Canonical recommendation: ${intel.recommendation.action}`);
+    } else if (!intel.alert) {
+      lines.push("- No urgent canonical recommendation — the account is within normal variation.");
+    }
+  }
+  if (priorityAction?.text) {
+    lines.push(`- Priority action (guarded): ${priorityAction.text}`);
+  }
+  lines.push(
+    "Rule: if anything below conflicts with this canonical verdict on a numeric fact, a diagnosis, or",
+    "a recommended action, THIS section is correct — treat the conflicting content below as a secondary,",
+    "unreconciled opinion, not as an equally-valid alternative.",
+  );
+  return lines.join("\n");
 }

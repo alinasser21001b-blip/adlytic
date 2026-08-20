@@ -276,6 +276,15 @@ export function buildEntityIntelligence(
      * checks silently drifting apart (P1-01).
      */
     forbiddenActions: reconciled.forbiddenActions,
+    /**
+     * Issue codes THIS SAME reconciliation says a higher layer already
+     * explains (e.g. HIGH_FREQUENCY when the funnel's own fatigue signal is
+     * the explanation) — so a detected_issues-driven consumer (getDashboard's
+     * `issues`/`diagnoses`/`merchantTasks`) can drop the redundant finding
+     * instead of showing it alongside this reconciled verdict as if they were
+     * two independent opinions. Same reasoning as forbiddenActions above.
+     */
+    suppressedIssueCodes: reconciled.suppressedIssueCodes,
     anomaly: { significant: verdict.significant, kind: verdict.kind, confidence: verdict.confidence },
     fatigue: fatigue.confidence === 'INSUFFICIENT_DATA' ? null : {
       frequency: fatigue.frequency, severity: fatigue.severity,
