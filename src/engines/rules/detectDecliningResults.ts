@@ -39,11 +39,25 @@ export const detectDecliningResults: Detector = (s) => {
   return {
     issueCode: IssueCode.DECLINING_RESULTS,
     severity,
-    evidence: {
-      resultsTrend: s.resultsTrend,
-      threshold: -RESULTS_DROP_THRESHOLD,
-      currentResults: s.currentResults,
-      confidence: 0.85, // results is the bottom line; trust the number
-    },
+    confidence: { value: 0.85, basis: 'heuristic_constant' }, // results is the bottom line; trust the number
+    window: null,
+    evidence: [
+      {
+        metricKey: 'resultsTrend',
+        valueKind: 'trend',
+        unit: 'percent',
+        value: s.resultsTrend,
+        threshold: -RESULTS_DROP_THRESHOLD,
+        relativeToThreshold: +magnitude.toFixed(3),
+      },
+      {
+        metricKey: 'results',
+        valueKind: 'level',
+        unit: 'count',
+        value: s.currentResults,
+        threshold: null,
+        relativeToThreshold: null,
+      },
+    ],
   };
 };

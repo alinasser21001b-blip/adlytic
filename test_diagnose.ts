@@ -19,8 +19,14 @@ function check(name: string, cond: boolean, got?: unknown) {
   }
 }
 
-function issue(code: IssueCode, evidence: Record<string, unknown> = {}): IssueRecord {
-  return { issueCode: code, severity: Severity.MEDIUM, evidence: { confidence: 0.8, ...evidence } };
+function issue(code: IssueCode, confidence = 0.8): IssueRecord {
+  return {
+    issueCode: code,
+    severity: Severity.MEDIUM,
+    evidence: [],
+    confidence: { value: confidence, basis: 'heuristic_constant' },
+    window: null,
+  };
 }
 
 const baseSignals: Signals = {
@@ -40,7 +46,7 @@ console.log('\ndiagnose coverage');
 
 {
   const d = diagnose(
-    [issue(IssueCode.AUDIENCE_FATIGUE, { confidence: 0.9 })],
+    [issue(IssueCode.AUDIENCE_FATIGUE, 0.9)],
     {
       ...baseSignals,
       frequencyTrend: 0.3,

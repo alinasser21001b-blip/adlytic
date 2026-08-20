@@ -70,12 +70,16 @@ export class RulesEngine {
     try {
       const signals = await this.buildSignals(entityType, entityId, asOf, windowDays, lag);
       const { issues, diagnoses } = runDetectorPipeline(signals, detectors);
+      // Detectors don't know windowDays (they only see Signals); the
+      // orchestrator does, so it attaches the real window here rather than
+      // leaving it null all the way to persistence.
+      const issuesWithWindow = issues.map((i) => ({ ...i, window: { days: windowDays } }));
 
       await this.issuesRepo.replaceForDate({
-        entityType, entityId, date: asOf, issues,
+        entityType, entityId, date: asOf, issues: issuesWithWindow,
       });
 
-      result.issues = issues;
+      result.issues = issuesWithWindow;
       result.diagnoses = diagnoses;
       result.ok = true;
     } catch (e) {

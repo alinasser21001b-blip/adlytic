@@ -15,6 +15,7 @@ import {
   issuesCompatibleWithSignals,
 } from '../engines/rules/campaignSignals';
 import type { IssueRecord } from '../repositories/detectedIssuesRepo';
+import { issueEvidenceFieldsFromJson } from '../analytics/evidence';
 import { INDUSTRIES } from './data/meta-metrics';
 import { campaignGoalSchema, type CampaignGoal } from './schemas';
 
@@ -433,13 +434,13 @@ export async function assembleAdlyticAssessmentContext(opts: {
     if (!byCode.has(iss.issueCode)) byCode.set(iss.issueCode, iss);
   }
 
+  // evidenceJson may still be LEGACY-shaped (pre Phase 3 canonical-evidence
+  // migration) — same transition window as getDashboard.ts.
+  // issueEvidenceFieldsFromJson() is the one shared degradation path.
   const issueRecords: IssueRecord[] = Array.from(byCode.values()).map((iss) => ({
     issueCode: iss.issueCode,
     severity: iss.severity,
-    evidence:
-      iss.evidenceJson && typeof iss.evidenceJson === 'object'
-        ? (iss.evidenceJson as Record<string, unknown>)
-        : {},
+    ...issueEvidenceFieldsFromJson(iss.evidenceJson),
   }));
 
   // Absolute-only signals (same honesty contract as brain rule-grounding).

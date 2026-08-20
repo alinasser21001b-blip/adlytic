@@ -105,6 +105,7 @@ import { accountDeliveryHold, type AccountDeliveryHold } from "../lib/campaignLi
 import { classificationConfidenceFromReason } from "../analytics/confidence";
 import { resolveAccountResultKey } from "../analytics/accountResultKey";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
+import { issueEvidenceFieldsFromJson } from "../analytics/evidence";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
 // ── Lazy-initialized standalone Prisma client (used when no client is passed in).
@@ -1169,10 +1170,17 @@ export async function getDashboard(
   }
 
   // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
+  //
+  // evidenceJson rows may still be LEGACY-shaped (written before the Phase 3
+  // canonical-evidence migration) until the next Rules tick refreshes them —
+  // detected_issues is fully replaced per (entity, date) on every run, but
+  // this dashboard read can land in that transition window.
+  // issueEvidenceFieldsFromJson() degrades an old row honestly instead of
+  // it being misinterpreted as having the new fields.
   const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
     issueCode: d.issueCode,
     severity: d.severity,
-    evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
+    ...issueEvidenceFieldsFromJson(d.evidenceJson),
   }));
   // Account-level results, in ONE coherent unit or not at all.
   //

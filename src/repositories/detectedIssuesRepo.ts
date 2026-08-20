@@ -13,11 +13,16 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient, EntityType, IssueCode, Severity } from "@prisma/client";
+import type { Evidence, IssueConfidence } from "../analytics/evidence";
 
 export interface IssueRecord {
   issueCode: IssueCode;
   severity: Severity;
-  evidence: Record<string, unknown>;
+  /** Canonical observations backing this issue — see src/analytics/evidence.ts. */
+  evidence: Evidence[];
+  confidence: IssueConfidence;
+  /** Days the current/prior window spanned when detected, when known. */
+  window: { days: number } | null;
 }
 
 export class DetectedIssuesRepo {
@@ -47,7 +52,11 @@ export class DetectedIssuesRepo {
               entityType, entityId, date,
               issueCode: i.issueCode,
               severity: i.severity,
-              evidenceJson: i.evidence as object,
+              evidenceJson: {
+                metrics: i.evidence,
+                confidence: i.confidence,
+                window: i.window,
+              } as object,
             })),
           })]
         : []),

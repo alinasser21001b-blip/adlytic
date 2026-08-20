@@ -38,12 +38,17 @@ export const detectLowCtr: Detector = (s) => {
   return {
     issueCode: IssueCode.LOW_CTR,
     severity,
-    evidence: {
-      currentCtr: s.currentCtr,
-      threshold,
-      objective: s.objective ?? null,
-      gapBelowThreshold: +gap.toFixed(3),
-      confidence: 0.80, // current-level signal is direct, not inferred
-    },
+    confidence: { value: 0.80, basis: 'heuristic_constant' }, // current-level signal is direct, not inferred
+    window: null,
+    evidence: [
+      {
+        metricKey: 'ctr',
+        valueKind: 'level',
+        unit: 'percent',
+        value: s.currentCtr,
+        threshold,
+        relativeToThreshold: +gap.toFixed(3),
+      },
+    ],
   };
 };
