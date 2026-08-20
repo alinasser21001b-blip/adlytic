@@ -448,12 +448,16 @@ export class AdlyticIntelligenceSystem {
       impressions: Number(r.impressions),
       reach: Number(r.reach),
       clicks: Number(r.clicks),
-      ctr: r.ctr,
-      cpm: r.cpm,
-      frequency: r.frequency,
       // Per-purpose counters MUST be populated: the rules above count the
       // result key resolved from the account's purpose, so a sales account
       // reading an unpopulated `purchases` would silently report zero results.
+      // Same reasoning applies to linkClicks now that traffic/app resolve to
+      // it (resultSemantics.ts DEFINITIONS) — an unpopulated field here would
+      // silently report zero results for those accounts instead.
+      linkClicks: Number(r.linkClicks ?? 0),
+      ctr: r.ctr,
+      cpm: r.cpm,
+      frequency: r.frequency,
       purchases: Number(r.purchases),
       leads: Number(r.leads),
     }));

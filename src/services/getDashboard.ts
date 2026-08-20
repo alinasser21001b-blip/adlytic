@@ -2118,7 +2118,7 @@ async function buildResultBreakdown(
       spendMinor: spend,
       rows: campaignRows.map((r) => ({
         messages: r.messages, purchases: r.purchases, leads: r.leads,
-        clicks: r.clicks, impressions: r.impressions,
+        clicks: r.clicks, linkClicks: r.linkClicks, impressions: r.impressions,
       })),
     });
   }

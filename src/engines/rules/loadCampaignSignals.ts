@@ -39,6 +39,7 @@ function resultCountFromPoint(p: DailyPoint, resultKey: string): number {
     case 'purchases':   return Number(p.purchases) || 0;
     case 'leads':       return Number(p.leads) || 0;
     case 'clicks':      return Number(p.clicks) || 0;
+    case 'linkClicks':  return Number(p.linkClicks) || 0;
     case 'impressions': return Number(p.impressions) || 0;
     default:            return 0;
   }
@@ -99,6 +100,7 @@ export async function loadCampaignSignalsBatch(
       impressions: Number(r.impressions),
       reach: Number(r.reach),
       clicks: Number(r.clicks),
+      linkClicks: Number(r.linkClicks ?? 0),
       ctr: r.ctr,
       cpm: r.cpm,
       frequency: r.frequency,
@@ -127,7 +129,7 @@ export async function loadCampaignSignalsBatch(
     for (const p of current) {
       windowMessages += p.messages;
       windowClicks += p.clicks;
-      windowLinkClicks += Number((p as any).linkClicks ?? 0);
+      windowLinkClicks += Number(p.linkClicks ?? 0);
     }
     const meta = campaignRows.find((c) => c.id === campaignId);
     const purpose = resolveCampaignPurpose({
