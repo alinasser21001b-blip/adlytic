@@ -48,8 +48,8 @@ check('a leads campaign attributes LEADS, not messages', () => {
   assert.equal(resultColumnFor('OUTCOME_LEADS'), 'leads');
 });
 
-check('a traffic campaign attributes CLICKS, not messages', () => {
-  assert.equal(resultColumnFor('OUTCOME_TRAFFIC'), 'clicks');
+check('a traffic campaign attributes LINK_CLICKS, not messages', () => {
+  assert.equal(resultColumnFor('OUTCOME_TRAFFIC'), 'linkClicks');
 });
 
 check('a messaging campaign still attributes messages', () => {

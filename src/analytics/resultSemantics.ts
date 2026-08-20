@@ -25,7 +25,7 @@
 //  re-fetch from Meta.
 // ════════════════════════════════════════════════════════════════════════
 
-import type { ObjectiveKpiFamily, ResultMetricKey } from '../lib/objectiveKpis';
+import { getKpiSpecForFamily, type ObjectiveKpiFamily, type ResultMetricKey } from '../lib/objectiveKpis';
 import type { DataConfidence } from './confidence';
 import type { MetricUnavailableReason } from './metricDictionary';
 
@@ -81,10 +81,18 @@ export interface ResultDefinition {
   approximate: boolean;
 }
 
+// resultKey is delegated to objectiveKpis.ts's SPECS table — the canonical
+// family→Meta-field mapping — rather than hand-duplicated here. Two
+// independently-authored copies of the same mapping is exactly how traffic
+// and app drifted out of sync with it (both said 'clicks' here long after
+// SPECS moved to 'linkClicks'). businessOutcome/unit/approximate/labels stay
+// owned by THIS module: they express unit-safety and merchant-facing meaning
+// that SPECS has no equivalent for, and neither changes with the source
+// column — a link click is still only a proxy for an app install.
 const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   messaging: {
     family: 'messaging',
-    resultKey: 'messages',
+    resultKey: getKpiSpecForFamily('messaging').resultKey,
     businessOutcome: 'qualified_conversations',
     unit: 'conversation',
     labelAr: 'محادثة',
@@ -95,7 +103,7 @@ const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   },
   traffic: {
     family: 'traffic',
-    resultKey: 'clicks',
+    resultKey: getKpiSpecForFamily('traffic').resultKey,
     businessOutcome: 'site_visits',
     unit: 'visit',
     labelAr: 'زيارة',
@@ -106,7 +114,7 @@ const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   },
   leads: {
     family: 'leads',
-    resultKey: 'leads',
+    resultKey: getKpiSpecForFamily('leads').resultKey,
     businessOutcome: 'lead_submissions',
     unit: 'lead',
     labelAr: 'عميل محتمل',
@@ -117,7 +125,7 @@ const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   },
   sales: {
     family: 'sales',
-    resultKey: 'purchases',
+    resultKey: getKpiSpecForFamily('sales').resultKey,
     businessOutcome: 'orders',
     unit: 'order',
     labelAr: 'طلب',
@@ -128,7 +136,7 @@ const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   },
   engagement: {
     family: 'engagement',
-    resultKey: 'clicks',
+    resultKey: getKpiSpecForFamily('engagement').resultKey,
     businessOutcome: 'social_interactions',
     unit: 'interaction',
     labelAr: 'تفاعل',
@@ -141,7 +149,7 @@ const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   },
   awareness: {
     family: 'awareness',
-    resultKey: 'impressions',
+    resultKey: getKpiSpecForFamily('awareness').resultKey,
     businessOutcome: 'brand_exposure',
     unit: 'impression',
     labelAr: 'ظهور',
@@ -152,13 +160,15 @@ const DEFINITIONS: Record<ObjectiveKpiFamily, ResultDefinition> = {
   },
   app: {
     family: 'app',
-    resultKey: 'clicks',
+    resultKey: getKpiSpecForFamily('app').resultKey,
     businessOutcome: 'app_installs',
     unit: 'install',
     labelAr: 'تثبيت',
     labelEn: 'install',
     costMetricKey: 'cost_per_link_click',
     rateMetricKey: null,
+    // A link click is still only a proxy for an app install, exactly as an
+    // all-click was — the source column changed, the approximation did not.
     approximate: true,
   },
 };
@@ -200,6 +210,8 @@ export interface DailyResultRow {
   purchases?: number | bigint | null;
   leads?: number | bigint | null;
   clicks?: number | bigint | null;
+  /** Meta inline_link_clicks — the canonical traffic/app result column. */
+  linkClicks?: number | bigint | null;
   impressions?: number | bigint | null;
 }
 

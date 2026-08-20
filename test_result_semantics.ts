@@ -298,10 +298,12 @@ console.log('\n── 9. History is re-interpretable from data already on disk �
 
 check('every result key is a column that predates this work', () => {
   // The whole no-backfill argument: messages / purchases / leads / clicks /
-  // impressions have always been stored separately and correctly. If a result
-  // definition ever points at a NEW column, this fails and the backfill
-  // question must be answered explicitly.
-  const PRE_EXISTING = new Set(['messages', 'purchases', 'leads', 'clicks', 'impressions']);
+  // linkClicks / impressions have always been stored separately and
+  // correctly (linkClicks: DailyStat.linkClicks, populated by the sync
+  // pipeline since before objectiveKpis.ts's SPECS moved traffic/app onto
+  // it). If a result definition ever points at a truly NEW column, this
+  // fails and the backfill question must be answered explicitly.
+  const PRE_EXISTING = new Set(['messages', 'purchases', 'leads', 'clicks', 'linkClicks', 'impressions']);
   for (const d of allResultDefinitions()) {
     assert.ok(PRE_EXISTING.has(d.resultKey),
       `${d.family} resolves results from "${d.resultKey}", which is not a pre-existing column — a backfill decision is now required`);
@@ -317,24 +319,24 @@ check('no result definition reads the ambiguous conversions column', () => {
 
 console.log('\n── 10. Approximate results MUST remain approximate ──');
 
-check('traffic clicks and engagement clicks are NOT the same business event', () => {
+check('traffic linkClicks and app linkClicks are NOT the same business event', () => {
   // Both read the SAME source column. The column does not determine meaning.
   const traffic = resultFor('traffic');
-  const engagement = resultFor('engagement');
-  assert.equal(traffic.resultKey, 'clicks');
-  assert.equal(engagement.resultKey, 'clicks');
-  assert.notEqual(traffic.businessOutcome, engagement.businessOutcome);
-  assert.notEqual(traffic.unit, engagement.unit);
+  const app = resultFor('app');
+  assert.equal(traffic.resultKey, 'linkClicks');
+  assert.equal(app.resultKey, 'linkClicks');
+  assert.notEqual(traffic.businessOutcome, app.businessOutcome);
+  assert.notEqual(traffic.unit, app.unit);
   assert.equal(traffic.businessOutcome, 'site_visits');
-  assert.equal(engagement.businessOutcome, 'social_interactions');
+  assert.equal(app.businessOutcome, 'app_installs');
 });
 
-check('app "installs" are clicks, and are marked approximate', () => {
+check('app "installs" are linkClicks, and are marked approximate', () => {
   const app = resultFor('app');
-  assert.equal(app.resultKey, 'clicks', 'we do not have a real install signal');
+  assert.equal(app.resultKey, 'linkClicks', 'we do not have a real install signal');
   assert.equal(app.businessOutcome, 'app_installs');
   assert.equal(app.approximate, true,
-    'a click proxy must never be presented as a measured install');
+    'a link-click proxy must never be presented as a measured install');
 });
 
 check('exact families are NOT marked approximate', () => {
@@ -345,7 +347,7 @@ check('exact families are NOT marked approximate', () => {
 
 check('an approximate result stays flagged through aggregation', () => {
   const t = aggregateMixedResults([
-    { family: 'app', rows: [{ clicks: 400 }], spendMinor: 100_000 },
+    { family: 'app', rows: [{ linkClicks: 400 }], spendMinor: 100_000 },
   ]);
   assert.equal(t.byUnit[0]!.approximate, true);
   assert.equal(isApproximate(t), true);
@@ -355,7 +357,7 @@ check('an approximate result stays flagged through aggregation', () => {
 check('mixing approximate with exact PRESERVES the approximation flag', () => {
   const t = aggregateMixedResults([
     { family: 'messaging', rows: msgRows, spendMinor: 800_000 },   // exact
-    { family: 'app', rows: [{ clicks: 400 }], spendMinor: 200_000 }, // approximate
+    { family: 'app', rows: [{ linkClicks: 400 }], spendMinor: 200_000 }, // approximate
   ]);
   assert.equal(isApproximate(t), true, 'one approximate contributor taints the whole');
   const conv = t.byUnit.find((u) => u.outcome === 'qualified_conversations')!;
@@ -376,13 +378,13 @@ check('approximation is contagious WITHIN one outcome', () => {
 console.log('\n── 11. `unit` must not hide semantic differences ──');
 
 check('aggregation groups by businessOutcome, not by unit or source column', () => {
-  // Three families read `clicks`. If aggregation keyed on the column — or on a
-  // unit two definitions happened to share — they would silently merge into
-  // one meaningless number.
+  // Traffic and app BOTH read `linkClicks`. If aggregation keyed on the
+  // column — or on a unit two definitions happened to share — they would
+  // silently merge into one meaningless number.
   const t = aggregateMixedResults([
-    { family: 'traffic', rows: [{ clicks: 100 }], spendMinor: 100_000 },
+    { family: 'traffic', rows: [{ linkClicks: 100 }], spendMinor: 100_000 },
     { family: 'engagement', rows: [{ clicks: 200 }], spendMinor: 100_000 },
-    { family: 'app', rows: [{ clicks: 300 }], spendMinor: 100_000 },
+    { family: 'app', rows: [{ linkClicks: 300 }], spendMinor: 100_000 },
   ]);
   assert.equal(t.byUnit.length, 3, 'three distinct business outcomes must stay separate');
   const outcomes = t.byUnit.map((u) => u.outcome).sort();
@@ -410,7 +412,7 @@ check('no two definitions share a unit while meaning different outcomes', () => 
 });
 
 check('two results of the same unit but different outcomes never merge', () => {
-  const traffic = resolveResultTotal('traffic', [{ clicks: 10 }]);
+  const traffic = resolveResultTotal('traffic', [{ linkClicks: 10 }]);
   const engagement = resolveResultTotal('engagement', [{ clicks: 10 }]);
   assert.notEqual((traffic as any).outcome, (engagement as any).outcome);
   // Different units today, so addResults rejects them outright.
@@ -437,7 +439,7 @@ check('a mixed account gives calculation NOTHING, even though dominant exists', 
 
 check('an approximate single result is withheld from calculation', () => {
   const t = aggregateMixedResults([
-    { family: 'app', rows: [{ clicks: 400 }], spendMinor: 100_000 },
+    { family: 'app', rows: [{ linkClicks: 400 }], spendMinor: 100_000 },
   ]);
   // singleUnitCount still returns the raw number, but the caller MUST consult
   // the approximation flag — getDashboard withholds it from the diagnosis.
