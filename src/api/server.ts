@@ -3271,6 +3271,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultsWindow,
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+          // Info-popover glossary ids — the client must not re-derive these
+          // from resultKey/efficiencyKey (that mapping is a semantic decision
+          // owned by objectiveKpis.ts and previously went missing for
+          // linkClicks, showing the messages glossary entry on a traffic
+          // campaign's result metric).
+          resultInfoId: kpiSpec.resultInfoId,
+          efficiencyInfoId: kpiSpec.efficiencyInfoId,
           kpiFamily: kpiSpec.family,
           // The result's UNIT and the DailyStat column carrying its per-day
           // count. Both are semantic decisions owned by resultSemantics.ts.
@@ -3841,6 +3848,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         resultLabelAr: kpiSpec.resultLabelAr,
         efficiencyKey: kpiSpec.efficiencyKey,
         efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+        // Info-popover glossary ids — see the campaigns-list route above for
+        // why the client must not re-derive these from resultKey/efficiencyKey.
+        resultInfoId: kpiSpec.resultInfoId,
+        efficiencyInfoId: kpiSpec.efficiencyInfoId,
         kpiFamily: kpiSpec.family,
         purposeLabelAr: purpose.labelAr,
         avgCostPerResult,
@@ -3906,12 +3917,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           costPerResult: asc.map((d) =>
             efficiencyForObjective(purposeKey, dayTotalsOf(d), factor),
           ),
+          // Meta's own reported CPM (daily_stats.cpm, minor units) — not a
+          // local spend÷impressions recompute, which would silently
+          // substitute our arithmetic for Meta's authoritative figure.
           cpm: asc.map((d) => {
             const imp = Number(d.impressions) || 0;
             if (imp <= 0) return null;
-            const spendMajor = Number(d.spend) / factor;
-            if (!Number.isFinite(spendMajor) || spendMajor <= 0) return null;
-            return (spendMajor / imp) * 1000;
+            if (d.cpm == null || !Number.isFinite(d.cpm)) return null;
+            const major = d.cpm / factor;
+            return major > 0 ? major : null;
           }),
           frequency: asc.map((d) => {
             const imp = Number(d.impressions) || 0;
@@ -3929,6 +3943,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyKey: kpiSpec.efficiencyKey,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+          resultInfoId: kpiSpec.resultInfoId,
+          efficiencyInfoId: kpiSpec.efficiencyInfoId,
         };
       })(),
       // Phase 5 Creatives tab. Each entry = one Ad with its (optionally

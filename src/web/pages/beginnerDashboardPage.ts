@@ -8,6 +8,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { layout } from '../layout';
+import { confidenceHelpersJs } from './dashboard/lib/confidence';
 
 export function beginnerDashboardPage(): string {
   const extraHead = `<style>
@@ -406,6 +407,7 @@ export function beginnerDashboardPage(): string {
   `;
 
   const scripts = `<script>
+  ${confidenceHelpersJs}
   var ARABIC_CURRENCY = {
     USD: 'دولار', EUR: 'يورو', GBP: 'جنيه إسترليني',
     SAR: 'ريال', AED: 'درهم', IQD: 'دينار',
@@ -709,16 +711,10 @@ export function beginnerDashboardPage(): string {
     }
 
     var ask = task.askAi || ('اشرح لي ببساطة: ' + task.title + '. ماذا أفعل الآن خطوة بخطوة؟ ومتى أراجع النتيجة؟');
-    var conf = task.confidence;
-    var confHtml = '';
-    if (conf != null && isFinite(Number(conf))) {
-      var c = Number(conf);
-      if (c > 1) c = c / 100;
-      c = Math.max(0, Math.min(1, c));
-      var confLevel = c >= 0.75 ? 'high' : c >= 0.5 ? 'medium' : 'low';
-      var confLabel = c >= 0.75 ? 'ثقة عالية' : c >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
-      confHtml = '<span class="diagnosis-confidence ' + confLevel + '">' + escBgn(confLabel + ' ' + Math.round(c * 100) + '%') + '</span>';
-    }
+    var confBadgeResult = confBadge(task.confidence);
+    var confHtml = confBadgeResult
+      ? '<span class="diagnosis-confidence ' + confBadgeResult.level + '">' + escBgn(confBadgeResult.label + ' ' + confBadgeResult.pct + '%') + '</span>'
+      : '';
 
     // Ideal diagnosis card: title + confidence + evidence + ماذا تفعل الآن
     card.innerHTML = '<article class="diagnosis-card diagnosis-card--hero" dir="auto">'

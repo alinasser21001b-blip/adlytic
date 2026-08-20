@@ -312,8 +312,12 @@ function extractMetric(
   switch (key) {
     case 'spend': return spend;
     case 'messages': return messages;
-    case 'ctr': return impressions > 0 ? clicks / impressions * 100 : row.ctr ?? null;
-    case 'cpm': return impressions > 0 ? spendMajor / impressions * 1000 : row.cpm ?? null;
+    // Prefer Meta's own reported per-day ctr/cpm (row.ctr/row.cpm) — a local
+    // recompute from raw counters would silently substitute our arithmetic
+    // for Meta's authoritative figure as the z-score baseline/scan input.
+    // Recompute only when the stored field is genuinely absent.
+    case 'ctr': return row.ctr ?? (impressions > 0 ? clicks / impressions * 100 : null);
+    case 'cpm': return row.cpm ?? (impressions > 0 ? spendMajor / impressions * 1000 : null);
     case 'cost_per_message': return messages > 0 ? spendMajor / messages : null;
     default: return null;
   }

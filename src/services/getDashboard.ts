@@ -35,6 +35,7 @@ import {
   findActionsForBreaches,
   formatActionsForDisplay,
   type CampaignMetrics,
+  type MetricBreach,
 } from "../knowledge";
 import {
   buildAdviceTask,
@@ -286,7 +287,12 @@ export interface DashboardDTO {
     severity: string;
     causes: string[];     // localized
     recommendations: string[]; // localized
-    evidence: Record<string, unknown>;
+    // Mostly opaque (evidenceJson passthrough, possibly legacy-shaped — see
+    // issueEvidenceFieldsFromJson below). knowledgeBase is the one sub-shape
+    // the client actually reads (issueActionCode()'s recommended_optimization_actions
+    // lookup), so it gets a real type instead of forcing the client to trust
+    // an untyped Json blob for a field this DTO builder controls precisely.
+    evidence: Record<string, unknown> & { knowledgeBase?: MetricBreach };
   }>;
   /**
    * Merchant-facing task cards (فهم → قرار → فعل → تحقق).
@@ -1079,12 +1085,14 @@ export async function getDashboard(
       if (d.frequency == null || !Number.isFinite(Number(d.frequency))) return null;
       return Number(d.frequency);
     }),
+    // Meta's own reported CPM (daily_stats.cpm, minor units) — not a local
+    // spend÷impressions recompute, which would silently substitute our
+    // arithmetic for Meta's authoritative figure.
     cpm: daily.map((d: any) => {
       const imp = Number(d.impressions) || 0;
       if (imp <= 0) return null;
-      const spendMajor = Number(d.spend) / factor;
-      if (!Number.isFinite(spendMajor)) return null;
-      return (spendMajor / imp) * 1000;
+      if (d.cpm == null || !Number.isFinite(Number(d.cpm))) return null;
+      return Number(d.cpm) / factor;
     }),
     costPerResult: resultsSeriesAndCost.costPerResult,
   };

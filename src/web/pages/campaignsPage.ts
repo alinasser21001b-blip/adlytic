@@ -1589,14 +1589,15 @@ export function campaignsPage(): string {
       if (!(spendMaj > 0)) return null;
       return spendMaj / results;
     });
-    // CPM is stored in MINOR units — always recompute from spend÷impressions in MAJOR.
+    // Meta's own reported CPM (d.cpm, MINOR units) — not a local
+    // spend÷impressions recompute, which would silently substitute our
+    // arithmetic for Meta's authoritative figure. Convert to MAJOR for display.
     var cpmData = rows.map(function (d) {
       if (!d) return null;
       var imp = Number(d.impressions) || 0;
-      if (imp <= 0) return null;
-      var spendMaj = (Number(d.spend) || 0) / state.minorFactor;
-      if (!Number.isFinite(spendMaj)) return null;
-      return (spendMaj / imp) * 1000;
+      if (imp <= 0 || d.cpm == null) return null;
+      var v = Number(d.cpm) / state.minorFactor;
+      return Number.isFinite(v) && v > 0 ? v : null;
     });
     var ctrData = rows.map(function (d) {
       if (!d) return null;
@@ -2620,16 +2621,12 @@ ${renderIntelligenceJs}
     var resultLabel = s.resultLabelAr || 'إجمالي الرسائل';
     var efficiencyLabel = s.efficiencyLabelAr || 'تكلفة الرسالة';
     var family = s.kpiFamily || c.purposeFamily || 'messaging';
-    var resultInfoId = s.resultKey === 'impressions' ? 'impressions'
-      : s.resultKey === 'clicks' ? 'clicks'
-      : s.resultKey === 'purchases' ? 'purchases'
-      : s.resultKey === 'leads' ? 'leads'
-      : s.resultKey === 'reach' ? 'reach'
-      : 'messages';
-    var efficiencyInfoId = s.efficiencyKey === 'cpm' ? 'cpm'
-      : s.efficiencyKey === 'cpc' ? 'cpc'
-      : s.efficiencyKey === 'costPerMessage' ? 'cost_per_messaging_conversation'
-      : 'cost_per_result';
+    // Info-popover glossary ids come straight from the server's objectiveKpis
+    // spec (same source as resultLabelAr/efficiencyLabelAr above) — the old
+    // re-derivation here had no linkClicks branch, so a traffic campaign's
+    // result metric silently showed the "messages" glossary entry.
+    var resultInfoId = s.resultInfoId || 'messages';
+    var efficiencyInfoId = s.efficiencyInfoId || 'cost_per_result';
     var resultValue = s.results != null ? s.results
       : (s.messages != null ? s.messages : 0);
     var efficiencyMajor = s.avgCostPerResult != null ? s.avgCostPerResult
