@@ -4321,6 +4321,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const recs = await prisma.recommendation.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id },
       orderBy: [{ priority: 'desc' }, { date: 'desc' }],
+      // reasoningChainJson (AI_AGENT provenance — tool calls, key facts,
+      // confidence) is written by saveRecommendation.ts but read by no page
+      // or DTO anywhere in src/web — it was going out over the wire
+      // unfiltered below (safeJson() does a BigInt-safe round-trip, not
+      // field filtering) to any authenticated workspace member, unused.
+      omit: { reasoningChainJson: true },
     });
 
     // Fire-and-forget: log a snapshot for closed-loop learning. One log entry
