@@ -139,7 +139,11 @@ function makeFakePrisma(table: Row[]) {
 }
 
 const V1_ACCOUNT = { entityType: EntityType.ACCOUNT, entityId: 'acct_shared' };
-const dateA = new Date('2026-08-19T00:00:00.000Z');
+// Must equal saveRecommendation.ts's own `today` (new Date(new Date()
+// .toISOString().slice(0, 10))) — scenarios C/E/H look up by that exact
+// composite key. A hardcoded literal date passed silently for one day and
+// then failed every day after, since the two stopped agreeing at midnight.
+const dateA = new Date(new Date().toISOString().slice(0, 10));
 
 function rec(actionCode: string, priority: RecommendationPriority = RecommendationPriority.HIGH): RecommendationRecord {
   return { actionCode, priority, sourceIssues: [], details: null };
