@@ -15,7 +15,7 @@ import {
   issuesCompatibleWithSignals,
 } from '../engines/rules/campaignSignals';
 import type { IssueRecord } from '../repositories/detectedIssuesRepo';
-import { issueEvidenceFieldsFromJson } from '../analytics/evidence';
+import { issueEvidenceFieldsFromJson, type Evidence } from '../analytics/evidence';
 import { INDUSTRIES } from './data/meta-metrics';
 import { campaignGoalSchema, type CampaignGoal } from './schemas';
 
@@ -72,6 +72,14 @@ export interface AdlyticAssessmentContext {
   healthScore: number | null;
   healthBand: string | null;
   diagnoses: Array<{ title: string; explanation: string; action: string; severity: string }>;
+  /**
+   * Canonical structured Evidence (Phase 3 contract) backing `diagnoses`
+   * above — one measured fact per entry, sourced from the same detector
+   * evidence the rule engine persists. This is the assessor's authoritative
+   * numeric ground truth alongside `metrics`; `brain.arabicNarration` below
+   * is explanatory text and must never override it.
+   */
+  evidence: Evidence[];
   brain: AdlyticBrainInsight | null;
   creative: AdlyticCreativePrefill | null;
   selfBenchmark: AdlyticSelfBenchmark | null;
@@ -454,6 +462,11 @@ export async function assembleAdlyticAssessmentContext(opts: {
   });
   const compatibleIssues = issuesCompatibleWithSignals(issueRecords, signals);
 
+  // Same canonical Evidence the rule engine persisted (Phase 3) and diagnose()
+  // is about to read below — exposed here too so the assessor prompt can cite
+  // it directly instead of only seeing diagnose()'s prose output.
+  const evidence: Evidence[] = compatibleIssues.flatMap((i) => i.evidence);
+
   let diagnoses: Diagnosis[] = [];
   try {
     diagnoses = diagnose(compatibleIssues, signals).slice(0, 4);
@@ -556,6 +569,7 @@ export async function assembleAdlyticAssessmentContext(opts: {
       action: d.action,
       severity: d.confidence >= 0.75 ? 'HIGH' : 'MEDIUM',
     })),
+    evidence,
     brain,
     creative,
     selfBenchmark,
@@ -563,11 +577,21 @@ export async function assembleAdlyticAssessmentContext(opts: {
   };
 }
 
-/** Format Adlytic context as a prompt block for the LLM. */
+/**
+ * Format Adlytic context as a prompt block for the LLM.
+ *
+ * Two clearly-separated sections, in authority order:
+ *   1. Structured data (metrics, canonical evidence, diagnoses, brain
+ *      decision, self-benchmark) — deterministically computed, the ONLY
+ *      source the assessor may cite for numeric performance facts.
+ *   2. Brain narration — LLM-generated prose, explanatory context only.
+ * The rules block at the end restates this hierarchy explicitly so the
+ * boundary survives even if a later edit moves lines between sections.
+ */
 export function formatAdlyticContextForPrompt(ctx: AdlyticAssessmentContext): string {
   const m = ctx.metrics;
   const lines: string[] = [
-    '## Adlytic live account context (GROUND TRUTH — prefer over generic benchmarks)',
+    '## Adlytic structured account data (AUTHORITATIVE — the only source for numeric performance claims)',
     `- Campaign: ${ctx.campaignName}`,
     `- Status: ${ctx.status}`,
     `- Window: last ${m.windowDays} days`,
@@ -588,8 +612,17 @@ export function formatAdlyticContextForPrompt(ctx: AdlyticAssessmentContext): st
     lines.push(`- Health score: ${ctx.healthScore}/100 (${ctx.healthBand || 'n/a'})`);
   }
 
+  if (ctx.evidence.length) {
+    lines.push('- Canonical evidence (measured, per-metric facts behind the diagnoses below):');
+    for (const e of ctx.evidence) {
+      const suffix = e.unit === 'percent' ? '%' : '';
+      const label = e.valueKind === 'trend' ? 'change' : 'level';
+      lines.push(`  • ${e.metricKey} (${label}): ${e.value}${suffix}`);
+    }
+  }
+
   if (ctx.diagnoses.length) {
-    lines.push('- Active diagnoses (Arabic, already merchant-facing):');
+    lines.push('- Active diagnoses (deterministic rule engine, Arabic merchant-facing text):');
     for (const d of ctx.diagnoses) {
       lines.push(`  • [${d.severity}] ${d.title}: ${d.explanation}`);
       lines.push(`    Action: ${d.action}`);
@@ -597,14 +630,12 @@ export function formatAdlyticContextForPrompt(ctx: AdlyticAssessmentContext): st
   }
 
   if (ctx.brain) {
-    lines.push('- Latest Adlytic brain insight:');
+    lines.push('- Latest Adlytic brain decision (deterministic, not LLM-generated):');
     lines.push(`  • Priority: ${ctx.brain.priority} @ ${ctx.brain.tickDate}`);
-    if (ctx.brain.arabicTitle) lines.push(`  • Title: ${ctx.brain.arabicTitle}`);
-    if (ctx.brain.arabicNarration) lines.push(`  • Narration: ${ctx.brain.arabicNarration}`);
   }
 
   if (ctx.selfBenchmark) {
-    lines.push('- Account self-benchmark (your ads vs each other):');
+    lines.push('- Account self-benchmark (your ads vs each other, computed from real ad stats):');
     lines.push(`  • Ads analyzed: ${ctx.selfBenchmark.totalAdsAnalyzed}`);
     if (ctx.selfBenchmark.accountAvgCtr != null) {
       lines.push(`  • Account avg CTR: ${ctx.selfBenchmark.accountAvgCtr}%`);
@@ -617,11 +648,31 @@ export function formatAdlyticContextForPrompt(ctx: AdlyticAssessmentContext): st
     }
   }
 
+  if (ctx.brain && (ctx.brain.arabicTitle || ctx.brain.arabicNarration)) {
+    lines.push(
+      '',
+      '## Adlytic brain narration (NON-AUTHORITATIVE — LLM-generated explanatory text)',
+      'This is prose written by another LLM to explain the structured data above to merchants.',
+      'It is context, not evidence. If a number in this narration conflicts with or is absent',
+      'from the structured data above, the structured data above is correct — treat the number',
+      'in this narration as a wording issue, never as an established fact.',
+    );
+    if (ctx.brain.arabicTitle) lines.push(`  • Title: ${ctx.brain.arabicTitle}`);
+    if (ctx.brain.arabicNarration) lines.push(`  • Narration: ${ctx.brain.arabicNarration}`);
+  }
+
   lines.push(
     '',
     'Rules for using this context:',
-    '- performanceInsight MUST reference these real numbers (not invented benchmarks).',
-    '- actionItems should address diagnoses / brain insight when present.',
+    '- Authority order for any numeric claim: (1) structured metrics and canonical evidence above,',
+    '  (2) deterministic diagnoses and brain decision, (3) account self-benchmark, (4) brain',
+    '  narration last — narration may only add explanatory color, never a number of its own.',
+    '- performanceInsight MUST reference the structured numbers above (not invented benchmarks,',
+    '  and not a number that appears only in the brain narration section).',
+    '- If the brain narration states a number not present in the structured data above, do not',
+    '  repeat it as fact — either omit it or describe it as "the narration also notes ...".',
+    '- Never invent or infer a metric value that is absent above; say the data is unavailable.',
+    '- actionItems should address diagnoses / brain decision when present.',
     '- Prefer account self-benchmark patterns over Ad Library for performance claims.',
     '- Keep Arabic merchant-friendly; never expose enum codes like KEEP_COLLECTING.',
   );
