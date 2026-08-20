@@ -1,3 +1,11 @@
+> **SUPERSEDED.** This design was fully implemented long ago (see
+> `analytics/resultSemantics.ts`) — the "awaiting approval, no implementation has begun"
+> status below is misleading, not current. See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical design-rationale reference only.
+
+---
+
 # P2 — Result Semantics Design
 
 **Status:** DESIGN — awaiting approval. No implementation has begun.

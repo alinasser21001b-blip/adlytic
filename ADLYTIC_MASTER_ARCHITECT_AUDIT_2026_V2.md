@@ -1,3 +1,11 @@
+> **SUPERSEDED.** This is a historical snapshot (2026-06-30, `feat/horizontal-scaling`) and
+> is no longer accurate — the codebase has gone through several major remediation phases
+> since. See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical reference only.
+
+---
+
 # ADLYTIC_MASTER_ARCHITECT_AUDIT_2026 — Second Pass
 
 **Document type:** Production-grade master architecture audit (second pass)  

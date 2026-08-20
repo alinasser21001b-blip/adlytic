@@ -1,3 +1,10 @@
+> **SUPERSEDED.** This is a historical snapshot (commit `28dc6aa`) and is no longer
+> accurate — the codebase has gone through several major remediation phases since. See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical reference only.
+
+---
+
 # Adlytic — audit & repair report
 
 Scope: the repository at `28dc6aa`, audited as an external engineer. Every
