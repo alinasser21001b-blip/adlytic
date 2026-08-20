@@ -1,3 +1,10 @@
+> **SUPERSEDED.** This is a historical snapshot (reviewed 2026-06-26, against a
+> different machine's local clone) and is no longer accurate. See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical reference only.
+
+---
+
 # Adlytic — How It Works
 
 > Technical reference derived from the codebase at `/Users/aliahhed/Downloads/adlytic`.  

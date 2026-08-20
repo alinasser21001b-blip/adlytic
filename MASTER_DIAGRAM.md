@@ -1,3 +1,10 @@
+> **تم استبداله (SUPERSEDED).** هذا مخطط تاريخي (آخر تحديث 2026-06-26) ولم يعد
+> دقيقاً. راجع
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> للبنية المعمارية الحالية الموثّقة والمُتحقَّق منها.
+
+---
+
 # Adlytic — المخطط المعماري الرئيسي
 
 > نموذج الوكالة العربية — تطبيق Meta واحد، Workspace لكل زبون، ربط يدوي/OAuth، ETL، ومقاييس موحّدة.

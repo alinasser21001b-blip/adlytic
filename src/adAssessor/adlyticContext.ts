@@ -457,7 +457,12 @@ export async function assembleAdlyticAssessmentContext(opts: {
     currentCtr: metrics.ctr,
     currentFrequency: metrics.frequency,
     currentCpm: metrics.cpm != null ? metrics.cpm * minorFactor : null,
-    currentResults: metrics.messages + metrics.purchases + metrics.leads,
+    // Materiality/volume signal only (not a displayed business-outcome
+    // count) — messages/purchases/leads are different units, so summing them
+    // would fabricate a cross-unit total exactly like the anti-pattern
+    // resultSemantics.ts exists to prevent. max() preserves the "is there
+    // enough activity to judge" intent without inventing a combined number.
+    currentResults: Math.max(metrics.messages, metrics.purchases, metrics.leads),
     currentSpend: metrics.spendMajor * minorFactor,
   });
   const compatibleIssues = issuesCompatibleWithSignals(issueRecords, signals);

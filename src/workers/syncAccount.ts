@@ -455,19 +455,15 @@ export class SyncAccountWorker {
     try {
       console.log(`${tag} Fetching lifetime totals from Meta…`);
       const rows = await this.meta.getLifetimeTotals(acct.externalAccountId);
-      let spendMajor = 0;
+      const factor = currencyFactorForMapper(acct.currency, acct.currencyMinorFactor, `${tag} lifetime totals`);
+      // Route through the cordon (mapMetaInsight) rather than reading r.spend
+      // directly — the same function campaignFreeze.ts already uses against
+      // this same getLifetimeTotalsForEntity() row shape.
+      let spendMinorTotal = 0;
       for (const r of rows) {
-        const v = r.spend;
-        const n = typeof v === 'number' ? v : parseFloat(String(v ?? 0));
-        if (Number.isFinite(n)) spendMajor += n;
+        spendMinorTotal += mapMetaInsight(r, { currencyMinorFactor: factor }).spendMinor;
       }
-      const spendMinor = BigInt(Math.round(
-        spendMajor * currencyFactorForMapper(
-          acct.currency,
-          acct.currencyMinorFactor,
-          `${tag} lifetime totals`,
-        ),
-      ));
+      const spendMinor = BigInt(Math.round(spendMinorTotal));
       await this.prisma.adAccount.update({
         where: { id: adAccountId },
         data: {

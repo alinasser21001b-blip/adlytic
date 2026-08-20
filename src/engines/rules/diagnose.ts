@@ -14,10 +14,9 @@ import {
   arabicResultPhrase,
   getMetaObjectiveStandard,
   lowCtrFloorForObjective,
-  type ObjectiveInput,
 } from "../../knowledge/metaObjectiveStandards";
 import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
-import type { Signals } from "./types";
+import { objectiveInputOf, type Signals } from "./types";
 
 export interface Diagnosis {
   name: string;
@@ -30,11 +29,6 @@ export interface Diagnosis {
 }
 
 type IssueMap = Map<string, IssueRecord>;
-
-/** Prefer the resolved purpose family; fall back to the raw objective. */
-function objectiveInputOf(s: Signals): ObjectiveInput {
-  return s.purposeFamily ?? s.objective;
-}
 
 function resultNoun(s: Signals): string {
   return arabicResultPhrase(objectiveInputOf(s));

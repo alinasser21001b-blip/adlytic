@@ -195,7 +195,9 @@ import {
   buildEntityFunnel,
   buildEntityIntelligence,
   buildEntityObjectiveKpis,
+  resolveEntityIntelligenceForGuard,
 } from '../services/entityIntelligence';
+import { permitAction } from '../analytics/intelligence/hierarchy';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -3876,14 +3878,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // P5 — health score, reconciled problem class and the single
       // recommendation the whole system agrees on. Rendered verbatim.
       intelligence: campaignIntelligence,
-      timeline: snapshots.map((s) => ({
-        tickDate:         s.tickDate,
-        action:           s.action,
-        priority:         s.priority,
-        patternSignature: s.patternSignature,
-        finalScore:       s.finalScore,
-        narration:        s.narrationJson,
-      })),
+      // Brain (engine/AdlyticBrain.ts) computes its own action independently
+      // of the funnel/reconcileIntelligence chain above — reconciled only
+      // against the pattern-level rule engine (ruleGrounding.ts), never
+      // against this campaign's own `intelligence.problemClass`/
+      // forbiddenActions. permitted/permittedReason expose whether THIS
+      // entry's action still holds up against the current funnel diagnosis,
+      // so a contradiction (e.g. Brain's REFRESH_CREATIVE next to a verified
+      // POST_CLICK diagnosis) is visible rather than silently presented as
+      // equally authoritative. A history ledger, so entries are annotated,
+      // not dropped — permitAction() itself returns {allowed, reason?} to be
+      // read, not just enforced.
+      timeline: snapshots.map((s) => {
+        const permit = campaignIntelligence ? permitAction(s.action, campaignIntelligence) : { allowed: true };
+        return {
+          tickDate:         s.tickDate,
+          action:           s.action,
+          priority:         s.priority,
+          patternSignature: s.patternSignature,
+          finalScore:       s.finalScore,
+          narration:        s.narrationJson,
+          permitted:        permit.allowed,
+          permittedReason:  permit.allowed ? null : (permit.reason ?? null),
+        };
+      }),
       signals: { positive, negative, meta: signalsMeta },
       // Per-campaign daily series for inspector charts (already loaded above).
       // Ascending calendar order; null efficiency when that day had zero results.
@@ -4334,7 +4352,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(workspaceId);
     if (!account) return c.json([]);
-    const recs = await prisma.recommendation.findMany({
+    const allRecs = await prisma.recommendation.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id },
       orderBy: [{ priority: 'desc' }, { date: 'desc' }],
       // reasoningChainJson (AI_AGENT provenance — tool calls, key facts,
@@ -4344,6 +4362,19 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // field filtering) to any authenticated workspace member, unused.
       omit: { reasoningChainJson: true },
     });
+    // getDashboard.ts's own priorityAction/recommendation.recommendation is
+    // already checked against permitAction() before it reaches the Dashboard
+    // (P1-01) — this flat list read the SAME account-scoped Recommendation
+    // rows with no such check, so a row whose actionCode contradicts the
+    // account's current funnel diagnosis (e.g. REFRESH_CREATIVE under a
+    // verified POST_CLICK verdict) could still reach the Recommendations
+    // page after the Dashboard had correctly hidden it.
+    const accountIntelligence = await resolveEntityIntelligenceForGuard(
+      prisma, EntityType.ACCOUNT, account.id,
+    ).catch(() => null);
+    const recs = accountIntelligence
+      ? allRecs.filter((r) => permitAction(r.actionCode, accountIntelligence).allowed)
+      : allRecs;
 
     // Fire-and-forget: log a snapshot for closed-loop learning. One log entry
     // per recommendations fetch summarising the top recommendation surfaced.

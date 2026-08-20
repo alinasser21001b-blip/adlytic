@@ -29,6 +29,7 @@ import { MetaClient } from '../../services/metaClient';
 import { resolveAccountToken } from '../../services/accountToken';
 import { decryptToken, TokenDecryptError } from '../../services/tokenEncryption';
 import { config } from '../../config';
+import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../../lib/advisoryLock';
 
 export interface ReconcileCampaignsJobData {
   adAccountId: string;
@@ -64,6 +65,19 @@ export function createReconcileCampaignsProcessor(prisma: PrismaClient) {
 
     const metaClient = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken , timezone: account.timezone });
     const worker = new SyncAccountWorker(prisma, metaClient);
-    await worker.reconcileCampaignStatuses(account.id, { now: new Date() });
+    // Same per-account advisory lock sync()/backgroundScheduler.ts hold for
+    // their whole pipeline — reconcileCampaignStatuses() reads a Campaign-row
+    // snapshot and upserts against it, so an account-level sync running
+    // concurrently would otherwise race its own snapshot against this job's.
+    const { acquired, lockId } = await tryAcquireAdvisoryLock(prisma, account.id);
+    if (!acquired) {
+      console.warn(`[adlytic:queue:reconcile-campaigns] ${account.externalAccountId} — sync already in progress, skipping`);
+      return;
+    }
+    try {
+      await worker.reconcileCampaignStatuses(account.id, { now: new Date() });
+    } finally {
+      await releaseAdvisoryLock(prisma, lockId);
+    }
   };
 }

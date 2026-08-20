@@ -1,3 +1,10 @@
+> **تم استبداله (SUPERSEDED).** هذا مخطط تاريخي (نفس تاريخ MASTER_DIAGRAM.md/
+> ARCHITECTURE_VISUAL.md) ولم يعد دقيقاً. راجع
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> للبنية المعمارية الحالية الموثّقة والمُتحقَّق منها.
+
+---
+
 # Adlytic — الرسم التفصيلي للنظام
 
 > مخططات Mermaid شاملة لدورة حياة Adlytic بالكامل — مستخرجة من الكود.

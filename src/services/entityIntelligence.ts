@@ -28,8 +28,10 @@ import { scoreObjectiveHealth } from '../analytics/intelligence/objectiveHealth'
 import { buildRecommendation } from '../analytics/intelligence/recommend';
 import { buildObjectiveKpiCards } from '../analytics/objectiveKpiCards';
 import { resultFor } from '../analytics/resultSemantics';
-import type { ClassificationConfidence, DataConfidence } from '../analytics/confidence';
+import { classificationConfidenceFromReason, type ClassificationConfidence, type DataConfidence } from '../analytics/confidence';
 import type { ObjectiveKpiFamily, ResultMetricKey } from '../lib/objectiveKpis';
+import { resolveCampaignPurpose } from '../lib/campaignPurpose';
+import { resolveAccountResultKey } from '../analytics/accountResultKey';
 
 /**
  * Window context shared by the P4 KPI cards and the P5 intelligence layer.
@@ -301,6 +303,79 @@ export function buildEntityIntelligence(
     },
     recommendation,
   };
+}
+
+/**
+ * Resolve one entity's CURRENT reconciled intelligence from scratch —
+ * independently of any caller-supplied claim about its family/objective —
+ * for guards that must decide whether an action code is safe to persist or
+ * surface for this entity right now (permitAction() needs `problemClass` +
+ * `forbiddenActions`, which only reconcileIntelligence() produces).
+ *
+ * Mirrors getDashboard.ts's own buildAccountFunnel (ACCOUNT) and the
+ * campaign-inspector route's own purpose resolution (CAMPAIGN) exactly —
+ * family still resolves via resolveAccountResultKey / resolveCampaignPurpose
+ * only (rule 1), never re-derived here. ADSET/AD have no purpose resolver:
+ * null, not a guess.
+ */
+export async function resolveEntityIntelligenceForGuard(
+  prisma: PrismaClient,
+  entityType: EntityType,
+  entityId: string,
+): Promise<ReturnType<typeof buildEntityIntelligence> | null> {
+  const lagDays = 2, windowDays = 7;
+  const dayMs = 86_400_000;
+  const floor = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const currentUntil = floor(new Date(Date.now() - lagDays * dayMs));
+  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * dayMs);
+  const priorUntil = new Date(currentSince.getTime() - dayMs);
+  const priorSince = new Date(priorUntil.getTime() - (windowDays - 1) * dayMs);
+
+  let family: ObjectiveKpiFamily | null;
+  let classificationConfidence: ClassificationConfidence = 'CONFIRMED';
+
+  if (entityType === EntityType.ACCOUNT) {
+    const { resultKey, families } = await resolveAccountResultKey(prisma, entityId, priorSince, currentUntil);
+    if (!resultKey || families.length !== 1) return null;
+    family = families[0]!;
+  } else if (entityType === EntityType.CAMPAIGN) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: entityId },
+      select: {
+        objective: true, messagingCtaAds: true,
+        adSets: { select: { optimizationGoal: true, destinationType: true } },
+      },
+    });
+    if (!campaign) return null;
+    const rows = await prisma.dailyStat.findMany({
+      where: { entityType: EntityType.CAMPAIGN, entityId, date: { gte: priorSince, lte: currentUntil } },
+      select: { messages: true, clicks: true, linkClicks: true },
+    });
+    let messagesW = 0, clicksW = 0, linkClicksW = 0;
+    for (const r of rows) {
+      messagesW += Number(r.messages); clicksW += Number(r.clicks); linkClicksW += Number(r.linkClicks);
+    }
+    const purpose = resolveCampaignPurpose({
+      objective: campaign.objective,
+      optimizationGoals: campaign.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: campaign.adSets.map((a) => a.destinationType),
+      messagesWindow: messagesW, clicksWindow: clicksW, linkClicksWindow: linkClicksW,
+      messagingCtaAds: campaign.messagingCtaAds,
+    });
+    family = purpose.family;
+    classificationConfidence = classificationConfidenceFromReason(purpose.reason, purpose.corroborated);
+  } else {
+    return null;
+  }
+  if (!family) return null;
+
+  const entityFunnel = await buildEntityFunnel(prisma, entityType, entityId, family, { classificationConfidence });
+  if (!entityFunnel) return null;
+
+  return buildEntityIntelligence(
+    entityFunnel.funnel, entityFunnel.family, entityFunnel.windows,
+    entityFunnel.classificationConfidence, entityFunnel.dataConfidence, entityFunnel.resultApproximate,
+  );
 }
 
 /** Re-export so callers do not need a second import for the entity enum. */

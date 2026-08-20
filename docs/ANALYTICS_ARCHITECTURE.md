@@ -1,3 +1,12 @@
+> **SUPERSEDED.** This proposal predates its own successor,
+> `docs/ANALYTICS_ARCHITECTURE_FINAL.md` ("v1 complete"), which in turn is
+> extended by
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md) —
+> the current, verified architecture. Kept for historical design-rationale
+> reference only.
+
+---
+
 # Adlytic Analytics Architecture Proposal
 
 **Status:** design — implementation of stages 3–7 awaits approval

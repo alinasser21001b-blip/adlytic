@@ -17,6 +17,10 @@
  *      this program's standing "no migration unless unavoidable" discipline).
  *      This is a regression guard: if code later starts referencing it, the
  *      classification needs revisiting, and this test will correctly fail.
+ *   3. ai_signals (AiSignal model) — found in the final independent audit,
+ *      same disposition as ai_anomaly_states: a real migration from the same
+ *      "ai_agent_v2_foundation" batch, zero application-code references,
+ *      classified DEAD_SCHEMA_CANDIDATE, not dropped.
  *
  * Run: npx tsx test_v5_legacy_disposition.ts
  */
@@ -90,6 +94,26 @@ check('AiAnomalyState / ai_anomaly_states has zero references anywhere in src/',
 check('the model + migration still exist in the schema (nothing dropped this phase — no migration executed)', () => {
   const schema = readFileSync(join(__dirname, 'prisma/schema.prisma'), 'utf8');
   assert.ok(schema.includes('model AiAnomalyState'), 'the model must still be present — this phase classifies, it does not drop');
+});
+
+console.log('\n── 3. ai_signals is a second dead schema candidate from the same migration batch ──');
+
+check('AiSignal / ai_signals has zero references anywhere in src/ (found in the final audit)', () => {
+  const srcFiles = walk(join(__dirname, 'src'));
+  const referencingFiles = srcFiles.filter((p) => {
+    const content = readFileSync(p, 'utf8');
+    return content.includes('AiSignal') || content.includes('ai_signals');
+  });
+  assert.equal(
+    referencingFiles.length, 0,
+    `AiSignal is now referenced in application code (${referencingFiles.join(', ')}) — it is no ` +
+    `longer a DEAD_SCHEMA_CANDIDATE and the classification must be revisited before any cleanup migration`,
+  );
+});
+
+check('the AiSignal model still exists in the schema (nothing dropped — no migration executed)', () => {
+  const schema = readFileSync(join(__dirname, 'prisma/schema.prisma'), 'utf8');
+  assert.ok(schema.includes('model AiSignal'), 'the model must still be present — classification, not a drop');
 });
 
 console.log(`\n════ ${passed} passed, ${failures.length} failed ════`);
