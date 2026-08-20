@@ -37,6 +37,22 @@ function entityDeletes(
  * AdAccount row itself; FK-cascading rows (campaigns, ad sets, ads,
  * creatives, snapshots) are removed by Prisma when the caller deletes the
  * account. Idempotent: re-running on an already-purged account is a no-op.
+ *
+ * Also covers two tables the original 7-table list predates:
+ *   - campaign_brain_snapshots: keyed by campaignId, not entityType/entityId,
+ *     so it doesn't fit entityDeletes()'s shape — deleted directly here by
+ *     the same campaignIds already resolved above.
+ *   - campaign_intelligence_reports (V5): adAccountId is a plain String with
+ *     no @relation to AdAccount, so Prisma's own FK cascade never reaches
+ *     it — every purge path in the codebase orphaned these rows permanently
+ *     until now. Its children (campaign_signals/issues/recommendations) DO
+ *     have onDelete: Cascade back to the report (schema.prisma), so deleting
+ *     the report is enough; no migration needed either way.
+ * Before this, adminConsole.ts's admin-delete-customer path independently
+ * purged campaign_brain_snapshots (via its own, separately-maintained table
+ * list) while every other deletion path — self-service account deletion,
+ * Meta account disconnect, the Meta data-deletion callback — did not; this
+ * is now the one place either concern lives, for all four call sites alike.
  */
 export async function purgeAccountAnalytics(
   prisma: PrismaClient,
@@ -54,5 +70,9 @@ export async function purgeAccountAnalytics(
     ...(campaignIds.length
       ? entityDeletes(prisma, EntityType.CAMPAIGN, campaignIds)
       : []),
+    ...(campaignIds.length
+      ? [prisma.campaignBrainSnapshot.deleteMany({ where: { campaignId: { in: campaignIds } } })]
+      : []),
+    prisma.campaignIntelligenceReport.deleteMany({ where: { adAccountId: accountId } }),
   ]);
 }

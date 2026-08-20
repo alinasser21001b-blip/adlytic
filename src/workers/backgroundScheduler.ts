@@ -150,77 +150,98 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
       const tag = `[adlytic:auto-sync:${acct.externalAccountId}]`;
       const syncStart = Date.now();
 
-      // Phase 0: Intra-day velocity (single fast call — "today so far")
-      try {
-        await worker.syncToday(acct.id);
-      } catch (todayErr) {
-        console.error(`${tag} syncToday failed (non-fatal):`, todayErr instanceof Error ? todayErr.message : todayErr);
-      }
-
-      // Phase 1: Account-level daily stats (28-day backfill for attribution lag)
-      const syncResult = await worker.sync(acct.id, { backfillDays: 28 });
-      if (!syncResult.ok) {
-        console.warn(`${tag} account sync ✗: ${syncResult.error}`);
-        if (syncResult.error && /code.*190|190.*code|OAuthException/.test(syncResult.error)) {
-          await handle190();
-        }
+      // Hold the SAME per-account advisory lock syncChunked() (the manual/
+      // BullMQ path) holds across ITS whole pipeline — otherwise a
+      // concurrently-triggered manual sync or BullMQ job for this exact
+      // account can acquire the lock the moment Phase 1 below releases it
+      // and run a full second pipeline genuinely in parallel with Phases
+      // 2-6, which used to run completely unlocked. One acquisition per
+      // pass, released once at the end, covers every phase.
+      const { acquired: acctLockAcquired, lockId: acctLockId } =
+        await tryAcquireAdvisoryLock(prisma, acct.id);
+      if (!acctLockAcquired) {
+        console.warn(`${tag} another sync already holds this account's lock — skipping this pass`);
         continue;
       }
-      // Smart Refresh Engine inputs: total rows written this sync + campaign
-      // transitions detected against the prior DB state. When BOTH are zero
-      // the refresh engine skips every recalculation and logs why.
-      let changedRows = syncResult.rowsUpserted;
-      let campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] = [];
-
-      // Phase 2: Campaign-level daily stats + status reconciliation
-      const since = new Date(Date.now() - 28 * 864e5);
-      const until = new Date();
       try {
-        const campResult = await worker.syncCampaigns(acct.id, { since, until });
-        changedRows += campResult.dailyRowsUpserted;
-        campaignChanges = campResult.campaignChanges;
-        console.log(`${tag} campaigns: ${campResult.dailyRowsUpserted} daily rows, ${campaignChanges.length} transition(s)`);
-      } catch (campErr) {
-        console.error(`${tag} syncCampaigns failed (non-fatal):`, campErr instanceof Error ? campErr.message : campErr);
+        // Phase 0: Intra-day velocity (single fast call — "today so far")
+        try {
+          await worker.syncToday(acct.id);
+        } catch (todayErr) {
+          console.error(`${tag} syncToday failed (non-fatal):`, todayErr instanceof Error ? todayErr.message : todayErr);
+        }
+
+        // Phase 1: Account-level daily stats (28-day backfill for attribution
+        // lag). Calls the lock-free variant — this loop already holds the
+        // account's lock for the whole pass, so worker.sync()'s own internal
+        // acquire (which a caller running only Phase 1 in isolation still
+        // needs) would be redundant here.
+        const syncResult = await worker.syncAccountLevelDataLocked(acct.id, { backfillDays: 28 });
+        if (!syncResult.ok) {
+          console.warn(`${tag} account sync ✗: ${syncResult.error}`);
+          if (syncResult.error && /code.*190|190.*code|OAuthException/.test(syncResult.error)) {
+            await handle190();
+          }
+          continue;
+        }
+        // Smart Refresh Engine inputs: total rows written this sync + campaign
+        // transitions detected against the prior DB state. When BOTH are zero
+        // the refresh engine skips every recalculation and logs why.
+        let changedRows = syncResult.rowsUpserted;
+        let campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] = [];
+
+        // Phase 2: Campaign-level daily stats + status reconciliation
+        const since = new Date(Date.now() - 28 * 864e5);
+        const until = new Date();
+        try {
+          const campResult = await worker.syncCampaigns(acct.id, { since, until });
+          changedRows += campResult.dailyRowsUpserted;
+          campaignChanges = campResult.campaignChanges;
+          console.log(`${tag} campaigns: ${campResult.dailyRowsUpserted} daily rows, ${campaignChanges.length} transition(s)`);
+        } catch (campErr) {
+          console.error(`${tag} syncCampaigns failed (non-fatal):`, campErr instanceof Error ? campErr.message : campErr);
+        }
+
+        // Phase 3: Ad-set + Ad + Creative discovery
+        try {
+          const adsResult = await worker.syncAdSetsAndAds(acct.id, { since });
+          console.log(`${tag} ads: ${adsResult.adsUpserted} ads, ${adsResult.creativesUpserted} creatives`);
+        } catch (adsErr) {
+          console.error(`${tag} syncAdSetsAndAds failed (non-fatal):`, adsErr instanceof Error ? adsErr.message : adsErr);
+        }
+
+        // Phase 4: Ad-level daily stats (feeds get_creative_performance)
+        try {
+          const adInsResult = await worker.syncAdInsights(acct.id, { since, until });
+          changedRows += adInsResult.rowsUpserted;
+          console.log(`${tag} ad insights: ${adInsResult.rowsUpserted} rows`);
+        } catch (aiErr) {
+          console.error(`${tag} syncAdInsights failed (non-fatal):`, aiErr instanceof Error ? aiErr.message : aiErr);
+        }
+
+        // Phase 5: Breakdowns (age/gender/platform — feeds audience tool)
+        try {
+          const bdResult = await worker.syncBreakdowns(acct.id, { since, until });
+          console.log(`${tag} breakdowns: ${bdResult.rowsUpserted} segment rows`);
+        } catch (bdErr) {
+          console.error(`${tag} syncBreakdowns failed (non-fatal):`, bdErr instanceof Error ? bdErr.message : bdErr);
+        }
+
+        // Phase 6: Smart Refresh Engine — event-driven recalculation.
+        // Runs engines + brain ONLY when this sync actually changed data,
+        // auto-completes recommendations the merchant already applied in Meta,
+        // and writes a refresh_logs row either way (observability).
+        await runRefresh(prisma, metaClient, {
+          type: 'MetaSyncCompleted',
+          adAccountId: acct.id,
+          changedRows,
+          campaignChanges,
+        });
+
+        console.log(`${tag} ✓ full sync done (${Date.now() - syncStart}ms)`);
+      } finally {
+        await releaseAdvisoryLock(prisma, acctLockId);
       }
-
-      // Phase 3: Ad-set + Ad + Creative discovery
-      try {
-        const adsResult = await worker.syncAdSetsAndAds(acct.id, { since });
-        console.log(`${tag} ads: ${adsResult.adsUpserted} ads, ${adsResult.creativesUpserted} creatives`);
-      } catch (adsErr) {
-        console.error(`${tag} syncAdSetsAndAds failed (non-fatal):`, adsErr instanceof Error ? adsErr.message : adsErr);
-      }
-
-      // Phase 4: Ad-level daily stats (feeds get_creative_performance)
-      try {
-        const adInsResult = await worker.syncAdInsights(acct.id, { since, until });
-        changedRows += adInsResult.rowsUpserted;
-        console.log(`${tag} ad insights: ${adInsResult.rowsUpserted} rows`);
-      } catch (aiErr) {
-        console.error(`${tag} syncAdInsights failed (non-fatal):`, aiErr instanceof Error ? aiErr.message : aiErr);
-      }
-
-      // Phase 5: Breakdowns (age/gender/platform — feeds audience tool)
-      try {
-        const bdResult = await worker.syncBreakdowns(acct.id, { since, until });
-        console.log(`${tag} breakdowns: ${bdResult.rowsUpserted} segment rows`);
-      } catch (bdErr) {
-        console.error(`${tag} syncBreakdowns failed (non-fatal):`, bdErr instanceof Error ? bdErr.message : bdErr);
-      }
-
-      // Phase 6: Smart Refresh Engine — event-driven recalculation.
-      // Runs engines + brain ONLY when this sync actually changed data,
-      // auto-completes recommendations the merchant already applied in Meta,
-      // and writes a refresh_logs row either way (observability).
-      await runRefresh(prisma, metaClient, {
-        type: 'MetaSyncCompleted',
-        adAccountId: acct.id,
-        changedRows,
-        campaignChanges,
-      });
-
-      console.log(`${tag} ✓ full sync done (${Date.now() - syncStart}ms)`);
     } catch (err) {
       console.error(`[adlytic:auto-sync] Error syncing ${acct.externalAccountId}:`, err);
       if (err instanceof MetaApiError) {

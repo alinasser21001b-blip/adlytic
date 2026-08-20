@@ -16,6 +16,7 @@ import { EntityType } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
+import { isCarouselCreative } from '../../../mappers/creativeMapper';
 
 type Metric = 'ctr' | 'cpm' | 'cost_per_message' | 'spend' | 'messages';
 
@@ -208,11 +209,7 @@ export function analyzeCreativePatternsHandler(): ToolHandler<AnalyzeCreativePat
 
         const primaryText = ad.creative?.primaryText ?? '';
         const isVideo = ad.creative?.videoId != null;
-        const raw = ad.creative?.raw as Record<string, unknown> | null;
-        const isCarousel = raw != null && (
-          Array.isArray((raw as any)?.object_story_spec?.link_data?.child_attachments)
-          || String(raw?.['effective_object_story_id'] ?? '').includes('carousel')
-        );
+        const isCarousel = isCarouselCreative(ad.creative?.raw);
 
         adsWithMetric.push({
           adId: ad.id,
