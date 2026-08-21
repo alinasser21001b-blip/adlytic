@@ -245,7 +245,7 @@ export interface ReconciledIntelligence {
  * NEW_CREATIVE are not currently emitted by any producer but are kept as
  * defensive synonyms.
  */
-const CREATIVE_ACTIONS = [
+export const CREATIVE_ACTIONS = [
   'REFRESH_CREATIVE', 'REFRESH_CREATIVES', 'CHANGE_CREATIVE', 'NEW_CREATIVE',
   'IMPROVE_HOOKS',
 ];
@@ -274,10 +274,32 @@ const CREATIVE_ACTIONS = [
  * or under CREATIVE_ACTIONS — it is not clearly one or the other, and
  * guessing would be inventing a semantic claim this module doesn't own.
  */
-const AUDIENCE_ACTIONS = [
+export const AUDIENCE_ACTIONS = [
   'EXPAND_AUDIENCE', 'WIDEN_TARGETING', 'INCREASE_BUDGET', 'DECREASE_BUDGET',
   'BROADEN_AUDIENCE', 'CHECK_TARGETING', 'REVIEW_BUDGET_PACING', 'NARROW_AUDIENCE',
 ];
+
+/**
+ * EVERY action code permitAction() can actually rule on — and nothing else.
+ *
+ * permitAction() is a membership test against `forbiddenActions`, and
+ * `forbiddenActions` is only ever filled from the two arrays above. So for any
+ * code outside this union it returns `allowed: true` UNCONDITIONALLY — it
+ * would say `allowed: true` for the string "BANANA". That is not a clearance;
+ * it is the absence of jurisdiction.
+ *
+ * Exported so an inspector can show exactly the codes the guard governs
+ * instead of hand-copying a list that silently drifts when these arrays
+ * change. Derived from the same arrays `reconcileIntelligence()` pushes onto
+ * `forbidden`, so the two can never disagree.
+ *
+ * NOTE: this is the guard's JURISDICTION, not a catalogue of every action code
+ * in the product. Other producers (DecisionEngine, saveRecommendation, the
+ * composition rules) emit codes that are deliberately absent here because no
+ * problemClass has grounds to forbid them.
+ */
+export const PERMIT_ACTION_DOMAIN: readonly string[] =
+  Object.freeze([...new Set([...CREATIVE_ACTIONS, ...AUDIENCE_ACTIONS])]);
 
 /**
  * Collapse every layer into ONE verdict, enforcing the hierarchy.
