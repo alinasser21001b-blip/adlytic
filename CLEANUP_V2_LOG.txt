@@ -12,8 +12,8 @@ Wed Jun 17 03:34:25 +03 2026
 Project adlytic linked successfully! 🎉
   Railway vars raw: ╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
 ║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
-║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
-║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ postgres:REDACTED ║
+║                                     │ REDACTED@thomas.proxy.rlwy.net:57928/       ║
 ║                         Parsed from table: postgresql://
   ✅ Got DATABASE_PUBLIC_URL
 

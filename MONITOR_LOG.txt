@@ -5,7 +5,7 @@ Waiting for build to complete and new service to start...
 ▶ Current DATABASE_URL on adlytic service:
 
 Project adlytic linked successfully! 🎉
-  DATABASE_URL: postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@postgres.railway.internal:5432/railway
+  DATABASE_URL: postgresql://postgres:REDACTED@postgres.railway.internal:5432/railway
 
 ▶ Latest deployments via API:
   Deployments: {"data":{"deployments":{"edges":[{"node":{"id":"89a7d30f-383a-42fe-a24e-8f92f073c6c0","status":"SUCCESS","createdAt":"2026-06-16T22:00:05.386Z"}},{"node":{"id":"72c22946-859e-46c3-bcef-ee78fd0a3832","status":"REMOVED","createdAt":"2026-06-16T21:59:50.426Z"}}]}}}

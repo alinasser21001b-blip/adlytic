@@ -1,7 +1,13 @@
 node_modules/
 dist/
-.env
-.env.local
+# Every dotenv variant is ignored — .env and .env.local alone left .env.production,
+# .env.staging etc. tracked by default, which is how a real credential reaches git.
+# .env.example is the one deliberate exception: placeholders only, no live values.
+# Deliberately narrow: this covers dotenv files ONLY. Operational docs, runbooks
+# and deploy logs stay tracked — hiding those would trade one blind spot for
+# another. test_no_committed_secrets.ts is what guards their CONTENT.
+.env*
+!.env.example
 *.log
 .DS_Store
 /prisma/migrations/dev.db*

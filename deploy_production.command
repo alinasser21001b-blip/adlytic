@@ -13,6 +13,16 @@ PROJECT_ID="69ca3009-3a67-4d92-b808-6e4f278335d6"
 SERVICE_ID="cc7cbf67-d757-4018-bf6d-9cec643222c3"
 DEPLOYMENT_URL="https://adlytic-production.up.railway.app"
 
+# DATABASE_URL comes from the ENVIRONMENT — never from a literal in this file.
+# Same contract the application itself enforces (src/config.ts reads it via
+# env(); src/api/serve.ts exits with a clear message when it is unset), so a
+# connection string lives in exactly one place: the environment. This script
+# previously hardcoded one, which put a live production credential into git.
+# Supply it per-invocation without persisting it to your shell history, e.g.:
+#   DATABASE_URL="$(railway variables --service Postgres --kv | grep '^DATABASE_URL=' | cut -d= -f2-)" ./deploy_production.command
+# Checked up-front so a missing value fails BEFORE anything is deployed.
+: "${DATABASE_URL:?DATABASE_URL is not set — export it (or prefix this command with it) before running. Do not hardcode a connection string in this file.}"
+
 # Clear previous log
 > "$LOG_FILE"
 
@@ -46,8 +56,7 @@ sleep 15
 echo "" | tee -a "$LOG_FILE"
 echo "[3b/5] Deleting demo user from production database..." | tee -a "$LOG_FILE"
 cd ~/Downloads/adlytic
-DATABASE_URL="postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thomas.proxy.rlwy.net:57928/railway" \
-  node delete_demo_user.js 2>&1 | tee -a "$LOG_FILE" || {
+node delete_demo_user.js 2>&1 | tee -a "$LOG_FILE" || {
   echo "WARNING: Demo user deletion had an issue, but continuing..." | tee -a "$LOG_FILE"
 }
 

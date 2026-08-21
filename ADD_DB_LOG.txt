@@ -47,13 +47,13 @@ Service name required in non-interactive mode. Usage: railway service <name>
 ▶ Step 6: Check Postgres service variables (try various names)...
 ╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
 ║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
-║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
-║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ postgres:REDACTED ║
+║                                     │ REDACTED@thomas.proxy.rlwy.net:57928/       ║
 ║                                     │ railway                                ║
 ║──────────────────────────────────────────────────────────────────────────────║
 ║ DATABASE_URL                        │ postgresql://                          ║
-║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
-║                                     │ glk@postgres.railway.internal:5432/    ║
+║                                     │ postgres:REDACTED ║
+║                                     │ REDACTED@postgres.railway.internal:5432/    ║
 ║                                     │ railway                                ║
 ║──────────────────────────────────────────────────────────────────────────────║
 ║ PGDATA                              │ /var/lib/postgresql/data/pgdata        ║
@@ -62,13 +62,13 @@ Service name required in non-interactive mode. Usage: railway service <name>
 ║──────────────────────────────────────────────────────────────────────────────║
 ╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
 ║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
-║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
-║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ postgres:REDACTED ║
+║                                     │ REDACTED@thomas.proxy.rlwy.net:57928/       ║
 ║                                     │ railway                                ║
 ║──────────────────────────────────────────────────────────────────────────────║
 ║ DATABASE_URL                        │ postgresql://                          ║
-║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
-║                                     │ glk@postgres.railway.internal:5432/    ║
+║                                     │ postgres:REDACTED ║
+║                                     │ REDACTED@postgres.railway.internal:5432/    ║
 ║                                     │ railway                                ║
 ║──────────────────────────────────────────────────────────────────────────────║
 ║ PGDATA                              │ /var/lib/postgresql/data/pgdata        ║
@@ -77,8 +77,8 @@ Service name required in non-interactive mode. Usage: railway service <name>
 ║──────────────────────────────────────────────────────────────────────────────║
 ╔═══════════════════════════ Variables for Postgres ═══════════════════════════╗
 ║ DATABASE_PUBLIC_URL                 │ postgresql://                          ║
-║                                     │ postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEb ║
-║                                     │ glk@thomas.proxy.rlwy.net:57928/       ║
+║                                     │ postgres:REDACTED ║
+║                                     │ REDACTED@thomas.proxy.rlwy.net:57928/       ║
 ║                                     │ railway                                ║
 
 ▶ Step 7: Get all project variables via Railway API...
@@ -92,7 +92,7 @@ Service name required in non-interactive mode. Usage: railway service <name>
 ▶ Step 10: DATABASE_URL still empty. Setting reference to Postgres service...
 
 ▶ Wait 10s more...
-  DATABASE_URL after set: [postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@postgres.railway.internal:5432/railway]
+  DATABASE_URL after set: [postgresql://postgres:REDACTED@postgres.railway.internal:5432/railway]
 
 ▶ Step 11: Redeploy service...
 Indexing...
