@@ -83,6 +83,7 @@ import { adminSessionSyncPage } from '../web/pages/adminSessionSyncPage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
+import { brainObservatoryPage } from '../web/pages/brainObservatoryPage';
 import { addClientPage } from '../web/pages/addClientPage';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import {
@@ -198,6 +199,7 @@ import {
   resolveEntityIntelligenceForGuard,
 } from '../services/entityIntelligence';
 import { permitAction } from '../analytics/intelligence/hierarchy';
+import { buildBrainObservatory } from '../services/brainObservatory';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -658,6 +660,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/admin/inbox',          (c) => adminPage(c, adminInboxPage));
   app.get('/admin/observability',  (c) => adminPage(c, adminDashboardPage));
   app.get('/admin/meta-readiness', (c) => adminPage(c, metaReadinessPage));
+  // Developer/admin X-ray of the Brain's reasoning chain. Same adminPage gate
+  // as every other operator surface; all its data comes from the
+  // requirePlatformAdmin-gated /api/admin/brain-observatory/* routes.
+  app.get('/admin/brain-observatory', (c) => adminPage(c, brainObservatoryPage));
   app.get('/admin/add-client',     (c) => adminPage(c, addClientPage));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
@@ -1519,6 +1525,53 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getPlatformStats(prisma);
     return c.json(safeJson(stats));
+  });
+
+  /**
+   * GET /api/admin/brain-observatory/campaigns — pickable campaigns.
+   *
+   * Admin-scoped index for the Brain Observatory's campaign selector. Returns
+   * identity + status only; every intelligence value comes from the snapshot
+   * route below, never from this list.
+   */
+  app.get('/api/admin/brain-observatory/campaigns', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const campaigns = await prisma.campaign.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+      select: {
+        id: true, name: true, status: true, objective: true,
+        adAccount: { select: { id: true, name: true, workspaceId: true } },
+      },
+    });
+    return c.json(safeJson(campaigns));
+  });
+
+  /**
+   * GET /api/admin/brain-observatory/:campaignId — the full reasoning chain.
+   *
+   * READ-ONLY X-RAY. Delegates entirely to buildBrainObservatory(), which
+   * copies its values out of the same canonical producers the merchant-facing
+   * path uses (see that module's header). This route computes nothing, writes
+   * nothing, and feeds no production decision.
+   */
+  app.get('/api/admin/brain-observatory/:campaignId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    try {
+      const snapshot = await buildBrainObservatory(prisma, req.params['campaignId'] ?? '');
+      if (!snapshot) {
+        return c.json({ error: 'No measurable window for this campaign (or it does not exist)', code: 'NO_SNAPSHOT' }, 404);
+      }
+      return c.json(safeJson(snapshot));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown';
+      console.error('[brain-observatory] snapshot failed:', msg);
+      return c.json({ error: 'Failed to assemble the Brain trace', detail: msg.slice(0, 300) }, 500);
+    }
   });
 
   /**
