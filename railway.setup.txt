@@ -60,9 +60,18 @@ service or its auto-deploy, and WITHOUT running any background writer.
      claude/adlytic-graphify-analysis-ai34bu (NOT main).
   2. Name the service e.g. "adlytic-brain-validation".
   3. Settings → Config File Path = /railway.validation.json
-     (startCommand skips "prisma migrate deploy" on purpose — this
-     service must never run migrations; only the primary "adlytic"
-     service does that).
+     SET THIS BEFORE THE FIRST DEPLOY. Its startCommand omits
+     "prisma migrate deploy" on purpose — this service must never run
+     migrations; only the primary "adlytic" service does that.
+  3b. Settings → Start Command = node dist/src/api/serve.js
+     Belt and braces: nixpacks.toml's [start] cmd IS
+     "npx prisma migrate deploy && node dist/src/api/serve.js", and the
+     config file's startCommand is what overrides it. Setting it in the
+     UI too means a mis-set Config File Path cannot silently fall back
+     to the migrate-prefixed command.
+     (Safety net if it ever did: this branch adds ZERO migrations vs
+     main — 39 files on both sides, byte-identical — so a stray
+     "migrate deploy" is a no-op, not a schema change.)
   4. Settings → Deploy → Auto Deploy = OFF (railway.validation.json's
      watchPatterns already point at a path that never matches, same
      trick as thriving-manifestation/lively-insight above — deploy
@@ -73,19 +82,46 @@ service or its auto-deploy, and WITHOUT running any background writer.
        JWT_SECRET                = ${{adlytic.JWT_SECRET}}
        TOKEN_ENCRYPTION_KEY       = ${{adlytic.TOKEN_ENCRYPTION_KEY}}
        PLATFORM_ADMIN_EMAILS     = ${{adlytic.PLATFORM_ADMIN_EMAILS}}
+       ALLOWED_ORIGINS           = ${{adlytic.ALLOWED_ORIGINS}}
+       NODE_ENV                  = production
        META_APP_ID / META_APP_SECRET / META_REDIRECT_URI / etc.
                                   = ${{adlytic.<same name>}} (only if a
                                     route needs them to boot; the
                                     Observatory itself needs none of
                                     these — see src/config.ts)
+     WHY THOSE FIVE AND NOT FEWER: with NODE_ENV=production,
+     src/config.ts's validateRequired() makes JWT_SECRET (>=32 chars),
+     TOKEN_ENCRYPTION_KEY and DATABASE_URL fatal at boot (process.exit(1)),
+     and an empty ALLOWED_ORIGINS is separately fatal (config.ts's
+     production branch). PLATFORM_ADMIN_EMAILS is not boot-fatal but the
+     admin guard is fail-closed — every /api/admin/* route answers 503
+     without it, so the Observatory would be unreachable.
      Then ADD (new on this service only — do not set these on adlytic):
        SERVICE_ROLE               = api
        SKIP_STARTUP_SYNC_CLEANUP  = true
        BULLMQ_ENABLED             = false
+     SERVICE_ROLE MUST BE EXACTLY "api". It FAILS OPEN: config.ts accepts
+     only 'api' or 'worker' and silently falls back to 'combined' for
+     anything else — and 'combined' STARTS the sync loop, BullMQ workers,
+     the onboarding loop and daily maintenance. The dangerous state is the
+     default. The booleans accept 1|true|yes|on (case-insensitive).
   6. Deploy. Wait for ACTIVE, then:
        curl https://<this-service>.up.railway.app/api/health
-       (should be reachable; /admin/brain-observatory requires an
-       admin login — see the main app's own session/login flow)
+     Confirm in the deploy log — these four lines are the proof that no
+     background writer started, and that no migration ran:
+       "SERVICE_ROLE=api — background sync/queues run in the worker service"
+       "SKIP_STARTUP_SYNC_CLEANUP=true — startup orphaned-SyncJob sweep skipped"
+       "[adlytic:queue] BULLMQ_ENABLED=false — workers not started"
+       and NO "prisma migrate deploy" anywhere in the log.
+     Then log in at https://<this-service>.up.railway.app/login with a
+     PLATFORM_ADMIN_EMAILS account and open /admin/brain-observatory.
+     (The session cookie is host-scoped — Path=/; HttpOnly; SameSite=Lax
+     with no Domain attribute — so logging in on this new hostname works
+     independently of the production domain's session.)
+     If the log shows a CORS/ALLOWED_ORIGINS rejection for this new host,
+     append this service's own URL to its ALLOWED_ORIGINS (overriding the
+     reference) and redeploy — the host is not knowable until Railway
+     assigns it.
   7. Teardown when done: Railway UI → this service → Settings →
      Danger → Delete Service. Nothing else is affected — the
      production "adlytic"/"thriving-manifestation"/"lively-insight"
