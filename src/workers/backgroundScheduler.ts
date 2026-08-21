@@ -31,6 +31,9 @@ import { refreshCampaignHistoryRollups } from './rollupHistory';
 import { bootQueueWorkers } from './queue';
 import { advance, listDue } from '../orchestrator/engine';
 import { metaAdapter } from '../orchestrator/adapters/metaAdapter';
+// Defined in a leaf module so read-only consumers (the Brain Observatory)
+// can read the real horizon without importing this module's worker graph.
+import { CAMPAIGN_BACKFILL_DAYS } from './syncHorizon';
 
 const SYNC_INTERVAL_MS = config.sync.intervalMs;
 /** Connection-onboarding poll cadence. The per-record adaptive backoff in
@@ -191,7 +194,7 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
         let campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] = [];
 
         // Phase 2: Campaign-level daily stats + status reconciliation
-        const since = new Date(Date.now() - 28 * 864e5);
+        const since = new Date(Date.now() - CAMPAIGN_BACKFILL_DAYS * 864e5);
         const until = new Date();
         try {
           const campResult = await worker.syncCampaigns(acct.id, { since, until });
