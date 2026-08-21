@@ -316,9 +316,8 @@ export function brainObservatoryPage(): string {
       + '<div class="basis"><strong>Expected-eligible days.</strong> ' + esc(tp.expectedEligibleDatesBasis) + '</div>'
       + '<div class="basis"><strong>Settlement basis.</strong> ' + esc(tp.settlementBasis) + '</div>'
       + '<div class="basis"><strong>Freshness basis.</strong> ' + esc(tp.freshnessBasis) + '</div>'
-      + '<div class="basis"><strong>Deprecated.</strong> The single legacy status for this window was "'
-      + esc(tp.legacyDataStatus) + '". It is shown only so an older reading can be reconciled '
-      + 'against the axes above; it is not authoritative.</div>');
+      + '<div class="basis"><strong>Deprecated legacy status: "'
+      + esc(tp.legacyDataStatus) + '".</strong> ' + esc(tp.legacyDataStatusBasis) + '</div>');
 
     // 1b META TRUTH — the numbers themselves.
     html += stage(3, 'META TRUTH', 'stored canonical values, copied verbatim',
