@@ -331,6 +331,22 @@ record({
     : 'disabled (default) — fire-and-forget runs via in-process setImmediate only',
 });
 
+/** Safety valve for a temporary read-only validation deployment sharing the
+ *  production database (e.g. a Brain Observatory review instance): serve.ts's
+ *  startup sweep marks any SyncJob idle >15min as FAILED, which is correct
+ *  for the one long-lived service that owns that table but would be an extra,
+ *  unnecessary write from a second, more-often-restarted instance — and could
+ *  race a real in-flight sync job. Off by default — production is unchanged
+ *  unless this is explicitly set on a non-primary instance. */
+const skipStartupSyncCleanup = envBoolean('SKIP_STARTUP_SYNC_CLEANUP', false);
+record({
+  key: 'SKIP_STARTUP_SYNC_CLEANUP',
+  status: 'ok',
+  detail: skipStartupSyncCleanup
+    ? 'true — startup orphaned-SyncJob cleanup SKIPPED (only set this on a non-primary/validation instance)'
+    : 'false (default) — startup orphaned-SyncJob cleanup runs as before',
+});
+
 // ── misc operational vars ────────────────────────────────────────────────────
 
 const port = envNumber('PORT', 3001);
@@ -482,6 +498,10 @@ export interface AppConfig {
      *  (with in-process setImmediate fallback if Redis is unhealthy or the
      *  enqueue throws). */
     bullmqEnabled: boolean;
+    /** When true, skip the startup orphaned-SyncJob cleanup sweep. See the
+     *  SKIP_STARTUP_SYNC_CLEANUP doc comment above — a validation-instance
+     *  safety valve, not a production behavior change. */
+    skipStartupSyncCleanup: boolean;
   };
 }
 
@@ -524,6 +544,7 @@ export const config: Readonly<AppConfig> = Object.freeze({
   features: Object.freeze({
     webhookRedisDebounceEnabled,
     bullmqEnabled,
+    skipStartupSyncCleanup,
   }),
 }) as Readonly<AppConfig>;
 

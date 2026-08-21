@@ -47,3 +47,53 @@ OPTIONAL (best): GitHub secret RAILWAY_TOKEN
   https://railway.app/account/tokens  → create "No Team" token
   GitHub repo → Settings → Secrets → RAILWAY_TOKEN
   Then Actions workflow deploys ONLY adlytic via API.
+
+═══════════════════════════════════════════════════════════════
+  TEMPORARY: Brain Observatory validation service (read-only)
+═══════════════════════════════════════════════════════════════
+Purpose: let an admin open /admin/brain-observatory against REAL synced
+Meta data on a feature branch, WITHOUT touching the adlytic production
+service or its auto-deploy, and WITHOUT running any background writer.
+
+  1. Railway UI → this project (69ca3009-3a67-4d92-b808-6e4f278335d6)
+     → New → GitHub Repo → same repo → branch
+     claude/adlytic-graphify-analysis-ai34bu (NOT main).
+  2. Name the service e.g. "adlytic-brain-validation".
+  3. Settings → Config File Path = /railway.validation.json
+     (startCommand skips "prisma migrate deploy" on purpose — this
+     service must never run migrations; only the primary "adlytic"
+     service does that).
+  4. Settings → Deploy → Auto Deploy = OFF (railway.validation.json's
+     watchPatterns already point at a path that never matches, same
+     trick as thriving-manifestation/lively-insight above — deploy
+     only ever happens when YOU trigger it manually).
+  5. Variables → do NOT type any secret. Use Railway's own reference
+     syntax so nothing is ever copy-pasted:
+       DATABASE_URL              = ${{Postgres.DATABASE_URL}}
+       JWT_SECRET                = ${{adlytic.JWT_SECRET}}
+       TOKEN_ENCRYPTION_KEY       = ${{adlytic.TOKEN_ENCRYPTION_KEY}}
+       PLATFORM_ADMIN_EMAILS     = ${{adlytic.PLATFORM_ADMIN_EMAILS}}
+       META_APP_ID / META_APP_SECRET / META_REDIRECT_URI / etc.
+                                  = ${{adlytic.<same name>}} (only if a
+                                    route needs them to boot; the
+                                    Observatory itself needs none of
+                                    these — see src/config.ts)
+     Then ADD (new on this service only — do not set these on adlytic):
+       SERVICE_ROLE               = api
+       SKIP_STARTUP_SYNC_CLEANUP  = true
+       BULLMQ_ENABLED             = false
+  6. Deploy. Wait for ACTIVE, then:
+       curl https://<this-service>.up.railway.app/api/health
+       (should be reachable; /admin/brain-observatory requires an
+       admin login — see the main app's own session/login flow)
+  7. Teardown when done: Railway UI → this service → Settings →
+     Danger → Delete Service. Nothing else is affected — the
+     production "adlytic"/"thriving-manifestation"/"lively-insight"
+     services and the shared Postgres are untouched by this service's
+     entire lifecycle (it never migrates, never syncs, never writes
+     on a schedule — see SKIP_STARTUP_SYNC_CLEANUP / SERVICE_ROLE=api
+     in src/config.ts and src/api/serve.ts).
+
+Do NOT paste DATABASE_URL/JWT_SECRET/META_* values into chat, a PR, or
+any file in this repo — Railway's ${{Service.VAR}} reference syntax
+above copies the value internally without ever displaying it to you.

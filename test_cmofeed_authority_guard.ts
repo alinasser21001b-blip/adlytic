@@ -155,7 +155,10 @@ function feedItem(campaignId: string, actionCode: string): CmoFeedItemDTO {
     body: 'نص تجريبي',
     severity: 'HIGH',
     dedupeKey: `${campaignId}:${actionCode}:2026-08-19`,
-    generatedAt: new Date().toISOString(),
+    // Fixed, not new Date().toISOString() — two fixture items built moments
+    // apart must be byte-identical, or the isolation/determinism checks below
+    // (deepEqual across separate calls) flake on real-clock jitter alone.
+    generatedAt: '2026-08-19T12:00:00.000Z',
   };
 }
 
