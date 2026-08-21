@@ -79,7 +79,9 @@ Both figures are correct; only the shared label was wrong.
 | stored CTR semantic label | fact `CTR — all clicks (%)` | `OBSERVED_FACT`; source states clicks(ALL) ÷ impressions |
 | derived Link CTR | fact `Link CTR (%)` | `DERIVED_FACT` from `buildEntityFunnel`'s `linkCtrCur`/`linkCtrPri` — derived in the canonical window context, not in the Observatory, so the two can never disagree |
 | object identity / insights level / DailyStat ownership | `identity.*` | `insightsQueryLevel`, `dailyStatOwnershipLevel` |
-| recommended vs merely not-vetoed | `decision.actionAudit[].state` | `RECOMMENDED` / `NOT_VETOED` / `FORBIDDEN` / `AUTHORITY_INVARIANT_VIOLATION`. `NOT_RECOMMENDED` is never emitted — nothing records that an action was considered and rejected |
+| recommended vs merely not-vetoed | `decision.actionAudit[].state` | `RECOMMENDED` / `NOT_VETOED` / `FORBIDDEN` / `AUTHORITY_INVARIANT_VIOLATION`, over **exactly** the 13 codes `permitAction` governs. `NOT_RECOMMENDED` is never emitted — nothing records that an action was considered and rejected |
+| what the Brain decided | `decision.canonicalDecision` | DecisionEngine output, `deterministic: true`. Carries `authorityRelation`; `permitState` is null when the guard has no jurisdiction — see `docs/AUTHORITY_DOMAINS.md` |
+| what the veto cannot reach | `decision.outsideVetoDomain` | ungoverned producer codes, each with `authorityRelation: NOT_GOVERNED` and **no** allowed/forbidden verdict |
 | canonical trace provenance | `trace[]` | all six `LAYER_ORDER` layers with `canonicalSource`, `inputSource`, `status`, `absenceReason` |
 | — | `temporal.legacyDataStatus` + `legacyDataStatusBasis` | the old value, labelled as a constant |
 
@@ -112,17 +114,27 @@ metaTruth     CTR — all clicks (%)   current null   prior 2.0776
 
 diagnosis     NO_MATERIAL_BREAK, INSUFFICIENT_DATA, decidedBy FUNNEL_DIAGNOSIS
 
-decision      recommendedAction = null
-              forbiddenActions  = []
-              actionAudit       = 18 codes, ALL NOT_VETOED
-                                  0 RECOMMENDED, 0 FORBIDDEN, 0 VIOLATION
-              KEEP_COLLECTING now appears in the audit (NOT_VETOED)
+decision      canonicalDecision       KEEP_COLLECTING
+                                      producer engine/DecisionEngine.ts
+                                      deterministic=true
+                                      authorityRelation=NOT_GOVERNED
+                                      permitState=null   ← never NOT_VETOED
+              canonicalRecommendation action=null (nothing advised)
+              actionAudit             13 codes = PERMIT_ACTION_DOMAIN exactly,
+                                      ALL NOT_VETOED (forbiddenActions is empty)
+                                      0 RECOMMENDED, 0 FORBIDDEN, 0 VIOLATION
+              outsideVetoDomain       the ungoverned producer codes, no verdict
+              forbiddenActions        []
 
 trace         6 layers
               REACHED     DATA_VALIDITY, SEMANTIC_VALIDITY, FUNNEL_DIAGNOSIS
               NOT_REACHED ANOMALY_DETECTION, HEALTH_IMPACT, RECOMMENDATION
                           each with an absenceReason and a null conclusion
 ```
+
+The Brain action no longer appears under LLM LAYER. `KEEP_COLLECTING` is
+deterministic `DecisionEngine` output, so it is owned by DECISION; the LLM
+pane holds narration and a `narratesDecision` reference only.
 
 Note the rate fields are **`null`, not `0`**. Zero impressions is no sample,
 not a 0% rate; reporting 0 would invite "CTR collapsed to zero" when nothing

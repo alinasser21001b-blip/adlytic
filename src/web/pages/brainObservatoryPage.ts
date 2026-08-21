@@ -421,18 +421,59 @@ export function brainObservatoryPage(): string {
             + 'competing explanation for this window.</div>')
       + factTable(d.diagnosis.facts));
 
-    // 6 DECISION
-    // A4 — "PERMITTED" read as "the Brain advises this", which is how an
-    // INSUFFICIENT_DATA campaign appeared to endorse INCREASE_BUDGET and
-    // PAUSE. The veto channel (permitAction) and the endorsement channel
-    // (the canonical recommendation) are different questions, so they are
-    // shown as different states and styled so they cannot be confused.
+    // 8 DECISION — four surfaces, deliberately not one table.
+    //
+    // It used to be a single list headed "guarded by permitAction()" holding
+    // both guardable actions and DecisionEngine outcomes, all reading
+    // NOT_VETOED. permitAction() is a veto whose jurisdiction is exactly
+    // PERMIT_ACTION_DOMAIN; outside it every code gets allowed:true for free.
+    // Rendering that as a verdict made an absence of authority look like a
+    // clearance, so the surfaces are now separated and styled apart.
     var STATE_NOTE = {
       RECOMMENDED: 'the canonical recommendation names this action',
       NOT_VETOED: 'not blocked — but nothing advises it. Absence of a veto, not an endorsement.',
       FORBIDDEN: '',
       AUTHORITY_INVARIANT_VIOLATION: 'RECOMMENDED YET FORBIDDEN — this must never happen; report it.'
     };
+    function relationPill(rel) {
+      return '<span class="st st-' + (rel === 'GOVERNED' ? 'RECOMMENDED' : 'NOT_VETOED') + '">'
+        + esc(rel) + '</span>';
+    }
+
+    // 8a CANONICAL DECISION — deterministic engine output. NOT the LLM's.
+    var cd = d.decision.canonicalDecision;
+    var decisionBody = cd
+      ? '<div class="kv" style="margin-bottom:10px;">'
+        + kv('Decision', cd.action, 'pill-ok')
+        + kv('Deterministic', String(cd.deterministic), 'pill-ok')
+        + kv('Tick date', cd.tickDate)
+        + kv('Guard jurisdiction', cd.authorityRelation,
+            cd.authorityRelation === 'GOVERNED' ? 'pill-ok' : 'pill-muted')
+        + kv('Permit state', cd.permitState === null ? 'n/a — not governed' : cd.permitState,
+            cd.permitState === 'FORBIDDEN' ? 'pill-bad'
+              : (cd.permitState === null ? 'pill-muted' : 'pill-ok'))
+        + '</div>'
+        + '<div class="trace-src">decided by: ' + esc(cd.producer) + '</div>'
+        + '<div class="basis">' + esc(cd.authorityNote) + '</div>'
+        + (cd.permitReason
+            ? '<div class="error-box" style="margin-top:10px;">CONTRADICTION: ' + esc(cd.permitReason) + '</div>'
+            : '')
+      : '<div class="muted">No canonical decision stored for this campaign.</div>';
+
+    // 8b CANONICAL RECOMMENDATION — a different producer, a different question.
+    var cr = d.decision.canonicalRecommendation;
+    var recBody = '<div class="kv" style="margin-bottom:10px;">'
+      + kv('Recommended action', cr.action, cr.action ? 'pill-ok' : 'pill-muted')
+      + kv('Guard jurisdiction', cr.authorityRelation,
+          cr.authorityRelation === 'GOVERNED' ? 'pill-ok' : 'pill-muted')
+      + kv('Permit state', cr.permitState === null ? 'n/a — not governed' : cr.permitState,
+          cr.permitState === 'FORBIDDEN' ? 'pill-bad'
+            : (cr.permitState === null ? 'pill-muted' : 'pill-ok'))
+      + '</div>'
+      + '<div class="trace-src">produced by: ' + esc(cr.producer) + '</div>'
+      + '<div class="basis">' + esc(cr.authorityNote) + '</div>';
+
+    // 8c ACTION AUTHORITY — exactly the codes the veto can rule on.
     var auditRows = d.decision.actionAudit.map(function (a) {
       return '<tr>'
         + '<td><span class="st st-' + esc(a.state) + '">' + esc(a.state) + '</span></td>'
@@ -440,29 +481,44 @@ export function brainObservatoryPage(): string {
         + '<td colspan="3" class="src">' + esc(a.reason || STATE_NOTE[a.state] || '') + '</td>'
         + '</tr>';
     }).join('');
-    html += stage(8, 'DECISION', 'guarded by permitAction()',
-      '<div class="kv" style="margin-bottom:12px;">'
-      + kv('Recommended action', d.decision.recommendedAction, d.decision.recommendedAction ? 'pill-ok' : 'pill-muted')
-      + kv('Forbidden count', d.decision.forbiddenActions.length,
-          d.decision.forbiddenActions.length ? 'pill-bad' : 'pill-ok')
-      + '</div>'
-      + '<div class="muted" style="margin-bottom:8px;">Source: ' + esc(d.decision.recommendationSource) + '</div>'
-      + '<table class="facts"><thead><tr><th>Verdict</th><th>Action code</th><th colspan="3">Reason (when blocked)</th></tr></thead>'
-      + '<tbody>' + auditRows + '</tbody></table>');
 
-    // 7 LLM LAYER
+    // 8d OUTSIDE THE VETO DOMAIN — jurisdiction only, never a verdict.
+    var outsideRows = d.decision.outsideVetoDomain.map(function (e) {
+      return '<tr>'
+        + '<td>' + relationPill(e.authorityRelation) + '</td>'
+        + '<td>' + esc(e.code) + '</td>'
+        + '<td colspan="3" class="src">' + esc(e.producer) + '</td>'
+        + '</tr>';
+    }).join('');
+
+    html += stage(8, 'DECISION',
+      d.decision.actionAudit.length + ' code(s) inside permitAction() jurisdiction',
+      '<div class="kv-label">Canonical decision — deterministic engine output</div>' + decisionBody
+      + '<div class="kv-label" style="margin-top:14px;">Canonical recommendation</div>' + recBody
+      + '<div class="kv-label" style="margin-top:14px;">Action authority — governed by permitAction()</div>'
+      + '<div class="basis" style="margin-bottom:8px;">' + esc(d.decision.authorityDomain.note) + '</div>'
+      + '<table class="facts"><thead><tr><th>Verdict</th><th>Action code</th><th colspan="3">Reason (when blocked)</th></tr></thead>'
+      + '<tbody>' + auditRows + '</tbody></table>'
+      + '<div class="kv-label" style="margin-top:14px;">Outside the veto domain — no jurisdiction, no verdict</div>'
+      + '<div class="basis" style="margin-bottom:8px;">These codes are emitted by real producers in this '
+      + 'pipeline, but permitAction() cannot rule on them: calling it returns allowed:true '
+      + 'unconditionally. They are shown WITHOUT a verdict on purpose — giving one would read as '
+      + 'a clearance that never happened.</div>'
+      + '<table class="facts"><thead><tr><th>Jurisdiction</th><th>Action code</th><th colspan="3">Producer</th></tr></thead>'
+      + '<tbody>' + outsideRows + '</tbody></table>');
+
+    // 9 LLM LAYER — narration ONLY. It references the decision above; it does
+    // not own it. The Brain action used to be rendered here, under a heading
+    // that says "authoritative: false", which read as though the LLM produced
+    // deterministic DecisionEngine output.
     var llm = d.llmLayer;
     var llmBody = '<div class="llm-warn">⚠ NON-AUTHORITATIVE NARRATION — explains the verdict above, never produces it.</div>';
     llmBody += '<div class="kv" style="margin-bottom:12px;">'
-      + kv('Brain action', llm.brainAction)
+      + kv('Narrates decision', llm.narratesDecision === null ? 'none' : llm.narratesDecision, 'pill-muted')
       + kv('Tick date', llm.tickDate)
-      + kv('Survives funnel diagnosis',
-          llm.brainActionPermitted === null ? 'n/a' : String(llm.brainActionPermitted),
-          llm.brainActionPermitted === false ? 'pill-bad' : (llm.brainActionPermitted ? 'pill-ok' : 'pill-muted'))
-      + '</div>';
-    if (llm.brainActionBlockedReason) {
-      llmBody += '<div class="error-box" style="margin-bottom:10px;">CONTRADICTION: ' + esc(llm.brainActionBlockedReason) + '</div>';
-    }
+      + kv('Narration stored', String(llm.narrationAvailable), llm.narrationAvailable ? 'pill-ok' : 'pill-muted')
+      + '</div>'
+      + '<div class="basis" style="margin-bottom:10px;">' + esc(llm.ownershipNote) + '</div>';
     llmBody += llm.narrationText
       ? '<div class="llm-box" dir="rtl">' + esc(llm.narrationText) + '</div>'
       : '<div class="muted">No narration stored for this campaign.</div>';
