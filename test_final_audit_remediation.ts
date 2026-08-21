@@ -84,6 +84,17 @@
  *     to test_v5_legacy_disposition.ts's existing classification, no code
  *     change (no migration this program, per its standing discipline).
  *
+ * UPDATE (post-Brain-Observatory pass): the cmoFeedV2 gap noted above as
+ * "investigated, not fixed" IS NOW CLOSED. The performance concern was real
+ * but narrower than first framed: buildCmoFeedV2() already caps its output at
+ * BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT (a hard constant, independent of
+ * account size) before any guard needs to run. applyCmoFeedAuthorityGuard()
+ * (getDashboard.ts) now annotates/filters exactly that already-capped
+ * selection via the same resolveEntityIntelligenceForGuard()/permitAction()
+ * used elsewhere — bounded cost, no new intelligence implementation. See
+ * test_cmofeed_authority_guard.ts (which also supersedes the now-deleted
+ * test_cmofeed_contradiction_proof.ts).
+ *
  * Run: npx tsx test_final_audit_remediation.ts
  */
 import assert from 'node:assert/strict';

@@ -17,17 +17,32 @@ each decision) and behaviorally (Phase 10's 8 adversarial acceptance cases, buil
 real production chain, all pass; a fresh independent audit found and this pass fixed 8
 additional confirmed P0/P1 gaps the earlier phases had not caught).
 
-**One qualification, stated plainly rather than smoothed over:** `getDashboard.ts`'s
-workspace-wide Brain feed (`cmoFeedV2`) is not yet cross-checked against
+**Update (post-report, same branch):** the qualification below was the report's one open
+item at `8c05c7f`. It is now CLOSED. `getDashboard.ts`'s workspace-wide Brain feed
+(`cmoFeedV2`) is cross-checked against `reconcileIntelligence()`/`permitAction()` via a new
+`applyCmoFeedAuthorityGuard()`, wired onto `buildCmoFeedV2()`'s already-ranked, already-capped
+output (`BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT = 5` — a hard constant, independent of account
+size) rather than the full per-workspace candidate pool, so the earlier performance concern
+does not apply: the guard costs at most `CMO_FEED_LIMIT` bounded resolves per dashboard load,
+not one per campaign in the account. See `test_cmofeed_authority_guard.ts` (14 behavioral
+assertions, superseding the now-deleted `test_cmofeed_contradiction_proof.ts`) and §12 item 1
+below, kept for the historical record with a closure note rather than rewritten.
+
+**Original text, preserved:** "One qualification, stated plainly rather than smoothed over:
+`getDashboard.ts`'s workspace-wide Brain feed (`cmoFeedV2`) is not yet cross-checked against
 `reconcileIntelligence()`/`permitAction()` for its one conflict-capable action code
 (`REFRESH_CREATIVE`) — the same-campaign inspector view *is* now annotated with this check,
 but the dashboard-wide feed is not. This is a real, documented, deliberately-deferred gap
 (fixing it correctly means adding per-campaign funnel computation to the hot dashboard-load
 path, which needs proper load-testing, not a rushed final-audit patch) — see §12. Every
-other invariant this report tracks is genuinely closed, not softened.
+other invariant this report tracks is genuinely closed, not softened."
 
-**Verdict:** `ADLYTIC_BRAIN_ARCHITECTURALLY_READY = YES, WITH ONE DOCUMENTED EXCEPTION`
-(§12, item 1). Full field list in the engagement's closing return (below this report).
+**Verdict (superseded by the update above):** `ADLYTIC_BRAIN_ARCHITECTURALLY_READY = YES,
+WITH ONE DOCUMENTED EXCEPTION` (§12, item 1) — that exception is now closed; see the update
+note above. This report still does not, on its own, support
+`READY_FOR_REAL_USER_PILOT = YES` — that separately requires real Meta campaign validation,
+which remains blocked on credentials/infrastructure not present in this environment (see the
+engagement's own FINAL RETURN fields, not this report).
 
 ---
 
@@ -81,7 +96,7 @@ Full diagram with the Meta cordon, sync-lock, and purge boxes:
 | Sync concurrency | `lib/advisoryLock.ts` — one per-account key, held by every account-mutating entry point identified across this engagement |
 | Data purge | `services/accountDataPurge.ts::purgeAccountAnalytics()` — now also covers `refresh_states`/`refresh_logs`/`recommendation_logs` (campaign-scoped) |
 | V5 (legacy, still live) | `engines/intelligence/AdlyticIntelligenceSystem.ts` — labeled non-authoritative in `/ai/chat` context (Phase 5) |
-| Brain (separate legacy system) | `engine/AdlyticBrain.ts` + `engine/v2/*` — reconciled against the pattern-level rule engine only (`engines/rules/ruleGrounding.ts`), not against `reconcileIntelligence()`; its one conflict-capable action (`REFRESH_CREATIVE`) is now annotated (not filtered) in the campaign-inspector `timeline`, not yet in the dashboard `cmoFeedV2` (§12) |
+| Brain (separate legacy system) | `engine/AdlyticBrain.ts` + `engine/v2/*` — reconciled against the pattern-level rule engine only (`engines/rules/ruleGrounding.ts`), not against `reconcileIntelligence()`; its one conflict-capable action (`REFRESH_CREATIVE`) is annotated (not filtered) in the campaign-inspector `timeline`, and — as of the post-report update above — filtered (not merely annotated) in the dashboard `cmoFeedV2` via `applyCmoFeedAuthorityGuard()` (§12, closed) |
 | DTO | `services/getDashboard.ts` (`DashboardDTO`), campaigns-list/inspector routes in `api/server.ts` |
 | UI | `web/pages/*.ts`, `web/layout.ts` — presentation only |
 
@@ -157,7 +172,10 @@ against the pattern-level rule engine (`ruleGrounding.ts`), never against
 `REFRESH_CREATIVE` is creative-specific enough to actually contradict a funnel diagnosis —
 this pass added a `permitted`/`permittedReason` annotation to the campaign-inspector's
 Brain `timeline`, computed against that same campaign's `campaignIntelligence`. The
-dashboard-wide `cmoFeedV2` feed does not yet carry the same annotation (§12).
+dashboard-wide `cmoFeedV2` feed was not yet covered at this report's HEAD (`8c05c7f`) — a
+follow-up pass on the same branch closed it: `applyCmoFeedAuthorityGuard()` now filters
+`cmoFeedV2` by the same `permitAction()` policy, applied only to `buildCmoFeedV2()`'s
+already-capped (`CMO_FEED_LIMIT = 5`) selection to keep the cost bounded (§12).
 
 ---
 
@@ -261,14 +279,28 @@ see `test_brain_acceptance.ts` for the full fixtures and assertions:
 
 Ranked by severity, all documented rather than silently accepted:
 
-1. **(P1, real, deferred)** `getDashboard.ts`'s workspace-wide `cmoFeedV2` Brain feed is not
-   cross-checked against `reconcileIntelligence()`/`permitAction()` for `REFRESH_CREATIVE` —
-   unlike the campaign-inspector's `timeline`, which now is. A merchant could see a
-   dashboard-level Brain suggestion to refresh creative for a campaign whose funnel
-   diagnosis says the creative is healthy. Deferred because a correct fix means computing
-   full per-campaign funnel intelligence for every unique campaign in a 7-day ledger feed,
-   inside the already-heavily-optimized hot dashboard-load path — a real performance
-   question needing load-testing, not a rushed patch under time pressure.
+1. **(P1, real — CLOSED in a follow-up pass on this branch, after `8c05c7f`)**
+   `getDashboard.ts`'s workspace-wide `cmoFeedV2` Brain feed was not cross-checked against
+   `reconcileIntelligence()`/`permitAction()` for `REFRESH_CREATIVE` — unlike the
+   campaign-inspector's `timeline`, which already was. A merchant could see a dashboard-level
+   Brain suggestion to refresh creative for a campaign whose funnel diagnosis said the
+   creative was healthy. The performance concern that deferred this at report time was real
+   but narrower than first framed: `buildCmoFeedV2()` already caps its output at
+   `BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT = 5` (a hard constant, independent of account size)
+   *before* any guard would need to run — computing full per-campaign funnel intelligence for
+   every unique campaign in the 7-day ledger (the naive approach this report correctly
+   declined to rush) would have been genuine, unbounded N+1, but guarding only the
+   already-ranked, already-capped selection is not. `applyCmoFeedAuthorityGuard()` now does
+   exactly that: at most `CMO_FEED_LIMIT` calls to the existing
+   `resolveEntityIntelligenceForGuard()` per dashboard load, run concurrently, reusing
+   `permitAction()` — no new intelligence implementation, no per-account-scaling cost. A
+   forbidden action is dropped from the feed (never surfaced, never back-filled with a
+   different action); a permitted one is annotated (`permitted: true`) and kept. Proven via
+   `test_cmofeed_authority_guard.ts` (14 assertions: the known contradiction now blocked, a
+   legitimately-permitted creative/CLICK-stage case kept, no-diagnosis/insufficient-data
+   defaults to allowed, deterministic repeats, multiple campaigns judged independently, no
+   cross-call contamination, and the guard-call count bounded by `items.length` rather than
+   account size).
 2. **(P2, documented, low current exposure)** `getDashboard.ts:919-924`'s `priorityAction`
    selection has no `source` filter on the `Recommendation` row it picks — found by the
    final audit's LLM-loop investigation. Currently gated behind `AI_AGENT_V2_ENABLED`

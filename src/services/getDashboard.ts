@@ -99,6 +99,7 @@ import {
   buildEntityFunnel,
   buildEntityIntelligence,
   buildEntityObjectiveKpis,
+  resolveEntityIntelligenceForGuard,
   type EntityFunnelResult,
 } from "./entityIntelligence";
 import { permitAction } from "../analytics/intelligence/hierarchy";
@@ -2309,7 +2310,7 @@ async function buildCampaignCards(
 // ════════════════════════════════════════════════════════════════════════
 
 /** Dials for derived figures the dashboard surfaces. Tunable, deliberately conservative. */
-const BRAIN_SECTION_CONFIG = {
+export const BRAIN_SECTION_CONFIG = {
   CMO_FEED_LIMIT: 5,
   LEDGER_TABLE_LIMIT: 10,
   LEDGER_LOOKBACK_DAYS: 7,
@@ -2372,7 +2373,7 @@ function formatUtcDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-interface BrainSnapshotRow {
+export interface BrainSnapshotRow {
   id: string;
   campaignId: string;
   externalCampaignId: string;
@@ -2458,6 +2459,10 @@ function mapSnapshotToFeedCandidate(
     campaignId: s.campaignId,
     campaignName,
     insightType,
+    // Same raw value as insightType, under the name the authority guard below
+    // (and its consumers) look for — kept alongside insightType rather than
+    // renaming it, since insightType is read by existing dedupeKey/UI logic.
+    actionCode: s.action,
     date,
     title,
     body,
@@ -2533,6 +2538,81 @@ function buildCmoFeedV2(
   };
 }
 
+/**
+ * Close the cmoFeedV2 / REFRESH_CREATIVE authority gap.
+ *
+ * Brain's DecisionEngine reconciles its actions only against the pattern-level
+ * rule engine (engines/rules/ruleGrounding.ts) — never against THIS campaign's
+ * own funnel diagnosis (analytics/intelligence/hierarchy.ts's
+ * reconcileIntelligence()/permitAction()). So a Brain action reaching this feed
+ * can contradict what the canonical funnel already concluded for the same
+ * campaign — e.g. Brain emits REFRESH_CREATIVE while the funnel measured the
+ * creative-facing stages healthy and diagnosed POST_CLICK, which permitAction()
+ * would reject. The campaign-inspector timeline (server.ts) already closes this
+ * exact gap for its own surface by annotating each entry with
+ * `permitAction(s.action, campaignIntelligence)`; this closes the same gap for
+ * the feed using the SAME guard function and the SAME "no diagnosis ⇒ allowed"
+ * fallback (absence of a contrary diagnosis is not proof of contradiction) —
+ * no new intelligence implementation, no second policy.
+ *
+ * PERFORMANCE (why this is not the N+1 the mission forbids): `items` here is
+ * always buildCmoFeedV2()'s OUTPUT — already deduped, ranked, and capped at
+ * BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT (a hard constant, independent of account
+ * size), with at most one item per campaignId. Guarding it therefore costs at
+ * most CMO_FEED_LIMIT calls to resolveEntityIntelligenceForGuard() per
+ * dashboard load — run concurrently, each a small, bounded 2-3 query resolve —
+ * NOT one call per campaign in the account, and NOT one call per candidate in
+ * the larger pre-selection/pre-dedup pool (which scales with account size and
+ * would be the naive, forbidden N+1). This function must only ever be called
+ * on an already-selected, already-capped item list — never on `deduped` or the
+ * raw per-snapshot candidate array upstream of selectUsefulFeedItems().
+ *
+ * Policy: a permitted action (or one for which the campaign's canonical state
+ * cannot be resolved right now) is annotated and kept. A forbidden action is
+ * dropped — never surfaced as an authoritative merchant action — and NOT
+ * back-filled with a different, newly-selected candidate; the feed simply has
+ * one fewer item that tick, exactly as when fewer than CMO_FEED_LIMIT
+ * snapshots exist for a day. Back-filling from the larger pool would reopen
+ * the same unbounded-cost question this function exists to avoid.
+ */
+export async function applyCmoFeedAuthorityGuard(
+  prisma: PrismaClient,
+  items: CmoFeedItemDTO[],
+): Promise<CmoFeedItemDTO[]> {
+  if (items.length === 0) return items;
+
+  // At most CMO_FEED_LIMIT distinct campaigns — bounded, not account-sized.
+  const campaignIds = Array.from(new Set(items.map(i => i.campaignId)));
+  const intelByCampaign = new Map<
+    string,
+    Awaited<ReturnType<typeof resolveEntityIntelligenceForGuard>>
+  >();
+  await Promise.all(
+    campaignIds.map(async (id) => {
+      const intel = await resolveEntityIntelligenceForGuard(prisma, EntityType.CAMPAIGN, id);
+      intelByCampaign.set(id, intel);
+    }),
+  );
+
+  const guarded: CmoFeedItemDTO[] = [];
+  for (const item of items) {
+    const actionCode = item.actionCode ?? item.insightType;
+    const intel = intelByCampaign.get(item.campaignId) ?? null;
+    // No measurable window / insufficient data for this campaign right now:
+    // same convention as the inspector timeline
+    // (`campaignIntelligence ? permitAction(...) : { allowed: true }`).
+    const permit = intel ? permitAction(actionCode, intel) : { allowed: true as const };
+    if (!permit.allowed) continue; // forbidden — do not surface, do not back-fill.
+    guarded.push({
+      ...item,
+      actionCode,
+      permitted: true,
+      permittedReason: null,
+    });
+  }
+  return guarded;
+}
+
 /** Defensive read of payload.v2.velocity.burnRate — engine major units. */
 function readBurnRate(payload: unknown): number {
   if (!payload || typeof payload !== 'object') return 0;
@@ -2605,8 +2685,12 @@ async function buildBrainSection(
   });
   const nameById = new Map(camps.map(c => [c.id, c.name]));
 
-  const { items: cmoFeedV2Raw, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
-  const cmoFeedV2 = cmoFeedV2Raw.filter(
+  const { items: cmoFeedV2Ranked, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
+  // Authority guard runs ONLY on this already-ranked, already-capped
+  // (≤ CMO_FEED_LIMIT) selection — see applyCmoFeedAuthorityGuard()'s own
+  // header for why this bounds the cost instead of scanning every candidate.
+  const cmoFeedV2Guarded = await applyCmoFeedAuthorityGuard(prisma, cmoFeedV2Ranked);
+  const cmoFeedV2 = cmoFeedV2Guarded.filter(
     (item) => !appliedItemKeys.has(`feed:${item.dedupeKey}`),
   );
   const cmoFeedMetaAdjusted: CmoFeedMeta = {

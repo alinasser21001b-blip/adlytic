@@ -1707,6 +1707,9 @@ export function dashboardPage(): string {
     var cmoFeedV2 = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
     cmoFeedV2.slice(0, 8).forEach(function (it) {
       if (!it.title) return;
+      // Server already drops forbidden actions before they reach cmoFeedV2 —
+      // this is a defense-in-depth check, not the primary enforcement point.
+      if (it.permitted === false) return;
       if (isGenericInsightCopy(it.title, it.body)) return;
       var fp = insightCopyFingerprint(it.title, it.body);
       if (seenInsightFp[fp]) return;
@@ -1923,6 +1926,7 @@ export function dashboardPage(): string {
     var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
     feed.slice(0, 2).forEach(function (it) {
       if (!it.title || !it.generatedAt) return;
+      if (it.permitted === false) return;
       if (isGenericInsightCopy(it.title, it.body)) return;
       var feedTime = new Date(it.generatedAt);
       if (isNaN(feedTime.getTime())) feedTime = new Date();
@@ -2216,6 +2220,7 @@ export function dashboardPage(): string {
       var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
       var seenBrainFp = {};
       feed.slice(0, 8).forEach(function (it) {
+        if (it.permitted === false) return;
         if (shouldSkip(it.title, it.body)) return;
         if (isGenericInsightCopy(it.title, it.body)) return;
         var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
@@ -2593,6 +2598,10 @@ export function dashboardPage(): string {
       var seenMoveFp = {};
       feed.forEach(function (it) {
         if (!it || !it.generatedAt) return;
+        // permitAction() already rejected this at the server — it never
+        // reaches an authoritative merchant task card. Kept as a defensive
+        // check here too since this is the primary actionable-move surface.
+        if (it.permitted === false) return;
         if (isGenericInsightCopy(it.title, it.body)) return;
         var moveFp = insightCopyFingerprint(it.title, it.body);
         if (seenMoveFp[moveFp]) return;
