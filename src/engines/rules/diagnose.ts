@@ -14,10 +14,9 @@ import {
   arabicResultPhrase,
   getMetaObjectiveStandard,
   lowCtrFloorForObjective,
-  type ObjectiveInput,
 } from "../../knowledge/metaObjectiveStandards";
 import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
-import type { Signals } from "./types";
+import { objectiveInputOf, type Signals } from "./types";
 
 export interface Diagnosis {
   name: string;
@@ -30,11 +29,6 @@ export interface Diagnosis {
 }
 
 type IssueMap = Map<string, IssueRecord>;
-
-/** Prefer the resolved purpose family; fall back to the raw objective. */
-function objectiveInputOf(s: Signals): ObjectiveInput {
-  return s.purposeFamily ?? s.objective;
-}
 
 function resultNoun(s: Signals): string {
   return arabicResultPhrase(objectiveInputOf(s));
@@ -115,7 +109,7 @@ function diagnoseCreativeFatigue(m: IssueMap, s: Signals): Diagnosis | null {
   return {
     name: "إرهاق الإعلان",
     code: "CREATIVE_FATIGUE",
-    confidence: (fatigue.evidence.confidence as number) ?? 0.7,
+    confidence: fatigue.confidence.value,
     narrative:
       `مرات ظهور الإعلان لنفس الشخص ارتفعت ${freqRise} ووصلت إلى ${freq}، بينما تفاعل النقر انخفض ${ctrDrop}. ` +
       `الجمهور رأى نفس الإعلان كثيراً فقلّ اهتمامه.`,
@@ -211,13 +205,21 @@ function diagnoseEfficiencyDrop(m: IssueMap, s: Signals): Diagnosis | null {
   if (!cpr) return null;
   if (m.has("AUDIENCE_FATIGUE")) return null;
 
-  const divergence = cpr.evidence.divergence as number | undefined;
+  // divergence isn't its own Evidence item (see detectRisingCostPerResult.ts)
+  // — read the two source metrics THIS diagnosis is grounded in and derive
+  // it, rather than duplicating an independent computation from raw Signals.
+  const resultsTrendEv = cpr.evidence.find((e) => e.metricKey === "resultsTrend");
+  const spendTrendEv = cpr.evidence.find((e) => e.metricKey === "spendTrend");
+  const divergence =
+    resultsTrendEv != null && spendTrendEv != null
+      ? resultsTrendEv.value - spendTrendEv.value
+      : undefined;
   const divPct = divergence != null ? `${Math.abs(divergence * 100).toFixed(0)}%` : "؟";
 
   return {
     name: "ارتفاع تكلفة النتيجة",
     code: "RISING_COST_PER_RESULT",
-    confidence: (cpr.evidence.confidence as number) ?? 0.75,
+    confidence: cpr.confidence.value,
     narrative:
       `${efficiencyNoun(s)} ارتفعت بنسبة ${divPct} تقريباً مقارنة بالإنفاق. ` +
       `تصرف ميزانية مشابهة لكن تحصل على ${resultNoun(s)} أقل.`,
@@ -237,7 +239,7 @@ function diagnoseWeakCreative(m: IssueMap, s: Signals): Diagnosis | null {
   return {
     name: "ضعف التفاعل مع الإعلان",
     code: "WEAK_CREATIVE",
-    confidence: (low.evidence.confidence as number) ?? 0.75,
+    confidence: low.confidence.value,
     narrative:
       `نسبة النقر الحالية حوالي ${ctr} — أقل من المستوى المعتاد لحملات ${isAwarenessFamily(s) ? "الوعي" : "هذا الهدف"} حسب معايير Meta. ` +
       `كثير من الناس يرون الإعلان ويمرّون دون اهتمام كافٍ.`,
@@ -258,7 +260,7 @@ function diagnoseHighFrequencyAlone(m: IssueMap, s: Signals): Diagnosis | null {
   return {
     name: "تكرار ظهور مرتفع",
     code: "HIGH_FREQUENCY_PRESSURE",
-    confidence: (hf.evidence.confidence as number) ?? 0.65,
+    confidence: hf.confidence.value,
     narrative:
       `نفس الأشخاص يرون الإعلان بمعدل تكرار حوالي ${freq}. ` +
       `هذا قد يكون طبيعياً لجمهور ضيق، لكنه غالباً بداية تعب إن استمر دون تجديد.`,
@@ -278,7 +280,7 @@ function diagnoseDecliningResultsAlone(m: IssueMap, s: Signals): Diagnosis | nul
   return {
     name: "تراجع النتائج",
     code: "DECLINING_OUTCOMES",
-    confidence: (dec.evidence.confidence as number) ?? 0.8,
+    confidence: dec.confidence.value,
     narrative:
       `${resultNoun(s)} انخفضت حوالي ${resultsDrop} مقارنة بالمستوى المرجعي. ` +
       `لم يتضح بعد إن كان السبب الإبداع أو الجمهور أو العرض — لكن الاتجاه يستحق انتباهاً.`,

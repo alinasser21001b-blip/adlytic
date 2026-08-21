@@ -122,9 +122,11 @@ All changes have been verified:
    # Wait for service to start
    sleep 15
 
-   # Delete demo user
-   DATABASE_URL="postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thomas.proxy.rlwy.net:57928/railway" \
-     node /sessions/affectionate-gifted-hopper/mnt/adlytic/delete_demo_user.js
+   # Delete demo user — DATABASE_URL comes from the environment, never a literal.
+   # (The connection string originally written here was committed to git and has
+   # since been rotated; read the current value from Railway instead.)
+   export DATABASE_URL="$(railway variables --service Postgres --kv | grep '^DATABASE_URL=' | cut -d= -f2-)"
+   node /sessions/affectionate-gifted-hopper/mnt/adlytic/delete_demo_user.js
 
    # Monitor health (should return 200)
    curl https://adlytic-production.up.railway.app/api/health
@@ -197,7 +199,11 @@ If something goes wrong:
 - Host: thomas.proxy.rlwy.net
 - Port: 57928
 - Database: railway
-- URL: `postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thomas.proxy.rlwy.net:57928/railway`
+- URL: not recorded here by design. The connection string that was originally
+  written into this document was committed to git; it has since been **rotated
+  and is permanently invalid**. Read the live value from Railway
+  (Postgres service → Variables), or reference it as `${{Postgres.DATABASE_URL}}`
+  from another service — never paste it back into a file in this repository.
 
 ---
 

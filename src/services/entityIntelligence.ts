@@ -28,8 +28,10 @@ import { scoreObjectiveHealth } from '../analytics/intelligence/objectiveHealth'
 import { buildRecommendation } from '../analytics/intelligence/recommend';
 import { buildObjectiveKpiCards } from '../analytics/objectiveKpiCards';
 import { resultFor } from '../analytics/resultSemantics';
-import type { ClassificationConfidence, DataConfidence } from '../analytics/confidence';
+import { classificationConfidenceFromReason, type ClassificationConfidence, type DataConfidence } from '../analytics/confidence';
 import type { ObjectiveKpiFamily, ResultMetricKey } from '../lib/objectiveKpis';
+import { resolveCampaignPurpose } from '../lib/campaignPurpose';
+import { resolveAccountResultKey } from '../analytics/accountResultKey';
 
 /**
  * Window context shared by the P4 KPI cards and the P5 intelligence layer.
@@ -39,7 +41,24 @@ export interface FunnelWindowContext {
   cur: FunnelWindowTotals;
   pri: FunnelWindowTotals;
   spendCur: number; spendPri: number;
+  /**
+   * Meta's own reported CTR: clicks(ALL) ÷ impressions, impression-weighted
+   * across the window. Includes reactions, comments, shares and photo
+   * expands — NOT only link clicks.
+   */
   ctrCur: number | null; ctrPri: number | null;
+  /**
+   * Link click-through rate, derived here: link clicks ÷ impressions, in the
+   * same percent units as `ctrCur` so the two are directly comparable.
+   *
+   * Derived rather than stored because Meta's own inline_link_click_ctr is
+   * not in DEFAULT_INSIGHT_FIELDS, so it is never fetched. It lives in this
+   * canonical window context — not in a display layer — for the same reason
+   * ctrCur does: a ratio computed twice is a ratio that can disagree with
+   * itself. Reading one against the other is how an 8.9%-vs-0.66%
+   * "contradiction" gets reported when nothing is actually wrong.
+   */
+  linkCtrCur: number | null; linkCtrPri: number | null;
   cpmCur: number | null; cpmPri: number | null;
   cpcCur: number | null; cpcPri: number | null;
   freqCur: number | null; freqPri: number | null;
@@ -154,6 +173,11 @@ export async function buildEntityFunnel(
     a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;
   const favg = (a: typeof rate.cur) =>
     a.freq.length ? +(a.freq.reduce((x, y) => x + y, 0) / a.freq.length).toFixed(4) : null;
+  // Total link clicks ÷ total impressions. Equal to the impression-weighted
+  // average of the daily link CTRs, so it is built the same way `wavg` builds
+  // ctr — and ×100 to match the percent units insightMapper stores `ctr` in.
+  const linkCtr = (t: FunnelWindowTotals) =>
+    t.impressions > 0 ? +((t.linkClicks / t.impressions) * 100).toFixed(4) : null;
 
   return {
     funnel,
@@ -161,6 +185,7 @@ export async function buildEntityFunnel(
     windows: {
       cur, pri, spendCur, spendPri,
       ctrCur: wavg(rate.cur, 'ctr'), ctrPri: wavg(rate.pri, 'ctr'),
+      linkCtrCur: linkCtr(cur), linkCtrPri: linkCtr(pri),
       cpmCur: wavg(rate.cur, 'cpm'), cpmPri: wavg(rate.pri, 'cpm'),
       cpcCur: wavg(rate.cur, 'cpc'), cpcPri: wavg(rate.pri, 'cpc'),
       freqCur: favg(rate.cur), freqPri: favg(rate.pri),
@@ -276,6 +301,15 @@ export function buildEntityIntelligence(
      * checks silently drifting apart (P1-01).
      */
     forbiddenActions: reconciled.forbiddenActions,
+    /**
+     * Issue codes THIS SAME reconciliation says a higher layer already
+     * explains (e.g. HIGH_FREQUENCY when the funnel's own fatigue signal is
+     * the explanation) — so a detected_issues-driven consumer (getDashboard's
+     * `issues`/`diagnoses`/`merchantTasks`) can drop the redundant finding
+     * instead of showing it alongside this reconciled verdict as if they were
+     * two independent opinions. Same reasoning as forbiddenActions above.
+     */
+    suppressedIssueCodes: reconciled.suppressedIssueCodes,
     anomaly: { significant: verdict.significant, kind: verdict.kind, confidence: verdict.confidence },
     fatigue: fatigue.confidence === 'INSUFFICIENT_DATA' ? null : {
       frequency: fatigue.frequency, severity: fatigue.severity,
@@ -292,6 +326,79 @@ export function buildEntityIntelligence(
     },
     recommendation,
   };
+}
+
+/**
+ * Resolve one entity's CURRENT reconciled intelligence from scratch —
+ * independently of any caller-supplied claim about its family/objective —
+ * for guards that must decide whether an action code is safe to persist or
+ * surface for this entity right now (permitAction() needs `problemClass` +
+ * `forbiddenActions`, which only reconcileIntelligence() produces).
+ *
+ * Mirrors getDashboard.ts's own buildAccountFunnel (ACCOUNT) and the
+ * campaign-inspector route's own purpose resolution (CAMPAIGN) exactly —
+ * family still resolves via resolveAccountResultKey / resolveCampaignPurpose
+ * only (rule 1), never re-derived here. ADSET/AD have no purpose resolver:
+ * null, not a guess.
+ */
+export async function resolveEntityIntelligenceForGuard(
+  prisma: PrismaClient,
+  entityType: EntityType,
+  entityId: string,
+): Promise<ReturnType<typeof buildEntityIntelligence> | null> {
+  const lagDays = 2, windowDays = 7;
+  const dayMs = 86_400_000;
+  const floor = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const currentUntil = floor(new Date(Date.now() - lagDays * dayMs));
+  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * dayMs);
+  const priorUntil = new Date(currentSince.getTime() - dayMs);
+  const priorSince = new Date(priorUntil.getTime() - (windowDays - 1) * dayMs);
+
+  let family: ObjectiveKpiFamily | null;
+  let classificationConfidence: ClassificationConfidence = 'CONFIRMED';
+
+  if (entityType === EntityType.ACCOUNT) {
+    const { resultKey, families } = await resolveAccountResultKey(prisma, entityId, priorSince, currentUntil);
+    if (!resultKey || families.length !== 1) return null;
+    family = families[0]!;
+  } else if (entityType === EntityType.CAMPAIGN) {
+    const campaign = await prisma.campaign.findUnique({
+      where: { id: entityId },
+      select: {
+        objective: true, messagingCtaAds: true,
+        adSets: { select: { optimizationGoal: true, destinationType: true } },
+      },
+    });
+    if (!campaign) return null;
+    const rows = await prisma.dailyStat.findMany({
+      where: { entityType: EntityType.CAMPAIGN, entityId, date: { gte: priorSince, lte: currentUntil } },
+      select: { messages: true, clicks: true, linkClicks: true },
+    });
+    let messagesW = 0, clicksW = 0, linkClicksW = 0;
+    for (const r of rows) {
+      messagesW += Number(r.messages); clicksW += Number(r.clicks); linkClicksW += Number(r.linkClicks);
+    }
+    const purpose = resolveCampaignPurpose({
+      objective: campaign.objective,
+      optimizationGoals: campaign.adSets.map((a) => a.optimizationGoal),
+      destinationTypes: campaign.adSets.map((a) => a.destinationType),
+      messagesWindow: messagesW, clicksWindow: clicksW, linkClicksWindow: linkClicksW,
+      messagingCtaAds: campaign.messagingCtaAds,
+    });
+    family = purpose.family;
+    classificationConfidence = classificationConfidenceFromReason(purpose.reason, purpose.corroborated);
+  } else {
+    return null;
+  }
+  if (!family) return null;
+
+  const entityFunnel = await buildEntityFunnel(prisma, entityType, entityId, family, { classificationConfidence });
+  if (!entityFunnel) return null;
+
+  return buildEntityIntelligence(
+    entityFunnel.funnel, entityFunnel.family, entityFunnel.windows,
+    entityFunnel.classificationConfidence, entityFunnel.dataConfidence, entityFunnel.resultApproximate,
+  );
 }
 
 /** Re-export so callers do not need a second import for the entity enum. */

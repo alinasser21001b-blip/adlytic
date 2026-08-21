@@ -37,14 +37,33 @@ export const detectRisingCostPerResult: Detector = (s) => {
   const magnitude = Math.abs(divergence);
   const severity = severityFromMagnitude(magnitude);
 
+  // `divergence` itself is not stored as its own Evidence item — it isn't a
+  // single observed metric, it's resultsTrend minus spendTrend. Both source
+  // values ARE stored below, so any reader (including diagnose.ts) recovers
+  // it exactly by reading both, rather than trusting a third, derived number
+  // that could theoretically drift from its own inputs.
   return {
     issueCode: IssueCode.RISING_COST_PER_RESULT,
     severity,
-    evidence: {
-      resultsTrend: s.resultsTrend,
-      spendTrend: s.spendTrend,
-      divergence: +divergence.toFixed(3),
-      confidence: 0.75,
-    },
+    confidence: { value: 0.75, basis: 'heuristic_constant' },
+    window: null,
+    evidence: [
+      {
+        metricKey: 'resultsTrend',
+        valueKind: 'trend',
+        unit: 'percent',
+        value: s.resultsTrend,
+        threshold: null,
+        relativeToThreshold: null,
+      },
+      {
+        metricKey: 'spendTrend',
+        valueKind: 'trend',
+        unit: 'percent',
+        value: s.spendTrend,
+        threshold: null,
+        relativeToThreshold: null,
+      },
+    ],
   };
 };

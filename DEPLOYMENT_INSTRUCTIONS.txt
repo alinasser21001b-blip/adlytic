@@ -100,8 +100,11 @@ If deployment fails:
    railway link --project 69ca3009-3a67-4d92-b808-6e4f278335d6
    railway up --detach --service cc7cbf67-d757-4018-bf6d-9cec643222c3
    sleep 15
-   DATABASE_URL="postgresql://postgres:LOZKJdlFRHNHMBGCkVsSFYLzyJzEbglk@thomas.proxy.rlwy.net:57928/railway" \
-     node /Sessions/affectionate-gifted-hopper/mnt/adlytic/delete_demo_user.js
+   # DATABASE_URL comes from the environment, never a literal. The connection
+   # string originally written here was committed to git and has since been
+   # rotated; read the current value from Railway instead.
+   export DATABASE_URL="$(railway variables --service Postgres --kv | grep '^DATABASE_URL=' | cut -d= -f2-)"
+   node /Sessions/affectionate-gifted-hopper/mnt/adlytic/delete_demo_user.js
 
 ================================================================================
 FILES CREATED/MODIFIED

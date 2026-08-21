@@ -84,8 +84,14 @@ async function main(): Promise<void> {
   }
 
   // Clean up zombie SyncJobs left by a prior crash/deploy so new sync
-  // requests aren't blocked by the "reuse active job" logic.
-  await cleanupOrphanedSyncJobs(prisma);
+  // requests aren't blocked by the "reuse active job" logic. Skipped only on
+  // a validation instance (SKIP_STARTUP_SYNC_CLEANUP=true) sharing the
+  // production DB — see config.ts's doc comment for why.
+  if (!config.features.skipStartupSyncCleanup) {
+    await cleanupOrphanedSyncJobs(prisma);
+  } else {
+    console.log('[adlytic] SKIP_STARTUP_SYNC_CLEANUP=true — startup orphaned-SyncJob sweep skipped');
+  }
 
   const app = buildRoutes(prisma);
 

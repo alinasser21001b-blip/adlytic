@@ -9,7 +9,7 @@
 
 import { IssueCode } from "@prisma/client";
 import { lowCtrFloorForObjective } from "../../knowledge/metaObjectiveStandards";
-import type { Detector } from "./types";
+import { objectiveInputOf, type Detector } from "./types";
 import { severityFromMagnitude } from "./severity";
 
 /**
@@ -25,9 +25,15 @@ const DEFAULT_LOW_CTR_THRESHOLD = 1.0; // percent — messaging/traffic fallback
 
 export const detectLowCtr: Detector = (s) => {
   if (s.currentCtr == null) return null;
+  // Prefer the resolved purpose family over the raw (deprecated) objective —
+  // every real Signals-builder sets purposeFamily, never objective, so
+  // reading s.objective alone silently fell through to the flat 1.0%
+  // fallback for every campaign, ignoring whatever family resolveCampaignPurpose
+  // had already determined (awareness's true 0.6% floor, leads' 1.2%, etc.).
+  const objectiveInput = objectiveInputOf(s);
   const threshold =
-    s.objective != null && String(s.objective).trim() !== ""
-      ? lowCtrFloorForObjective(s.objective)
+    objectiveInput != null && String(objectiveInput).trim() !== ""
+      ? lowCtrFloorForObjective(objectiveInput)
       : DEFAULT_LOW_CTR_THRESHOLD;
   if (s.currentCtr >= threshold) return null;
 
@@ -38,12 +44,17 @@ export const detectLowCtr: Detector = (s) => {
   return {
     issueCode: IssueCode.LOW_CTR,
     severity,
-    evidence: {
-      currentCtr: s.currentCtr,
-      threshold,
-      objective: s.objective ?? null,
-      gapBelowThreshold: +gap.toFixed(3),
-      confidence: 0.80, // current-level signal is direct, not inferred
-    },
+    confidence: { value: 0.80, basis: 'heuristic_constant' }, // current-level signal is direct, not inferred
+    window: null,
+    evidence: [
+      {
+        metricKey: 'ctr',
+        valueKind: 'level',
+        unit: 'percent',
+        value: s.currentCtr,
+        threshold,
+        relativeToThreshold: +gap.toFixed(3),
+      },
+    ],
   };
 };

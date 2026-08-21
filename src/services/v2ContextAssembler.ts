@@ -30,11 +30,7 @@
 import type { PrismaClient } from '@prisma/client';
 import { MetaClient, MetaInsightRow } from './metaClient';
 import type { BrainV2Inputs } from '../engine/AdlyticBrain';
-import {
-  ACTION_FAMILIES,
-  resolveActionCount,
-  type ActionRow,
-} from '../analytics/actionSemantics';
+import { mapMetaInsight, mapMetaBreakdownInsight } from '../mappers/insightMapper';
 import type {
   MarketBaseline,
   GoldStandardDNA,
@@ -274,11 +270,16 @@ async function buildHourlyVelocity(
     level: 'campaign',
   });
 
+  // Through the cordon: mapMetaInsight() already resolves spend (minor units)
+  // and `messages` via the same canonical action-count resolver this file's
+  // own sumMessageActions() used to reimplement independently.
+  const mapOpts = { currencyMinorFactor: args.currencyMinorFactor };
   let totalSpendToday = 0;
   let totalMessagesToday = 0;
   for (const r of rows) {
-    totalSpendToday    += numField(r.spend);
-    totalMessagesToday += sumMessageActions(r.actions);
+    const normalized = mapMetaInsight(r, mapOpts);
+    totalSpendToday    += minorToMajor(normalized.spendMinor, args.currencyMinorFactor);
+    totalMessagesToday += normalized.messages;
   }
 
   return {
@@ -314,14 +315,14 @@ async function buildAudienceBreakdowns(
     }),
   ]);
 
-  const topAge    = pickBestBucket(ageGenderRows, 'age');
-  const topGender = pickBestBucket(ageGenderRows, 'gender');
+  const topAge    = pickBestBucket(ageGenderRows, 'age', args.currencyMinorFactor);
+  const topGender = pickBestBucket(ageGenderRows, 'gender', args.currencyMinorFactor);
 
   // Placement: "platform_position" is the granular slot (e.g. "instagram_reels");
   // fall back to publisher_platform when slot is absent.
   const bestPlacement =
-    pickBestBucket(placementRows, 'platform_position') ??
-    pickBestBucket(placementRows, 'publisher_platform');
+    pickBestBucket(placementRows, 'platform_position', args.currencyMinorFactor) ??
+    pickBestBucket(placementRows, 'publisher_platform', args.currencyMinorFactor);
 
   if (!topAge && !topGender && !bestPlacement) return null;
 
@@ -398,53 +399,26 @@ function hoursElapsedTodayInTimezone(now: Date, timezone: string): number {
   }
 }
 
-/** Numeric coercion mirroring insightMapper's defensive style — Meta returns strings. */
-function numField(v: unknown): number {
-  if (v === null || v === undefined || v === '') return 0;
-  const n = typeof v === 'number' ? v : parseFloat(String(v));
-  return Number.isFinite(n) ? n : 0;
-}
-
-/**
- * Message count for AI context — resolved through the CANONICAL resolver.
- *
- * This function previously kept its own action-type set and SUMMED it, with a
- * comment claiming it mirrored the mapper. It did not: it included
- * `onsite_conversion.messaging_first_reply`, which the mapper deliberately
- * excludes as a different funnel stage, and it summed rather than picked. So
- * the AI assistant was fed roughly double the conversation count the dashboard
- * showed for the same account — the 163-vs-87 production bug, still alive on
- * this path after being fixed in the mapper.
- *
- * There is now exactly one definition of "a conversation", in
- * analytics/actionSemantics.ts, and every consumer reads it.
- */
-function sumMessageActions(actions: unknown): number {
-  return resolveActionCount(
-    Array.isArray(actions) ? (actions as ActionRow[]) : [],
-    ACTION_FAMILIES['messages']!,
-  ).value;
-}
-
 /**
  * Among Meta breakdown rows, return the value of `key` for the bucket that
  * produced the most conversions (`messages`); fall back to impressions when
  * conversions are flat across buckets. Returns null when no bucket scores > 0.
  */
-function pickBestBucket(rows: MetaInsightRow[], key: string): string | null {
+function pickBestBucket(rows: MetaInsightRow[], key: string, factor: number): string | null {
   if (rows.length === 0) return null;
 
-  // Sum per-bucket score; messages wins, impressions is fallback.
+  // Through the cordon: mapMetaBreakdownInsight() returns null when the row
+  // lacks this breakdown key (the same skip mapMetaInsight/manual read did),
+  // and resolves `messages` via the canonical action-count resolver.
   const messagesByBucket   = new Map<string, number>();
   const impressionsByBucket = new Map<string, number>();
 
   for (const r of rows) {
-    const bucket = r[key];
-    if (typeof bucket !== 'string' || bucket.length === 0) continue;
-    const msgs = sumMessageActions(r.actions);
-    const imps = numField(r.impressions);
-    messagesByBucket.set(bucket,    (messagesByBucket.get(bucket)    ?? 0) + msgs);
-    impressionsByBucket.set(bucket, (impressionsByBucket.get(bucket) ?? 0) + imps);
+    const mapped = mapMetaBreakdownInsight(r, key, { currencyMinorFactor: factor });
+    if (!mapped) continue;
+    const bucket = mapped.breakdownValue;
+    messagesByBucket.set(bucket,    (messagesByBucket.get(bucket)    ?? 0) + mapped.messages);
+    impressionsByBucket.set(bucket, (impressionsByBucket.get(bucket) ?? 0) + mapped.impressions);
   }
 
   const ranked = (m: Map<string, number>): string | null => {

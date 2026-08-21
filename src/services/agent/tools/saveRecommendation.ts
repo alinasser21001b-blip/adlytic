@@ -18,6 +18,8 @@
 import { EntityType, RecommendationPriority, RecommendationSource, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
+import { resolveEntityIntelligenceForGuard } from '../../entityIntelligence';
+import { permitAction } from '../../../analytics/intelligence/hierarchy';
 
 const ALLOWED_ACTION_CODES = [
   'PAUSE',
@@ -167,6 +169,35 @@ export function saveRecommendationHandler(): ToolHandler<SaveRecommendationArgs,
             suggestion: 'Choose a different actionCode, or call list_campaigns / get_campaign_details to see the existing recommendation instead of replacing it.',
           },
         );
+      }
+
+      // Diagnosis guard: this is the same permitAction()/forbiddenActions
+      // check getDashboard.ts already applies to priorityAction/the funnel's
+      // own recommendation — an LLM-authored action code otherwise reached
+      // the Recommendations feed with no check that it doesn't contradict
+      // this entity's own current funnel diagnosis (e.g. REFRESH_CREATIVE
+      // for an entity the funnel just measured as POST_CLICK, where the
+      // creative was verified healthy). No verdict for the entity (unmeasured,
+      // mixed-purpose account, ADSET/AD) means nothing to check against —
+      // the write proceeds rather than blocking on an absent, not a failing, check.
+      const entityIntelligence = await resolveEntityIntelligenceForGuard(
+        prisma,
+        args.entityType === 'ACCOUNT' ? EntityType.ACCOUNT : EntityType.CAMPAIGN,
+        args.entityId,
+      ).catch(() => null);
+      if (entityIntelligence) {
+        const permit = permitAction(args.actionCode, entityIntelligence);
+        if (!permit.allowed) {
+          return fail(
+            'FORBIDDEN',
+            permit.reason ?? `"${args.actionCode}" contradicts this entity's current funnel diagnosis.`,
+            {
+              field: 'actionCode',
+              retryable: false,
+              suggestion: 'Re-check get_campaign_details / the funnel diagnosis before choosing an action — the upstream stages were measured healthy, so a creative- or audience-facing action would misdirect the merchant.',
+            },
+          );
+        }
       }
 
       const rec = await prisma.recommendation.upsert({

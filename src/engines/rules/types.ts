@@ -8,6 +8,7 @@
 
 import type { IssueRecord } from "../../repositories/detectedIssuesRepo";
 import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
+import type { ObjectiveInput } from "../../knowledge/metaObjectiveStandards";
 
 /**
  * Everything a detector might want to look at. Compact and explicit — no
@@ -50,6 +51,20 @@ export interface Signals {
    * standards layer will then use neutral vocabulary instead of guessing.
    */
   purposeFamily?: ObjectiveKpiFamily | null;
+}
+
+/**
+ * Prefer the resolved purpose family; fall back to the raw objective.
+ *
+ * The one correct way to read either field on Signals — see purposeFamily's
+ * own doc above ("takes precedence... when present"). A detector reading
+ * `s.objective` alone silently ignores a resolved family whenever one exists
+ * (every real Signals-builder sets purposeFamily, never objective — see
+ * RulesEngine.ts / loadCampaignSignals.ts), always falling through to
+ * whatever objective?/Standard applies to the deprecated raw field.
+ */
+export function objectiveInputOf(s: Signals): ObjectiveInput {
+  return s.purposeFamily ?? s.objective;
 }
 
 export type Detector = (s: Signals) => IssueRecord | null;

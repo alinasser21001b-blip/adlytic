@@ -1,3 +1,10 @@
+> **SUPERSEDED.** This is a historical snapshot (2026-06-29) and is no longer accurate —
+> the codebase has gone through several major remediation phases since. See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical reference only.
+
+---
+
 # ADLYTIC_MASTER_ARCHITECT_AUDIT_2026
 
 **Document type:** Production-grade master architecture audit  

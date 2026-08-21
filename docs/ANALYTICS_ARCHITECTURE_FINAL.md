@@ -1,7 +1,12 @@
 # Adlytic Analytics Intelligence — Final Architecture
 
-**Status:** v1 complete (P0 → P1 → P2 → P3 → P3.5 → P4 → P5).
-**Companion:** `ANALYTICS_RULES.md` holds the ten enforced architectural rules.
+**Status:** v1 complete (P0 → P1 → P2 → P3 → P3.5 → P4 → P5). Still accurate for the
+analytics pipeline it describes.
+**Companion:** `ANALYTICS_RULES.md` holds the ten enforced architectural rules. For the
+full system — Meta ingestion cordon, sync concurrency, data purge, anomaly/diagnosis/
+decision ownership beyond this pipeline, V5's status, and DTO purity — see
+[`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md),
+which absorbs and extends this document.
 
 ---
 

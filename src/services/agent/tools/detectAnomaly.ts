@@ -13,12 +13,26 @@
 //      2. For each day in the lookback window, flag |value - μ| / σ ≥ minAbsZ.
 //      3. Direction: 'better' if higher-is-better metric moved up (or lower-
 //         is-better moved down); else 'worse'.
-//    Skip rule-engine issues — those are surfaced elsewhere.
+//
+//  This is a genuinely different method from the canonical rule detectors
+//  (engines/rules/detect*.ts, fixed-pattern thresholds → Evidence →
+//  detected_issues) — a rolling z-score has no canonical equivalent to
+//  delegate to, so it stays a real, independent statistical scan rather than
+//  becoming another wrapper over the same five patterns. What it must not do
+//  is stand as an independent AUTHORITY alongside detected_issues: it now
+//  consults detected_issues for the same entity/window and (a) drops a `ctr`
+//  finding when the canonical LOW_CTR issue already covers it — the one
+//  metric/issueCode pairing direct enough to skip safely without inventing a
+//  mapping the vocabularies don't actually share — and (b) surfaces every
+//  other canonical issue code alongside its own findings, explicitly labelled
+//  supplementary/non-authoritative, so the calling model never treats a
+//  z-score finding as outranking a canonical one (Phase 3.5's authority-
+//  boundary pattern, applied here to a second reasoning surface).
 //
 //  Spec: PHASE2_AI_AGENT_DESIGN.md §3.4 T8
 // ════════════════════════════════════════════════════════════════════════
 
-import { EntityType, type PrismaClient } from '@prisma/client';
+import { EntityType, IssueCode, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
@@ -50,7 +64,22 @@ interface DetectAnomalyResult {
   totalChecked: number;
   windowScanned: { since: string; until: string };
   baselineWindow: { since: string; until: string };
+  /**
+   * Canonical rule-engine issue codes (detected_issues) already on record for
+   * this entity within the scanned window. NON-empty means part of the story
+   * here is already explained by a canonical, Evidence-backed finding —
+   * prefer that explanation over a statistical anomaly on the same topic.
+   */
+  canonicalIssueCodes: string[];
+  /** Always present so the model cannot miss the authority boundary. */
+  note: string;
 }
+
+const SUPPLEMENTARY_NOTE =
+  'These are statistical outliers (rolling z-score), not canonical findings. ' +
+  'When canonicalIssueCodes is non-empty, prefer that canonical, Evidence-backed ' +
+  'explanation for the same entity over inventing a separate narrative from these ' +
+  'anomalies — treat this list as supplementary color, not authoritative evidence.';
 
 const BASELINE_DAYS = 30;
 
@@ -68,7 +97,7 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
   return {
     name: 'detect_anomaly',
     description:
-      "Statistical anomaly detection: finds daily metrics that are unusually far from the entity's 30-day rolling baseline. Use PROACTIVELY when the merchant opens the app in the morning ('صباح الخير' greeting) or when they ask 'شنو الجديد'. Returns anomalies with severity (high/medium/low), direction (better/worse), z-score, and a likelyCause hint when we can infer one. Does NOT return known rule-engine issues (those come from get_campaign_details.topIssues). Scope 'workspace' checks the account-level metrics; scope 'campaign' checks a specific campaign — provide campaignId in that case.",
+      "Statistical anomaly detection: finds daily metrics that are unusually far from the entity's 30-day rolling baseline. Use PROACTIVELY when the merchant opens the app in the morning ('صباح الخير' greeting) or when they ask 'شنو الجديد'. Returns anomalies with severity (high/medium/low), direction (better/worse), z-score, and a likelyCause hint when we can infer one. NOT authoritative relative to canonical rule-engine issues (get_campaign_details.topIssues) — the result also lists canonicalIssueCodes already on record for the same entity/window; when that list is non-empty, prefer the canonical explanation over these statistical findings for the same topic. Scope 'workspace' checks the account-level metrics; scope 'campaign' checks a specific campaign — provide campaignId in that case.",
     schema: {
       type: 'object',
       properties: {
@@ -111,7 +140,11 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
       const account = ws.adAccounts[0];
       if (!account) {
         return ok<DetectAnomalyResult>(
-          { anomalies: [], totalChecked: 0, windowScanned: { since: '', until: '' }, baselineWindow: { since: '', until: '' } },
+          {
+            anomalies: [], totalChecked: 0,
+            windowScanned: { since: '', until: '' }, baselineWindow: { since: '', until: '' },
+            canonicalIssueCodes: [], note: SUPPLEMENTARY_NOTE,
+          },
           { sourceTable: 'ad_accounts', latestRowDate: null, stalenessMinutes: null },
         );
       }
@@ -147,6 +180,29 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
         orderBy: { date: 'asc' },
       });
 
+      // Canonical-aware: consult the rule engine's own findings for the same
+      // entities/window rather than scanning in isolation. Only LOW_CTR maps
+      // directly enough onto this tool's `ctr` metric to skip safely — the
+      // other issue codes (multi-signal patterns, a different trend/level
+      // vocabulary) don't have a safe 1:1 correspondence to METRIC_SPECS, so
+      // they are surfaced via canonicalIssueCodes instead of guessed at.
+      const knownIssues = await prisma.detectedIssue.findMany({
+        where: {
+          entityType: { in: targets.map((t) => t.entityType) },
+          entityId: { in: targets.map((t) => t.entityId) },
+          date: { gte: windowSince, lte: windowUntil },
+        },
+        select: { entityType: true, entityId: true, issueCode: true },
+      });
+      const canonicalIssueCodesByEntity = new Map<string, Set<IssueCode>>();
+      for (const iss of knownIssues) {
+        const key = `${iss.entityType}:${iss.entityId}`;
+        const set = canonicalIssueCodesByEntity.get(key) ?? new Set<IssueCode>();
+        set.add(iss.issueCode);
+        canonicalIssueCodesByEntity.set(key, set);
+      }
+      const canonicalIssueCodes = [...new Set(knownIssues.map((i) => i.issueCode as string))];
+
       const anomalies: AnomalyRow[] = [];
       let totalChecked = 0;
 
@@ -171,12 +227,18 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
           const std = Math.sqrt(variance);
           if (std <= 0) continue;
 
+          const targetKnownIssues = canonicalIssueCodesByEntity.get(`${target.entityType}:${target.entityId}`);
+          const ctrAlreadyCanonical = spec.key === 'ctr' && targetKnownIssues?.has(IssueCode.LOW_CTR);
+
           for (const day of scanRows) {
             totalChecked++;
             const value = extractMetric(day, spec.key, factor);
             if (value == null) continue;
             const z = (value - mean) / std;
             if (Math.abs(z) < args.minAbsZ) continue;
+            // The canonical rule engine already has an Evidence-backed LOW_CTR
+            // finding for this entity/window — don't restate it statistically.
+            if (ctrAlreadyCanonical) continue;
 
             const wentUp = z > 0;
             const isGoodDirection = wentUp === spec.higherIsBetter;
@@ -216,6 +278,8 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
             since: baselineSince.toISOString().slice(0, 10),
             until: baselineUntil.toISOString().slice(0, 10),
           },
+          canonicalIssueCodes,
+          note: SUPPLEMENTARY_NOTE,
         },
         {
           sourceTable: 'daily_stats',
@@ -248,8 +312,12 @@ function extractMetric(
   switch (key) {
     case 'spend': return spend;
     case 'messages': return messages;
-    case 'ctr': return impressions > 0 ? clicks / impressions * 100 : row.ctr ?? null;
-    case 'cpm': return impressions > 0 ? spendMajor / impressions * 1000 : row.cpm ?? null;
+    // Prefer Meta's own reported per-day ctr/cpm (row.ctr/row.cpm) — a local
+    // recompute from raw counters would silently substitute our arithmetic
+    // for Meta's authoritative figure as the z-score baseline/scan input.
+    // Recompute only when the stored field is genuinely absent.
+    case 'ctr': return row.ctr ?? (impressions > 0 ? clicks / impressions * 100 : null);
+    case 'cpm': return row.cpm ?? (impressions > 0 ? spendMajor / impressions * 1000 : null);
     case 'cost_per_message': return messages > 0 ? spendMajor / messages : null;
     default: return null;
   }

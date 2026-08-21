@@ -90,10 +90,10 @@ console.log('\nevidence consistency');
     currentSpend: 100,
   });
   const mixed: IssueRecord[] = [
-    { issueCode: IssueCode.LOW_CTR, severity: Severity.MEDIUM, evidence: {} },
-    { issueCode: IssueCode.DECLINING_RESULTS, severity: Severity.HIGH, evidence: {} },
-    { issueCode: IssueCode.AUDIENCE_FATIGUE, severity: Severity.HIGH, evidence: { confidence: 0.9 } },
-    { issueCode: IssueCode.HIGH_FREQUENCY, severity: Severity.MEDIUM, evidence: {} },
+    { issueCode: IssueCode.LOW_CTR, severity: Severity.MEDIUM, evidence: [], confidence: { value: 0.8, basis: 'heuristic_constant' }, window: null },
+    { issueCode: IssueCode.DECLINING_RESULTS, severity: Severity.HIGH, evidence: [], confidence: { value: 0.85, basis: 'heuristic_constant' }, window: null },
+    { issueCode: IssueCode.AUDIENCE_FATIGUE, severity: Severity.HIGH, evidence: [], confidence: { value: 0.9, basis: 'measured_corroboration' }, window: null },
+    { issueCode: IssueCode.HIGH_FREQUENCY, severity: Severity.MEDIUM, evidence: [], confidence: { value: 0.7, basis: 'heuristic_constant' }, window: null },
   ];
   const filtered = issuesCompatibleWithSignals(mixed, abs);
   check('filters trend-dependent issues when no trends',
@@ -116,7 +116,7 @@ console.log('\nevidence consistency');
   withTrends.resultsTrend = -0.4;
   withTrends.ctrTrend = 0.05;
   const mixed: IssueRecord[] = [
-    { issueCode: IssueCode.DECLINING_RESULTS, severity: Severity.HIGH, evidence: {} },
+    { issueCode: IssueCode.DECLINING_RESULTS, severity: Severity.HIGH, evidence: [], confidence: { value: 0.85, basis: 'heuristic_constant' }, window: null },
   ];
   const kept = issuesCompatibleWithSignals(mixed, withTrends);
   check('keeps trend issues when trends present', kept.length === 1);

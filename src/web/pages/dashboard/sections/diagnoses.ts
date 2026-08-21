@@ -45,15 +45,14 @@ export const renderDiagnosesJs = `
       return t.replace(/\\s+/g, ' ').trim();
     }
     grid.innerHTML = rest.map(function (d) {
-      var confLevel = d.confidence >= 0.75 ? 'high' : d.confidence >= 0.5 ? 'medium' : 'low';
-      var confLabel = d.confidence >= 0.75 ? 'ثقة عالية' : d.confidence >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
+      var conf = confBadge(d.confidence);
       var name = FALLBACK_NAME[d.code] || FALLBACK_NAME[d.name] || d.name;
       var narrative = simplifyDiagText(d.narrative);
       var action = simplifyDiagText(d.action);
       return '<article class="diagnosis-card">'
         + '<div class="diagnosis-header">'
           + '<div class="diagnosis-name">' + escHtml(name) + '</div>'
-          + '<span class="diagnosis-confidence ' + confLevel + '">' + confLabel + ' ' + Math.round(d.confidence * 100) + '%</span>'
+          + (conf ? '<span class="diagnosis-confidence ' + conf.level + '">' + conf.label + ' ' + conf.pct + '%</span>' : '')
         + '</div>'
         + '<div class="diagnosis-narrative">' + escHtml(narrative) + '</div>'
         + '<div class="diagnosis-action">'

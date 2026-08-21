@@ -69,7 +69,9 @@ assert.ok(
 const decliningIssue = {
   issueCode: IssueCode.DECLINING_RESULTS,
   severity: Severity.HIGH,
-  evidence: { confidence: 0.8 },
+  evidence: [],
+  confidence: { value: 0.8, basis: 'heuristic_constant' },
+  window: null,
 } as any;
 
 const awarenessDiag = diagnose([decliningIssue], {

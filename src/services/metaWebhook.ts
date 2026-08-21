@@ -28,6 +28,7 @@ import { Platform, type PrismaClient } from '@prisma/client';
 import { MetaClient, MetaApiError } from './metaClient';
 import { SyncAccountWorker } from '../workers/syncAccount';
 import { resolveAccountToken } from './accountToken';
+import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
 import { decryptToken, TokenDecryptError } from './tokenEncryption';
 import { config } from '../config';
 import { withRedis, isRedisHealthy } from '../lib/redis';
@@ -130,6 +131,16 @@ async function runReconcile(prisma: PrismaClient, adAccountId: string): Promise<
 
   const meta = new MetaClient({ apiVersion: config.meta.apiVersion, accessToken });
   const worker = new SyncAccountWorker(prisma, meta);
+  // reconcileCampaignStatuses() reads a Campaign-row snapshot, then upserts
+  // against it (transition/freeze detection) — the same shape the scheduler/
+  // syncChunked() advisory lock exists to serialize. A webhook firing mid-sync
+  // for the same account would otherwise race its own snapshot against theirs.
+  // Same per-account lock key (bare adAccountId) as sync()/backgroundScheduler.ts.
+  const { acquired, lockId } = await tryAcquireAdvisoryLock(prisma, adAccountId);
+  if (!acquired) {
+    console.warn(`[adlytic:meta-webhook] ${account.externalAccountId} — sync already in progress, skipping reconcile`);
+    return;
+  }
   try {
     const r = await worker.reconcileCampaignStatuses(adAccountId, { now: new Date() });
     console.log(
@@ -141,6 +152,8 @@ async function runReconcile(prisma: PrismaClient, adAccountId: string): Promise<
       ? `Meta ${e.status}: ${e.message}`
       : e instanceof Error ? e.message : String(e);
     console.error(`[adlytic:meta-webhook] ${account.externalAccountId} reconcile failed — ${msg}`);
+  } finally {
+    await releaseAdvisoryLock(prisma, lockId);
   }
 }
 

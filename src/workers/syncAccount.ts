@@ -131,6 +131,36 @@ function isInvalidBreakdownCombination(err: unknown): boolean {
 }
 
 /**
+ * The one place raw Meta campaign-list fields (id/name/objective/
+ * effective_status/daily_budget/lifetime_budget) get read — previously each
+ * inlined at the reconcileCampaignStatuses() call site with no dedicated
+ * mapper, unlike ad-sets/ads/creatives (mappers/creativeMapper.ts) and
+ * insights (mappers/insightMapper.ts). Kept local rather than moved into
+ * creativeMapper.ts: that file's own header scopes it to "the CREATIVE side
+ * of the Meta graph" and this is the one campaign-level read in the sync
+ * pipeline, not a second one to unify against.
+ */
+function mapMetaCampaignFields(mc: Record<string, unknown>): {
+  externalId: string;
+  name: string;
+  objective: string | null;
+  metaEffectiveStatus: string | null;
+  dailyBudget: bigint | null;
+  lifetimeBudget: bigint | null;
+} {
+  return {
+    externalId: String(mc["id"]),
+    name: String(mc["name"] ?? "(unnamed)"),
+    objective: mc["objective"] != null ? String(mc["objective"]) : null,
+    metaEffectiveStatus: mc["effective_status"] != null
+      ? String(mc["effective_status"]).toUpperCase()
+      : null,
+    dailyBudget: mc["daily_budget"] != null ? BigInt(String(mc["daily_budget"])) : null,
+    lifetimeBudget: mc["lifetime_budget"] != null ? BigInt(String(mc["lifetime_budget"])) : null,
+  };
+}
+
+/**
  * Run an async Meta call once, and if it fails with `error.code = 17`
  * (user request limit reached), sleep CODE_17_COOLDOWN_MS and try again
  * exactly once. Any other error — and a second code-17 hit — propagates
@@ -220,6 +250,36 @@ export class SyncAccountWorker {
       };
     }
 
+    try {
+      return await this.syncAccountLevelDataLocked(adAccountId, opts);
+    } finally {
+      // Release the advisory lock. This is a no-op if the connection was already
+      // dropped (Postgres releases session locks automatically on disconnect).
+      await this.prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, lockId);
+    }
+  }
+
+  /**
+   * The account-level-stats work sync() does, WITHOUT acquiring its own
+   * advisory lock. For every caller except one, sync() above is the right
+   * entry point — it owns the lock itself, start to finish.
+   *
+   * The one exception: backgroundScheduler.ts's per-account pass now holds
+   * the SAME per-account lock across its entire multi-phase sequence
+   * (syncToday -> this -> syncCampaigns -> syncAdSetsAndAds -> syncAdInsights
+   * -> syncBreakdowns -> runRefresh) so a concurrent manual/BullMQ
+   * syncChunked() for the same account can't interleave with it (previously
+   * the scheduler only held this lock for the Phase-1 step below, then ran
+   * the other five phases completely unlocked). That caller must not also
+   * go through sync()'s own acquire — pg_try_advisory_lock is reentrant
+   * per SESSION, but Prisma's pooled connections don't guarantee the outer
+   * acquire and this inner one land on the same session, so a nested
+   * acquire attempt here could spuriously fail against the caller's own
+   * held lock. This method exists so there is exactly one lock acquisition
+   * per sync attempt, owned by whichever caller is running the full
+   * sequence.
+   */
+  async syncAccountLevelDataLocked(adAccountId: string, opts: SyncOptions = {}): Promise<SyncResult> {
     const start = Date.now();
     const now = opts.now ?? new Date();
     const backfillDays = Math.max(1, opts.backfillDays ?? 7);
@@ -253,7 +313,6 @@ export class SyncAccountWorker {
     const tag = `[sync:${acct.externalAccountId}]`;
     console.log(`${tag} SYNC START — window ${ymd(since)} → ${ymd(until)}`);
 
-    try {
       try {
         // ─ Account-level delivery status ────────────────────────────────
         // account_status was fetched once at connect time and never again,
@@ -346,11 +405,6 @@ export class SyncAccountWorker {
         }
         // Intentionally do NOT mark synced on failure.
       }
-    } finally {
-      // Release the advisory lock. This is a no-op if the connection was already
-      // dropped (Postgres releases session locks automatically on disconnect).
-      await this.prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, lockId);
-    }
 
     return result;
   }
@@ -401,19 +455,15 @@ export class SyncAccountWorker {
     try {
       console.log(`${tag} Fetching lifetime totals from Meta…`);
       const rows = await this.meta.getLifetimeTotals(acct.externalAccountId);
-      let spendMajor = 0;
+      const factor = currencyFactorForMapper(acct.currency, acct.currencyMinorFactor, `${tag} lifetime totals`);
+      // Route through the cordon (mapMetaInsight) rather than reading r.spend
+      // directly — the same function campaignFreeze.ts already uses against
+      // this same getLifetimeTotalsForEntity() row shape.
+      let spendMinorTotal = 0;
       for (const r of rows) {
-        const v = r.spend;
-        const n = typeof v === 'number' ? v : parseFloat(String(v ?? 0));
-        if (Number.isFinite(n)) spendMajor += n;
+        spendMinorTotal += mapMetaInsight(r, { currencyMinorFactor: factor }).spendMinor;
       }
-      const spendMinor = BigInt(Math.round(
-        spendMajor * currencyFactorForMapper(
-          acct.currency,
-          acct.currencyMinorFactor,
-          `${tag} lifetime totals`,
-        ),
-      ));
+      const spendMinor = BigInt(Math.round(spendMinorTotal));
       await this.prisma.adAccount.update({
         where: { id: adAccountId },
         data: {
@@ -465,20 +515,11 @@ export class SyncAccountWorker {
     const campaignChanges: import('../services/refresh/refreshEngine').CampaignChange[] = [];
 
     const upserts = metaCampaigns.map((mc) => {
-      const externalId = String(mc["id"]);
+      const fields = mapMetaCampaignFields(mc);
+      const externalId = fields.externalId;
       returnedExternalIds.push(externalId);
-      const name = String(mc["name"] ?? "(unnamed)");
-      const objective = mc["objective"] != null ? String(mc["objective"]) : null;
+      const { name, objective, metaEffectiveStatus, dailyBudget, lifetimeBudget } = fields;
       const status = resolveCampaignStatusFromMeta(mc, { now });
-      const metaEffectiveStatus = mc["effective_status"] != null
-        ? String(mc["effective_status"]).toUpperCase()
-        : null;
-      const dailyBudget = mc["daily_budget"] != null
-        ? BigInt(String(mc["daily_budget"]))
-        : null;
-      const lifetimeBudget = mc["lifetime_budget"] != null
-        ? BigInt(String(mc["lifetime_budget"]))
-        : null;
 
       const prior = priorByExternal.get(externalId);
       if (shouldTriggerCampaignFreeze({

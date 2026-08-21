@@ -29,6 +29,7 @@ import { dashboardStyles } from './dashboard/dashboardStyles';
 import { i18nHelpersJs } from './dashboard/lib/i18n';
 import { formatHelpersJs } from './dashboard/lib/format';
 import { currencyHelpersJs } from './dashboard/lib/currency';
+import { confidenceHelpersJs } from './dashboard/lib/confidence';
 import { renderKpisJs } from './dashboard/sections/kpis';
 import { renderIntelligenceJs } from './dashboard/sections/intelligence';
 import { renderIssuesJs } from './dashboard/sections/issues';
@@ -1167,6 +1168,7 @@ export function dashboardPage(): string {
   // ── helpers ─────────────────────────────────────────────────────────────
   ${formatHelpersJs}
   ${currencyHelpersJs}
+  ${confidenceHelpersJs}
 
   // ── THE PHASE OWNER ─────────────────────────────────────────────────────
   //
@@ -1705,6 +1707,9 @@ export function dashboardPage(): string {
     var cmoFeedV2 = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
     cmoFeedV2.slice(0, 8).forEach(function (it) {
       if (!it.title) return;
+      // Server already drops forbidden actions before they reach cmoFeedV2 —
+      // this is a defense-in-depth check, not the primary enforcement point.
+      if (it.permitted === false) return;
       if (isGenericInsightCopy(it.title, it.body)) return;
       var fp = insightCopyFingerprint(it.title, it.body);
       if (seenInsightFp[fp]) return;
@@ -1921,6 +1926,7 @@ export function dashboardPage(): string {
     var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
     feed.slice(0, 2).forEach(function (it) {
       if (!it.title || !it.generatedAt) return;
+      if (it.permitted === false) return;
       if (isGenericInsightCopy(it.title, it.body)) return;
       var feedTime = new Date(it.generatedAt);
       if (isNaN(feedTime.getTime())) feedTime = new Date();
@@ -2214,6 +2220,7 @@ export function dashboardPage(): string {
       var feed = (dashData.brain && Array.isArray(dashData.brain.cmoFeedV2)) ? dashData.brain.cmoFeedV2 : [];
       var seenBrainFp = {};
       feed.slice(0, 8).forEach(function (it) {
+        if (it.permitted === false) return;
         if (shouldSkip(it.title, it.body)) return;
         if (isGenericInsightCopy(it.title, it.body)) return;
         var sev = it.severity === 'CRITICAL' ? 'critical' : it.severity === 'HIGH' ? 'high' : 'medium';
@@ -2436,7 +2443,10 @@ export function dashboardPage(): string {
     var ctaEl = document.getElementById('exec-pulse-cta');
 
     if (detailEl && dashData.health) {
-      var recs = dashData.aiRecommendations;
+      // aiRecommendations is {recommendations, generatedAt, source} — not an
+      // array itself. Array.isArray(dashData.aiRecommendations) was always
+      // false, so urgentCount was always 0.
+      var recs = dashData.aiRecommendations && dashData.aiRecommendations.recommendations;
       var urgentCount = 0;
       if (Array.isArray(recs)) {
         for (var ri = 0; ri < recs.length; ri++) {
@@ -2588,6 +2598,10 @@ export function dashboardPage(): string {
       var seenMoveFp = {};
       feed.forEach(function (it) {
         if (!it || !it.generatedAt) return;
+        // permitAction() already rejected this at the server — it never
+        // reaches an authoritative merchant task card. Kept as a defensive
+        // check here too since this is the primary actionable-move surface.
+        if (it.permitted === false) return;
         if (isGenericInsightCopy(it.title, it.body)) return;
         var moveFp = insightCopyFingerprint(it.title, it.body);
         if (seenMoveFp[moveFp]) return;
@@ -2688,16 +2702,6 @@ export function dashboardPage(): string {
     if (item.campaignName) q += lbl(' (campaign: ', ' (حملة: ') + item.campaignName + ')';
     return q;
   }
-  function confBadge(confidence) {
-    if (confidence == null || !isFinite(Number(confidence))) return null;
-    var c = Number(confidence);
-    if (c > 1) c = c / 100;
-    c = Math.max(0, Math.min(1, c));
-    var level = c >= 0.75 ? 'high' : c >= 0.5 ? 'medium' : 'low';
-    var label = c >= 0.75 ? 'ثقة عالية' : c >= 0.5 ? 'ثقة متوسطة' : 'ثقة منخفضة';
-    return { level: level, label: label, pct: Math.round(c * 100) };
-  }
-
   function renderMainMove(dashData, kpis) {
     var card = document.getElementById('main-move-card');
     var meta = document.getElementById('main-move-meta');
@@ -2787,6 +2791,13 @@ export function dashboardPage(): string {
     var ctaCls = primary.severity === 'critical' ? ' critical' : '';
     var why = (task && task.why) || pickMainMoveNarrative(primary, dashData, kpis);
     var expect = (task && task.expect) || '';
+    // Looks asymmetric (only the second branch divides by 100) but isn't:
+    // task.confidence's native scale is unknown here, so it's passed raw and
+    // confBadge's own c>1?/100:c normalizes it either way. primary.confidence
+    // is different — buildAllMoveItems() and the task-derived assignments
+    // above both construct it on a fixed 0-100 scale, so /100 here is the
+    // correct, known conversion, not a guess. Re-verified against both
+    // producers before concluding this is not the scale bug it looks like.
     var badge = confBadge(task && task.confidence != null ? task.confidence : (primary.confidence != null ? primary.confidence / 100 : null));
     var badgeHtml = badge
       ? '<span class="diagnosis-confidence ' + badge.level + '">' + escHtml(badge.label + ' ' + badge.pct + '%') + '</span>'
@@ -4232,8 +4243,11 @@ export function dashboardPage(): string {
                 ? null
                 : Number(row.frequency),
             );
-            // Recompute CPM in MAJOR — stored row.cpm is minor units.
-            cpmSeries.push(Number.isFinite(spendMaj) ? (spendMaj / imp) * 1000 : null);
+            // Meta's own reported CPM (row.cpm, MINOR units) — not a local
+            // spend÷impressions recompute, which would silently substitute
+            // our arithmetic for Meta's authoritative figure.
+            var cpmMaj = row.cpm == null ? null : Number(row.cpm) / state.minorFactor;
+            cpmSeries.push(Number.isFinite(cpmMaj) && cpmMaj > 0 ? cpmMaj : null);
           }
           cprSeries.push(dayRes != null && dayRes > 0 && spendMaj > 0 ? spendMaj / dayRes : null);
           var dayMsg = Number(row.messages);

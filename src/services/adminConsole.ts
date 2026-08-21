@@ -9,6 +9,7 @@
 import { EntityType, type PrismaClient, type Locale, type SubscriptionTier } from '@prisma/client';
 import { hashPassword } from './jwtAuth';
 import { activateManual } from './subscriptionService';
+import { purgeAccountAnalytics } from './accountDataPurge';
 
 export interface CreateCustomerInput {
   email: string;
@@ -437,37 +438,24 @@ export async function deleteCustomer(
   const ownedWorkspaceIds = user.memberships.map((m) => m.workspaceId);
 
   if (ownedWorkspaceIds.length > 0) {
-    const [adAccounts, campaigns] = await Promise.all([
-      prisma.adAccount.findMany({ where: { workspaceId: { in: ownedWorkspaceIds } }, select: { id: true } }),
-      prisma.campaign.findMany({ where: { adAccount: { workspaceId: { in: ownedWorkspaceIds } } }, select: { id: true } }),
-    ]);
-    const adAccountIds = adAccounts.map((a) => a.id);
-    const campaignIds = campaigns.map((c) => c.id);
-
-    await prisma.$transaction([
-      ...(adAccountIds.length ? [
-        prisma.rawInsight.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-        prisma.dailyStat.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-        prisma.breakdownStat.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-        prisma.metricTrend.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-        prisma.detectedIssue.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-        prisma.recommendation.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-        prisma.healthScore.deleteMany({ where: { entityType: EntityType.ACCOUNT, entityId: { in: adAccountIds } } }),
-      ] : []),
-      ...(campaignIds.length ? [
-        prisma.rawInsight.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.dailyStat.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.breakdownStat.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.metricTrend.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.detectedIssue.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.recommendation.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-        prisma.healthScore.deleteMany({ where: { entityType: EntityType.CAMPAIGN, entityId: { in: campaignIds } } }),
-      ] : []),
-      prisma.campaignBrainSnapshot.deleteMany({ where: { workspaceId: { in: ownedWorkspaceIds } } }),
-      // Cascades AdAccount→Campaign→AdSet→Ad→AdCreative, WorkspaceMember,
-      // MetaConnection, PaymentEvent, RecommendationExecution, AiConversation.
-      prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } }),
-    ]);
+    // Delegates to the ONE canonical purge implementation (accountDataPurge.ts)
+    // instead of maintaining a second, independently-drifted table list here.
+    // This used to purge campaign_brain_snapshots (by workspaceId) while the
+    // other three purge call sites (self-service account deletion, ad-account
+    // disconnect, the Meta data-deletion callback) did not, and none of the
+    // four purged campaign_intelligence_reports (V5) at all — every deletion
+    // path orphaned those rows. purgeAccountAnalytics() now covers both, so
+    // this is the same coverage for every call site, not a special case here.
+    const adAccounts = await prisma.adAccount.findMany({
+      where: { workspaceId: { in: ownedWorkspaceIds } },
+      select: { id: true },
+    });
+    for (const { id } of adAccounts) {
+      await purgeAccountAnalytics(prisma, id);
+    }
+    // Cascades AdAccount→Campaign→AdSet→Ad→AdCreative, WorkspaceMember,
+    // MetaConnection, PaymentEvent, RecommendationExecution, AiConversation.
+    await prisma.workspace.deleteMany({ where: { id: { in: ownedWorkspaceIds } } });
   }
 
   // Cascades any remaining memberships in workspaces this user doesn't own.

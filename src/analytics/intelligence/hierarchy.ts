@@ -259,13 +259,24 @@ const CREATIVE_ACTIONS = [
  * INCREASE_BUDGET are not currently emitted by any producer but are kept as
  * defensive synonyms.
  *
+ * DECREASE_BUDGET and NARROW_AUDIENCE (saveRecommendation.ts's AI_AGENT
+ * vocabulary — the same `recommendations` table this guards) are the same
+ * category from the other direction: a budget/reach lever, not a creative
+ * one. An AI-authored recommendation reaches this same table (P0-02's
+ * ownership split governs WHO may delete a row there, not what the row may
+ * say), so its action codes need to be recognised here too or they pass the
+ * guard unchecked. saveRecommendation.ts's other codes (PAUSE, PAUSE_URGENT,
+ * MONITOR, INVESTIGATE_TRACKING) are deliberately NOT added — pausing or
+ * investigating is not creative- or audience-specific, so no problemClass
+ * has grounds to forbid them.
+ *
  * PAUSE_AND_RELAUNCH (compositionRules.ts) is deliberately NOT listed here
  * or under CREATIVE_ACTIONS — it is not clearly one or the other, and
  * guessing would be inventing a semantic claim this module doesn't own.
  */
 const AUDIENCE_ACTIONS = [
-  'EXPAND_AUDIENCE', 'WIDEN_TARGETING', 'INCREASE_BUDGET',
-  'BROADEN_AUDIENCE', 'CHECK_TARGETING', 'REVIEW_BUDGET_PACING',
+  'EXPAND_AUDIENCE', 'WIDEN_TARGETING', 'INCREASE_BUDGET', 'DECREASE_BUDGET',
+  'BROADEN_AUDIENCE', 'CHECK_TARGETING', 'REVIEW_BUDGET_PACING', 'NARROW_AUDIENCE',
 ];
 
 /**

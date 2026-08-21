@@ -15,6 +15,7 @@
 
 import { IssueCode } from "@prisma/client";
 import type { Detector } from "./types";
+import type { Evidence } from "../../analytics/evidence";
 import { severityFromMagnitude, confidenceFromCorroboration } from "./severity";
 
 /**
@@ -59,17 +60,42 @@ export const detectAudienceFatigue: Detector = (s) => {
   const severity = severityFromMagnitude(peakMagnitude);
   const confidence = confidenceFromCorroboration(signals);
 
+  // Fatigue can fire on any two of the three signals — the third is
+  // legitimately absent, not a real zero. Only push an Evidence item for a
+  // metric that actually has a value; absence from this array IS
+  // "unavailable," matching this repo's missing-vs-zero discipline
+  // elsewhere (resultSemantics.ts, objectiveKpis.ts).
+  const evidence: Evidence[] = [];
+  if (s.frequencyTrend != null) {
+    evidence.push({
+      metricKey: 'frequencyTrend', valueKind: 'trend', unit: 'percent',
+      value: s.frequencyTrend, threshold: FREQ_UP_SIGNAL, relativeToThreshold: null,
+    });
+  }
+  if (s.ctrTrend != null) {
+    evidence.push({
+      metricKey: 'ctrTrend', valueKind: 'trend', unit: 'percent',
+      value: s.ctrTrend, threshold: -CTR_DOWN_SIGNAL, relativeToThreshold: null,
+    });
+  }
+  if (s.resultsTrend != null) {
+    evidence.push({
+      metricKey: 'resultsTrend', valueKind: 'trend', unit: 'percent',
+      value: s.resultsTrend, threshold: -RESULTS_DOWN_SIGNAL, relativeToThreshold: null,
+    });
+  }
+  if (s.currentFrequency != null) {
+    evidence.push({
+      metricKey: 'frequency', valueKind: 'level', unit: 'ratio',
+      value: s.currentFrequency, threshold: null, relativeToThreshold: null,
+    });
+  }
+
   return {
     issueCode: IssueCode.AUDIENCE_FATIGUE,
     severity,
-    evidence: {
-      frequencyTrend: s.frequencyTrend,
-      ctrTrend: s.ctrTrend,
-      resultsTrend: s.resultsTrend,
-      signalsPresent: present,
-      signalsTotal: signals.length,
-      currentFrequency: s.currentFrequency,
-      confidence,
-    },
+    confidence: { value: confidence, basis: 'measured_corroboration' },
+    window: null,
+    evidence,
   };
 };

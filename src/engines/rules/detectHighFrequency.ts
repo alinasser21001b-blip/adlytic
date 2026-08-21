@@ -39,11 +39,17 @@ export const detectHighFrequency: Detector = (s) => {
   return {
     issueCode: IssueCode.HIGH_FREQUENCY,
     severity,
-    evidence: {
-      currentFrequency: s.currentFrequency,
-      threshold: HIGH_FREQUENCY_THRESHOLD,
-      overshoot: +overshoot.toFixed(3),
-      confidence: 0.70, // single-signal — could be normal for tight audiences
-    },
+    confidence: { value: 0.70, basis: 'heuristic_constant' }, // single-signal — could be normal for tight audiences
+    window: null,
+    evidence: [
+      {
+        metricKey: 'frequency',
+        valueKind: 'level',
+        unit: 'ratio',
+        value: s.currentFrequency,
+        threshold: HIGH_FREQUENCY_THRESHOLD,
+        relativeToThreshold: +overshoot.toFixed(3),
+      },
+    ],
   };
 };

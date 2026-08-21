@@ -84,6 +84,7 @@ import { adminSessionSyncPage } from '../web/pages/adminSessionSyncPage';
 import { adminInboxPage } from '../web/pages/adminInboxPage';
 import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
+import { brainObservatoryPage } from '../web/pages/brainObservatoryPage';
 import { addClientPage } from '../web/pages/addClientPage';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import {
@@ -121,7 +122,7 @@ import { pendingActivationPage } from '../web/pages/pendingActivationPage';
 import { privacyPage } from '../web/pages/privacyPage';
 import { dataDeletionPage } from '../web/pages/dataDeletionPage';
 import { buildAiContext } from '../services/aiContextBuilder';
-import { buildAiContextV5 } from '../services/aiContextBuilderV5';
+import { buildAiContextV5, formatCanonicalGroundingForV5Context } from '../services/aiContextBuilderV5';
 import { buildAiCampaignContext, mergeCampaignBlockIntoContext } from '../services/aiCampaignContext';
 import { askClaude } from '../services/claudeClient';
 import { buildAiUnavailableReply } from '../services/aiOfflineReply';
@@ -196,7 +197,10 @@ import {
   buildEntityFunnel,
   buildEntityIntelligence,
   buildEntityObjectiveKpis,
+  resolveEntityIntelligenceForGuard,
 } from '../services/entityIntelligence';
+import { permitAction } from '../analytics/intelligence/hierarchy';
+import { buildBrainObservatory } from '../services/brainObservatory';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -657,6 +661,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   app.get('/admin/inbox',          (c) => adminPage(c, adminInboxPage));
   app.get('/admin/observability',  (c) => adminPage(c, adminDashboardPage));
   app.get('/admin/meta-readiness', (c) => adminPage(c, metaReadinessPage));
+  // Developer/admin X-ray of the Brain's reasoning chain. Same adminPage gate
+  // as every other operator surface; all its data comes from the
+  // requirePlatformAdmin-gated /api/admin/brain-observatory/* routes.
+  app.get('/admin/brain-observatory', (c) => adminPage(c, brainObservatoryPage));
   app.get('/admin/add-client',     (c) => adminPage(c, addClientPage));
   app.get('/meta/connect',   (c) => c.html(metaConnectPage(c.req.query('session') ?? '')));
 
@@ -1533,6 +1541,53 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getPlatformStats(prisma);
     return c.json(safeJson(stats));
+  });
+
+  /**
+   * GET /api/admin/brain-observatory/campaigns — pickable campaigns.
+   *
+   * Admin-scoped index for the Brain Observatory's campaign selector. Returns
+   * identity + status only; every intelligence value comes from the snapshot
+   * route below, never from this list.
+   */
+  app.get('/api/admin/brain-observatory/campaigns', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const campaigns = await prisma.campaign.findMany({
+      orderBy: { updatedAt: 'desc' },
+      take: 200,
+      select: {
+        id: true, name: true, status: true, objective: true,
+        adAccount: { select: { id: true, name: true, workspaceId: true } },
+      },
+    });
+    return c.json(safeJson(campaigns));
+  });
+
+  /**
+   * GET /api/admin/brain-observatory/:campaignId — the full reasoning chain.
+   *
+   * READ-ONLY X-RAY. Delegates entirely to buildBrainObservatory(), which
+   * copies its values out of the same canonical producers the merchant-facing
+   * path uses (see that module's header). This route computes nothing, writes
+   * nothing, and feeds no production decision.
+   */
+  app.get('/api/admin/brain-observatory/:campaignId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    try {
+      const snapshot = await buildBrainObservatory(prisma, req.params['campaignId'] ?? '');
+      if (!snapshot) {
+        return c.json({ error: 'No measurable window for this campaign (or it does not exist)', code: 'NO_SNAPSHOT' }, 404);
+      }
+      return c.json(safeJson(snapshot));
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'unknown';
+      console.error('[brain-observatory] snapshot failed:', msg);
+      return c.json({ error: 'Failed to assemble the Brain trace', detail: msg.slice(0, 300) }, 500);
+    }
   });
 
   /**
@@ -3287,6 +3342,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultsWindow,
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+          // Info-popover glossary ids — the client must not re-derive these
+          // from resultKey/efficiencyKey (that mapping is a semantic decision
+          // owned by objectiveKpis.ts and previously went missing for
+          // linkClicks, showing the messages glossary entry on a traffic
+          // campaign's result metric).
+          resultInfoId: kpiSpec.resultInfoId,
+          efficiencyInfoId: kpiSpec.efficiencyInfoId,
           kpiFamily: kpiSpec.family,
           // The result's UNIT and the DailyStat column carrying its per-day
           // count. Both are semantic decisions owned by resultSemantics.ts.
@@ -3857,6 +3919,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         resultLabelAr: kpiSpec.resultLabelAr,
         efficiencyKey: kpiSpec.efficiencyKey,
         efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+        // Info-popover glossary ids — see the campaigns-list route above for
+        // why the client must not re-derive these from resultKey/efficiencyKey.
+        resultInfoId: kpiSpec.resultInfoId,
+        efficiencyInfoId: kpiSpec.efficiencyInfoId,
         kpiFamily: kpiSpec.family,
         purposeLabelAr: purpose.labelAr,
         avgCostPerResult,
@@ -3881,14 +3947,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       // P5 — health score, reconciled problem class and the single
       // recommendation the whole system agrees on. Rendered verbatim.
       intelligence: campaignIntelligence,
-      timeline: snapshots.map((s) => ({
-        tickDate:         s.tickDate,
-        action:           s.action,
-        priority:         s.priority,
-        patternSignature: s.patternSignature,
-        finalScore:       s.finalScore,
-        narration:        s.narrationJson,
-      })),
+      // Brain (engine/AdlyticBrain.ts) computes its own action independently
+      // of the funnel/reconcileIntelligence chain above — reconciled only
+      // against the pattern-level rule engine (ruleGrounding.ts), never
+      // against this campaign's own `intelligence.problemClass`/
+      // forbiddenActions. permitted/permittedReason expose whether THIS
+      // entry's action still holds up against the current funnel diagnosis,
+      // so a contradiction (e.g. Brain's REFRESH_CREATIVE next to a verified
+      // POST_CLICK diagnosis) is visible rather than silently presented as
+      // equally authoritative. A history ledger, so entries are annotated,
+      // not dropped — permitAction() itself returns {allowed, reason?} to be
+      // read, not just enforced.
+      timeline: snapshots.map((s) => {
+        const permit = campaignIntelligence ? permitAction(s.action, campaignIntelligence) : { allowed: true };
+        return {
+          tickDate:         s.tickDate,
+          action:           s.action,
+          priority:         s.priority,
+          patternSignature: s.patternSignature,
+          finalScore:       s.finalScore,
+          narration:        s.narrationJson,
+          permitted:        permit.allowed,
+          permittedReason:  permit.allowed ? null : (permit.reason ?? null),
+        };
+      }),
       signals: { positive, negative, meta: signalsMeta },
       // Per-campaign daily series for inspector charts (already loaded above).
       // Ascending calendar order; null efficiency when that day had zero results.
@@ -3922,12 +4004,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           costPerResult: asc.map((d) =>
             efficiencyForObjective(purposeKey, dayTotalsOf(d), factor),
           ),
+          // Meta's own reported CPM (daily_stats.cpm, minor units) — not a
+          // local spend÷impressions recompute, which would silently
+          // substitute our arithmetic for Meta's authoritative figure.
           cpm: asc.map((d) => {
             const imp = Number(d.impressions) || 0;
             if (imp <= 0) return null;
-            const spendMajor = Number(d.spend) / factor;
-            if (!Number.isFinite(spendMajor) || spendMajor <= 0) return null;
-            return (spendMajor / imp) * 1000;
+            if (d.cpm == null || !Number.isFinite(d.cpm)) return null;
+            const major = d.cpm / factor;
+            return major > 0 ? major : null;
           }),
           frequency: asc.map((d) => {
             const imp = Number(d.impressions) || 0;
@@ -3945,6 +4030,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           resultLabelAr: kpiSpec.resultLabelAr,
           efficiencyKey: kpiSpec.efficiencyKey,
           efficiencyLabelAr: kpiSpec.efficiencyLabelAr,
+          resultInfoId: kpiSpec.resultInfoId,
+          efficiencyInfoId: kpiSpec.efficiencyInfoId,
         };
       })(),
       // Phase 5 Creatives tab. Each entry = one Ad with its (optionally
@@ -4334,10 +4421,29 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(workspaceId);
     if (!account) return c.json([]);
-    const recs = await prisma.recommendation.findMany({
+    const allRecs = await prisma.recommendation.findMany({
       where: { entityType: EntityType.ACCOUNT, entityId: account.id },
       orderBy: [{ priority: 'desc' }, { date: 'desc' }],
+      // reasoningChainJson (AI_AGENT provenance — tool calls, key facts,
+      // confidence) is written by saveRecommendation.ts but read by no page
+      // or DTO anywhere in src/web — it was going out over the wire
+      // unfiltered below (safeJson() does a BigInt-safe round-trip, not
+      // field filtering) to any authenticated workspace member, unused.
+      omit: { reasoningChainJson: true },
     });
+    // getDashboard.ts's own priorityAction/recommendation.recommendation is
+    // already checked against permitAction() before it reaches the Dashboard
+    // (P1-01) — this flat list read the SAME account-scoped Recommendation
+    // rows with no such check, so a row whose actionCode contradicts the
+    // account's current funnel diagnosis (e.g. REFRESH_CREATIVE under a
+    // verified POST_CLICK verdict) could still reach the Recommendations
+    // page after the Dashboard had correctly hidden it.
+    const accountIntelligence = await resolveEntityIntelligenceForGuard(
+      prisma, EntityType.ACCOUNT, account.id,
+    ).catch(() => null);
+    const recs = accountIntelligence
+      ? allRecs.filter((r) => permitAction(r.actionCode, accountIntelligence).allowed)
+      : allRecs;
 
     // Fire-and-forget: log a snapshot for closed-loop learning. One log entry
     // per recommendations fetch summarising the top recommendation surfaced.
@@ -4686,6 +4792,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let reply: string;
     try {
       let context: string | null = null;
+      let usedV5Context = false;
       let primaryAccount: { id: string; currency: string; timezone: string } | undefined;
       try {
         const ws = await prisma.workspace.findUnique({
@@ -4700,10 +4807,22 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           });
           // V5 returns a "not yet available" fallback string when no report exists.
           // Detect that and drop back to V1 rather than sending the weaker fallback.
-          if (!/Intelligence data not yet available/i.test(v5)) context = v5;
+          if (!/Intelligence data not yet available/i.test(v5)) { context = v5; usedV5Context = true; }
         }
       } catch (err) {
         console.error('[adlytic:ai-chat] V5 context error, falling back to V1:', err);
+      }
+      // V5's issues/recommendations are computed independently of the
+      // canonical detected_issues → reconcileIntelligence() → permitAction()
+      // chain (a documented divergence, not a duplicate) — when V5 supplies
+      // the primary context, prepend the same canonical verdict the
+      // dashboard's guarded CTA uses, so the model has an authoritative fact
+      // to check V5's content against instead of nothing. See
+      // formatCanonicalGroundingForV5Context()'s own comment for why this
+      // does not retire or merge the two context builders.
+      if (usedV5Context && context) {
+        const grounding = formatCanonicalGroundingForV5Context(dto);
+        if (grounding) context = `${grounding}\n\n${context}`;
       }
       if (!context) {
         // Use the shared constant rather than a second hand-written empty DTO.

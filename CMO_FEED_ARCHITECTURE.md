@@ -1,3 +1,11 @@
+> **SUPERSEDED.** This "Phase 1: schema only" design predates the live `cmoFeedV2`
+> (`dashData.brain.cmoFeedV2`, consumed by `buildAllMoveItems()`) — later phases shipped.
+> See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical design-rationale reference only.
+
+---
+
 # CMO Feed — Architecture (Phase 1: Schema & Data Layer Only)
 
 > **Scope of this document:** structural framework and data-layer schema for fixing repetitive, bloated Arabic text in the production dashboard CMO Feed (e.g. repeated `حملة جديدة: جاري جمع البيانات الأولية` for the same campaigns).  

@@ -35,6 +35,7 @@ import {
   findActionsForBreaches,
   formatActionsForDisplay,
   type CampaignMetrics,
+  type MetricBreach,
 } from "../knowledge";
 import {
   buildAdviceTask,
@@ -98,6 +99,7 @@ import {
   buildEntityFunnel,
   buildEntityIntelligence,
   buildEntityObjectiveKpis,
+  resolveEntityIntelligenceForGuard,
   type EntityFunnelResult,
 } from "./entityIntelligence";
 import { permitAction } from "../analytics/intelligence/hierarchy";
@@ -105,6 +107,7 @@ import { accountDeliveryHold, type AccountDeliveryHold } from "../lib/campaignLi
 import { classificationConfidenceFromReason } from "../analytics/confidence";
 import { resolveAccountResultKey } from "../analytics/accountResultKey";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
+import { issueEvidenceFieldsFromJson } from "../analytics/evidence";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 
 // ── Lazy-initialized standalone Prisma client (used when no client is passed in).
@@ -285,7 +288,12 @@ export interface DashboardDTO {
     severity: string;
     causes: string[];     // localized
     recommendations: string[]; // localized
-    evidence: Record<string, unknown>;
+    // Mostly opaque (evidenceJson passthrough, possibly legacy-shaped — see
+    // issueEvidenceFieldsFromJson below). knowledgeBase is the one sub-shape
+    // the client actually reads (issueActionCode()'s recommended_optimization_actions
+    // lookup), so it gets a real type instead of forcing the client to trust
+    // an untyped Json blob for a field this DTO builder controls precisely.
+    evidence: Record<string, unknown> & { knowledgeBase?: MetricBreach };
   }>;
   /**
    * Merchant-facing task cards (فهم → قرار → فعل → تحقق).
@@ -883,7 +891,7 @@ export async function getDashboard(
   const priorSinceDate = accountLocalDateFloor(account.timezone, windowDays * 2);
 
   // 2. Independent account reads in parallel (biggest latency win).
-  const [allDaily, healthRow, detected, latestTrend, rec] = await Promise.all([
+  const [allDaily, healthRow, detected, latestTrend, rec, accountFunnel] = await Promise.all([
     timedStage('accountDailyStats', () =>
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
@@ -915,7 +923,39 @@ export async function getDashboard(
         orderBy: [{ priority: "desc" }, { date: "desc" }],
       }),
     ),
+    // Moved into this batch (was fetched later, alongside brain/predictions/
+    // aiRecommendations) so the reconciled intelligence it feeds is available
+    // BEFORE detected_issues is read into `issues`/`issueRecords` below —
+    // see the suppressedIssueCodes filter right after this Promise.all.
+    softStage('funnel', null, () =>
+      buildAccountFunnel(account.id, prisma).catch(() => null),
+    ),
   ]);
+
+  // Reconciled cross-engine intelligence — computed here, immediately after
+  // accountFunnel resolves, so it is available before detected_issues is
+  // read below. reconcileIntelligence() already decides which issue codes a
+  // higher layer has already explained (suppressedIssueCodes — e.g.
+  // HIGH_FREQUENCY when the funnel's own fatigue signal is the explanation);
+  // that field existed in hierarchy.ts (P5 work, proven by test_intelligence.ts
+  // and documented in docs/ANALYTICS_ARCHITECTURE_FINAL.md) but was never
+  // read by any consumer. Filtering `detected` by it HERE, once, keeps every
+  // downstream reader (the knowledge lookup, `issues`, `issueRecords` →
+  // diagnose() → merchantTasks) consistent with what intelligence.problemClass
+  // says, instead of two independently-computed "what's wrong" surfaces
+  // (the dashboard's #main-move-card and #command-center) able to disagree
+  // for the same account with no arbitration between them.
+  const accountIntelligence = accountFunnel
+    ? buildEntityIntelligence(
+        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
+        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
+        accountFunnel.resultApproximate,
+      )
+    : undefined;
+  const suppressedIssueCodes = new Set(accountIntelligence?.suppressedIssueCodes ?? []);
+  const detectedFiltered = suppressedIssueCodes.size
+    ? (detected as any[]).filter((d) => !suppressedIssueCodes.has(d.issueCode))
+    : detected;
 
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
@@ -1046,12 +1086,14 @@ export async function getDashboard(
       if (d.frequency == null || !Number.isFinite(Number(d.frequency))) return null;
       return Number(d.frequency);
     }),
+    // Meta's own reported CPM (daily_stats.cpm, minor units) — not a local
+    // spend÷impressions recompute, which would silently substitute our
+    // arithmetic for Meta's authoritative figure.
     cpm: daily.map((d: any) => {
       const imp = Number(d.impressions) || 0;
       if (imp <= 0) return null;
-      const spendMajor = Number(d.spend) / factor;
-      if (!Number.isFinite(spendMajor)) return null;
-      return (spendMajor / imp) * 1000;
+      if (d.cpm == null || !Number.isFinite(Number(d.cpm))) return null;
+      return Number(d.cpm) / factor;
     }),
     costPerResult: resultsSeriesAndCost.costPerResult,
   };
@@ -1059,13 +1101,13 @@ export async function getDashboard(
   // 7. Issues — join detected_issues → knowledge_rules (detected already loaded in parallel).
   const knowledgeMap = await timedStage('knowledgeLookup', () =>
     knowledge.lookupMany({
-      issueCodes: (detected as any[]).map(d => d.issueCode as IssueCode),
+      issueCodes: (detectedFiltered as any[]).map(d => d.issueCode as IssueCode),
       locale,
       industryProfileId: ws.industryProfileId,
     }),
   );
 
-  const issues: DashboardDTO["issues"] = (detected as any[]).map(di => {
+  const issues: DashboardDTO["issues"] = (detectedFiltered as any[]).map(di => {
     const entry = knowledgeMap.get(di.issueCode as IssueCode);
     return {
       code: di.issueCode,
@@ -1169,10 +1211,17 @@ export async function getDashboard(
   }
 
   // 7b. Diagnoses — re-derive from stored issues + latest trends (trend already loaded).
-  const issueRecords: IssueRecord[] = (detected as any[]).map(d => ({
+  //
+  // evidenceJson rows may still be LEGACY-shaped (written before the Phase 3
+  // canonical-evidence migration) until the next Rules tick refreshes them —
+  // detected_issues is fully replaced per (entity, date) on every run, but
+  // this dashboard read can land in that transition window.
+  // issueEvidenceFieldsFromJson() degrades an old row honestly instead of
+  // it being misinterpreted as having the new fields.
+  const issueRecords: IssueRecord[] = (detectedFiltered as any[]).map(d => ({
     issueCode: d.issueCode,
     severity: d.severity,
-    evidence: (d.evidenceJson as Record<string, unknown>) ?? {},
+    ...issueEvidenceFieldsFromJson(d.evidenceJson),
   }));
   // Account-level results, in ONE coherent unit or not at all.
   //
@@ -1362,12 +1411,9 @@ export async function getDashboard(
   // weekly report, creative health): a slow secondary panel must degrade to null,
   // never blank the whole dashboard. softStage() turns a stage timeout into the
   // fallback; each builder's own `.catch(() => null)` handles non-timeout errors.
-  const [cards, accountFunnel, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
+  const [cards, brain, predictions, aiRecommendations, weeklyReport, creativeHealth] = await Promise.all([
     timedStage('campaignCards', () =>
       buildCampaignCards(account.id, prisma, sinceDate, factor),
-    ),
-    softStage('funnel', null, () =>
-      buildAccountFunnel(account.id, prisma).catch(() => null),
     ),
     softStage('brainSection', null, () =>
       buildBrainSection(
@@ -1408,20 +1454,10 @@ export async function getDashboard(
     ),
   ]);
 
-  // Reconciled cross-engine intelligence — moved ahead of priorityAction's
-  // construction (previously computed much later, alongside the headline
-  // health score) so the SAME consistency guard buildRecommendation() already
-  // applies to intelligence.recommendation can also gate priorityAction
-  // below (P1-01). buildEntityIntelligence is pure over accountFunnel's
-  // already-resolved fields, so this is a pure relocation, not a behavior
-  // change to the computation itself.
-  const accountIntelligence = accountFunnel
-    ? buildEntityIntelligence(
-        accountFunnel.funnel, accountFunnel.family, accountFunnel.windows,
-        accountFunnel.classificationConfidence, accountFunnel.dataConfidence,
-        accountFunnel.resultApproximate,
-      )
-    : undefined;
+  // accountIntelligence / accountFunnel: computed earlier now (right after
+  // the first Promise.all, alongside the detected_issues suppression filter)
+  // instead of here — P1-01's priorityAction guard below and everything else
+  // in this function still just reads the same `accountIntelligence` binding.
 
   const campaignCounts = await timedStage('campaignCounts', () =>
     getCampaignCounts(prisma, account.id, account.timezone, cards.all.length),
@@ -2274,7 +2310,7 @@ async function buildCampaignCards(
 // ════════════════════════════════════════════════════════════════════════
 
 /** Dials for derived figures the dashboard surfaces. Tunable, deliberately conservative. */
-const BRAIN_SECTION_CONFIG = {
+export const BRAIN_SECTION_CONFIG = {
   CMO_FEED_LIMIT: 5,
   LEDGER_TABLE_LIMIT: 10,
   LEDGER_LOOKBACK_DAYS: 7,
@@ -2337,7 +2373,7 @@ function formatUtcDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-interface BrainSnapshotRow {
+export interface BrainSnapshotRow {
   id: string;
   campaignId: string;
   externalCampaignId: string;
@@ -2423,6 +2459,10 @@ function mapSnapshotToFeedCandidate(
     campaignId: s.campaignId,
     campaignName,
     insightType,
+    // Same raw value as insightType, under the name the authority guard below
+    // (and its consumers) look for — kept alongside insightType rather than
+    // renaming it, since insightType is read by existing dedupeKey/UI logic.
+    actionCode: s.action,
     date,
     title,
     body,
@@ -2498,6 +2538,81 @@ function buildCmoFeedV2(
   };
 }
 
+/**
+ * Close the cmoFeedV2 / REFRESH_CREATIVE authority gap.
+ *
+ * Brain's DecisionEngine reconciles its actions only against the pattern-level
+ * rule engine (engines/rules/ruleGrounding.ts) — never against THIS campaign's
+ * own funnel diagnosis (analytics/intelligence/hierarchy.ts's
+ * reconcileIntelligence()/permitAction()). So a Brain action reaching this feed
+ * can contradict what the canonical funnel already concluded for the same
+ * campaign — e.g. Brain emits REFRESH_CREATIVE while the funnel measured the
+ * creative-facing stages healthy and diagnosed POST_CLICK, which permitAction()
+ * would reject. The campaign-inspector timeline (server.ts) already closes this
+ * exact gap for its own surface by annotating each entry with
+ * `permitAction(s.action, campaignIntelligence)`; this closes the same gap for
+ * the feed using the SAME guard function and the SAME "no diagnosis ⇒ allowed"
+ * fallback (absence of a contrary diagnosis is not proof of contradiction) —
+ * no new intelligence implementation, no second policy.
+ *
+ * PERFORMANCE (why this is not the N+1 the mission forbids): `items` here is
+ * always buildCmoFeedV2()'s OUTPUT — already deduped, ranked, and capped at
+ * BRAIN_SECTION_CONFIG.CMO_FEED_LIMIT (a hard constant, independent of account
+ * size), with at most one item per campaignId. Guarding it therefore costs at
+ * most CMO_FEED_LIMIT calls to resolveEntityIntelligenceForGuard() per
+ * dashboard load — run concurrently, each a small, bounded 2-3 query resolve —
+ * NOT one call per campaign in the account, and NOT one call per candidate in
+ * the larger pre-selection/pre-dedup pool (which scales with account size and
+ * would be the naive, forbidden N+1). This function must only ever be called
+ * on an already-selected, already-capped item list — never on `deduped` or the
+ * raw per-snapshot candidate array upstream of selectUsefulFeedItems().
+ *
+ * Policy: a permitted action (or one for which the campaign's canonical state
+ * cannot be resolved right now) is annotated and kept. A forbidden action is
+ * dropped — never surfaced as an authoritative merchant action — and NOT
+ * back-filled with a different, newly-selected candidate; the feed simply has
+ * one fewer item that tick, exactly as when fewer than CMO_FEED_LIMIT
+ * snapshots exist for a day. Back-filling from the larger pool would reopen
+ * the same unbounded-cost question this function exists to avoid.
+ */
+export async function applyCmoFeedAuthorityGuard(
+  prisma: PrismaClient,
+  items: CmoFeedItemDTO[],
+): Promise<CmoFeedItemDTO[]> {
+  if (items.length === 0) return items;
+
+  // At most CMO_FEED_LIMIT distinct campaigns — bounded, not account-sized.
+  const campaignIds = Array.from(new Set(items.map(i => i.campaignId)));
+  const intelByCampaign = new Map<
+    string,
+    Awaited<ReturnType<typeof resolveEntityIntelligenceForGuard>>
+  >();
+  await Promise.all(
+    campaignIds.map(async (id) => {
+      const intel = await resolveEntityIntelligenceForGuard(prisma, EntityType.CAMPAIGN, id);
+      intelByCampaign.set(id, intel);
+    }),
+  );
+
+  const guarded: CmoFeedItemDTO[] = [];
+  for (const item of items) {
+    const actionCode = item.actionCode ?? item.insightType;
+    const intel = intelByCampaign.get(item.campaignId) ?? null;
+    // No measurable window / insufficient data for this campaign right now:
+    // same convention as the inspector timeline
+    // (`campaignIntelligence ? permitAction(...) : { allowed: true }`).
+    const permit = intel ? permitAction(actionCode, intel) : { allowed: true as const };
+    if (!permit.allowed) continue; // forbidden — do not surface, do not back-fill.
+    guarded.push({
+      ...item,
+      actionCode,
+      permitted: true,
+      permittedReason: null,
+    });
+  }
+  return guarded;
+}
+
 /** Defensive read of payload.v2.velocity.burnRate — engine major units. */
 function readBurnRate(payload: unknown): number {
   if (!payload || typeof payload !== 'object') return 0;
@@ -2570,8 +2685,12 @@ async function buildBrainSection(
   });
   const nameById = new Map(camps.map(c => [c.id, c.name]));
 
-  const { items: cmoFeedV2Raw, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
-  const cmoFeedV2 = cmoFeedV2Raw.filter(
+  const { items: cmoFeedV2Ranked, meta: cmoFeedMeta } = buildCmoFeedV2(snapshots, tickToday, nameById);
+  // Authority guard runs ONLY on this already-ranked, already-capped
+  // (≤ CMO_FEED_LIMIT) selection — see applyCmoFeedAuthorityGuard()'s own
+  // header for why this bounds the cost instead of scanning every candidate.
+  const cmoFeedV2Guarded = await applyCmoFeedAuthorityGuard(prisma, cmoFeedV2Ranked);
+  const cmoFeedV2 = cmoFeedV2Guarded.filter(
     (item) => !appliedItemKeys.has(`feed:${item.dedupeKey}`),
   );
   const cmoFeedMetaAdjusted: CmoFeedMeta = {

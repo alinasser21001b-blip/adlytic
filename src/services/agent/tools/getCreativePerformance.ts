@@ -19,6 +19,7 @@ import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
 import { diagnoseRelevance } from '../../../knowledge/adRelevanceIntelligence';
+import { isCarouselCreative } from '../../../mappers/creativeMapper';
 
 type Metric = 'cost_per_message' | 'ctr' | 'cpm' | 'spend' | 'messages';
 
@@ -334,7 +335,7 @@ function extractFeatures(creative: CreativeRow | null): CreativeFeatures {
   }
 
   const hasVideo = creative.videoId != null;
-  const hasCarousel = detectCarousel(creative.raw);
+  const hasCarousel = isCarouselCreative(creative.raw);
   const textLen = creative.primaryText?.length ?? 0;
   const textLengthBucket: CreativeFeatures['textLengthBucket'] =
     creative.primaryText == null ? 'unknown' : textLen < 60 ? 'short' : textLen <= 160 ? 'medium' : 'long';
@@ -349,15 +350,6 @@ function extractFeatures(creative: CreativeRow | null): CreativeFeatures {
     headlineFirstWord,
     hasEmoji,
   };
-}
-
-function detectCarousel(raw: unknown): boolean {
-  if (!raw || typeof raw !== 'object') return false;
-  const r = raw as Record<string, unknown>;
-  const oss = r['object_story_spec'] as Record<string, unknown> | undefined;
-  const linkData = oss?.['link_data'] as Record<string, unknown> | undefined;
-  const children = linkData?.['child_attachments'];
-  return Array.isArray(children) && children.length > 1;
 }
 
 /**

@@ -1,47 +1,63 @@
-# Adlytic — Phase 1 (Recovered)
+# Adlytic
 
-Ads Intelligence Platform. Phase 1 builds the engine chain that turns Meta
-Ads data into a dashboard verdict: raw insights → analytics → rules →
-knowledge → recommendation → versioned health score → DashboardDTO → HTML.
+Meta Ads intelligence platform for Iraqi SMBs (Arabic-first). Turns raw Meta Ads data into
+one explainable chain — normalized data → semantics → objective → anomaly → diagnosis →
+evidence → decision → LLM explanation → DTO → server-rendered dashboard.
+
+Stack: TypeScript (strict) on Node, [Hono](https://hono.dev) for the API, Prisma 7 +
+PostgreSQL (`@prisma/adapter-pg`), BullMQ + Redis for background sync, deployed on Railway.
+There is no React/SPA frontend — pages are server-rendered HTML from TypeScript template
+literals in `src/web/pages/*.ts`.
 
 ## Pipeline
 
-    Meta API
-      └─ syncAccount worker
-          └─ raw_insights → daily_stats
-              └─ AnalyticsEngine → metric_trends
-                  └─ RulesEngine → detected_issues
-                      └─ RecommendationEngine → recommendations
-                          └─ HealthScoreEngine v2 → health_scores
-                              └─ getDashboard() → DashboardDTO
-                                  └─ dashboard_wired.html
+    Meta Graph API
+      └─ mappers/insightMapper.ts (the ingestion cordon — Meta field names stop here)
+          └─ workers/syncAccount.ts (per-account advisory-locked sync) → daily_stats
+              └─ analytics/* (semantics, funnel, anomaly, health, recommendation)
+                  └─ services/getDashboard.ts → DashboardDTO
+                      └─ web/pages/*.ts → server-rendered HTML
+
+See [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+for the full chain, the canonical ownership table (who owns each decision, what feeds it,
+who's allowed to read it), and the locked, test-enforced rules in `docs/ANALYTICS_RULES.md`.
 
 ## Setup
 
     npm install
-    cp .env.example .env        # then edit DATABASE_URL
-    npx prisma generate
-    npx prisma migrate dev --name phase1_init
-    npx prisma db seed
-    npm run test:all            # 241 assertions across 8 suites
+    cp .env.example .env        # fill in DATABASE_URL and the other required variables
+    npm run db:migrate          # applies prisma/migrations (prisma migrate dev)
+    npm run start:dev           # API + in-process workers, tsx --env-file=.env
 
-## IMPORTANT — health scores
+`npm run seed-demo` seeds a demo workspace if you want fixture data without a live Meta
+connection. `npm run db:studio` opens Prisma Studio.
 
-The seed writes placeholder health scores (82 / 91) with algorithmVersion=1.
-These are NOT final. HealthScoreEngine v2 (algorithmVersion=2) OVERWRITES them
-when you run `npm run engines:run` in Step 13.3, producing the honest values:
-Furniture ≈ 51, Cosmetics ≈ 67, Healthy fixture ≈ 88.
+## Tests
 
-## Step 13 — Verification Against Reality
+    npm run test:all
 
-See STEP_13_RUNBOOK.md. Run it in order. The rule: if reality disagrees with
-the code, fix the code — not the test.
+Runs every suite listed in `package.json`'s `test:all` script (~30 standalone `tsx`
+scripts, no test framework — each uses a small sync/async `check()` harness with
+`node:assert/strict`). Run it twice before trusting a change: some suites are structural
+(reading source text) and can be order-sensitive with build artifacts.
+
+    npx tsc --noEmit            # strict typecheck
+    npm run test:e2e            # Playwright, browser-driven
 
 ## Architecture invariants
 
-1. Each engine owns one write-table, reads upstream only.
-2. Composition is data (compositionRules.ts), not code.
-3. Knowledge is a dictionary, not a brain (no AI, no invention).
-4. Health score is explanation, not truth (always carries breakdownJson).
-5. DashboardDTO is the product boundary; the HTML knows only its shape.
-6. v1 health scores remain queryable forever; v2 coexists via algorithmVersion.
+The full, current set lives in `docs/ANALYTICS_RULES.md` (ten rules, each enforced by a
+fitness test in `test_analytics_architecture.ts`) and
+`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md` (ownership beyond the
+analytics layer: Meta cordon, sync concurrency, purge, anomaly/diagnosis/decision
+ownership, V5's status, DTO purity). The short version:
+
+1. One canonical resolver per decision — campaign purpose, result semantics, Meta action
+   counting, anomaly, diagnosis, and recommendation each have exactly one owner; nothing
+   downstream re-derives them.
+2. The AI/LLM layer explains and narrates; it never calculates a KPI, classifies a
+   campaign, chooses a funnel stage, or overrides a deterministic diagnosis.
+3. `UNKNOWN` / `INSUFFICIENT_DATA` / `NOT_APPLICABLE` are first-class states, never
+   silently collapsed into a fabricated `0` or a guessed default.
+4. The UI formats and visualizes; it does not decide canonical metric identity, objective
+   semantics, or intelligence output.

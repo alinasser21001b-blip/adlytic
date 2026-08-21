@@ -43,6 +43,28 @@ export interface CmoFeedItemDTO {
   creativeDirective?: string;
   /** Full body when truncated for preview; omitted when body fits within limit. */
   bodyFull?: string;
+  /**
+   * Brain's raw decision-engine action code for this item (identical value to
+   * `insightType` today — exposed under its own name so a consumer doesn't have
+   * to know `insightType` doubles as the action code). Present on every item
+   * once the item has passed the authority guard below.
+   */
+  actionCode?: string;
+  /**
+   * Whether `hierarchy.ts::permitAction()` allows this action against the
+   * campaign's OWN canonical reconciled intelligence (funnel diagnosis +
+   * forbiddenActions) — the same guard already enforced on the campaign-
+   * inspector timeline and on priorityAction/GET .../recommendations. `true`
+   * when the canonical state can't be resolved for this campaign (no
+   * measurable window / insufficient data): absence of a contrary diagnosis
+   * is not proof of contradiction, so the item is not penalized for it.
+   * A forbidden (`false`) item is filtered out before this DTO reaches
+   * `getDashboard()`'s caller — it never appears in `cmoFeedV2` — so any
+   * item actually present here already has `permitted !== false`.
+   */
+  permitted?: boolean;
+  /** Why `permitted` is false — human-readable, from permitAction()'s own reason. Null when permitted or unresolved. */
+  permittedReason?: string | null;
 }
 
 /** API payload for CMO Feed section (embedded in DashboardDTO or standalone endpoint). */

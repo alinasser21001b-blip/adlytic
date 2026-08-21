@@ -157,6 +157,33 @@ export function mapMetaCreative(c: Record<string, unknown>): NormalizedCreative 
   };
 }
 
+/**
+ * Is this creative a carousel (multiple linked cards, each with its own
+ * image/headline/destination)? Reads the SAME object_story_spec.link_data
+ * path mapMetaCreative() already parses above, from the persisted
+ * `AdCreative.raw` forensic blob (creatives are mapped once at sync time —
+ * this is the one shared place a caller who only has the persisted raw JSON,
+ * not a fresh Meta row, can answer the same question).
+ *
+ * Two AI-agent tools (getCreativePerformance.ts, analyzeCreativePatterns.ts)
+ * used to each reimplement this independently and disagreed: one required
+ * `child_attachments.length > 1`, the other accepted any array (including a
+ * single-element or empty one) OR matched an unverified
+ * `effective_object_story_id` string-includes heuristic. The same ad could
+ * be "a carousel" to one tool call and not the other. This keeps the
+ * stricter, verifiable definition — a carousel has more than one card by
+ * construction — and drops the unproven string heuristic rather than
+ * guessing which of two disagreeing answers was right.
+ */
+export function isCarouselCreative(raw: unknown): boolean {
+  if (!raw || typeof raw !== 'object') return false;
+  const r = raw as Record<string, unknown>;
+  const oss = r['object_story_spec'] as Record<string, unknown> | undefined;
+  const linkData = oss?.['link_data'] as Record<string, unknown> | undefined;
+  const children = linkData?.['child_attachments'];
+  return Array.isArray(children) && children.length > 1;
+}
+
 // ── primitives ──────────────────────────────────────────────────────────
 function firstString(v: unknown): string | null {
   if (v === null || v === undefined) return null;

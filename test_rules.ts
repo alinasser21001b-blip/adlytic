@@ -48,7 +48,7 @@ console.log("\n── detectLowCtr ──");
   const i = detectLowCtr(s);
   check("CTR 0.7% fires LOW_CTR", i?.issueCode === "LOW_CTR", i);
   check("CTR 0.7% → MEDIUM severity (gap 0.30)", i?.severity === "HIGH", i?.severity);
-  check("evidence carries threshold + gap", (i?.evidence as any)?.threshold === 1.0);
+  check("evidence carries threshold + gap", (i?.evidence as any)?.[0]?.threshold === 1.0);
 }
 {
   const s = { ...emptySignals(), currentCtr: 1.5 };
@@ -94,7 +94,7 @@ console.log("\n── detectAudienceFatigue ──");
   const s = { ...emptySignals(), frequencyTrend: 0.30, ctrTrend: -0.20 };
   const i = detectAudienceFatigue(s);
   check("freq up + CTR down → fires", i?.issueCode === "AUDIENCE_FATIGUE", i);
-  const conf = (i?.evidence as any)?.confidence;
+  const conf = (i?.confidence as any)?.value;
   check("2/3 signals → confidence ≈ 0.67", conf === 0.67, conf);
 }
 {
@@ -102,7 +102,7 @@ console.log("\n── detectAudienceFatigue ──");
   const s = { ...emptySignals(), frequencyTrend: 0.46, ctrTrend: -0.28, resultsTrend: -0.33 };
   const i = detectAudienceFatigue(s);
   check("classic 3-signal fatigue fires", i?.issueCode === "AUDIENCE_FATIGUE");
-  const conf = (i?.evidence as any)?.confidence;
+  const conf = (i?.confidence as any)?.value;
   check("3/3 signals → confidence 0.90", conf === 0.90, conf);
   check("severity from peak magnitude (0.46) → HIGH", i?.severity === "HIGH", i?.severity);
 }
@@ -123,7 +123,7 @@ console.log("\n── detectDecliningResults ──");
   const i = detectDecliningResults(s);
   check("results down 33% fires", i?.issueCode === "DECLINING_RESULTS");
   check("33% drop → HIGH severity", i?.severity === "HIGH", i?.severity);
-  check("evidence includes currentResults", (i?.evidence as any)?.currentResults === 28);
+  check("evidence includes currentResults", (i?.evidence as any)?.find((e: any) => e.metricKey === "results")?.value === 28);
 }
 {
   const s = { ...emptySignals(), resultsTrend: null };
@@ -346,7 +346,7 @@ async function main() {
 
   // The fatigue diagnosis should carry HIGH confidence (3/3 signals)
   const fatigue = sanity.issues.find(i => i.issueCode === "AUDIENCE_FATIGUE");
-  const fatigueConf = (fatigue?.evidence as any)?.confidence;
+  const fatigueConf = (fatigue?.confidence as any)?.value;
   check("SANITY: AUDIENCE_FATIGUE confidence is high (3-signal corroboration)",
     fatigueConf === 0.90, fatigueConf);
 

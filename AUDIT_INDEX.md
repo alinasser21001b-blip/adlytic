@@ -1,3 +1,10 @@
+> **SUPERSEDED.** This is a historical snapshot (2026-06-16) and is no longer accurate —
+> the codebase has gone through several major remediation phases since. See
+> [`docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md`](docs/architecture/adlytic/ADLYTIC_INTELLIGENCE_ARCHITECTURE.md)
+> for the current, verified architecture. Kept for historical reference only.
+
+---
+
 # Adlytic Audit Session - Complete Index
 
 **Date:** 2026-06-16
