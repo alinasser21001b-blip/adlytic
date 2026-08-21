@@ -32,24 +32,20 @@ jobs:
       - run: npx prisma generate
       - run: npm run typecheck
 
+  # INVARIANT: a green run of this job means the Railway deployment trigger
+  # was actually attempted AND accepted. It previously meant neither — the
+  # missing-secret branch exited 0, so five consecutive commits reported a
+  # successful deploy while making no network call at all.
+  #
+  # The logic lives in .deploy/railway-deploy.sh so it can be executed by
+  # test_deploy_gate.ts against a stubbed curl. Behaviour inside a `run:`
+  # block is unreachable to any test, which is how the false green survived.
   deploy-adlytic:
     needs: verify
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy adlytic service only
+      - uses: actions/checkout@v4
+      - name: Trigger Railway deploy (fails if not attempted or not accepted)
         env:
           RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
-        run: |
-          if [ -z "$RAILWAY_TOKEN" ]; then
-            echo "RAILWAY_TOKEN secret not set — skipping API deploy."
-            echo "Set GitHub secret RAILWAY_TOKEN (Railway account token, No Team)"
-            echo "OR in Railway UI: adlytic → Deploy Latest Commit after cancelling other queues."
-            exit 0
-          fi
-          RESP=$(curl -sS -X POST "https://backboard.railway.app/graphql/v2" \
-            -H "Authorization: Bearer $RAILWAY_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d '{"query":"mutation serviceInstanceDeploy($serviceId: String!, $environmentId: String!, $latestCommit: Boolean) { serviceInstanceDeploy(serviceId: $serviceId, environmentId: $environmentId, latestCommit: $latestCommit) }","variables":{"serviceId":"cc7cbf67-d757-4018-bf6d-9cec643222c3","environmentId":"89cdf3cb-15b7-4b92-b1ae-07e812333c37","latestCommit":true}}')
-          echo "$RESP"
-          echo "$RESP" | grep -q '"errors"' && exit 1 || true
-          echo "Triggered adlytic-only deploy."
+        run: bash .deploy/railway-deploy.sh

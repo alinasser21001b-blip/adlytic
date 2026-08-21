@@ -6,6 +6,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { logoSvg } from './pages/authShared';
+import { SESSION_ROUTER_JS } from './auth/sessionRouter';
 
 export const SHARED_CSS = `
 /* ── Self-hosted fonts ───────────────────────────────────────────────
@@ -2736,6 +2737,15 @@ function initAppShell() {
   shellState.initPromise = (async function () {
     try {
       var me = await apiFetchWithTimeout('/api/auth/me', {}, 8000);
+      // Enforcement only — the ordering lives in sessionRouter.ts. Reading
+      // isActive here directly would send an INACTIVE PLATFORM ADMIN to
+      // /pending-activation, locking the operator out of the console with a
+      // flag that has no authority over it.
+      if (me && me.isPlatformAdmin === true) {
+        window.AdlyticSession.adoptAdminSession(null);
+        window.location.replace('/admin');
+        return null;
+      }
       if (me && me.isActive === false) {
         window.location.href = '/pending-activation';
         return null;
@@ -2765,25 +2775,26 @@ function initAppShell() {
 async function ensureAccountActive() {
   if (!getToken()) { window.location.href = '/login'; return false; }
   try {
-    var me = await apiFetch('/api/auth/me');
-    if (!me) return false;
-    // CUSTOMER-SURFACE GUARD. A confirmed platform admin has no business in
-    // the customer product: they would be shown a workspace, an onboarding
-    // flow, and an invitation to connect Meta for an identity that must
-    // never own an ad account. Admin outranks the activation check below,
-    // because admin status lives in PLATFORM_ADMIN_EMAILS, not in isActive.
-    if (me.isPlatformAdmin === true) {
-      try {
-        localStorage.removeItem('adlytic_workspace_id');
-        localStorage.setItem('adlytic_session_mode', 'admin');
-      } catch (e) {}
+    // CUSTOMER-SURFACE GUARD — ENFORCEMENT ONLY.
+    //
+    // This function deliberately does NOT rank the roles itself. Ordering
+    // lives in exactly one place (src/web/auth/sessionRouter.ts); a second
+    // copy here is how the original defect survived in several files at
+    // once, each one subtly different. We ask WHO this is, then act.
+    var id = await window.AdlyticSession.resolveSessionIdentity();
+    if (id.kind === 'ADMIN') {
+      // An admin in the customer product would be shown a workspace, an
+      // onboarding flow, and an invitation to connect Meta for an identity
+      // that must never own an ad account.
+      window.AdlyticSession.adoptAdminSession(null);
       window.location.replace('/admin');
       return false;
     }
-    if (me.isActive === false) {
-      window.location.href = '/pending-activation';
-      return false;
-    }
+    if (id.kind === 'PENDING') { window.location.href = '/pending-activation'; return false; }
+    if (id.kind === 'ANONYMOUS') { window.location.href = '/login'; return false; }
+    // UNRESOLVED: a request that did not complete is not evidence of a role.
+    // Block the surface without redirecting anywhere.
+    if (id.kind !== 'CUSTOMER') return false;
     return true;
   } catch (err) {
     console.warn('[shell] ensureAccountActive failed:', err);
@@ -4002,6 +4013,7 @@ export function layout(opts: {
       </div>
     </div>
   </div>
+  <script>${SESSION_ROUTER_JS}</script>
   <script>${SHARED_JS}</script>
   ${scripts}
   <!-- LAST IN DOCUMENT ORDER, and it has to be here rather than in <head>.

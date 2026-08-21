@@ -351,6 +351,14 @@ export function adminOsPage(): string {
 
       <!-- ══ العمليات ══ -->
       <section class="view" id="v-operations">
+        <div class="card" style="margin-bottom:14px;">
+          <div class="h2" style="margin-bottom:6px;">الإصدار العامل الآن</div>
+          <div id="ops-build"><span class="muted">—</span></div>
+          <div class="att-w" style="margin-top:8px;">
+            سجلّ git يوثّق ما دُفع، لا ما يُنفَّذ. هذا السطر يُقرأ من العملية نفسها،
+            وهو المرجع الوحيد عند السؤال «هل نُشر التعديل؟».
+          </div>
+        </div>
         <div class="grid g3" id="ops-sys"></div>
       </section>
 
@@ -578,6 +586,19 @@ export function adminOsPage(): string {
     var bnd = o.boundary || [];
     document.getElementById('now-bnd').innerHTML = bnd.slice(0, 3).map(bndHtml).join('') || '<div class="muted">—</div>';
     document.getElementById('bnd-all').innerHTML = bnd.map(bndHtml).join('') || '<div class="muted">لا حدود مسجّلة.</div>';
+
+    // A resolved build gets NO status chip. Identifying which commit runs is
+    // not a judgement that the commit is good, and a green chip here would
+    // say exactly that — the manufactured certainty this console exists to
+    // refuse. Only the unresolved case carries a chip, because not knowing
+    // IS a state worth flagging.
+    var bld = o.build || {};
+    document.getElementById('ops-build').innerHTML = bld.resolved
+      ? '<span class="ev">' + esc(bld.shortCommit || '') + '</span>' +
+        (bld.branch ? ' <span class="ev">' + esc(bld.branch) + '</span>' : '') +
+        (bld.message ? '<div class="att-w" style="margin-top:6px;">' + esc(bld.message) + '</div>' : '') +
+        '<div class="att-w" style="margin-top:6px;">أُقلعت العملية: ' + esc(ago(bld.bootedAt)) + '</div>'
+      : chip('UNKNOWN') + ' <span class="att-w">لم تُحقن بصمة commit — لا يمكن إثبات ما هو منشور.</span>';
 
     document.getElementById('ops-sys').innerHTML = (o.subsystems || []).map(function (s) {
       return '<div class="card"><div class="h2" style="margin-bottom:6px;">' + esc(SYS[s.key] || s.key) + '</div>' +

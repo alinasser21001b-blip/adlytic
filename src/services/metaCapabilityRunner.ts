@@ -13,7 +13,9 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { config } from '../config';
+import { getBuildIdentity } from '../lib/buildIdentity';
 import { resolveAccountToken } from './accountToken';
+import { discoverProbeEntities } from './metaEntityDiscovery';
 import {
   PROBE_CANDIDATES,
   redact,
@@ -174,23 +176,29 @@ export async function runCapabilityProbeForWorkspace(
   const remaining = { left: budget };
   const account = acct.externalAccountId;
 
-  // Discover something real to probe against. These are ordinary list calls
-  // production already makes, and they spend the same budget as everything else.
-  const listOne = async (path: string): Promise<string | undefined> => {
-    if (remaining.left <= 0) return undefined;
-    remaining.left -= 1;
-    const { url, init } = metaGetRequest(base, path, { fields: 'id', limit: '1' }, token);
-    const res = await fetch(url, init);
-    if (!res.ok) return undefined;
-    const j = (await res.json()) as { data?: { id?: string }[] };
-    return j.data?.[0]?.id;
-  };
-
-  const entityIds: { campaign?: string; adset?: string; ad?: string } = {};
-  entityIds.campaign = await listOne(`/${account}/campaigns`);
-  if (entityIds.campaign) entityIds.adset = await listOne(`/${entityIds.campaign}/adsets`);
-  if (entityIds.adset) entityIds.ad = await listOne(`/${entityIds.adset}/ads`);
-  const discoveryCalls = budget - remaining.left;
+  // ── Entity discovery ───────────────────────────────────────────────────
+  //
+  // Owned by metaEntityDiscovery.ts, which records every step: endpoint
+  // class, HTTP status, Meta code, rows returned, summary.total_count and
+  // whether a next page existed. The helper this replaced returned
+  // `undefined` for a refusal and for an empty edge alike, which is why two
+  // consecutive runs reported "no ad set found" and neither could say why.
+  //
+  // Discovery gets its own budget slice and its own transport closure so it
+  // cannot accidentally inherit an insights parameter.
+  const discovery = await discoverProbeEntities(
+    async (path, params) => {
+      const { url, init } = metaGetRequest(base, path, params, token);
+      const res = await fetch(url, init);
+      let body: unknown = null;
+      try { body = await res.json(); } catch { body = null; }
+      return { status: res.status, body };
+    },
+    account,
+    remaining,
+  );
+  const entityIds = discovery.entityIds;
+  const discoveryCalls = discovery.callsSpent;
 
   const since = input.since ?? isoDaysAgo(2);
   const until = input.until ?? since;
@@ -213,8 +221,17 @@ export async function runCapabilityProbeForWorkspace(
     since,
     until,
     calls: String(discoveryCalls + transport.calls),
+    discoveryCalls: String(discoveryCalls),
+    probeCalls: String(transport.calls),
     budget: String(budget),
     at: new Date().toISOString(),
+    // Stamped so a probe report can never again be separated from the build
+    // that produced it. Two runs with the same evidence and different builds
+    // are two different experiments; two runs with the same build and the
+    // same evidence are a reproduction. Without this the reader cannot tell
+    // which one they are holding.
+    build: getBuildIdentity(),
+    discovery,
   };
 
   return {

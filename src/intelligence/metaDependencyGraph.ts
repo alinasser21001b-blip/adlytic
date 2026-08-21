@@ -76,9 +76,12 @@ export const META_RESOURCES: MetaResource[] = [
   { id: 'version:graph', kind: 'API_VERSION', name: 'META_API_VERSION', declaredIn: 'src/config.ts' },
   { id: 'breakdown:age_gender', kind: 'BREAKDOWN', name: 'age,gender', declaredIn: 'src/services/metaClient.ts' },
   { id: 'breakdown:placement', kind: 'BREAKDOWN', name: 'publisher_platform,platform_position', declaredIn: 'src/services/metaClient.ts' },
-  // NOT currently requested — registered so a change radar can tell
-  // "we do not use this" apart from "we never checked".
-  { id: 'field:attribution_setting', kind: 'FIELD', name: 'attribution_setting', declaredIn: '(not requested — see METRIC_LINEAGE.md)' },
+  // PROVEN_USABLE by the Round 1 probe (2026-08-19): Meta accepted the
+  // request AND returned the field. Still not requested by production —
+  // "we can have it" and "we fetch it" are different states, and the
+  // registry must not blur them. See META_CAPABILITY_ROUND1.md.
+  { id: 'field:attribution_setting', kind: 'FIELD', name: 'attribution_setting', declaredIn: '(proven available, not yet requested — META_CAPABILITY_ROUND1.md)' },
+  { id: 'field:budget_remaining', kind: 'FIELD', name: 'budget_remaining', declaredIn: '(proven available, not yet requested — META_CAPABILITY_ROUND1.md)' },
 ];
 
 // ── Features, read out of the app ──────────────────────────────────────
@@ -143,8 +146,18 @@ export const PRODUCT_FEATURES: ProductFeature[] = [
     id: 'feat:cpa-comparability', name: 'مقارنة التكلفة بين المساحات',
     userImpact: 'مقارنة CPA بين عملاء مختلفين',
     dependsOn: ['field:attribution_setting'],
-    implementedIn: ['(blocked — attribution context is not requested today)'],
+    // Round 1 proved the field is obtainable. It is still not requested, so
+    // the feature remains unbuilt — but it is now blocked by OUR backlog,
+    // not by Meta, and those are different kinds of blocked.
+    implementedIn: ['(unbuilt — field proven available in Round 1, not yet requested)'],
     failureMode: 'SILENT_CORRUPTION',
+  },
+  {
+    id: 'feat:delivery-budget-hypothesis', name: 'فرضية نفاد الميزانية',
+    userImpact: 'تمييز «توقّف التسليم لنفاد الميزانية» عن «تدهور الأداء»',
+    dependsOn: ['field:budget_remaining'],
+    implementedIn: ['(unbuilt — proven available in Round 1)'],
+    failureMode: 'DEGRADED_DETAIL',
   },
 ];
 

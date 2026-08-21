@@ -325,6 +325,61 @@ const readTop = (page) => page.evaluate(() => ({
   else ok(`OS: activity feed renders ${b.activityRows} observed event(s)`);
 }
 
+// ── OS-specific: the running build must be readable, or admitted ────────
+//
+// Two consecutive capability-probe runs produced identical evidence and there
+// was no way to tell whether the second one exercised the new code. The
+// console must therefore answer "which commit is running?" on screen — and,
+// when it cannot, say UNKNOWN rather than showing nothing, because a blank
+// row reads as "fine" to every operator who has ever seen one.
+{
+  const { page } = await open({
+    ...SCENARIOS['S5 healthy but intelligence untested'],
+    build: {
+      commit: '63731b92d89e7e9adc821547206c48f842ff8896', shortCommit: '63731b9',
+      branch: 'claude/adlytic-31edjv', message: 'feat(probe): freeze Round 1 evidence',
+      deploymentId: null, source: 'RAILWAY_GIT_COMMIT_SHA',
+      bootedAt: new Date(Date.now() - 3600000).toISOString(), resolved: true,
+    },
+  });
+  await page.evaluate(() => document.querySelector('.nav-item[data-view="operations"]').click());
+  const r = await page.evaluate(() => ({
+    text: document.getElementById('ops-build').textContent.trim(),
+    sha: !!document.querySelector('#ops-build .ev'),
+    visible: document.getElementById('ops-build').offsetParent !== null,
+  }));
+  await page.close();
+  if (!r.visible) bad('OS: the running-build card is not visible in the operations view');
+  else if (!r.sha || !r.text.includes('63731b9')) bad(`OS: the build card does not show the commit — "${r.text}"`);
+  else ok('OS: the operations view names the commit that is actually running');
+}
+{
+  const { page } = await open({
+    ...SCENARIOS['S5 healthy but intelligence untested'],
+    build: {
+      commit: null, shortCommit: null, branch: null, message: null,
+      deploymentId: null, source: null, bootedAt: new Date().toISOString(), resolved: false,
+    },
+    boundary: [{
+      state: 'UNKNOWN', subject: 'أي إصدار من الشيفرة يعمل الآن',
+      why: 'لم تُحقن أي بصمة commit في العملية.',
+      resolvedBy: 'فعّل ربط المستودع في Railway',
+    }],
+  });
+  await page.evaluate(() => document.querySelector('.nav-item[data-view="operations"]').click());
+  const r = await page.evaluate(() => ({
+    text: document.getElementById('ops-build').textContent.trim(),
+    chip: document.querySelector('#ops-build .chip')?.textContent.trim() || '',
+    inBoundary: [...document.querySelectorAll('#bnd-all .bnd')].some((e) => /إصدار/.test(e.textContent)),
+  }));
+  await page.close();
+  if (!r.text || r.text === '—') bad('OS: an unidentifiable build renders blank, which reads as healthy');
+  else if (!/UNKNOWN|غير معروف/i.test(r.chip + r.text)) bad(`OS: an unidentifiable build is not marked unknown — "${r.text}"`);
+  else ok('OS: an unidentifiable build is stated as UNKNOWN, not left blank');
+  if (!r.inBoundary) bad('OS: an unidentifiable build does not appear on the knowledge boundary');
+  else ok('OS: an unidentifiable build is carried onto the knowledge boundary');
+}
+
 // ── OS-specific: command bar reaches every view and every workspace ──────
 {
   const { page } = await open(SCENARIOS['S6 two different causes']);
