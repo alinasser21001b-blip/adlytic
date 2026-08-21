@@ -72,6 +72,26 @@ service or its auto-deploy, and WITHOUT running any background writer.
      (Safety net if it ever did: this branch adds ZERO migrations vs
      main — 39 files on both sides, byte-identical — so a stray
      "migrate deploy" is a no-op, not a schema change.)
+  3c. Settings → Deploy → Pre-deploy Command = EMPTY. LEAVE IT BLANK.
+     This bit a real deployment, so it is written down rather than
+     assumed. A pre-deploy command must RUN TO COMPLETION AND EXIT 0.
+     src/api/serve.ts calls serve() and starts a listening HTTP server
+     that never exits, so putting ANY serve.js-reaching command there
+     (node dist/src/api/serve.js, npm start, npm run start,
+     npm run start:api, npm run start:worker, npx tsx src/api/serve.ts)
+     can only ever do one of two things: exit(1) on a config failure, or
+     hang until the pre-deploy timeout. Neither is a deploy.
+     Two extra reasons this field must stay empty here:
+       · serve.ts:48 calls reportConfig(), the ONLY process.exit(1)
+         config path in the codebase — so a serve-based pre-deploy turns
+         every config warning into a hard deploy failure BEFORE the
+         start command ever runs.
+       · npm start / npm run start / npm run start:api are
+         "prisma migrate deploy && node dist/src/api/serve.js" — using
+         one of those as a pre-deploy command RUNS MIGRATIONS, which
+         this service must never do.
+     Nothing needs to run before this service starts. Pre-deploy exists
+     for migrations; migrations are exactly what is forbidden here.
   4. Settings → Deploy → Auto Deploy = OFF (railway.validation.json's
      watchPatterns already point at a path that never matches, same
      trick as thriving-manifestation/lively-insight above — deploy
@@ -82,14 +102,30 @@ service or its auto-deploy, and WITHOUT running any background writer.
        JWT_SECRET                = ${{adlytic.JWT_SECRET}}
        TOKEN_ENCRYPTION_KEY       = ${{adlytic.TOKEN_ENCRYPTION_KEY}}
        PLATFORM_ADMIN_EMAILS     = ${{adlytic.PLATFORM_ADMIN_EMAILS}}
-       ALLOWED_ORIGINS           = ${{adlytic.ALLOWED_ORIGINS}}
        NODE_ENV                  = production
        META_APP_ID / META_APP_SECRET / META_REDIRECT_URI / etc.
                                   = ${{adlytic.<same name>}} (only if a
                                     route needs them to boot; the
                                     Observatory itself needs none of
                                     these — see src/config.ts)
-     WHY THOSE FIVE AND NOT FEWER: with NODE_ENV=production,
+     ALLOWED_ORIGINS is the ONE variable that must be a LITERAL, not a
+     reference. Set it to THIS service's own public URL:
+       ALLOWED_ORIGINS = https://<this-service>.up.railway.app
+     Do NOT use ${{adlytic.ALLOWED_ORIGINS}} — that was tried and it
+     resolves EMPTY, which is a fatal boot error. Two reasons:
+       · ${{svc.VAR}} is a SERVICE-scoped reference. It resolves only if
+         the variable is defined as a service variable ON that service.
+         When a value is supplied as a Railway shared/environment
+         variable (auto-injected everywhere, addressed as
+         ${{shared.VAR}}), the owning service boots fine while
+         ${{adlytic.VAR}} from a second service resolves to nothing —
+         exactly the asymmetry seen here.
+       · Even if it resolved, it would be WRONG. ALLOWED_ORIGINS is a
+         CORS allowlist of hostnames. This service has a DIFFERENT host
+         from production, so it needs ITS OWN origin, not production's.
+     It is not a secret — public hostnames only — so a literal here
+     carries no credential-handling concern.
+     WHY THOSE AND NOT FEWER: with NODE_ENV=production,
      src/config.ts's validateRequired() makes JWT_SECRET (>=32 chars),
      TOKEN_ENCRYPTION_KEY and DATABASE_URL fatal at boot (process.exit(1)),
      and an empty ALLOWED_ORIGINS is separately fatal (config.ts's
@@ -118,10 +154,11 @@ service or its auto-deploy, and WITHOUT running any background writer.
      (The session cookie is host-scoped — Path=/; HttpOnly; SameSite=Lax
      with no Domain attribute — so logging in on this new hostname works
      independently of the production domain's session.)
-     If the log shows a CORS/ALLOWED_ORIGINS rejection for this new host,
-     append this service's own URL to its ALLOWED_ORIGINS (overriding the
-     reference) and redeploy — the host is not knowable until Railway
-     assigns it.
+     If the log shows a CORS/ALLOWED_ORIGINS rejection for this host,
+     re-check that ALLOWED_ORIGINS is the literal set in step 5 and
+     matches this service's assigned URL exactly (scheme included, no
+     trailing slash) — the host is not knowable until Railway assigns
+     it, so this value can only be finalised after the first deploy.
   7. Teardown when done: Railway UI → this service → Settings →
      Danger → Delete Service. Nothing else is affected — the
      production "adlytic"/"thriving-manifestation"/"lively-insight"
