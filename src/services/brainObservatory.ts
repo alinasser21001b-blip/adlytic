@@ -227,6 +227,8 @@ export interface BrainObservatorySnapshot {
      * "COMPLETE". Kept only so existing readers do not break.
      */
     legacyDataStatus: string;
+    /** Why that value cannot be read as a measurement of this window. */
+    legacyDataStatusBasis: string;
   };
   /** 1. META TRUTH — canonical metrics + the windows they were measured over. */
   metaTruth: {
@@ -346,6 +348,15 @@ const AUDITED_ACTION_CODES = [
   'EXPAND_AUDIENCE', 'NARROW_AUDIENCE', 'INCREASE_BUDGET', 'DECREASE_BUDGET',
   'CHECK_TARGETING', 'REVIEW_BUDGET_PACING',
   'PAUSE', 'MONITOR', 'INVESTIGATE_TRACKING',
+  // The Brain's own vocabulary (engine/DecisionEngine.ts::DecisionAction, also
+  // types/cmoFeed.ts::CmoInsightType). Without these the audit table could not
+  // show the state of the action the Brain ACTUALLY took \u2014 a campaign whose
+  // snapshot said KEEP_COLLECTING had no row of its own to stand in.
+  // permitAction() is a pure veto and none of these appear in hierarchy.ts's
+  // CREATIVE_ACTIONS or AUDIENCE_ACTIONS, so they are never forbidden; listing
+  // them makes that visible rather than leaving it unstated.
+  'KEEP_COLLECTING', 'HOLD_AND_MONITOR', 'SCALE_BUDGET',
+  'PAUSE_CAMPAIGN', 'RESCUE_WATCH', 'EMERGENCY_PAUSE',
 ] as const;
 
 /**
@@ -526,7 +537,12 @@ export async function buildBrainObservatory(
     // Derived here from two stored counters — labelled DERIVED so it is never
     // mistaken for a Meta-reported field. Meta's own link-CTR column is not
     // currently requested (see DEFAULT_INSIGHT_FIELDS).
-    { kind: 'NOT_MEASURED', label: 'Link CTR (%)', value: null, baseline: null, source: 'NOT AVAILABLE. Meta\'s link click-through rate (inline_link_click_ctr / website_ctr) is not in DEFAULT_INSIGHT_FIELDS, so it is never fetched or stored, and this module computes no ratios of its own. Ads Manager\'s "CTR (link click-through rate)" column therefore has NO counterpart in Adlytic \u2014 comparing it against the all-clicks CTR above is comparing two different metrics. The two stored counters it would come from (Link clicks, Impressions) are both listed here.' },
+    // Derived by buildEntityFunnel, not here: a ratio computed twice is a ratio
+    // that can disagree with itself. Meta's own inline_link_click_ctr is not in
+    // DEFAULT_INSIGHT_FIELDS, so this is Adlytic's only link-CTR figure \u2014 and it
+    // is the one an Ads Manager "CTR (link click-through rate)" column should be
+    // compared against, NOT the all-clicks value above.
+    { kind: 'DERIVED_FACT', label: 'Link CTR (%)', value: w.linkCtrCur, baseline: w.linkCtrPri, source: 'entityIntelligence.ts::buildEntityFunnel \u2014 daily_stats.link_clicks over daily_stats.impressions, in the same percent units as the all-clicks CTR above. DERIVED: Meta\'s own inline_link_click_ctr is not requested (see DEFAULT_INSIGHT_FIELDS), so this is not a stored Meta field.' },
     { kind: 'OBSERVED_FACT', label: 'CPM (minor units)', value: w.cpmCur, baseline: w.cpmPri, source: "daily_stats.cpm — Meta's own reported value" },
     { kind: 'OBSERVED_FACT', label: 'CPC (minor units)', value: w.cpcCur, baseline: w.cpcPri, source: 'daily_stats.cpc' },
     { kind: 'OBSERVED_FACT', label: 'Frequency', value: w.freqCur, baseline: w.freqPri, source: 'daily_stats.frequency' },
@@ -681,6 +697,14 @@ export async function buildBrainObservatory(
       backfillHorizonDays: CAMPAIGN_BACKFILL_DAYS,
       spanInsideBackfillHorizon,
       legacyDataStatus: entityFunnel.dataConfidence,
+      legacyDataStatusBasis:
+        'NOT A MEASUREMENT. buildEntityFunnel returns this value as a hardcoded constant '
+        + '(entityIntelligence.ts: `dataConfidence: \'COMPLETE\' as DataConfidence`), justified '
+        + 'only by the window ending before Meta\'s attribution backfill. It is therefore '
+        + 'COMPLETE for every campaign with at least one row in the span \u2014 including a span '
+        + 'holding one row out of fourteen days. It says nothing about how many days were '
+        + 'measured. Read the axes above instead. Consequence worth knowing: the reconciler\'s '
+        + 'DATA_VALIDITY layer never sees MISSING or PARTIAL from this path.',
     },
     metaTruth: {
       currentWindow: { since: iso(currentSince), until: iso(currentUntil) },

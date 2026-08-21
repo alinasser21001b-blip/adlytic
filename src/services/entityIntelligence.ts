@@ -41,7 +41,24 @@ export interface FunnelWindowContext {
   cur: FunnelWindowTotals;
   pri: FunnelWindowTotals;
   spendCur: number; spendPri: number;
+  /**
+   * Meta's own reported CTR: clicks(ALL) ÷ impressions, impression-weighted
+   * across the window. Includes reactions, comments, shares and photo
+   * expands — NOT only link clicks.
+   */
   ctrCur: number | null; ctrPri: number | null;
+  /**
+   * Link click-through rate, derived here: link clicks ÷ impressions, in the
+   * same percent units as `ctrCur` so the two are directly comparable.
+   *
+   * Derived rather than stored because Meta's own inline_link_click_ctr is
+   * not in DEFAULT_INSIGHT_FIELDS, so it is never fetched. It lives in this
+   * canonical window context — not in a display layer — for the same reason
+   * ctrCur does: a ratio computed twice is a ratio that can disagree with
+   * itself. Reading one against the other is how an 8.9%-vs-0.66%
+   * "contradiction" gets reported when nothing is actually wrong.
+   */
+  linkCtrCur: number | null; linkCtrPri: number | null;
   cpmCur: number | null; cpmPri: number | null;
   cpcCur: number | null; cpcPri: number | null;
   freqCur: number | null; freqPri: number | null;
@@ -156,6 +173,11 @@ export async function buildEntityFunnel(
     a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;
   const favg = (a: typeof rate.cur) =>
     a.freq.length ? +(a.freq.reduce((x, y) => x + y, 0) / a.freq.length).toFixed(4) : null;
+  // Total link clicks ÷ total impressions. Equal to the impression-weighted
+  // average of the daily link CTRs, so it is built the same way `wavg` builds
+  // ctr — and ×100 to match the percent units insightMapper stores `ctr` in.
+  const linkCtr = (t: FunnelWindowTotals) =>
+    t.impressions > 0 ? +((t.linkClicks / t.impressions) * 100).toFixed(4) : null;
 
   return {
     funnel,
@@ -163,6 +185,7 @@ export async function buildEntityFunnel(
     windows: {
       cur, pri, spendCur, spendPri,
       ctrCur: wavg(rate.cur, 'ctr'), ctrPri: wavg(rate.pri, 'ctr'),
+      linkCtrCur: linkCtr(cur), linkCtrPri: linkCtr(pri),
       cpmCur: wavg(rate.cur, 'cpm'), cpmPri: wavg(rate.pri, 'cpm'),
       cpcCur: wavg(rate.cur, 'cpc'), cpcPri: wavg(rate.pri, 'cpc'),
       freqCur: favg(rate.cur), freqPri: favg(rate.pri),

@@ -98,6 +98,68 @@ function buildRows() {
   return rows;
 }
 
+/**
+ * THE BASELINE ACCEPTANCE SHAPE.
+ *
+ * Reproduces the shape a real campaign showed on the live Observatory: rows
+ * in the PRIOR window only, current window carrying no delivery at all. That
+ * shape drives reconcileIntelligence() down its INSUFFICIENT_DATA
+ * short-circuit (hierarchy.ts: `!funnel || funnel.status === 'INSUFFICIENT_DATA'`),
+ * which returns `forbiddenActions: []` — so permitAction() vetoes nothing and
+ * every audited code passes the guard while nothing is recommended. Before
+ * Mission A that rendered as a column of "PERMITTED".
+ *
+ * The campaign's identity is deliberately NOT reproduced — only its shape.
+ * A fixture pinned to one real campaign id stops being a regression test the
+ * moment that campaign changes.
+ *
+ * @param currentRows how many ZERO-DELIVERY rows to place in the current
+ *   window. 0 and 7 produce byte-identical aggregates (every current total is
+ *   a sum, and reach is a max), so only storedDates[] can tell them apart —
+ *   which is exactly the ambiguity the temporal block exists to resolve.
+ */
+function buildBaselineShapeRows(currentRows: number) {
+  const lagDays = 2, windowDays = 7;
+  const floorUtc = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const currentUntil = floorUtc(new Date(Date.now() - lagDays * DAY_MS));
+  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * DAY_MS);
+  const priorUntil = new Date(currentSince.getTime() - DAY_MS);
+
+  const rows: ReturnType<typeof dayRow>[] = [];
+  // 5 prior-window rows totalling impressions 5872 / linkClicks 32 /
+  // messages 22 / spend 761, with reach peaking at 2371 (max, not a sum).
+  // Every row carries the same stored ctr, so the impression-weighted window
+  // value is exactly 2.0776% — Meta's all-clicks figure. Link CTR derives to
+  // 32/5872 = 0.5449%: a different metric over the same denominator, and the
+  // whole reason "CTR" alone is not a metric identity.
+  const prior = [
+    { imp: 1174, reach: 2371, link: 6, msg: 5, spend: 152, clicks: 24 },
+    { imp: 1174, reach: 1900, link: 6, msg: 4, spend: 152, clicks: 24 },
+    { imp: 1174, reach: 1850, link: 6, msg: 5, spend: 152, clicks: 25 },
+    { imp: 1174, reach: 1800, link: 7, msg: 4, spend: 152, clicks: 24 },
+    { imp: 1176, reach: 1750, link: 7, msg: 4, spend: 153, clicks: 25 },
+  ];
+  prior.forEach((r, i) => {
+    rows.push({
+      date: new Date(priorUntil.getTime() - i * DAY_MS),
+      spend: BigInt(r.spend), impressions: BigInt(r.imp), reach: BigInt(r.reach),
+      linkClicks: BigInt(r.link), landingPageViews: BigInt(0),
+      messages: BigInt(r.msg), leads: BigInt(0), purchases: BigInt(0), clicks: BigInt(r.clicks),
+      ctr: 2.0776, cpm: 2_000, cpc: 111, frequency: 1.2, revenueMinor: BigInt(0), roas: null,
+    });
+  });
+  for (let i = 0; i < currentRows; i++) {
+    rows.push({
+      date: new Date(currentUntil.getTime() - i * DAY_MS),
+      spend: BigInt(0), impressions: BigInt(0), reach: BigInt(0),
+      linkClicks: BigInt(0), landingPageViews: BigInt(0),
+      messages: BigInt(0), leads: BigInt(0), purchases: BigInt(0), clicks: BigInt(0),
+      ctr: null, cpm: null, cpc: null, frequency: null, revenueMinor: BigInt(0), roas: null,
+    });
+  }
+  return rows;
+}
+
 const CAMPAIGN = {
   id: 'camp_obs_1', name: 'Observatory Fixture Campaign',
   externalCampaignId: '23851', status: 'ACTIVE', objective: 'OUTCOME_ENGAGEMENT',
@@ -252,17 +314,19 @@ async function run() {
     assert.equal(factFor('CTR \u2014 all clicks (%)')!.value, w.ctrCur, 'CTR (all clicks) must come from the canonical window context');
     assert.equal(factFor('CTR \u2014 all clicks (%)')!.kind, 'OBSERVED_FACT', "Meta reports ctr itself \u2014 it is observed, not derived");
     assert.equal(factFor('CTR (%)'), undefined, 'the ambiguous bare "CTR (%)" label must no longer exist');
-    // Link CTR is reported as ABSENT, not computed. Meta's link-CTR field is
-    // not in DEFAULT_INSIGHT_FIELDS and this module derives no ratios, so a
-    // number here could only have been manufactured for display.
+    // Link CTR is DERIVED by buildEntityFunnel and copied here \u2014 the
+    // Observatory must not compute it, or the two could disagree.
     const linkCtr = factFor('Link CTR (%)')!;
-    assert.equal(linkCtr.kind, 'NOT_MEASURED', 'Adlytic stores no link CTR \u2014 the fact must say so');
-    assert.equal(linkCtr.value, null, 'an unavailable metric must be null, never a stand-in number');
-    assert.equal(linkCtr.baseline, null);
+    assert.equal(linkCtr.kind, 'DERIVED_FACT', 'link CTR is derived by Adlytic, not reported by Meta');
+    assert.equal(linkCtr.value, w.linkCtrCur, 'link CTR must come from the canonical window context');
+    assert.equal(linkCtr.baseline, w.linkCtrPri);
     assert.ok(/inline_link_click_ctr/.test(linkCtr.source),
-      'the absence must name the un-requested Meta field that causes it');
-    // The two counters the ratio would come from stay visible, so a reviewer
-    // can do the comparison themselves and see it is not Adlytic's number.
+      'the fact must name the un-requested Meta field it stands in for');
+    // Non-vacuous: the two CTRs must actually differ, or a regression that
+    // re-conflates them would pass unnoticed.
+    assert.notEqual(linkCtr.value, factFor('CTR \u2014 all clicks (%)')!.value,
+      'all-clicks CTR and link CTR must be distinguishable in this fixture');
+    // The counters they come from stay visible so a reviewer can check both.
     assert.equal(factFor('Link clicks')!.value, w.cur.linkClicks);
     assert.equal(factFor('Impressions')!.value, w.cur.impressions);
     assert.equal(factFor('CPM (minor units)')!.value, w.cpmCur, 'CPM must come from the canonical window context');
@@ -375,6 +439,7 @@ async function run() {
       ['the days with no row', 'tp.datesWithoutRows'],
       ['the coverage basis', 'tp.coverageBasis'],
       ['the withheld-freshness basis', 'tp.freshnessBasis'],
+      ['why the legacy status is not a measurement', 'tp.legacyDataStatusBasis'],
       ['counter-evidence', 'd.diagnosis.counterEvidence'],
       ['the action state', 'a.state'],
       ['trace provenance', 't.canonicalSource'],
@@ -673,6 +738,111 @@ async function run() {
     assert.equal(id.insightsQueryLevel, 'campaign', 'the Graph API level backing these rows must be explicit');
     assert.equal(id.dailyStatOwnershipLevel, 'CAMPAIGN');
     assert.equal(id.parentCampaign, null, 'this IS the campaign level — the field is present, not omitted');
+  });
+
+  console.log('\n── 9. The baseline acceptance shape: INSUFFICIENT_DATA short-circuit ──');
+
+  await checkAsync('rows only in the prior window reproduce the observed 3-layer trace', async () => {
+    const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0) });
+    const snap = await buildBrainObservatory(prisma, 'camp_obs_1');
+    assert.ok(snap, 'a campaign with prior-window rows is still measurable');
+    // The exact verdict the live Observatory showed.
+    assert.equal(snap!.diagnosis.problemClass, 'NO_MATERIAL_BREAK');
+    assert.equal(snap!.diagnosis.confidence, 'INSUFFICIENT_DATA');
+    assert.equal(snap!.diagnosis.decidedBy, 'FUNNEL_DIAGNOSIS');
+    // reconcileIntelligence() returns at layer 3, so layers 4-6 never form an
+    // opinion. They must be reported absent, not back-filled.
+    assert.deepEqual(snap!.tracedStages, ['DATA_VALIDITY', 'SEMANTIC_VALIDITY', 'FUNNEL_DIAGNOSIS']);
+    assert.deepEqual(snap!.untracedStages, ['ANOMALY_DETECTION', 'HEALTH_IMPACT', 'RECOMMENDATION']);
+    for (const stage of snap!.trace) {
+      if (stage.status === 'NOT_REACHED') {
+        assert.equal(stage.conclusion, null, `${stage.stage} must not report a conclusion it never formed`);
+        assert.ok(stage.absenceReason, `${stage.stage} must say why it is absent`);
+      }
+    }
+  });
+
+  await checkAsync('an empty forbidden list must not make every action look advised', async () => {
+    // THE ACCEPTANCE CASE. hierarchy.ts's layer-3 short-circuit returns
+    // `forbiddenActions: []`, and permitAction() is a pure veto — so it allows
+    // everything — while recommend.ts returns null on both NO_MATERIAL_BREAK
+    // and INSUFFICIENT_DATA. Before Mission A that rendered as a full column
+    // of "PERMITTED" under a verdict of "not enough data to judge".
+    const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0) });
+    const snap = await buildBrainObservatory(prisma, 'camp_obs_1');
+    assert.equal(snap!.decision.recommendedAction, null, 'nothing may be recommended on INSUFFICIENT_DATA');
+    assert.deepEqual(snap!.decision.forbiddenActions, [], 'the short-circuit forbids nothing — that is the trap');
+    const states = new Set(snap!.decision.actionAudit.map((a) => a.state));
+    assert.deepEqual([...states], ['NOT_VETOED'],
+      'every audited code must read NOT_VETOED — not one may read RECOMMENDED when nothing was advised');
+    // And the Brain's own action is auditable in the same vocabulary.
+    const keepCollecting = snap!.decision.actionAudit.find((a) => a.actionCode === 'KEEP_COLLECTING');
+    assert.ok(keepCollecting, "the Brain's own action code must appear in the audit");
+    assert.equal(keepCollecting!.state, 'NOT_VETOED');
+  });
+
+  await checkAsync('the legacy COMPLETE status is shown contradicting the real coverage', async () => {
+    const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0) });
+    const t = (await buildBrainObservatory(prisma, 'camp_obs_1'))!.temporal;
+    // 5 rows across a 14-day span, and the legacy field still says COMPLETE —
+    // because it is a hardcoded constant, not a measurement. Pinned here so
+    // nobody "reconciles" the two by trusting the constant.
+    assert.equal(t.storedRowCount, 5);
+    assert.equal(t.datesWithoutRows.length, 9);
+    assert.equal(t.temporalCoverage, 'UNKNOWN');
+    assert.equal(t.legacyDataStatus, 'COMPLETE');
+    assert.ok(/NOT A MEASUREMENT/.test(t.legacyDataStatusBasis),
+      'the legacy value must be labelled a constant, or a reader reconciles it the wrong way');
+    assert.ok(/hardcoded constant/.test(t.legacyDataStatusBasis));
+  });
+
+  await checkAsync('a window with no delivery yields no rate — null, never zero', async () => {
+    const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0) });
+    const snap = await buildBrainObservatory(prisma, 'camp_obs_1');
+    const factFor = (label: string) => snap!.metaTruth.facts.find((f) => f.label === label)!;
+    const all = factFor('CTR — all clicks (%)');
+    const link = factFor('Link CTR (%)');
+    // Zero impressions is no sample, not a 0% rate. A rate of 0 would invite
+    // "CTR collapsed to zero" when nothing was served at all.
+    assert.equal(all.value, null, 'no impressions means no CTR, not a CTR of zero');
+    assert.equal(link.value, null);
+    assert.equal(factFor('Impressions').value, 0, 'the counter itself IS zero — the distinction is the point');
+    // The prior window carries both metrics, and they are different numbers.
+    assert.equal(all.baseline, 2.0776, "the stored all-clicks CTR is Meta's own reported value");
+    assert.equal(link.baseline, 0.545, 'link CTR derives to a materially different figure');
+    assert.notEqual(all.baseline, link.baseline,
+      'if these ever coincide the fixture stops proving the two metrics are distinguishable');
+  });
+
+  await checkAsync('zero-delivery rows are distinguishable from absent rows ONLY by storedDates', async () => {
+    // The warning that motivated this whole block: every current-window
+    // aggregate is a sum (and reach a max), so 7 all-zero rows and 0 rows
+    // produce IDENTICAL numbers. If coverage were inferred from the metrics,
+    // the two would be indistinguishable — and a sync gap would read the same
+    // as a campaign that simply did not deliver.
+    const empty = (await buildBrainObservatory(
+      makeFakePrisma({ rows: buildBaselineShapeRows(0) }).prisma, 'camp_obs_1'))!;
+    const zeroRows = (await buildBrainObservatory(
+      makeFakePrisma({ rows: buildBaselineShapeRows(7) }).prisma, 'camp_obs_1'))!;
+
+    // Indistinguishable by every delivery metric...
+    for (const label of ['Impressions', 'Reach', 'Link clicks', 'Messages', 'Spend (minor units)']) {
+      const a = empty.metaTruth.facts.find((f) => f.label === label)!;
+      const b = zeroRows.metaTruth.facts.find((f) => f.label === label)!;
+      assert.equal(a.value, b.value, `${label} cannot tell the two cases apart — that is why dates are reported`);
+    }
+    assert.equal(empty.diagnosis.problemClass, zeroRows.diagnosis.problemClass);
+    assert.equal(empty.diagnosis.confidence, zeroRows.diagnosis.confidence);
+
+    // ...and cleanly separated by the temporal block.
+    assert.equal(empty.temporal.storedRowCount, 5);
+    assert.equal(zeroRows.temporal.storedRowCount, 12);
+    assert.equal(empty.temporal.datesWithoutRows.length, 9);
+    assert.equal(zeroRows.temporal.datesWithoutRows.length, 2);
+    assert.notDeepEqual(empty.temporal.storedDates, zeroRows.temporal.storedDates,
+      'storedDates is the ONLY field that separates these two cases');
+    // Neither may claim FULL: 12 of 14 days is still an unexplained absence.
+    assert.equal(zeroRows.temporal.temporalCoverage, 'UNKNOWN');
   });
 
   console.log(`\n════ ${passed} passed, ${failures.length} failed ════`);
