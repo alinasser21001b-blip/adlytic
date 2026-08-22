@@ -387,6 +387,66 @@ jobs:
             echo "  as a lint nit, regardless of the deployment having succeeded."
           fi
 
+      - name: Deployment status for the production service (READ-ONLY)
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        run: |
+          set -uo pipefail
+
+          # THE BLIND SPOT THIS CLOSES. /api/health reports only the deployment
+          # that is RUNNING. A newer one that FAILED, or one stuck in a build
+          # queue, is invisible there — so "production still shows the old
+          # commit" cannot distinguish *still building* from *the build broke*
+          # from *the queue is stalled*. Those need different responses, and
+          # for an hour they were indistinguishable during this closure.
+          #
+          # Output is four fields per deployment and nothing else: id, status,
+          # createdAt, short commit. No log text, no message, no meta beyond
+          # the commit hash. Service and environment ids are not secrets —
+          # they are already committed in .deploy/railway-deploy.sh.
+          SERVICE_ID="cc7cbf67-d757-4018-bf6d-9cec643222c3"
+          ENVIRONMENT_ID="89cdf3cb-15b7-4b92-b1ae-07e812333c37"
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then echo "DEPLOYMENT_STATUS_READ=NO_TOKEN"; exit 0; fi
+          HDR="$(mktemp)"; SCHEMA="$(mktemp)"; OUT="$(mktemp)"
+          printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          trap 'rm -f "$HDR" "$SCHEMA" "$OUT"' EXIT
+
+          # Prove the field before calling it — same rule as the build-log step.
+          QI='query { __schema { queryType { fields { name args { name } } } } }'
+          curl -sS --max-time 60 -o "$SCHEMA" -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$QI" '{query:$q}')" >/dev/null 2>&1 || true
+          DF=$(jq -r '[.data.__schema.queryType.fields[]? | select(.name|test("^deployments$"))
+                       | .name + "(" + ([.args[]?.name]|join(",")) + ")"] | join("  ")' "$SCHEMA" 2>/dev/null || true)
+          if [ -z "$DF" ]; then echo "DEPLOYMENT_STATUS_READ=FIELD_UNPROVEN"; exit 0; fi
+          echo "DEPLOYMENTS_FIELD=${DF}"
+
+          Q='query d($input: DeploymentListInput!, $first: Int) { deployments(input: $input, first: $first) { edges { node { id status createdAt meta } } } }'
+          curl -sS --max-time 60 -o "$OUT" -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$Q" --arg s "$SERVICE_ID" --arg e "$ENVIRONMENT_ID" \
+                  '{query:$q, variables:{input:{serviceId:$s, environmentId:$e}, first:6}}')" || true
+          if jq -e '.errors' "$OUT" >/dev/null 2>&1; then
+            echo "DEPLOYMENT_STATUS_READ=REJECTED — $(jq -r '[.errors[].message]|join("; ")' "$OUT" | head -c 200)"
+            exit 0
+          fi
+          echo "DEPLOYMENT_STATUS_READ=OK"
+          echo "── recent deployments (id, status, createdAt, commit — no other field printed)"
+          jq -r '.data.deployments.edges[]?.node
+                 | [.id, .status, .createdAt, ((.meta.commitHash // "")[0:7])] | @tsv' "$OUT" 2>/dev/null \
+            | head -6 || echo "  (none)"
+
+          # A queue that is not moving is its own finding, and it reads
+          # identically to a slow build unless it is counted.
+          QN=$(jq -r '[.data.deployments.edges[]?.node | select(.status=="QUEUED")] | length' "$OUT" 2>/dev/null || echo 0)
+          echo "DEPLOYMENTS_QUEUED=${QN:-0}"
+          if [ "${QN:-0}" -ge 2 ]; then
+            echo "DEPLOY_QUEUE_STATE=BACKLOG — more than one build is waiting; a new trigger will"
+            echo "  join the queue rather than replace it, so triggering again does not help."
+          else
+            echo "DEPLOY_QUEUE_STATE=CLEAR"
+          fi
+
       - name: What this run did and did not prove
         run: |
           echo "PROVEN : whatever each service reported above, at this moment."
