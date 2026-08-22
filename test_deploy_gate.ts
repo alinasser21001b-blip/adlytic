@@ -235,7 +235,14 @@ function main() {
     const uncovered = ['src/**', 'prisma/**', 'test_*.ts', 'test_*.mjs', 'package.json',
       'package-lock.json', 'tsconfig*.json', 'docs/**', 'README.md',
       'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF,
-      WORKFLOW, '.github/workflows/verify-live.yml']
+      WORKFLOW, '.github/workflows/verify-live.yml',
+      // test_admin_acceptance.ts imports SCENARIOS from
+      // ./tools/admin-acceptance/fixtures.mjs, so that directory decides what
+      // the acceptance suite asserts. It arrived with the Control Plane merge
+      // and this array predates it — the coverage list is hardcoded, so it
+      // passed while the gap was real. A guard whose blind spot matches the
+      // workflow's is not a guard.
+      'tools/**']
       .filter((r) => !covered.includes(r));
     if (uncovered.length === 0) ok('every path the suites read is covered by the test gate');
     else bad(`read by a suite but not covered by CI paths: ${uncovered.join(', ')}`);
