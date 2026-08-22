@@ -247,15 +247,28 @@ const SHELL_CSS = `
   .view.on { display: block; }
 
   /* ── Shared surface primitives ──────────────────────────────────── */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  /* ── Card anatomy ─────────────────────────────────────────────────
+     Explicit, because the clever version was wrong. Padding used to be
+     applied with :not(.card-h):not(.card-b) margins, whose specificity beat
+     the table rule — so every table inside a card rendered 13px outside it on
+     both sides while the card border stayed put. Card edges that do not line
+     up with their own content is precisely the composition defect this pass
+     exists to remove, and it was invisible to every structural check.
+
+     Two child kinds, two rules, no exceptions:
+       .card-h / .card-b  padded regions
+       table.t            spans the full card, edge to edge          */
+  .card { background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius); overflow: hidden; }
   .card > .card-h { padding: 12px 14px; border-bottom: 1px solid var(--border); }
   .card > .card-b { padding: 14px; }
   .card > .card-b > * + * { margin-top: 10px; }
-  /* Cards with no explicit body still get padding, so existing markup holds. */
-  .card > *:not(.card-h):not(.card-b):first-child { margin: 14px 14px 0; }
-  .card > *:not(.card-h):not(.card-b) { margin-inline: 14px; }
-  .card > *:not(.card-h):not(.card-b):last-child { margin-bottom: 14px; }
-  .card > table.t { margin: 0; width: 100%; }
+  .card > table.t { width: 100%; margin: 0; }
+  /* Legacy markup that puts loose children straight in a card still reads
+     correctly: they get the same padded gutter, and never a margin. */
+  .card > :not(.card-h):not(.card-b):not(table) { padding-inline: 14px; }
+  .card > :not(.card-h):not(.card-b):not(table):first-child { padding-top: 14px; }
+  .card > :not(.card-h):not(.card-b):not(table):last-child { padding-bottom: 14px; }
   .card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .h2 { font-size: 13px; font-weight: 700; letter-spacing: -0.005em; }
   .muted { color: var(--text-2); font-size: 12px; }

@@ -143,6 +143,38 @@ async function inspect(page, surface, scenario, viewport) {
     //    product's chrome.
     const legacyShell = document.querySelectorAll('.os, .console-shell, .admin-classic').length;
 
+    // 5. Meters that render nothing. An element exists, is sized, does not
+    //    overflow and is not JSON — and still carries no information because
+    //    its fill is zero pixels wide. Structural checks are blind to this.
+    const deadMeters = [];
+    for (const fill of document.querySelectorAll('.barfill, .meter-fill, .progress-fill')) {
+      // A meter inside an inactive tab is not displayed, so it has no width and
+      // no reader. Only a VISIBLE meter that renders nothing is a defect.
+      if (!fill.getClientRects().length) continue;
+      if (fill.closest('.view:not(.on)')) continue;
+      const w = fill.getBoundingClientRect().width;
+      const declared = (fill.getAttribute('style') || '').match(/width:\s*([\d.]+)%/);
+      if (w < 1 && declared && Number(declared[1]) > 0) {
+        deadMeters.push(`${fill.className} declared ${declared[1]}% rendered ${w.toFixed(1)}px`);
+      }
+    }
+
+    // 6. Card edges vs their own content. A table rendering outside the card
+    //    that contains it is a composition defect no overflow check sees,
+    //    because nothing leaves the viewport.
+    const misaligned = [];
+    for (const card of document.querySelectorAll('.page-inner .card')) {
+      const c = card.getBoundingClientRect();
+      if (c.width === 0) continue;
+      for (const child of card.children) {
+        const r = child.getBoundingClientRect();
+        if (r.width === 0) continue;
+        if (r.left < c.left - 1.5 || r.right > c.right + 1.5) {
+          misaligned.push(`${child.tagName.toLowerCase()} sits ${Math.round(Math.max(c.left - r.left, r.right - c.right))}px outside its card`);
+        }
+      }
+    }
+
     const skeletons = document.querySelectorAll('.skel').length;
     const emptyCells = [...document.querySelectorAll('.empty')].map((e) => e.textContent.trim()).slice(0, 6);
     const chips = [...document.querySelectorAll('.st-chip')].map((c) => ({
@@ -154,7 +186,7 @@ async function inspect(page, surface, scenario, viewport) {
       overflowing: [...new Set(overflowing)].slice(0, 8),
       clipped: [...new Set(clipped)].slice(0, 8),
       sparse, skeletons, emptyCells, chips, graphLabelPx,
-      jsonLeaks, occupancy, clippedPrimary, legacyShell,
+      jsonLeaks, occupancy, clippedPrimary, legacyShell, deadMeters, misaligned,
       activeNav: [...document.querySelectorAll('.nav-item.active')].map((a) => a.getAttribute('href')),
       dir: doc.getAttribute('dir'),
       railCount: document.querySelectorAll('.rail').length,
@@ -170,6 +202,12 @@ async function inspect(page, surface, scenario, viewport) {
   for (const c of m.clipped) finding('MEDIUM', surface, scenario, viewport, `text clipped: ${c}`);
   for (const s of m.sparse) finding('MEDIUM', surface, scenario, viewport, `sparse card: ${s}`);
   if (m.skeletons > 0) finding('MEDIUM', surface, scenario, viewport, `${m.skeletons} skeleton(s) never resolved`);
+  for (const a of [...new Set(m.misaligned)]) {
+    finding('HIGH', surface, scenario, viewport, `card composition: ${a}`);
+  }
+  for (const d of m.deadMeters) {
+    finding('HIGH', surface, scenario, viewport, `meter renders nothing: ${d}`);
+  }
   for (const j of m.jsonLeaks) {
     finding('HIGH', surface, scenario, viewport, `raw JSON in primary UI: ${j}`);
   }

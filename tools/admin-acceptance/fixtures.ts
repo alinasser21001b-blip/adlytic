@@ -49,13 +49,52 @@ const subsystems = (over: Record<string, string> = {}): SubsystemHealth[] => ([
     summary: 'صحة الذكاء تُقاس بالتغطية السردية في لوحة الحالة — لا يوجد فحص حي بعد' },
 ]);
 
+/**
+ * Attention, derived from the workspaces the way `adminOpsHealth` derives it.
+ *
+ * A hand-written `attention: []` beside a blocked workspace is not a scenario —
+ * it is a state the service cannot produce, and it made the Control Center
+ * render "nothing needs intervention" directly above a failed account. That is
+ * the same fixture-realism failure that let raw JSON ship: the fixture
+ * described a platform that does not exist.
+ *
+ * Mirrors the three per-workspace rules in adminOpsHealth.ts. Scenarios may
+ * still pass an explicit list when they are testing the attention queue itself.
+ */
+function attentionFor(rows: any[]): any[] {
+  const items: any[] = [];
+  for (const r of rows.filter((x) => x.connection === 'ERROR' || x.connection === 'BLOCKED')) {
+    items.push({ id: 'conn:' + r.workspaceId, severity: 'ERROR',
+      title: `${r.workspaceName}: ${r.headline}`,
+      because: 'لا يمكن سحب أي بيانات من Meta لهذه المساحة حتى يُحلّ السبب.',
+      action: 'أعد ربط الحساب من مساحة العميل', href: '/admin/meta#connections' });
+  }
+  for (const r of rows.filter((x) => x.lastSyncStatus === 'FAILED'
+      && x.connection !== 'BLOCKED' && x.connection !== 'ERROR')) {
+    items.push({ id: 'sync:' + r.workspaceId, severity: 'WARNING',
+      title: `${r.workspaceName}: آخر مزامنة فشلت`,
+      because: 'البيانات المعروضة للعميل أقدم مما يظن.',
+      ...(r.lastSyncError ? { action: String(r.lastSyncError).slice(0, 120) } : {}),
+      href: '/admin/meta#sync' });
+  }
+  for (const r of rows.filter((x) => x.connection === 'HEALTHY' && x.lastSyncStatus !== 'FAILED'
+      && x.dataAgeDays != null && x.dataAgeDays >= 3)) {
+    items.push({ id: 'stale:' + r.workspaceId, severity: 'WARNING',
+      title: `${r.workspaceName}: بيانات عمرها ${r.dataAgeDays} يوماً`,
+      because: 'الاتصال سليم لكن لا بيانات جديدة تصل — قد يكون العمّال أو جدولة المزامنة.',
+      href: '/admin/meta#coverage' });
+  }
+  return items;
+}
+
 const ops = (over: Record<string, any> = {}): AdminOpsSnapshot => ({
   computedAt: '2026-08-22T09:15:00.000Z',
   overall: over.overall ?? 'HEALTHY',
   known: over.known ?? ['database', 'redis', 'queue', 'workers', 'meta'],
   unknown: over.unknown ?? ['intelligence'],
   subsystems: over.subsystems ?? subsystems(),
-  attention: over.attention ?? [],
+  // Derived unless a scenario deliberately overrides it.
+  attention: over.attention ?? attentionFor(over.workspaces ?? [ws()]),
   workspaces: over.workspaces ?? [ws()],
   activity: over.activity ?? [
     { at: '2026-08-22T04:10:00.000Z', workspaceName: 'متجر النخبة', kind: 'SYNC', status: 'COMPLETED' },

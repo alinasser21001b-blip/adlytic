@@ -40,6 +40,16 @@ const CSS = `
   label.f { font-size: 11px; color: var(--text-3); font-weight: 600; }
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">الزبائن ومساحات العمل</div>
+      <div class="phead-s">من نخدم، وكيف أُعدّت مساحاتهم، وحالة اشتراكاتهم ومدفوعاتهم.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/add-client">إضافة عميل</a></div>
+  </div>
+`;
+
 const BODY = `
   <section class="view on" id="v-customers">
     <div class="stats">
@@ -382,6 +392,7 @@ export function customersWorkspacePage(): string {
     title: 'الزبائن ومساحات العمل',
     subtitle: 'من نخدم وكيف أُعدّت مساحاتهم',
     css: CSS,
+    header: HEADER,
     body: BODY,
     views: [
       { id: 'customers', label: 'الزبائن', hint: 'البحث والتفاصيل' },

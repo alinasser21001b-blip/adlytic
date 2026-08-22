@@ -65,11 +65,17 @@ const CSS = `
   .q-v.ok { color: var(--success); }
   .q-v.bad { color: var(--error); }
   .q-v.absent { color: var(--text-3); font-weight: 600; }
-  .bars { display: flex; flex-direction: column; gap: 6px; }
+  .bars { display: flex; flex-direction: column; gap: 7px; }
   .barrow { display: grid; grid-template-columns: 128px 1fr 46px; gap: 10px; align-items: center;
             font-size: 12px; }
-  .bartrack { height: 7px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
-  .barfill { height: 100%; background: var(--accent); border-radius: 4px; }
+  /* display:block is load-bearing, not tidiness. These are rendered as <span>
+     in one caller and <div> in another; an inline element ignores width and
+     height, so every fill measured 0px and the operator saw six identical
+     empty tracks — a chart that looks like information and carries none. */
+  .bartrack { display: block; height: 8px; background: var(--surface-2);
+              border-radius: 4px; overflow: hidden; }
+  .barfill { display: block; height: 100%; min-width: 2px; background: var(--accent);
+             border-radius: 4px; }
   .impact { font-size: 11.5px; color: var(--text-2); }
   .wsname { font-weight: 600; }
   .wssub { font-size: 11px; color: var(--text-3); }

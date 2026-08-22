@@ -86,6 +86,23 @@ function run() {
       'the real counts object has a dozen fields — a thin fixture hides the dump');
   });
 
+  check('fixtures cannot describe a platform the services could not produce', () => {
+    // A hand-written `attention: []` beside a blocked workspace made the
+    // Control Center print "nothing needs intervention" directly above a failed
+    // account — a self-contradiction no real snapshot can contain, because
+    // adminOpsHealth pushes an ERROR item for every blocked connection.
+    for (const [name, sc] of Object.entries(SCENARIOS)) {
+      const ops = (sc.api as any).ops;
+      if (!ops || ops.__status) continue;
+      const blocked = (ops.workspaces ?? []).filter(
+        (w: any) => w.connection === 'ERROR' || w.connection === 'BLOCKED');
+      if (!blocked.length) continue;
+      assert.ok((ops.attention ?? []).length > 0,
+        `scenario "${name}" has ${blocked.length} blocked workspace(s) and an empty attention queue — `
+        + 'the ops snapshot cannot produce that state');
+    }
+  });
+
   check('the fixtures describe real shapes, not convenient ones', () => {
     // A fixture that omits the awkward fields tests a product that does not
     // exist. Each of these is a field the UI must survive being null.

@@ -46,6 +46,16 @@ const CSS = `
 ${GRAPH_VIEW_CSS}
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">الحالة الآن</div>
+      <div class="phead-s">نبض المنظومة، وما يحتاج تدخّلاً، ومن تأثّر — قبل أي شيء آخر.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/graph">خريطة المنظومة</a></div>
+  </div>
+`;
+
 const BODY = `
   <section class="card">
     <div class="card-h"><div class="h2">نبض المنظومة</div>
@@ -253,6 +263,7 @@ export function controlCenterPage(): string {
     title: 'الحالة الآن',
     subtitle: 'ما الذي يحدث في المنصة هذه اللحظة',
     css: CSS,
+    header: HEADER,
     body: BODY,
     script: GRAPH_VIEW_JS + SCRIPT,
     commands: [

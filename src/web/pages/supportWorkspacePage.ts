@@ -54,6 +54,16 @@ const CSS = `
   .empty-pane-w { font-size: 12.5px; color: var(--text-3); max-width: 46ch; line-height: 1.7; }
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">صندوق الدعم</div>
+      <div class="phead-s">من يحتاج مساعدة، وما الذي لم يُحلّ بعد — مع سياق مساحة عمل الزبون.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/inbox">الصندوق الكلاسيكي</a></div>
+  </div>
+`;
+
 const BODY = `
   <div class="bar">
     <select class="inp" id="f-status" style="width:auto;">
@@ -213,6 +223,7 @@ export function supportWorkspacePage(): string {
     title: 'صندوق الدعم',
     subtitle: 'من يحتاج مساعدة وما الذي لم يُحلّ',
     css: CSS,
+    header: HEADER,
     body: BODY,
     script: SCRIPT,
     commands: [

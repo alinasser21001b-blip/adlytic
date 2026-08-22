@@ -39,6 +39,15 @@ const CSS = `
 ${GRAPH_VIEW_CSS}
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">خريطة المنظومة</div>
+      <div class="phead-s">ما الذي يوجد، وما الذي يعتمد على ماذا، وأين تتدفّق البيانات — بنيةً وتشغيلاً وأثرَ قرار.</div>
+    </div>
+  </div>
+`;
+
 const BODY = `
   <section class="card">
     <div class="card-h">
@@ -140,6 +149,7 @@ export function systemGraphPage(): string {
     title: 'خريطة المنظومة',
     subtitle: 'ما الذي يوجد، وما الذي يعتمد على ماذا، وأين تتدفق البيانات',
     css: CSS,
+    header: HEADER,
     body: BODY,
     script: GRAPH_VIEW_JS + SCRIPT,
     commands: [

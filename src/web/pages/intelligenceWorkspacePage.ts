@@ -60,6 +60,16 @@ const CSS = `
          border-radius: 7px; padding: 5px 9px; font-size: 12px; font-family: inherit; }
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">مساحة الذكاء</div>
+      <div class="phead-s">ماذا تعرف أدلَيتِك، وكيف استنتجت، وماذا قرّرت — وأين تنتهي معرفتها.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/brain-observatory">مرصد الدماغ</a></div>
+  </div>
+`;
+
 const BODY = `
   <section class="view on" id="v-overview">
     <div class="grid g3">
@@ -270,6 +280,7 @@ export function intelligenceWorkspacePage(): string {
     title: 'مساحة الذكاء',
     subtitle: 'ماذا تعرف أدلَيتِك، وكيف استنتجت، وماذا قرّرت',
     css: CSS,
+    header: HEADER,
     body: BODY,
     views: [
       { id: 'overview', label: 'نظرة المشغّل', hint: 'التغطية والسلسلة' },
