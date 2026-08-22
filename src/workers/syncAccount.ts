@@ -27,7 +27,7 @@ import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
 import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
-import { advisoryLockId } from "../lib/advisoryLock";
+import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from "../lib/advisoryLock";
 import { freezeCampaign } from "../lib/campaignFreeze";
 import { MESSAGING_CTA_TYPES, resolveCampaignPurpose } from "../lib/campaignPurpose";
 import {
@@ -225,15 +225,13 @@ export class SyncAccountWorker {
    * releases the lock automatically. No schema migration required.
    */
   async sync(adAccountId: string, opts: SyncOptions = {}): Promise<SyncResult> {
-    const lockId = advisoryLockId(adAccountId);
-
-    // Try to acquire the advisory lock. Session-scoped advisory locks auto-release
-    // on connection drop, so stale locks from crashed processes clean up on their own.
-    const lockRows = await this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
-      `SELECT pg_try_advisory_lock($1)`,
-      lockId,
-    );
-    const acquired = lockRows[0]!.pg_try_advisory_lock;
+    // ONE locking contract for every producer. This used to issue its own
+    // `SELECT pg_try_advisory_lock($1)` through Prisma, which meant it did not
+    // consult lib/advisoryLock's in-process registry — and a pooled advisory
+    // lock is re-entrant per session, so a manual sync racing the scheduler
+    // could be granted the very lock the scheduler was holding. See the header
+    // of lib/advisoryLock.ts.
+    const { acquired, lockId } = await tryAcquireAdvisoryLock(this.prisma, adAccountId);
 
     if (!acquired) {
       console.warn(`[sync:${adAccountId.slice(0, 8)}] Sync already in progress (advisory lock held) — skipping`);
@@ -253,9 +251,9 @@ export class SyncAccountWorker {
     try {
       return await this.syncAccountLevelDataLocked(adAccountId, opts);
     } finally {
-      // Release the advisory lock. This is a no-op if the connection was already
-      // dropped (Postgres releases session locks automatically on disconnect).
-      await this.prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, lockId);
+      // Releases the in-process reservation and the DB-side lock, and warns if
+      // the pooled connection this lands on is not the one that took it.
+      await releaseAdvisoryLock(this.prisma, lockId);
     }
   }
 
@@ -1602,16 +1600,10 @@ export class SyncAccountWorker {
   async syncChunked(jobId: string): Promise<void> {
     const job = await this.prisma.syncJob.findUniqueOrThrow({ where: { id: jobId } });
     const adAccountId = job.adAccountId;
-    const lockId = advisoryLockId(adAccountId);
     const tag = `[syncChunked:${jobId.slice(0, 8)}]`;
 
-    // Try to acquire the advisory lock. Session-scoped advisory locks auto-release
-    // on connection drop, so stale locks from crashed processes clean up on their own.
-    const lockRows = await this.prisma.$queryRawUnsafe<[{ pg_try_advisory_lock: boolean }]>(
-      `SELECT pg_try_advisory_lock($1)`,
-      lockId,
-    );
-    const acquired = lockRows[0]!.pg_try_advisory_lock;
+    // Same one locking contract as sync() and the scheduler — see above.
+    const { acquired, lockId } = await tryAcquireAdvisoryLock(this.prisma, adAccountId);
 
     if (!acquired) {
       console.warn(`${tag} Advisory lock held — another sync running. Marking FAILED.`);
@@ -1815,7 +1807,7 @@ export class SyncAccountWorker {
         },
       });
     } finally {
-      await this.prisma.$executeRawUnsafe(`SELECT pg_advisory_unlock($1)`, lockId);
+      await releaseAdvisoryLock(this.prisma, lockId);
     }
   }
 }
