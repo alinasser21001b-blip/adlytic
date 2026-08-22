@@ -76,6 +76,23 @@ async function inspect(page, surface, scenario, viewport) {
         sparse.push(`${(el.className || '').toString()} h=${Math.round(r.height)} text=${text.length}`);
       }
     }
+    // Effective label size after the viewBox scales the SVG down. A graph whose
+    // labels land under ~6 CSS pixels is decoration: it looks like information
+    // and cannot be read, which is worse than showing a table.
+    let graphLabelPx = null;
+    const gsvg = document.querySelector('.gv-canvas');
+    if (gsvg && gsvg.getAttribute('viewBox')) {
+      const vb = gsvg.getAttribute('viewBox').split(' ').map(Number);
+      const box = gsvg.getBoundingClientRect();
+      const t = gsvg.querySelector('.gv-node text');
+      // preserveAspectRatio defaults to 'meet', so the content scales to fit
+      // the CONSTRAINING axis. Measuring width alone reported 23px for a graph
+      // that was actually rendering at 4px, because height was the constraint.
+      if (t && vb[2] > 0 && vb[3] > 0 && box.width > 0 && box.height > 0) {
+        const scale = Math.min(box.width / vb[2], box.height / vb[3]);
+        graphLabelPx = Number(t.getAttribute('font-size') || 10) * scale;
+      }
+    }
     const skeletons = document.querySelectorAll('.skel').length;
     const emptyCells = [...document.querySelectorAll('.empty')].map((e) => e.textContent.trim()).slice(0, 6);
     const chips = [...document.querySelectorAll('.st-chip')].map((c) => ({
@@ -86,7 +103,7 @@ async function inspect(page, surface, scenario, viewport) {
       bodyScrollW: document.body.scrollWidth, vw,
       overflowing: [...new Set(overflowing)].slice(0, 8),
       clipped: [...new Set(clipped)].slice(0, 8),
-      sparse, skeletons, emptyCells, chips,
+      sparse, skeletons, emptyCells, chips, graphLabelPx,
       dir: doc.getAttribute('dir'),
       railCount: document.querySelectorAll('.rail').length,
       h1: (document.querySelector('h1') || {}).textContent || '',
@@ -101,6 +118,10 @@ async function inspect(page, surface, scenario, viewport) {
   for (const c of m.clipped) finding('MEDIUM', surface, scenario, viewport, `text clipped: ${c}`);
   for (const s of m.sparse) finding('MEDIUM', surface, scenario, viewport, `sparse card: ${s}`);
   if (m.skeletons > 0) finding('MEDIUM', surface, scenario, viewport, `${m.skeletons} skeleton(s) never resolved`);
+  if (m.graphLabelPx !== null && m.graphLabelPx < 6) {
+    finding('HIGH', surface, scenario, viewport,
+      `graph labels render at ${m.graphLabelPx.toFixed(1)}px — unreadable, the graph is decoration`);
+  }
   if (m.railCount !== 1) finding('HIGH', surface, scenario, viewport, `expected 1 sidebar, found ${m.railCount}`);
   if (m.dir !== 'rtl') finding('HIGH', surface, scenario, viewport, `dir is ${m.dir}, expected rtl`);
   if (m.visibleText < 260) finding('HIGH', surface, scenario, viewport, `almost no visible text (${m.visibleText} chars)`);

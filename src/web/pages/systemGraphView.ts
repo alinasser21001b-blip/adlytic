@@ -90,7 +90,12 @@ export const GRAPH_VIEW_CSS = `
   .gv-ask button:hover { border-style: solid; border-color: var(--accent); color: var(--accent-2); }
   .gv-ask button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
 
-  .gv-stage { position: relative; background: var(--bg); }
+  /* The stage scrolls; the graph does not shrink to fit it.
+     Squeezing 135 nodes into a fixed panel scaled labels to 5.9px — legible
+     as shapes, unreadable as information. The graph now renders at its
+     natural size and the panel scrolls, which also makes the filters do real
+     work: hiding a class visibly shortens the map. */
+  .gv-stage { position: relative; background: var(--bg); overflow: auto; }
   .gv-canvas { display: block; width: 100%; touch-action: none; cursor: grab; }
   .gv-canvas.drag { cursor: grabbing; }
   .gv-node rect { stroke-width: 1.2px; }
@@ -254,8 +259,8 @@ window.AdlyticGraph = (function () {
     var filters = document.getElementById(uid + '-filters');
     var insp = document.getElementById(uid + '-insp');
     var ask = document.getElementById(uid + '-ask');
-    var height = opts.height || 560;
-    svg.setAttribute('height', String(height));
+    var maxH = opts.height || 560;
+    stage.style.maxHeight = maxH + 'px';
 
     function fail(msg) {
       // A malformed or unavailable graph degrades THIS panel and nothing else.
@@ -263,6 +268,7 @@ window.AdlyticGraph = (function () {
       // operations surface: the screen you use to find out what is broken must
       // not be the screen that breaks.
       svg.setAttribute('height', '0');
+      stage.style.maxHeight = '';
       stage.innerHTML = '<div class="gv-blank">' + esc(msg)
         + '<div style="margin-top:8px;font-size:11.5px;">بقية لوحة التحكّم تعمل — هذه اللوحة وحدها متعذّرة.</div></div>';
       note.innerHTML = '<span class="gv-err">الخريطة غير متاحة</span>';
@@ -304,7 +310,17 @@ window.AdlyticGraph = (function () {
       S.visible = vis;
     }
 
-    /** Deterministic: column by class, row by stable sort within the column. */
+    /**
+     * Deterministic: column by class, row by stable sort within the column.
+     *
+     * EMPTY COLUMNS COLLAPSE. The first version always reserved all six, so a
+     * filtered view — the compact home-page preview, or "where does Meta data
+     * enter?" — laid three columns of content across six columns of width and
+     * the viewBox scaled every node down to a few unreadable pixels. A picture
+     * nobody can read is worse than a table, because it still looks like
+     * understanding. Column ORDER never changes, so a node keeps its place
+     * relative to its neighbours and two screenshots stay comparable.
+     */
     function layout() {
       var cols = [[], [], [], [], [], []];
       S.snapshot.nodes.forEach(function (n) {
@@ -312,21 +328,27 @@ window.AdlyticGraph = (function () {
         var c = COLUMN[n.nodeClass];
         cols[c === undefined ? 1 : c].push(n);
       });
+      var used = [];
+      cols.forEach(function (list, ci) { if (list.length) used.push(ci); });
+      if (!used.length) { S.pos = {}; S.cols = cols; S.usedCols = []; return; }
+
       var tallest = Math.max(1, Math.max.apply(null, cols.map(function (c) { return c.length; })));
-      S.H = Math.max(260, PAD * 2 + tallest * (NODE_H + ROW_GAP));
-      S.W = PAD * 2 + cols.length * NODE_W + (cols.length - 1) * COL_GAP;
+      S.H = Math.max(240, PAD * 2 + tallest * (NODE_H + ROW_GAP));
+      S.W = PAD * 2 + used.length * NODE_W + (used.length - 1) * COL_GAP;
       var pos = {};
-      cols.forEach(function (list, ci) {
+      used.forEach(function (ci, slot) {
+        var list = cols[ci];
         list.sort(function (a, b) { return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
         var span = list.length * (NODE_H + ROW_GAP);
         var top = PAD + (S.H - PAD * 2 - span) / 2;
         list.forEach(function (n, ri) {
-          pos[n.id] = { x: PAD + ci * (NODE_W + COL_GAP) + NODE_W / 2,
+          pos[n.id] = { x: PAD + slot * (NODE_W + COL_GAP) + NODE_W / 2,
                         y: top + ri * (NODE_H + ROW_GAP) + NODE_H / 2, col: ci };
         });
       });
       S.pos = pos;
       S.cols = cols;
+      S.usedCols = used;
     }
 
     function nodeFill(n) {
@@ -442,6 +464,7 @@ window.AdlyticGraph = (function () {
       if (shown === 0) {
         svg.innerHTML = '';
         svg.setAttribute('height', '0');
+        svg.removeAttribute('width');
         var why = S.snapshot.nodes.length === 0
           ? 'الخريطة فارغة — لا عقد في هذه اللقطة.'
           : 'لا عقدة تطابق البحث أو المرشّحات الحالية.';
@@ -452,17 +475,21 @@ window.AdlyticGraph = (function () {
         return;
       }
       var b0 = stage.querySelector('.gv-blank'); if (b0) b0.remove();
-      svg.setAttribute('height', String(height));
+      // Natural scale: the SVG is as tall as its content, and the stage
+      // scrolls. Zoom stays available for deliberate scaling; it is no longer
+      // the only thing standing between the operator and a readable label.
       svg.setAttribute('viewBox', '0 0 ' + S.W + ' ' + S.H);
+      svg.setAttribute('height', String(Math.round(S.H * S.view.k)));
+      svg.setAttribute('width', String(Math.round(S.W * S.view.k)));
+      svg.style.minWidth = '100%';
 
       var near = S.selected ? neighbours(S.selected) : null;
       var hits = {};
       if (S.query) S.snapshot.nodes.forEach(function (n) { if (matchesQuery(n)) hits[n.id] = 1; });
 
       var parts = ['<g transform="translate(' + S.view.x + ',' + S.view.y + ') scale(' + S.view.k + ')">'];
-      (S.cols || []).forEach(function (list, ci) {
-        if (!list.length) return;
-        var x = PAD + ci * (NODE_W + COL_GAP) + NODE_W / 2;
+      (S.usedCols || []).forEach(function (ci, slot) {
+        var x = PAD + slot * (NODE_W + COL_GAP) + NODE_W / 2;
         parts.push('<text class="gv-col" x="' + x + '" y="' + (PAD - 12) + '" text-anchor="middle">'
           + esc(COL_LABEL[ci]) + '</text>');
       });
@@ -631,8 +658,13 @@ window.AdlyticGraph = (function () {
         return;
       }
       S.snapshot = r.snapshot;
-      if (compact) S.hidden = only(['SERVICE', 'DEPLOYMENT_SERVICE', 'QUEUE', 'DB_MODEL',
-                                    'PERSISTENCE_OWNER', 'WORKSPACE', 'INTELLIGENCE_LAYER']);
+      // The compact preview shows the INFRASTRUCTURE SPINE, not a thumbnail of
+      // everything. Forty-one nodes in a 330px panel scale down to roughly four
+      // unreadable pixels per label — a picture that looks like information and
+      // is not. Twenty nodes across three columns stay legible at this height,
+      // and the full map is one click away.
+      if (compact) S.hidden = only(['DEPLOYMENT_SERVICE', 'QUEUE', 'DB_MODEL',
+                                    'WORKSPACE', 'INTELLIGENCE_LAYER']);
       paintAsk();
       render();
       if (S.mode === 'runtime') loadRuntime();
