@@ -103,6 +103,13 @@ jobs:
 
       - run: npm run typecheck
 
+      # test_admin_scenarios.mjs drives the shipped admin page in a real
+      # browser to assert what an OPERATOR can see — two different incidents
+      # must read differently. That boundary genuinely needs a DOM, so the
+      # browser is provided rather than the test mocked down to markup checks.
+      # Chromium only; the suite launches nothing else.
+      - run: npx playwright install --with-deps chromium
+
       # 46 suites. Verified to need no credentials and no network: the full
       # suite passes with DATABASE_URL, JWT_SECRET, TOKEN_ENCRYPTION_KEY,
       # PLATFORM_ADMIN_EMAILS, the API keys and every proxy variable stripped

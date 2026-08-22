@@ -17,11 +17,30 @@
 // ════════════════════════════════════════════════════════════════════════
 import { chromium } from 'playwright';
 import { execSync } from 'node:child_process';
+import { existsSync } from 'node:fs';
 
+// Run from wherever the repository actually is. This was pinned to an absolute
+// authoring path, so the suite could only ever pass on one machine: elsewhere
+// the cwd does not exist and spawnSync reports ENOENT against /bin/sh, which
+// reads like a broken shell rather than a bad directory. CI found it on its
+// first run.
 const html = execSync(
   `npx tsx -e "import { adminOsPage } from './src/web/pages/adminOsPage'; process.stdout.write(adminOsPage());"`,
-  { cwd: '/home/user/adlytic', maxBuffer: 64 * 1024 * 1024 },
+  { cwd: process.cwd(), maxBuffer: 64 * 1024 * 1024 },
 ).toString();
+
+/**
+ * Let Playwright resolve its own browser, and use a preinstalled one only
+ * where that path genuinely exists.
+ *
+ * The executable was hardcoded to a sandbox-provided path for the same reason
+ * the cwd was: it worked where it was written. Omitting `executablePath`
+ * makes Playwright resolve the browser it installed itself, which is what CI
+ * has after `playwright install`.
+ */
+const launchOptions = existsSync('/opt/pw-browsers/chromium')
+  ? { executablePath: '/opt/pw-browsers/chromium' }
+  : {};
 
 const ORIGIN = 'http://adlytic.test';
 const now = () => new Date().toISOString();
@@ -119,7 +138,7 @@ const out = [];
 const ok = (m) => out.push(['ok', m]);
 const bad = (m) => { out.push(['FAIL', m]); failures++; };
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const browser = await chromium.launch(launchOptions);
 
 async function open(scenario) {
   const page = await browser.newPage();
