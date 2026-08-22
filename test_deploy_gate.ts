@@ -406,6 +406,66 @@ function main() {
     }
   }
 
+  console.log('\n── 9. no start command may depend on getting a shell ──');
+  {
+    // Deployment 2a063356 built fine and then died at the healthcheck. Its
+    // runtime log is four lines long:
+    //
+    //   Starting Container / 40 migrations found / No pending migrations to
+    //   apply. / Stopping Container
+    //
+    // The server never printed a byte. The start command was
+    // `npx prisma migrate deploy && node dist/src/api/serve.js`, and under the
+    // Dockerfile builder that string is split into an argv array instead of
+    // being handed to a shell — so `&&` arrived as an argument to Prisma,
+    // which ignored it and exited 0. Under Nixpacks the same string worked,
+    // which is why this survived until the builder changed.
+    //
+    // The invariant is not "avoid &&". It is that a start command must mean
+    // the same thing whether it is exec'd or shelled, because the platform
+    // does not promise which. Sequencing belongs in a script.
+    const SHELL_METACHARS = /(&&|\|\||[;|&><]|\$\(|`)/;
+    const configs = readdirSync('.').filter((f) => /^railway.*\.(json|toml)$/.test(f));
+    const offenders: string[] = [];
+    for (const f of configs) {
+      const body = readFileSync(f, 'utf8');
+      const m = body.match(/startCommand\s*"?\s*[:=]\s*"([^"]*)"/);
+      if (m && SHELL_METACHARS.test(m[1]!)) offenders.push(`${f}: ${m[1]}`);
+    }
+    if (offenders.length === 0) {
+      ok(`all ${configs.length} start commands are shell-independent`);
+    } else {
+      bad(`a start command relies on shell interpretation the platform does not promise: ${offenders.join(' | ')}`);
+    }
+
+    // The sequencing that came out of the start command has to exist somewhere,
+    // and in the right order: migrate, check, then serve.
+    const START = '.deploy/start.js';
+    if (!existsSync(START)) {
+      bad(`${START} is missing — railway.json names it as the start command`);
+    } else {
+      // Comments in that file legitimately quote the very strings checked
+      // below — the first version of this guard passed off a comment that
+      // mentions stdio:'inherit' while the code said 'ignore'.
+      const s = readFileSync(START, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+      const migrateIdx = s.indexOf("'migrate', 'deploy'");
+      const guardIdx = s.search(/migrate\.status !== 0/);
+      const serveIdx = s.indexOf("'serve.js'");
+      if (migrateIdx >= 0 && guardIdx > migrateIdx && serveIdx > guardIdx) {
+        ok('the start script migrates, checks the exit status, then serves — in that order');
+      } else {
+        bad('the start script must run migrations, fail on a non-zero status, and only then start the server');
+      }
+      if (/stdio:\s*'inherit'/.test(s)) {
+        ok('the migrator\'s output still reaches the deployment log');
+      } else {
+        bad('the migrator output is swallowed — NO_PENDING_MIGRATIONS becomes unobservable');
+      }
+    }
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES, ${passed} passed`} ════\n`);
   process.exit(failed ? 1 : 0);
 }
