@@ -371,6 +371,21 @@ function main() {
         } else {
           bad('nothing counts queued deployments — a backlog reads identically to a slow build');
         }
+        // The count is over a fetched page, so the page size has to travel
+        // with it. Without that, terminal rows accumulating at the top push
+        // older QUEUED ones out of the window and the number falls while
+        // nothing has drained — which is exactly what happened, and it read as
+        // progress until the row list was checked against it.
+        if (/DEPLOYMENTS_QUEUED=\$\{QN:-0\} \(of \$\{FETCHED:-0\} most recent\)/.test(body)) {
+          ok('the queue count states its denominator, so a shifting window cannot look like drainage');
+        } else {
+          bad('the queue count is printed without the page size it was computed over');
+        }
+        if (/DEPLOYMENTS_BUILDING=/.test(body)) {
+          ok('whether anything is actually building is reported — waiting and stalled are different');
+        } else {
+          bad('nothing distinguishes a queue that is moving from one that is not');
+        }
       }
 
       if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
