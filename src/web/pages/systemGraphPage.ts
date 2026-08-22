@@ -28,8 +28,6 @@ import { adminShell } from '../adminShell';
 import { GRAPH_VIEW_CSS, GRAPH_VIEW_JS } from './systemGraphView';
 
 const CSS = `
-  .glayout { display: grid; grid-template-columns: minmax(0, 1fr) 370px; gap: 12px; align-items: start; }
-  @media (max-width: 1100px) { .glayout { grid-template-columns: 1fr; } }
   .picker { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; }
   select.inp, input.inp { border: 1px solid var(--border-control); background: var(--surface);
     color: var(--text); border-radius: 7px; padding: 5px 9px; font-size: 12px; font-family: inherit; }
@@ -56,10 +54,7 @@ const BODY = `
     <div id="stages"></div>
   </section>
 
-  <div class="glayout">
-    <div class="gv" id="gv"></div>
-    <div id="gv-inspect"></div>
-  </div>
+  <div class="gv" id="gv"></div>
 `;
 
 const SCRIPT = `
@@ -69,18 +64,16 @@ const SCRIPT = `
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
-  var inspect = document.getElementById('gv-inspect');
-  inspect.innerHTML = window.AdlyticGraph.inspector(null, {});
-
   var g = window.AdlyticGraph.mount({
-    host: 'gv', modes: ['architecture', 'runtime', 'trace'], height: 600,
-    onSelect: function (node, ctx) { inspect.innerHTML = window.AdlyticGraph.inspector(node, ctx); },
+    host: 'gv', modes: ['architecture', 'runtime', 'trace'], height: 620,
     onReady: function (snap) {
-      var counts = {};
-      snap.nodes.forEach(function (n) { counts[n.nodeClass] = (counts[n.nodeClass] || 0) + 1; });
-      window.adminCommands = snap.nodes.slice(0, 300).map(function (n) {
-        return { label: n.label, href: '#graph', hint: n.nodeClass };
+      // Nodes join the global palette, so Ctrl-K finds a component by name
+      // from anywhere in the Control Plane, not only from this page.
+      window.adminCommands = snap.nodes.map(function (n) {
+        return { label: n.label, href: '/admin/graph?node=' + encodeURIComponent(n.id), hint: n.nodeClass };
       });
+      var want = new URLSearchParams(location.search).get('node');
+      if (want) g.select(want);
     }
   });
 

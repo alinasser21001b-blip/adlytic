@@ -43,8 +43,6 @@ const CSS = `
   .tl { border-inline-start: 2px solid var(--border); padding-inline-start: 12px; }
   .tl-i { padding: 6px 0; border-bottom: 1px dotted var(--border); font-size: 11.5px; }
   .tl-t { color: var(--text-3); font-size: 10.5px; }
-  .split { display: grid; grid-template-columns: minmax(0, 1fr) 340px; gap: 12px; align-items: start; }
-  @media (max-width: 1080px) { .split { grid-template-columns: 1fr; } }
 ${GRAPH_VIEW_CSS}
 `;
 
@@ -86,10 +84,7 @@ const BODY = `
   <section class="card">
     <div class="card-h"><div class="h2">خريطة المنظومة</div>
       <a class="btn" href="/admin/graph">الخريطة الكاملة</a></div>
-    <div class="split">
-      <div class="gv" id="gv"></div>
-      <div id="gv-inspect"></div>
-    </div>
+    <div class="gv" id="gv"></div>
   </section>
 `;
 
@@ -143,7 +138,7 @@ const SCRIPT = `
         + (t.d ? '<div class="pt-w mono">' + esc(t.d) + '</div>' : '')
         + '</div>';
     }).join('');
-    document.getElementById('pulse-at').textContent = 'محسوبة ' + esc(ops.computedAt || '');
+    document.getElementById('pulse-at').innerHTML = 'محسوبة ' + window.adminTime(ops.computedAt);
     var unknown = ops.unknown || [];
     document.getElementById('pulse-unknown').textContent = unknown.length
       ? ('لم نتمكّن من تحديد: ' + unknown.map(function (u) { return SUBS[u] || u; }).join('، ')
@@ -196,7 +191,7 @@ const SCRIPT = `
   function renderTimeline(ops) {
     var items = (ops.activity || []);
     document.getElementById('timeline').innerHTML = items.length ? items.map(function (a) {
-      return '<div class="tl-i"><div class="tl-t mono">' + esc(a.at) + '</div>'
+      return '<div class="tl-i"><div class="tl-t">' + window.adminTime(a.at) + '</div>'
         + esc(a.workspaceName) + ' · ' + esc(a.kind) + ' · ' + esc(a.status)
         + (a.detail ? ' — <span class="muted">' + esc(a.detail) + '</span>' : '') + '</div>';
     }).join('') : '<div class="muted">لا نشاط مسجّل.</div>';
@@ -225,23 +220,30 @@ const SCRIPT = `
     var ops = e.detail;
     renderPulse(ops); renderAttention(ops); renderRisk(ops); renderTimeline(ops);
   });
+  // Every region fed by the ops snapshot needs its own failure state. The
+  // acceptance audit caught two skeletons here still animating after the
+  // request had already failed — a spinner that never resolves tells the
+  // operator "loading" forever, which is worse than an error.
   document.addEventListener('ops:failed', function () {
+    var why = '<div class="muted" style="padding:14px;text-align:center;">'
+      + 'تعذّر قراءة لقطة التشغيل — هذه اللوحة غير متاحة الآن.</div>';
     document.getElementById('pulse').innerHTML =
       '<div class="muted">تعذّر قراءة حالة التشغيل — لا يمكن عرض النبض.</div>';
+    document.getElementById('pulse-at').textContent = '';
+    document.getElementById('attention').innerHTML = why;
+    document.getElementById('timeline').innerHTML = why;
     document.getElementById('risk').innerHTML =
-      '<tr><td colspan="4" class="empty">غير متاح</td></tr>';
+      '<tr><td colspan="4" class="empty">غير متاح — تعذّر قراءة لقطة التشغيل</td></tr>';
   });
 
   window.adminFetch('/api/admin/platform-stats').then(renderIntel).catch(function () {
     document.getElementById('intel').innerHTML = '<div class="muted">تعذّر تحميل إحصاءات المنصة.</div>';
   });
 
-  var inspect = document.getElementById('gv-inspect');
-  inspect.innerHTML = window.AdlyticGraph.inspector(null, {});
-  window.AdlyticGraph.mount({
-    host: 'gv', modes: ['architecture', 'runtime'], height: 380,
-    onSelect: function (node, ctx) { inspect.innerHTML = window.AdlyticGraph.inspector(node, ctx); }
-  });
+  // Compact: the preview opens on the infrastructure spine rather than all
+  // 135 nodes. A thumbnail of the whole graph is unreadable at this size, and
+  // an unreadable picture on the home page is decoration.
+  window.AdlyticGraph.mount({ host: 'gv', modes: ['architecture', 'runtime'], height: 330, compact: true });
 })();
 `;
 

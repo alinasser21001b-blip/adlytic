@@ -278,7 +278,7 @@ const SCRIPT = `
       var list = (r && (r.events || r.items || r)) || [];
       if (!Array.isArray(list)) list = [];
       host.innerHTML = list.length ? list.map(function (p) {
-        return '<tr><td class="mono">' + esc(p.createdAt || p.at || '') + '</td>'
+        return '<tr><td>' + window.adminTime(p.createdAt || p.at) + '</td>'
           + '<td>' + esc(p.type || p.event || '') + '</td>'
           + '<td>' + esc(p.workspaceId || '—') + '</td>'
           + '<td class="mono">' + esc(p.amount != null ? p.amount : '—') + '</td></tr>';

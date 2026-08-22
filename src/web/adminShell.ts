@@ -176,7 +176,7 @@ const SHELL_CSS = `
   .card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .h2 { font-size: 12.5px; font-weight: 700; letter-spacing: -0.005em; }
   .muted { color: var(--text-3); font-size: 11.5px; }
-  .grid { display: grid; gap: 12px; }
+  .grid { display: grid; gap: 12px; align-items: start; }
   .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .g4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -280,6 +280,32 @@ function shellScript(commands: ShellCommand[]): string {
     var t = localStorage.getItem('adlytic_token');
     return t ? { Authorization: 'Bearer ' + t } : {};
   }
+  /**
+   * One time formatter for the whole Control Plane.
+   *
+   * The audit found raw ISO strings on the pulse header and the operational
+   * timeline — '2026-08-22T04:10:00.000Z' in a column an operator scans for
+   * "was that today". Kept LTR and monospaced (a timestamp is an identifier,
+   * not prose) but rendered as something a person reads at a glance, with the
+   * absolute value on hover for anyone who needs the exact instant.
+   */
+  window.adminTime = function (iso) {
+    if (!iso) return '—';
+    var t = Date.parse(iso);
+    if (!isFinite(t)) return String(iso);
+    var d = new Date(t);
+    var pad = function (x) { return x < 10 ? '0' + x : String(x); };
+    var stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate())
+      + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes());
+    var mins = Math.round((Date.now() - t) / 60000);
+    var rel = mins < 1 ? 'الآن'
+      : mins < 60 ? ('قبل ' + mins + ' دقيقة')
+      : mins < 1440 ? ('قبل ' + Math.round(mins / 60) + ' ساعة')
+      : ('قبل ' + Math.round(mins / 1440) + ' يوم');
+    return '<span class="mono" title="' + esc(iso) + '">' + stamp + '</span>'
+      + ' <span class="muted">' + rel + '</span>';
+  };
+
   window.adminFetch = function (url, opts) {
     var o = opts || {};
     o.headers = Object.assign({}, o.headers || {}, authHeaders());

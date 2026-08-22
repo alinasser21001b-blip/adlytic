@@ -143,7 +143,7 @@ const SCRIPT = `
       thread.innerHTML = msgs.length ? msgs.map(function (m) {
         var staff = m.authorRole === 'ADMIN' || m.isStaff || m.fromAdmin;
         return '<div class="msg' + (staff ? ' staff' : '') + '">'
-          + '<div class="msg-w mono">' + esc(m.createdAt || '') + ' · '
+          + '<div class="msg-w">' + window.adminTime(m.createdAt) + ' · '
           + esc(staff ? 'الدعم' : (m.authorName || 'الزبون')) + '</div>'
           + esc(m.body || m.message || '') + '</div>';
       }).join('') : '<div class="muted">لا رسائل في هذه التذكرة.</div>';

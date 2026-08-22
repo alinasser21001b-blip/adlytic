@@ -147,7 +147,7 @@ const SCRIPT = `
 
     document.getElementById('sync').innerHTML = rows.length ? rows.map(function (w) {
       return '<tr><td>' + esc(w.workspaceName) + '</td>'
-        + '<td class="mono">' + esc(w.lastSyncedAt || '—') + '</td>'
+        + '<td>' + window.adminTime(w.lastSyncedAt) + '</td>'
         + '<td>' + esc(w.lastSyncStatus || '—') + '</td>'
         + '<td class="muted">' + esc(w.lastSyncError || '') + '</td></tr>';
     }).join('') : '<tr><td colspan="4" class="empty">لا مزامنة مسجّلة.</td></tr>';
@@ -158,6 +158,15 @@ const SCRIPT = `
         + '<td class="mono">' + (w.dataAgeDays == null ? '—' : esc(w.dataAgeDays) + ' يوم') + '</td>'
         + '<td>' + chip(w.data) + '</td></tr>';
     }).join('') : '<tr><td colspan="4" class="empty">لا بيانات مخزّنة.</td></tr>';
+  });
+
+  document.addEventListener('ops:failed', function () {
+    var why = '<div class="muted">تعذّر قراءة لقطة التشغيل — حالة الاتصال غير متاحة.</div>';
+    document.getElementById('meta-sub').innerHTML = why;
+    ['conn', 'sync', 'cov'].forEach(function (id) {
+      document.getElementById(id).innerHTML =
+        '<tr><td colspan="6" class="empty">غير متاح — تعذّر قراءة لقطة التشغيل</td></tr>';
+    });
   });
 
   window.adminFetch('/api/admin/meta-usage').then(function (u) {
@@ -176,7 +185,7 @@ const SCRIPT = `
   window.adminFetch('/api/admin/meta-audit?limit=60').then(function (r) {
     var ev = (r && r.events) || [];
     document.getElementById('fail').innerHTML = ev.length ? ev.map(function (x) {
-      return '<tr><td class="mono">' + esc(x.createdAt || x.at || '') + '</td>'
+      return '<tr><td>' + window.adminTime(x.createdAt || x.at) + '</td>'
         + '<td>' + esc(x.event || x.kind || '') + '</td>'
         + '<td>' + esc(x.workspaceId || '—') + '</td>'
         + '<td class="muted">' + esc(x.detail || x.reason || '') + '</td></tr>';

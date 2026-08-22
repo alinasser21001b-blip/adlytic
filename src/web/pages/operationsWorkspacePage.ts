@@ -138,11 +138,21 @@ const SCRIPT = `
     document.getElementById('acts').innerHTML = (ops.activity || []).length
       ? (ops.activity).map(function (a) {
           return '<div style="padding:6px 0;border-bottom:1px dotted var(--border);font-size:11.5px;">'
-            + '<span class="mono muted">' + esc(a.at) + '</span> · ' + esc(a.workspaceName)
+            + window.adminTime(a.at) + ' · ' + esc(a.workspaceName)
             + ' · ' + esc(a.kind) + ' · ' + esc(a.status)
             + (a.detail ? ' — <span class="muted">' + esc(a.detail) + '</span>' : '') + '</div>';
         }).join('')
       : '<div class="muted">لا نشاط مسجّل.</div>';
+  });
+
+  document.addEventListener('ops:failed', function () {
+    var why = '<div class="muted" style="padding:14px;">تعذّر قراءة لقطة التشغيل — '
+      + 'حالة الأنظمة الفرعية غير متاحة. هذا ليس ادّعاءً بأنها سليمة.</div>';
+    document.getElementById('subs').innerHTML = why;
+    document.getElementById('acts').innerHTML = why;
+    document.getElementById('unknown').textContent = 'غير متاح — لم تُقرأ اللقطة أصلاً.';
+    document.getElementById('b-commit').textContent = 'غير محدّدة';
+    document.getElementById('b-detail').textContent = 'تعذّر قراءة هوية النسخة';
   });
 
   document.getElementById('queues').textContent =
