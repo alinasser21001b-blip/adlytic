@@ -80,7 +80,10 @@ COPY public ./public
 
 EXPOSE 3000
 
-# Railway runs railway.json's deploy.startCommand, which is identical to this.
-# Stated here as well so the image is correct on its own — an image whose CMD
-# only works under one orchestrator is a trap for whoever runs it next.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/src/api/serve.js"]
+# The same single command railway.json's deploy.startCommand names, so the
+# image behaves identically whether the platform uses its own start command or
+# falls back to this one. It is deliberately NOT `sh -c "A && B"`: the first
+# Dockerfile-built deployment proved that start string gets split into an argv
+# array rather than handed to a shell, so `&&` reached Prisma as an argument
+# and the server never ran. .deploy/start.js carries the sequencing instead.
+CMD ["node", ".deploy/start.js"]
