@@ -162,6 +162,83 @@ be pasted into a chat or a source file. The remedy is one of:
 2. deploy by hand — Railway UI → the service → **Deploy Latest Commit** —
    then confirm `GET /api/health` reports the expected commit.
 
+### LIVE EVIDENCE — 22 Aug 2026, CI run 32575215184 / 32575346317
+
+First real observation of the running system. Obtained through a read-only
+GitHub Actions job (`verify-live.yml`) because this environment cannot reach
+Railway; the Actions log is the record.
+
+**Production service — `adlytic-production`**
+
+```
+status              = ok
+db                  = ok
+role                = worker
+runsBackgroundSync  = true
+bullmq              = enabled
+build.resolved      = true
+build.commit        = de26b25290c755be1d5bc9668f6bfe48fd0c899c
+build.branch        = main
+build.message       = "Merge pull request #88 …"
+bootedAt            = 2026-08-22T11:39:53Z
+```
+
+**Validation service — `adlytic-brain-validation`**
+
+```
+status              = ok
+db                  = ok
+role                = api          ✓ reader
+runsBackgroundSync  = false        ✓ not competing for the sync lock
+bullmq              = disabled     ✓
+build.shortCommit   = bcd6cf4      ✗ OLD — a Mission-A commit, booted 01:09Z
+build.branch        = claude/brain-admin-v2-integration
+```
+
+Three findings that change the operational picture:
+
+**1. Railway deploys itself; the Actions workflow has never succeeded.**
+Production booted `de26b25` at **11:39:53Z** — about fifty seconds *after*
+deploy run #143 failed at 11:39:40Z. Railway's own GitHub integration did that,
+independently of `deploy-adlytic.yml`. Every "no deploy has happened since
+19 August" conclusion drawn from the Actions history was wrong about the
+*outcome* while being right about the *workflow*: the workflow genuinely never
+deployed anything, but the platform did.
+
+**2. `RAILWAY_TOKEN` is set but NOT AUTHORIZED.**
+
+```
+HTTP 200
+{"errors":[{"message":"Not Authorized","path":["serviceInstanceDeploy"]}],"data":null}
+```
+
+The token reached Railway and Railway refused the mutation. `railway-deploy.sh`
+caught it exactly as designed — a GraphQL error inside an HTTP 200 is the
+precise false-success shape that script exists to reject, and it did.
+Railway distinguishes **project** tokens (different header, cannot trigger
+deploys) from **account/personal** tokens (`Authorization: Bearer`, can). The
+symptom matches a project token being used where an account token is required.
+The script's own error text already says "Railway account token, No Team".
+
+**3. Production is `role=worker` with `runsBackgroundSync=true`.** So the
+service that serves the public API is also the one running
+`backgroundScheduler`, which is what calls `syncPeriodInsightsForAccount`. The
+period-truth writer is therefore live and has been running since 11:39Z — the
+Gate B question "is there anything that would ever write these rows" is
+answered YES, by observation rather than by reading config.
+
+### What this does NOT prove
+
+`MIGRATION_APPLIED` is **UNPROVEN**, not YES. The reasoning that tempts a YES:
+`railway.json`'s start command is `npx prisma migrate deploy && node …`, so a
+serving process implies the migration succeeded. The reason that is not
+sufficient: a Railway service can override its start command in the dashboard,
+and this one demonstrably carries dashboard-set variables (`SERVICE_ROLE=worker`
+appears nowhere in the repo). So the service may not be running that command at
+all. A booted service with `db=ok` is consistent with *both* "migration applied"
+and "this service never migrates". Recording YES here would be inference
+dressed as observation.
+
 ### Evidence ladder — what must be true at each step
 
 | Step | Required evidence |

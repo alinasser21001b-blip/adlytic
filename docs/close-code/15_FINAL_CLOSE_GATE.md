@@ -139,16 +139,36 @@ C. CI_GATE                   = CLOSED   (repository governance)
 D. FINAL_HEALTH_BUILD_GATE   = OPEN     (deployment / live verification)
 
 OPEN_OPERATIONAL_GATES = 3
-SHARED_BLOCKER         = RAILWAY_TOKEN unset ⇒ no deploy, no build, no live read
+SHARED_BLOCKER         = RAILWAY_TOKEN present but NOT AUTHORIZED
 ```
 
-The three are not three independent problems. Each needs a **deploy** or a
-**running service**, and neither exists: `RAILWAY_TOKEN` is absent so the
-pipeline cannot deploy, and Railway's control plane and services answer 403
-CONNECT at this environment's egress proxy. Resolve that one credential and all
-three become executable in a single ordered pass. Everything about them that
-did **not** require live access has been completed — see the per-gate sections
-and doc 07.
+**Updated 22 Aug after the first live observation** (doc 07 carries the full
+readout). The earlier statement here — that nothing had deployed since 19
+August — was wrong about the outcome while right about the workflow. Railway's
+own GitHub integration deploys independently of `deploy-adlytic.yml`, and
+production has been running `de26b25` since 11:39:53Z. The Actions deploy path
+has still never once succeeded.
+
+`RAILWAY_TOKEN` is now set, and Railway answers `serviceInstanceDeploy` with
+`"Not Authorized"` inside an HTTP 200. The token is present and refused, which
+is a different state from absent and a different fix: it needs to be an
+**account/personal** token, not a project token.
+
+What the live read settled, and what it did not:
+
+| | |
+|---|---|
+| production `status`/`db` | `ok` / `ok` |
+| production role | `worker`, `runsBackgroundSync=true` — the period-truth writer **is** live |
+| production build | `de26b25`, `resolved=true`, branch `main` |
+| validation posture | `role=api`, `runsBackgroundSync=false`, `bullmq=disabled` — correct |
+| validation build | `bcd6cf4` — an **old** Mission-A commit |
+| migration applied | **UNPROVEN** — see doc 07 for why a serving process is not proof |
+| period facts | **UNPROVEN** — behind `requirePlatformAdmin`, not readable from CI |
+
+So the three gates are no longer blocked by one thing. A is unchanged and needs
+a Railway build log. B needs the admin-authenticated Observatory or the worker
+log. D needs production to be running the final candidate, which it is not.
 
 ### A. NIXPACKS_SECRET_GATE — *deployment / security operational*
 
