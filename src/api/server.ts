@@ -5793,8 +5793,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     let metaTimezone: string | null = null;
     let metaCurrency: string | null = null;
     try {
-      const testUrl = `https://graph.facebook.com/${encodeURIComponent(apiVersion)}/${encodeURIComponent(extId)}?fields=id,name,currency,timezone_name,account_status&access_token=${encodeURIComponent(body.accessToken)}`;
-      const testRes = await fetch(testUrl);
+      // The token travels in the Authorization header, never the query string
+      // — the same rule MetaClient already follows. In a URL it would reach
+      // this handler's own catch below (which logs the fetch error), plus any
+      // proxy log, error tracker or stack trace along the way. A verification
+      // call is exactly where that is easiest to miss and worst to leak.
+      const testUrl = `https://graph.facebook.com/${encodeURIComponent(apiVersion)}/${encodeURIComponent(extId)}?fields=id,name,currency,timezone_name,account_status`;
+      const testRes = await fetch(testUrl, {
+        headers: { Authorization: `Bearer ${body.accessToken}` },
+      });
       const testData = await testRes.json() as Record<string, unknown>;
       if (testData['error']) {
         const err = testData['error'] as Record<string, unknown>;

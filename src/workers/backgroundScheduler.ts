@@ -34,6 +34,7 @@ import { metaAdapter } from '../orchestrator/adapters/metaAdapter';
 // Defined in a leaf module so read-only consumers (the Brain Observatory)
 // can read the real horizon without importing this module's worker graph.
 import { CAMPAIGN_BACKFILL_DAYS } from './syncHorizon';
+import { syncPeriodInsightsForAccount } from './syncPeriodInsights';
 
 const SYNC_INTERVAL_MS = config.sync.intervalMs;
 /** Connection-onboarding poll cadence. The per-record adaptive backoff in
@@ -203,6 +204,20 @@ async function syncAllAccounts(prisma: PrismaClient): Promise<void> {
           console.log(`${tag} campaigns: ${campResult.dailyRowsUpserted} daily rows, ${campaignChanges.length} transition(s)`);
         } catch (campErr) {
           console.error(`${tag} syncCampaigns failed (non-fatal):`, campErr instanceof Error ? campErr.message : campErr);
+        }
+
+        // Phase 2b: Meta PERIOD facts (reach, frequency) for the exact
+        // analysis windows. These cannot be reconstructed from the daily rows
+        // just written — Meta de-duplicates people inside a span and does not
+        // publish the overlap — so they are asked for directly. Non-fatal:
+        // absence makes the reader report UNKNOWN, which is the honest answer
+        // and strictly better than a daily-derived stand-in feeding absolute
+        // fatigue thresholds.
+        try {
+          const per = await syncPeriodInsightsForAccount(prisma, metaClient, acct.id);
+          console.log(`${tag} period facts: ${per.stored}/${per.requested} stored${per.failed ? `, ${per.failed} unavailable` : ''}`);
+        } catch (perErr) {
+          console.error(`${tag} syncPeriodInsights failed (non-fatal):`, perErr instanceof Error ? perErr.message : perErr);
         }
 
         // Phase 3: Ad-set + Ad + Creative discovery

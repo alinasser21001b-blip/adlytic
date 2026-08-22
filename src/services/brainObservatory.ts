@@ -35,7 +35,7 @@
 
 import { EntityType, type PrismaClient } from '@prisma/client';
 import { buildEntityFunnel, buildEntityIntelligence } from './entityIntelligence';
-import { permitAction, LAYER_ORDER } from '../analytics/intelligence/hierarchy';
+import { permitAction, LAYER_ORDER, PERMIT_ACTION_DOMAIN } from '../analytics/intelligence/hierarchy';
 import type { IntelligenceLayer } from '../analytics/intelligence/hierarchy';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { getKpiSpecForFamily } from '../lib/objectiveKpis';
@@ -97,6 +97,24 @@ export interface ObservatoryFact {
  * that an action was considered and rejected — recommend.ts returns null
  * and keeps no reason — so emitting it would manufacture a meaning no
  * canonical source can support.
+ */
+/**
+ * Does permitAction() have JURISDICTION over this code at all?
+ *
+ * Kept separate from ActionState on purpose. "Not governed" is not a verdict
+ * about an action — it is a fact about the boundary of an authority, and
+ * folding it into the verdict vocabulary would let a jurisdictional gap read
+ * as an intelligence conclusion. That is the exact confusion this type exists
+ * to prevent: an ungoverned code returning `allowed: true` is VACUOUS, not
+ * cleared.
+ */
+export type AuthorityRelation = 'GOVERNED' | 'NOT_GOVERNED';
+
+/**
+ * How one GOVERNED action stands against this diagnosis.
+ *
+ * Only meaningful inside PERMIT_ACTION_DOMAIN. Never emitted for a code the
+ * guard has no jurisdiction over — see AuthorityRelation.
  */
 export type ActionState =
   | 'RECOMMENDED'
@@ -295,11 +313,47 @@ export interface BrainObservatorySnapshot {
     counterEvidence: Array<{ statement: string; canonicalSource: string }>;
     facts: ObservatoryFact[];
   };
-  /** 6. DECISION — permitted action, blocked actions + why, source. */
+  /**
+   * 6. DECISION — four SEPARATE surfaces.
+   *
+   * They were one table headed "guarded by permitAction()", which made a
+   * DecisionEngine outcome and a guarded action look like the same kind of
+   * claim. They are not: permitAction() is a veto whose jurisdiction is
+   * exactly PERMIT_ACTION_DOMAIN, and a code outside it gets `allowed: true`
+   * for free. Each surface now answers one question and only one.
+   */
   decision: {
-    recommendedAction: string | null;
-    recommendationSource: string;
-    forbiddenActions: string[];
+    /**
+     * WHAT THE BRAIN DECIDED — engine/DecisionEngine.ts output, deterministic,
+     * read from campaign_brain_snapshots.action. Not the LLM's; the LLM only
+     * narrates it (see llmLayer).
+     */
+    canonicalDecision: {
+      action: string;
+      producer: string;
+      deterministic: true;
+      tickDate: string | null;
+      withinPermitActionDomain: boolean;
+      authorityRelation: AuthorityRelation;
+      /** Null whenever authorityRelation is NOT_GOVERNED. */
+      permitState: ActionState | null;
+      permitReason: string | null;
+      authorityNote: string;
+    } | null;
+    /** WHAT THE ANALYTICS RECOMMENDER ADVISED — recommend.ts, or nothing. */
+    canonicalRecommendation: {
+      action: string | null;
+      producer: string;
+      withinPermitActionDomain: boolean;
+      authorityRelation: AuthorityRelation;
+      permitState: ActionState | null;
+      authorityNote: string;
+    };
+    /**
+     * WHAT THE VETO GOVERNS — exactly PERMIT_ACTION_DOMAIN, no more and no
+     * fewer. Set equality with the domain is asserted by test, so a code the
+     * guard cannot rule on can never appear here.
+     */
     actionAudit: Array<{
       actionCode: string;
       /** @deprecated reads as "recommended"; use `state`. */
@@ -307,18 +361,43 @@ export interface BrainObservatorySnapshot {
       state: ActionState;
       reason: string | null;
     }>;
+    /**
+     * WHAT THE VETO CANNOT REACH — codes real producers in this pipeline emit
+     * that permitAction() has no jurisdiction over. Deliberately carries NO
+     * allowed/forbidden verdict: giving one would re-create the confusion.
+     */
+    outsideVetoDomain: Array<{
+      code: string;
+      producer: string;
+      authorityRelation: 'NOT_GOVERNED';
+      explanation: string;
+    }>;
+    /** The jurisdiction itself, so a reader need not infer it. */
+    authorityDomain: { codes: string[]; source: string; note: string };
+    recommendedAction: string | null;
+    recommendationSource: string;
+    forbiddenActions: string[];
     facts: ObservatoryFact[];
   };
-  /** 7. LLM LAYER — narration, always labeled non-authoritative. */
+  /**
+   * 7. LLM LAYER — narration ONLY.
+   *
+   * It used to carry `brainAction` and a permit verdict on it, which put
+   * deterministic DecisionEngine output inside a pane headed
+   * "authoritative: false". The decision now lives in `decision`; this layer
+   * may only REFERENCE it.
+   */
   llmLayer: {
     authoritative: false;
     narrationAvailable: boolean;
-    brainAction: string | null;
     narrationText: string | null;
     tickDate: string | null;
-    /** Whether Brain's own action survives THIS campaign's funnel diagnosis. */
-    brainActionPermitted: boolean | null;
-    brainActionBlockedReason: string | null;
+    /**
+     * Which canonical decision this prose describes — a pointer to
+     * `decision.canonicalDecision`, never a second source of it.
+     */
+    narratesDecision: string | null;
+    ownershipNote: string;
     facts: ObservatoryFact[];
   };
   /**
@@ -337,27 +416,97 @@ export interface BrainObservatorySnapshot {
 }
 
 /**
- * Every action code the guard can meaningfully rule on, so the Observatory
- * can show "what WOULD be blocked here" rather than only the one action that
- * happened to be recommended. Union of the vocabularies permitAction()
- * actually recognises (hierarchy.ts's CREATIVE_ACTIONS + AUDIENCE_ACTIONS)
- * plus the always-safe codes, so a reviewer sees both sides of the guard.
+ * Codes real producers in THIS pipeline emit that permitAction() has no
+ * jurisdiction over.
+ *
+ * Not a global catalogue of every action string in the product — only the
+ * vocabularies the Observatory actually inspects, so a reader can see which
+ * of the decisions in front of them the veto never touched. Each entry names
+ * its producer; none carries an allowed/forbidden verdict, because assigning
+ * one is exactly the confusion this surface exists to end.
+ *
+ * Membership is DERIVED, not asserted: anything that turns out to be inside
+ * PERMIT_ACTION_DOMAIN is filtered out below, so if hierarchy.ts ever widens
+ * its jurisdiction this list corrects itself instead of lying.
  */
-const AUDITED_ACTION_CODES = [
-  'REFRESH_CREATIVE', 'REFRESH_CREATIVES', 'IMPROVE_HOOKS',
-  'EXPAND_AUDIENCE', 'NARROW_AUDIENCE', 'INCREASE_BUDGET', 'DECREASE_BUDGET',
-  'CHECK_TARGETING', 'REVIEW_BUDGET_PACING',
-  'PAUSE', 'MONITOR', 'INVESTIGATE_TRACKING',
-  // The Brain's own vocabulary (engine/DecisionEngine.ts::DecisionAction, also
-  // types/cmoFeed.ts::CmoInsightType). Without these the audit table could not
-  // show the state of the action the Brain ACTUALLY took \u2014 a campaign whose
-  // snapshot said KEEP_COLLECTING had no row of its own to stand in.
-  // permitAction() is a pure veto and none of these appear in hierarchy.ts's
-  // CREATIVE_ACTIONS or AUDIENCE_ACTIONS, so they are never forbidden; listing
-  // them makes that visible rather than leaving it unstated.
-  'KEEP_COLLECTING', 'HOLD_AND_MONITOR', 'SCALE_BUDGET',
-  'PAUSE_CAMPAIGN', 'RESCUE_WATCH', 'EMERGENCY_PAUSE',
-] as const;
+const CANONICAL_PRODUCER_CODES: ReadonlyArray<{ code: string; producer: string }> = [
+  // The Brain's deterministic outcomes. REFRESH_CREATIVE is deliberately in
+  // this list too — it IS governed, so the filter removes it, which is how
+  // the one real overlap between the two domains stays visible in code.
+  { code: 'SCALE_BUDGET',      producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  { code: 'HOLD_AND_MONITOR',  producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  { code: 'REFRESH_CREATIVE',  producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  { code: 'PAUSE_CAMPAIGN',    producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  { code: 'KEEP_COLLECTING',   producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  { code: 'RESCUE_WATCH',      producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  { code: 'EMERGENCY_PAUSE',   producer: 'engine/DecisionEngine.ts::decideCampaignAction (DecisionAction)' },
+  // The analytics recommender's own templates. Four of its six action codes
+  // fall outside the veto domain, which means recommend.ts's own
+  // permitAction() call is a no-op for them. Reported here, not fixed.
+  { code: 'FIX_MESSAGING_DESTINATION', producer: 'analytics/intelligence/recommend.ts::templateFor' },
+  { code: 'FIX_LANDING_PAGE',          producer: 'analytics/intelligence/recommend.ts::templateFor' },
+  { code: 'FIX_CONVERSION_STEP',       producer: 'analytics/intelligence/recommend.ts::templateFor' },
+  { code: 'REVIEW_BIDDING',            producer: 'analytics/intelligence/recommend.ts::templateFor' },
+  // The AI agent's tool vocabulary — same recommendations table the guard
+  // protects, so its ungoverned codes belong in the same picture.
+  { code: 'PAUSE',                producer: 'services/agent/tools/saveRecommendation.ts::ALLOWED_ACTION_CODES' },
+  { code: 'PAUSE_URGENT',         producer: 'services/agent/tools/saveRecommendation.ts::ALLOWED_ACTION_CODES' },
+  { code: 'MONITOR',              producer: 'services/agent/tools/saveRecommendation.ts::ALLOWED_ACTION_CODES' },
+  { code: 'INVESTIGATE_TRACKING', producer: 'services/agent/tools/saveRecommendation.ts::ALLOWED_ACTION_CODES' },
+  // The deterministic composition rules.
+  { code: 'PAUSE_AND_RELAUNCH',   producer: 'engines/recommendation/compositionRules.ts::ActionCode' },
+];
+
+const NO_JURISDICTION_EXPLANATION =
+  'permitAction() has no jurisdiction over this code. It is a membership test against '
+  + 'forbiddenActions, and forbiddenActions is only ever filled from CREATIVE_ACTIONS and '
+  + 'AUDIENCE_ACTIONS \u2014 so this code can never appear there, and calling the guard on it '
+  + 'returns allowed:true unconditionally. That is the absence of a rule, not a clearance, '
+  + 'and it is deliberately shown without any allowed/forbidden verdict.';
+
+/** Derived, so a change to hierarchy.ts's jurisdiction cannot leave this stale. */
+const OUTSIDE_VETO_DOMAIN = CANONICAL_PRODUCER_CODES
+  .filter((e) => !PERMIT_ACTION_DOMAIN.includes(e.code))
+  .map((e) => ({
+    code: e.code,
+    producer: e.producer,
+    authorityRelation: 'NOT_GOVERNED' as const,
+    explanation: NO_JURISDICTION_EXPLANATION,
+  }));
+
+/**
+ * Classify one code against the guard's jurisdiction.
+ *
+ * `permitAction()` answers "is this forbidden?" and returns allowed:true for
+ * everything it does not govern. That answer is only meaningful INSIDE the
+ * domain, so jurisdiction is settled first and the verdict is withheld
+ * entirely when there is none.
+ */
+function classifyAuthority(
+  actionCode: string | null,
+  intel: Parameters<typeof permitAction>[1],
+  isRecommended: boolean,
+): { withinPermitActionDomain: boolean; authorityRelation: AuthorityRelation; permitState: ActionState | null; permitReason: string | null; authorityNote: string } {
+  if (!actionCode || !PERMIT_ACTION_DOMAIN.includes(actionCode)) {
+    return {
+      withinPermitActionDomain: false,
+      authorityRelation: 'NOT_GOVERNED',
+      permitState: null,
+      permitReason: null,
+      authorityNote: NO_JURISDICTION_EXPLANATION,
+    };
+  }
+  const permit = permitAction(actionCode, intel);
+  return {
+    withinPermitActionDomain: true,
+    authorityRelation: 'GOVERNED',
+    permitState: permit.allowed
+      ? (isRecommended ? 'RECOMMENDED' : 'NOT_VETOED')
+      : (isRecommended ? 'AUTHORITY_INVARIANT_VIOLATION' : 'FORBIDDEN'),
+    permitReason: permit.allowed ? null : (permit.reason ?? null),
+    authorityNote: 'Inside PERMIT_ACTION_DOMAIN \u2014 this diagnosis genuinely can veto this code.',
+  };
+}
 
 /**
  * Who owns each of the six canonical layers, and what it consumed.
@@ -565,14 +714,19 @@ export async function buildBrainObservatory(
     metrics: issueEvidenceFieldsFromJson(d.evidenceJson).evidence,
   }));
 
-  // ── 6. DECISION — the guard's verdict across the full audited vocabulary. ──
+  // ── 6. DECISION — the guard's verdict across its ACTUAL jurisdiction. ──
   // A4 — the four-state taxonomy. `permitted` alone reads as "recommended",
   // which is how an INSUFFICIENT_DATA campaign came to show INCREASE_BUDGET
   // and PAUSE as though the Brain endorsed them. The endorsement channel is
-  // the canonical recommendation; the veto channel is permitAction(). They
-  // are different questions and are now answered separately.
+  // the canonical recommendation; the veto channel is permitAction().
+  //
+  // The audit iterates PERMIT_ACTION_DOMAIN itself rather than a hand-copied
+  // list. That list had grown to hold nine codes the guard cannot rule on —
+  // every one of them rendering NOT_VETOED, which reads as "checked and
+  // cleared" when it actually meant "absent from a list it could never be in"
+  // — while omitting four codes the guard genuinely governs.
   const recommendedCode = intel.recommendation?.action ?? null;
-  const actionAudit = AUDITED_ACTION_CODES.map((code) => {
+  const actionAudit = PERMIT_ACTION_DOMAIN.map((code) => {
     const permit = permitAction(code, intel);
     const isRecommended = recommendedCode !== null && recommendedCode === code;
     const state: ActionState = permit.allowed
@@ -585,6 +739,11 @@ export async function buildBrainObservatory(
       reason: permit.allowed ? null : (permit.reason ?? null),
     };
   });
+
+  // The recommender's own action, classified against the same jurisdiction.
+  // Four of recommend.ts's six templates emit codes outside the domain, so
+  // its own permitAction() call clears them vacuously — surfaced, not fixed.
+  const recommendationAuthority = classifyAuthority(recommendedCode, intel, true);
 
   // A5 — counter-evidence, sourced only from canonical output the diagnosis
   // already consumed. No new heuristic argues against the verdict here.
@@ -610,7 +769,13 @@ export async function buildBrainObservatory(
     orderBy: { tickDate: 'desc' },
     select: { action: true, narrationJson: true, tickDate: true },
   });
-  const brainPermit = snapshot ? permitAction(snapshot.action, intel) : null;
+  // campaign_brain_snapshots.action is written by BrainPersistence from
+  // decideCampaignAction() — a pure deterministic function over physics,
+  // confidence, pattern and recovery. It is ENGINE output. It used to be
+  // rendered inside the pane headed "authoritative: false", which read as
+  // though the LLM had produced it; it now belongs to DECISION, and the LLM
+  // layer may only point at it.
+  const decisionAuthority = snapshot ? classifyAuthority(snapshot.action, intel, false) : null;
   const narrationText = ((): string | null => {
     const n = snapshot?.narrationJson as Record<string, unknown> | null | undefined;
     if (!n || typeof n !== 'object') return null;
@@ -763,10 +928,43 @@ export async function buildBrainObservatory(
       ],
     },
     decision: {
+      canonicalDecision: snapshot && decisionAuthority
+        ? {
+            action: snapshot.action,
+            producer: 'engine/DecisionEngine.ts::decideCampaignAction (persisted by services/BrainPersistence.ts)',
+            deterministic: true as const,
+            tickDate: iso(snapshot.tickDate),
+            withinPermitActionDomain: decisionAuthority.withinPermitActionDomain,
+            authorityRelation: decisionAuthority.authorityRelation,
+            permitState: decisionAuthority.permitState,
+            permitReason: decisionAuthority.permitReason,
+            authorityNote: decisionAuthority.authorityNote,
+          }
+        : null,
+      canonicalRecommendation: {
+        action: recommendedCode,
+        producer: 'analytics/intelligence/recommend.ts::buildRecommendation',
+        withinPermitActionDomain: recommendationAuthority.withinPermitActionDomain,
+        authorityRelation: recommendationAuthority.authorityRelation,
+        permitState: recommendationAuthority.permitState,
+        authorityNote: recommendedCode === null
+          ? 'No recommendation was produced, so there is nothing for the guard to rule on.'
+          : recommendationAuthority.authorityNote,
+      },
+      actionAudit,
+      outsideVetoDomain: OUTSIDE_VETO_DOMAIN,
+      authorityDomain: {
+        codes: [...PERMIT_ACTION_DOMAIN],
+        source: 'analytics/intelligence/hierarchy.ts::PERMIT_ACTION_DOMAIN (CREATIVE_ACTIONS \u222a AUDIENCE_ACTIONS)',
+        note:
+          'These are the ONLY codes permitAction() can rule on. It is a membership test '
+          + 'against forbiddenActions, which reconcileIntelligence() fills exclusively from '
+          + 'these two arrays. Any other code gets allowed:true unconditionally \u2014 the '
+          + 'absence of jurisdiction, not a clearance.',
+      },
       recommendedAction: intel.recommendation?.action ?? null,
       recommendationSource: 'analytics/intelligence/recommend.ts::buildRecommendation',
       forbiddenActions: intel.forbiddenActions,
-      actionAudit,
       facts: [
         { kind: 'RECOMMENDATION', label: 'Recommended action', value: intel.recommendation?.action ?? null, source: 'analytics/intelligence/recommend.ts' },
         ...intel.forbiddenActions.map((a): ObservatoryFact => ({
@@ -778,11 +976,14 @@ export async function buildBrainObservatory(
     llmLayer: {
       authoritative: false,
       narrationAvailable: narrationText !== null,
-      brainAction: snapshot?.action ?? null,
       narrationText,
       tickDate: snapshot ? iso(snapshot.tickDate) : null,
-      brainActionPermitted: brainPermit ? brainPermit.allowed : null,
-      brainActionBlockedReason: brainPermit && !brainPermit.allowed ? (brainPermit.reason ?? null) : null,
+      narratesDecision: snapshot?.action ?? null,
+      ownershipNote:
+        'This layer holds PROSE ONLY. The action named here was decided by '
+        + 'engine/DecisionEngine.ts::decideCampaignAction \u2014 a deterministic function \u2014 and is '
+        + 'shown with its authority under DECISION \u2192 CANONICAL DECISION. The narration '
+        + 'describes that decision; it did not produce it and cannot change it.',
       facts: narrationText
         ? [{ kind: 'LLM_EXPLANATION', label: 'Brain narration (NON-AUTHORITATIVE)', value: narrationText, source: 'campaign_brain_snapshots.narration_json' }]
         : [],

@@ -443,6 +443,49 @@ model DailyStat {
   @@map("daily_stats")
 }
 
+/// META PERIOD FACTS — values Meta computes for a WHOLE span, which cannot be
+/// reconstructed from daily rows at all.
+///
+/// Reach is the reason this table exists. Meta de-duplicates people inside a
+/// requested time_range; it does not publish the cross-day overlap, so from
+/// daily rows the period value is unknowable. `max(daily)` is a lower bound,
+/// `sum(daily)` an upper one, and neither is the answer. Frequency inherits
+/// the problem, being impressions ÷ reach.
+///
+/// So these are fetched from Meta at the EXACT entity level and the EXACT
+/// span being analysed, and stored keyed by that span. A read whose
+/// (entityType, entityId, since, until) does not match exactly is a miss —
+/// the caller then reports UNKNOWN. It must never fall back to a daily-derived
+/// stand-in; a fabricated period metric is worse than an absent one, because
+/// it silently feeds absolute fatigue thresholds.
+///
+/// Written only by the sync (one canonical writer). Read by the analytics
+/// window builder. The Brain Observatory reaches this through the database,
+/// never through Meta — it is asserted to hold no Meta client.
+model PeriodInsight {
+  id          String     @id @default(cuid())
+  entityType  EntityType @map("entity_type")
+  entityId    String     @map("entity_id")
+  /// Inclusive span bounds, matching the analytics window exactly.
+  since       DateTime   @db.Date
+  until       DateTime   @db.Date
+  /// Meta's own period values. Null means Meta did not return a trustworthy
+  /// figure — the caller reports UNKNOWN rather than substituting anything.
+  reach       BigInt?
+  frequency   Float?
+  /// Period impressions from the SAME request, so a derived frequency can be
+  /// checked against an identical entity and span rather than daily sums.
+  impressions BigInt?
+  /// Provenance. Only META_PERIOD_FACT is written today; the column exists so
+  /// a future source cannot be mistaken for Meta's own number.
+  provenance  String     @default("META_PERIOD_FACT")
+  fetchedAt   DateTime   @default(now()) @map("fetched_at")
+
+  @@unique([entityType, entityId, since, until])
+  @@index([entityId, since, until])
+  @@map("period_insights")
+}
+
 /// Phase 5 Pass C — Per-day metrics sliced by a single Meta breakdown
 /// dimension (age, gender, publisher_platform, platform_position, …).
 ///

@@ -16,10 +16,13 @@
 //
 //  2. NO ILLEGAL AGGREGATION. Ratios (CTR, CPC, frequency, ROAS) must never
 //     be summed or naively averaged across days — they are recomputed from
-//     summed numerators and denominators. Reach is not additive at all: the
-//     same person reached on two days is one person, so daily reach maxes
-//     rather than sums (an underestimate we state honestly rather than an
-//     overestimate we invent).
+//     summed numerators and denominators. Reach and frequency cannot be
+//     computed from daily rows AT ALL: Meta de-duplicates people inside a
+//     span and never publishes the cross-day overlap, so max(daily) is a
+//     lower bound and sum(daily) an upper one. Both come from Meta's own
+//     period value for the exact span, or they are UNKNOWN. A fabricated
+//     period metric is worse than an absent one — frequency feeds ABSOLUTE
+//     saturation thresholds, where no comparison exists to cancel its bias.
 //
 //  The dictionary is data, not behavior. Calculation lives in the analytics
 //  engine; this module tells the engine what is legal.
@@ -35,7 +38,17 @@ import type { ObjectiveKpiFamily } from '../lib/objectiveKpis';
  *   ratio_of_sums  — recompute from summed numerator ÷ summed denominator
  *   weighted_average — average weighted by its natural denominator
  */
-export type AggregationRule = 'sum' | 'max' | 'ratio_of_sums' | 'weighted_average';
+export type AggregationRule =
+  | 'sum'
+  | 'max'
+  | 'ratio_of_sums'
+  | 'weighted_average'
+  /**
+   * Not computed from daily rows at all — taken from Meta's own value for the
+   * exact span, or reported UNKNOWN. The only honest rule for a metric whose
+   * period value depends on cross-day de-duplication Meta never publishes.
+   */
+  | 'meta_period_value';
 
 /**
  * How much we trust the number.
@@ -131,12 +144,12 @@ export const METRIC_DICTIONARY: Record<string, MetricDefinition> = {
     labelAr: 'الوصول',
     labelEn: 'Reach',
     definition: 'Distinct people who saw the ads. NOT additive across days — the same person seen on two days is one person.',
-    formula: 'max(daily reach) — a deliberate lower bound; Meta does not expose cross-day dedup for arbitrary windows',
+    formula: "Meta's own period value for the exact span (META_PERIOD_FACT), or UNKNOWN. NOT derivable from daily rows: Meta de-duplicates people inside a time_range and never publishes the overlap, so max(daily) is only a lower bound and sum(daily) an upper one",
     sourceFields: ['reach'],
-    storedAs: ['DailyStat.reach'],
+    storedAs: ['PeriodInsight.reach'],
     applicableObjectives: UNIVERSAL,
-    aggregationRule: 'max',
-    confidenceLevel: 'estimated',
+    aggregationRule: 'meta_period_value',
+    confidenceLevel: 'exact',
     benchmarkable: false,
     goodDirection: 'up',
     displayPriority: 2,
@@ -147,12 +160,12 @@ export const METRIC_DICTIONARY: Record<string, MetricDefinition> = {
     labelAr: 'معدل التكرار',
     labelEn: 'Frequency',
     definition: 'Average times each person saw the ad. Rising frequency with falling CTR is the classic audience-fatigue signature.',
-    formula: 'sum(impressions) ÷ reach',
-    sourceFields: ['frequency', 'impressions', 'reach'],
-    storedAs: ['DailyStat.frequency'],
+    formula: "Meta's own period value for the exact span (META_PERIOD_FACT), or UNKNOWN. Never the mean of daily frequencies: a person reached on five days counts once in period reach but washes out of that mean, which then under-feeds the ABSOLUTE saturation thresholds",
+    sourceFields: ['frequency'],
+    storedAs: ['PeriodInsight.frequency'],
     applicableObjectives: UNIVERSAL,
-    aggregationRule: 'ratio_of_sums',
-    confidenceLevel: 'derived',
+    aggregationRule: 'meta_period_value',
+    confidenceLevel: 'exact',
     benchmarkable: true,
     goodDirection: 'down',
     displayPriority: 3,

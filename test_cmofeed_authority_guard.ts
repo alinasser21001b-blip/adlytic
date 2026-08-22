@@ -139,6 +139,23 @@ function makeFakePrisma(fixtures: Record<string, ReturnType<typeof dayRow>[] | n
         return fixtures[id] ?? [];
       },
     },
+    /**
+     * Meta PERIOD facts. Reach is no longer derivable from the daily rows —
+     * max(daily) was removed after it was shown to erase real reach changes —
+     * so a fixture that needs the reach or link-click ratio judged must supply
+     * Meta's own period value, exactly as production reads it from the sync.
+     * Flat reach across both windows keeps the CLICK break where it belongs.
+     */
+    periodInsight: {
+      async findUnique(args: any) {
+        const id = args?.where?.entityType_entityId_since_until?.entityId;
+        if (!(id in fixtures) || fixtures[id] === null) return null;
+        return {
+          reach: BigInt(20_000), frequency: 2.5, impressions: BigInt(350_000),
+          provenance: 'META_PERIOD_FACT', fetchedAt: new Date(),
+        };
+      },
+    },
   };
   return { prisma: prisma as any, calls };
 }

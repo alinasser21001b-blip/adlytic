@@ -32,7 +32,11 @@ export interface KpiCard {
 export interface KpiSource {
   spendMinor: number;
   impressions: number;
-  reach: number;
+  /**
+   * Meta's PERIOD reach, or null when Meta did not supply one for this span.
+   * Never a daily-derived stand-in — renders as an explicit absence.
+   */
+  reach: number | null;
   clicks: number;
   linkClicks: number;
   landingPageViews: number;
@@ -182,7 +186,9 @@ export function buildObjectiveKpiCards(
         value = src.impressions; display = numDisplay(value);
         priority = family === 'awareness' ? 1 : 3; break;
       case 'reach':
-        value = src.reach; display = numDisplay(value);
+        // '—' rather than a number we do not have. Period reach is not
+        // derivable from daily rows, so absence is the honest display.
+        value = src.reach; display = value === null ? '—' : numDisplay(value);
         priority = family === 'awareness' || family === 'engagement' ? 1 : 2; break;
       case 'frequency':
         value = src.frequency; display = value === null ? '—' : value.toFixed(2); priority = 3; break;

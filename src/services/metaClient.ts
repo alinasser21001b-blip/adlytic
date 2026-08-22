@@ -203,6 +203,37 @@ export class MetaClient {
     return this.paginated(url, 1);
   }
 
+  /**
+   * Meta's own values for a WHOLE span — no `time_increment`, so Meta
+   * aggregates internally and de-duplicates reach across the days.
+   *
+   * This exists because period reach cannot be reconstructed from daily rows.
+   * Meta does not publish the cross-day overlap, so `max(daily)` is a lower
+   * bound and `sum(daily)` an upper one; neither is the period value.
+   * Frequency inherits that, being impressions ÷ reach.
+   *
+   * Deliberately narrow: exactly the entity level asked for, exactly the span
+   * asked for, and only the fields whose period value differs from a daily
+   * sum. Same read scope (`ads_read`) and same transport as every other call
+   * here — this adds a query, not a capability.
+   */
+  async getPeriodInsights(args: {
+    externalId: string;
+    level: "account" | "campaign" | "adset" | "ad";
+    /** Inclusive YYYY-MM-DD bounds. Passed to Meta verbatim. */
+    since: string;
+    until: string;
+  }): Promise<MetaInsightRow[]> {
+    const params = new URLSearchParams({
+      level: args.level,
+      time_range: JSON.stringify({ since: args.since, until: args.until }),
+      fields: "reach,frequency,impressions",
+      limit: "1",
+    });
+    const url = `${this.base}/${args.externalId}/insights?${params.toString()}`;
+    return this.paginated(url, 1);
+  }
+
   /** List campaigns under an account — used for entity discovery. */
   async listCampaigns(externalAccountId: string): Promise<MetaInsightRow[]> {
     const params = new URLSearchParams({

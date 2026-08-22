@@ -22,8 +22,19 @@ import {
 /** Window totals the funnel reads. Aggregated by the caller's repo query. */
 export interface FunnelWindowTotals {
   impressions: number;
-  /** max(daily reach) — NOT a sum; see the reach stage contract. */
-  reach: number;
+  /**
+   * Meta's PERIOD reach for this exact span, or null when Meta did not supply
+   * one — in which case every ratio that divides by reach is UNAVAILABLE.
+   *
+   * It is never max(daily reach). That estimator was removed after an
+   * adversarial test showed it can invert the very change the funnel judges:
+   * with identical impressions and identical daily reach in both windows, a
+   * current window of total audience overlap against a prior window of none
+   * makes TRUE reach ÷ impressions fall 85.7% while the estimator reports 0%
+   * change. Cross-day overlap differs between windows, so the bias does not
+   * cancel — it can mask a real break and invent an absent one.
+   */
+  reach: number | null;
   linkClicks: number;
   landingPageViews: number;
   messages: number;
@@ -56,8 +67,17 @@ export interface ComputedFunnel {
   stages: FunnelStageValue[];
 }
 
-function readColumn(totals: FunnelWindowTotals, def: FunnelStageDef): number {
+/**
+ * A stage's count, or null when the column is genuinely unknown.
+ *
+ * null and 0 are different answers and must stay different: 0 is a measured
+ * absence of events, null is "we were never told". Only reach can be null
+ * today (Meta period truth unavailable); every other column is a summed
+ * counter that is at worst zero.
+ */
+function readColumn(totals: FunnelWindowTotals, def: FunnelStageDef): number | null {
   const v = totals[def.sourceColumn as keyof FunnelWindowTotals];
+  if (v === null || v === undefined) return null;
   return Number.isFinite(Number(v)) ? Number(v) : 0;
 }
 
@@ -82,12 +102,19 @@ export function computeFunnel(
 
   let previousCount: number | null = null;
   let previousOk = true;
+  let isEntry = true;
 
   for (const def of shape) {
     const count = readColumn(totals, def);
-    const isEntry = previousCount === null;
 
     if (isEntry) {
+      isEntry = false;
+      if (count === null) {
+        stages.push({ status: 'UNAVAILABLE', stageKey: def.stageKey, reason: 'UNKNOWN', count: null });
+        previousCount = null;
+        previousOk = false;
+        continue;
+      }
       stages.push({
         status: 'OK',
         stageKey: def.stageKey,
@@ -100,9 +127,34 @@ export function computeFunnel(
       continue;
     }
 
+    // This stage's OWN count is unknown. The stage is unavailable and it
+    // cannot serve as anyone's denominator.
+    if (count === null) {
+      stages.push({ status: 'UNAVAILABLE', stageKey: def.stageKey, reason: 'UNKNOWN', count: null });
+      previousCount = null;
+      previousOk = false;
+      continue;
+    }
+
+    // The DENOMINATOR is unknown, so THIS ratio cannot be judged — but this
+    // stage's own count is a real measured counter, so the chain RESUMES: the
+    // next stage divides by a number we actually have.
+    //
+    // This is the smallest safe degradation. When Meta period reach is
+    // unavailable, reach ÷ impressions and link clicks ÷ reach are genuinely
+    // unjudgeable, while conversations ÷ link clicks remains an independent,
+    // fully measured signal. Killing it too would disable diagnosis that never
+    // depended on reach at all.
+    if (previousCount === null) {
+      stages.push({ status: 'UNAVAILABLE', stageKey: def.stageKey, reason: 'UNKNOWN', count });
+      previousCount = count;
+      previousOk = true;
+      continue;
+    }
+
     // Ratio gate: the DENOMINATOR (previous stage) must clear this stage's
     // floor, and the previous stage itself must have been computable.
-    const denominator = previousCount ?? 0;
+    const denominator = previousCount;
     if (!previousOk || denominator < def.minDenominatorForRatio || denominator <= 0) {
       stages.push({
         status: 'UNAVAILABLE',

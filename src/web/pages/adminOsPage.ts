@@ -32,6 +32,7 @@
 
 import { TOKENS_CSS_PATH } from '../layout';
 import { SESSION_ROUTER_JS } from '../auth/sessionRouter';
+import { adminSurfaceNav } from './adminSurfaceNav';
 
 /** Navigation grouped by operator job. Order is the order of work. */
 const NAV = [
@@ -57,7 +58,12 @@ const NAV = [
 ];
 
 function navHtml(): string {
-  return NAV.map((g) => `
+  // Cross-surface destinations come from THE one information architecture, so
+  // every admin window shows the same map — including the Brain Observatory,
+  // which appeared in none of the three maps that existed before it.
+  const shared = `
+      <div class="nav-group">${adminSurfaceNav('console')}</div>`;
+  const own = NAV.map((g) => `
       <div class="nav-group">
         <div class="nav-label">${g.group}</div>
         ${g.items.map((i) => `<a class="nav-item" href="#${i.id}" data-view="${i.id}">
@@ -65,6 +71,8 @@ function navHtml(): string {
           ${i.hint ? `<span class="nav-item-hint">${i.hint}</span>` : ''}
         </a>`).join('\n        ')}
       </div>`).join('');
+  // This page's own views nest UNDER the shared map, not instead of it.
+  return shared + own;
 }
 
 export function adminOsPage(): string {
