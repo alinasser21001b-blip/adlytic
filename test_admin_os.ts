@@ -24,7 +24,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { ADMIN_IA, adminDestinations, adminSurfaceNav } from './src/web/pages/adminSurfaceNav';
+import { ADMIN_IA, ADMIN_LEGACY, adminDestinations, adminSurfaceNav } from './src/web/pages/adminSurfaceNav';
 import { MUST_DIFFER, ABSENCE_STATES, statusStyle, statusChip, ADMIN_STATUS_CSS } from './src/web/pages/adminStatus';
 import type { AdminStatus } from './src/web/pages/adminStatus';
 
@@ -38,10 +38,21 @@ function check(name: string, fn: () => void) {
 const src = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
 const serverSrc = src('src/api/server.ts');
 
-/** Every admin surface that must render the shared map. */
+/**
+ * Every admin surface that must render the shared map.
+ *
+ * The Control Plane surfaces reach it through `adminShell`, which renders
+ * `adminSurfaceNav` itself — so the assertion below accepts either, and a
+ * page that draws its own menu still fails.
+ */
 const ADMIN_PAGES = [
+  // Legacy surfaces, still mounted.
   'adminOsPage', 'adminConsolePage', 'adminDashboardPage', 'adminInboxPage',
   'brainObservatoryPage', 'metaReadinessPage', 'addClientPage',
+  // Control Plane surfaces.
+  'controlCenterPage', 'systemGraphPage', 'metaDataWorkspacePage',
+  'intelligenceWorkspacePage', 'operationsWorkspacePage',
+  'customersWorkspacePage', 'supportWorkspacePage',
 ];
 
 function run() {
@@ -49,7 +60,8 @@ function run() {
 
   check('every admin surface renders the shared map', () => {
     for (const page of ADMIN_PAGES) {
-      assert.ok(src(`src/web/pages/${page}.ts`).includes('adminSurfaceNav'),
+      const p = src(`src/web/pages/${page}.ts`);
+      assert.ok(p.includes('adminSurfaceNav') || p.includes('adminShell'),
         `${page} must render the shared IA, not invent its own map`);
     }
   });
@@ -81,13 +93,41 @@ function run() {
     }
   });
 
-  check('every mounted admin page is reachable from the IA', () => {
+  check('every mounted admin page is reachable from the IA or a declared successor', () => {
     const mounted = [...serverSrc.matchAll(/app\.get\('(\/admin[^']*)'/g)].map((m) => m[1]!);
     const offered = new Set(adminDestinations().map((d) => d.href));
+    const legacy = new Set(ADMIN_LEGACY.map((l) => l.href));
     // /admin/login is deliberately outside: it is the unauthenticated door.
-    const orphaned = mounted.filter((r) => r !== '/admin/login' && !offered.has(r));
+    const orphaned = mounted.filter(
+      (r) => r !== '/admin/login' && !offered.has(r) && !legacy.has(r));
     assert.deepEqual(orphaned, [],
       `mounted but unreachable by navigation: ${orphaned.join(', ')}`);
+  });
+
+  check('a legacy route dropped from the sidebar is still reachable from its successor', () => {
+    // Removing a route from the menu without linking it from the surface that
+    // replaced it is not consolidation — it is hiding, which is how capability
+    // gets lost while everyone believes it was migrated.
+    for (const l of ADMIN_LEGACY) {
+      assert.ok(serverSrc.includes(`'${l.href}'`),
+        `${l.href} is declared legacy but is no longer mounted — capability would vanish`);
+      const successor = src(`src/web/pages/${l.reachableFrom}.ts`);
+      assert.ok(successor.includes(l.href),
+        `${l.reachableFrom} must link to ${l.href} until parity is proven`);
+      assert.ok(l.stillOwns.trim().length > 0,
+        `${l.href} must say what it still owns, not merely that it exists`);
+    }
+  });
+
+  check('no legacy surface appears in the global sidebar', () => {
+    // The previous map listed the historical pages under domain headings, so
+    // clicking a domain left the console. A legacy route in the sidebar means
+    // two products are being offered as one.
+    const offered = new Set(adminDestinations().map((d) => d.href));
+    for (const l of ADMIN_LEGACY) {
+      assert.ok(!offered.has(l.href),
+        `${l.href} is legacy and must not be a global destination`);
+    }
   });
 
   check('no destination is offered twice', () => {

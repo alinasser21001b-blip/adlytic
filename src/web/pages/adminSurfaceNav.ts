@@ -30,12 +30,21 @@
 // ════════════════════════════════════════════════════════════════════════
 
 export type AdminSurface =
+  // ── Control Plane domains ──
+  | 'control-center'
+  | 'graph'
+  | 'meta'
+  | 'intelligence'
+  | 'operations'
+  | 'customers'
+  | 'support'
+  | 'add-client'
+  | 'observatory'
+  // ── Legacy surfaces, still mounted, no longer in the global sidebar ──
   | 'console'
   | 'inbox'
-  | 'add-client'
   | 'observability'
   | 'readiness'
-  | 'observatory'
   | 'classic';
 
 export interface AdminDestination {
@@ -47,63 +56,146 @@ export interface AdminDestination {
 }
 
 export interface AdminSection {
-  /** Canonical section key from the closure specification. */
-  key: 'OVERVIEW' | 'META_AND_DATA' | 'INTELLIGENCE' | 'OPERATIONS' | 'WORKSPACES' | 'SUPPORT';
+  /** Canonical domain key. Six, one operator question each. */
+  key: 'CONTROL_CENTER' | 'META_AND_DATA' | 'INTELLIGENCE' | 'OPERATIONS' | 'CUSTOMERS' | 'SUPPORT';
   label: string;
+  /** The question an operator opens this domain to answer. */
+  question: string;
   items: AdminDestination[];
 }
 
 /**
- * The map.
+ * THE MAP — six domains, one Control Plane.
  *
- * SECURITY_AND_AUDIT is deliberately ABSENT. The specification asks for it,
- * but no route today serves privileged-action history, deletion events or an
- * audit trail — the closest surfaces (settings, payment events) live as tabs
- * inside the console and are configuration, not audit. Rendering the heading
- * over a link to those would misrepresent what the platform can currently
- * answer. Recorded as open debt in docs/close-code/13_OPEN_DEBT_REGISTER.md
- * rather than papered over with a plausible-looking menu entry.
+ * ── What changed, and why it is not a rename ─────────────────────────
+ *
+ * The previous map listed six sections whose destinations were the HISTORICAL
+ * PAGES: /admin/classic under "workspaces", /admin/meta-readiness under "Meta
+ * & data", /admin/inbox under "support". The headings were domains; the links
+ * underneath were the products the domains were supposed to replace. An
+ * operator clicking "Meta والبيانات" left the console and arrived somewhere
+ * that looked like a different application, with its own layout and its own
+ * idea of where things live.
+ *
+ * Now every destination is a Control Plane surface rendered by ONE shell
+ * (src/web/adminShell.ts). The historical pages are still mounted and still
+ * work — see ADMIN_LEGACY below — but they are reached from inside the domain
+ * that replaced them, not from the global sidebar. That is the difference
+ * between consolidating and merely re-labelling.
+ *
+ * ── SECURITY & AUDIT is still deliberately ABSENT ────────────────────
+ *
+ * No route serves privileged-action history, deletion events or an audit
+ * trail. Settings and payment events are configuration and ledger, not audit.
+ * A heading over a link to those would tell an operator a capability exists
+ * when it does not — the same dishonesty as rendering UNKNOWN as healthy.
+ * Recorded as debt in docs/close-code/13_OPEN_DEBT_REGISTER.md.
  */
 export const ADMIN_IA: AdminSection[] = [
   {
-    key: 'OVERVIEW', label: 'النظرة العامة',
+    key: 'CONTROL_CENTER', label: 'مركز التحكّم',
+    question: 'ما الذي يحدث الآن؟',
     items: [
-      { id: 'console', href: '/admin', label: 'لوحة التشغيل', purpose: 'حالة المنصة الآن وما يحتاج انتباهاً' },
+      { id: 'control-center', href: '/admin', label: 'الحالة الآن', purpose: 'نبض المنظومة وما يحتاج انتباهاً' },
+      { id: 'graph', href: '/admin/graph', label: 'خريطة المنظومة', purpose: 'ما الذي يوجد وما الذي يعتمد على ماذا' },
     ],
   },
   {
     key: 'META_AND_DATA', label: 'Meta والبيانات',
+    question: 'هل اتصالنا بـMeta وحقيقة بياناتنا سليمة؟',
     items: [
-      { id: 'readiness', href: '/admin/meta-readiness', label: 'جاهزية Meta', purpose: 'الصلاحيات والقدرات والاكتشاف' },
+      { id: 'meta', href: '/admin/meta', label: 'Meta والبيانات', purpose: 'الاتصال والقدرات والكيانات والمزامنة والتغطية' },
     ],
   },
   {
     key: 'INTELLIGENCE', label: 'الذكاء',
+    question: 'ماذا تعرف أدلَيتِك، وكيف استنتجت، وماذا قرّرت؟',
     items: [
-      // The destination that did not exist in any menu before this.
-      { id: 'observatory', href: '/admin/brain-observatory', label: 'مرصد الدماغ', purpose: 'من حقيقة Meta إلى القرار — طبقة بطبقة' },
+      { id: 'intelligence', href: '/admin/intelligence', label: 'مساحة الذكاء', purpose: 'الأدلة والتشخيص والقرار وحدود المعرفة' },
+      { id: 'observatory', href: '/admin/brain-observatory', label: 'مرصد الدماغ', purpose: 'الفحص العميق: من حقيقة Meta إلى القرار طبقة بطبقة' },
     ],
   },
   {
     key: 'OPERATIONS', label: 'العمليات',
+    question: 'هل المنصة نفسها تعمل بشكل صحيح؟',
     items: [
-      { id: 'observability', href: '/admin/observability', label: 'مراقبة المنصة', purpose: 'الخدمات والمزامنة وهوية النسخة' },
+      { id: 'operations', href: '/admin/operations', label: 'تشغيل المنصة', purpose: 'الخدمات والطوابير والمزامنة وهوية النسخة' },
     ],
   },
   {
-    key: 'WORKSPACES', label: 'مساحات العمل والزبائن',
+    key: 'CUSTOMERS', label: 'الزبائن ومساحات العمل',
+    question: 'من نخدم وكيف أُعدّت مساحاتهم؟',
     items: [
-      { id: 'classic', href: '/admin/classic', label: 'الإدارة الكاملة', purpose: 'الزبائن والاشتراكات والإعدادات' },
-      { id: 'add-client', href: '/admin/add-client', label: 'إضافة عميل', purpose: 'معالج الإعداد' },
+      { id: 'customers', href: '/admin/customers', label: 'الزبائن والاشتراكات', purpose: 'الحسابات والاشتراكات والمدفوعات والإعدادات' },
+      { id: 'add-client', href: '/admin/add-client', label: 'إضافة عميل', purpose: 'معالج الإعداد من الصفر حتى أول مزامنة' },
     ],
   },
   {
     key: 'SUPPORT', label: 'الدعم',
+    question: 'من يحتاج مساعدة وما الذي لم يُحلّ؟',
     items: [
-      { id: 'inbox', href: '/admin/inbox', label: 'صندوق الدعم', purpose: 'تذاكر الزبائن' },
+      { id: 'support', href: '/admin/support', label: 'صندوق الدعم', purpose: 'تذاكر الزبائن غير المحلولة' },
     ],
   },
 ];
+
+/**
+ * Legacy surfaces: mounted, working, and NOT in the global sidebar.
+ *
+ * This list is the strangler contract, and it is enforced rather than
+ * described. `test_admin_control_plane.ts` asserts that every route here is
+ * still mounted, that the page named in `reachableFrom` actually links to it,
+ * and — the load-bearing one — that a route is removed from this list only
+ * when `routeParity()` over the capability registry reports nothing missing.
+ *
+ * A route that vanished from the sidebar but is not reachable from its
+ * successor is not consolidated. It is hidden, which is how capability gets
+ * lost while everyone believes it was migrated.
+ */
+export interface LegacySurface {
+  id: AdminSurface;
+  href: string;
+  label: string;
+  /** The Control Plane route that now owns this domain. */
+  replacedBy: string;
+  /** The page module that must link to it until parity is reached. */
+  reachableFrom: string;
+  /** Why it still exists. Never "we did not get to it". */
+  stillOwns: string;
+}
+
+export const ADMIN_LEGACY: LegacySurface[] = [
+  {
+    id: 'classic', href: '/admin/classic', label: 'الكونسول الكلاسيكي',
+    replacedBy: '/admin/customers', reachableFrom: 'customersWorkspacePage',
+    stillOwns: 'أدراج تحرير الزبون والاشتراك والإعدادات بتفاصيلها الكاملة',
+  },
+  {
+    id: 'observability', href: '/admin/observability', label: 'مراقبة المنصة',
+    replacedBy: '/admin/operations', reachableFrom: 'operationsWorkspacePage',
+    stillOwns: 'جداول الوصول والأموال المفصّلة وقائمة المستخدمين',
+  },
+  {
+    id: 'readiness', href: '/admin/meta-readiness', label: 'جاهزية Meta',
+    replacedBy: '/admin/meta', reachableFrom: 'metaDataWorkspacePage',
+    stillOwns: 'تفاصيل الاستهلاك وسجل تدقيق نداءات Meta',
+  },
+  {
+    id: 'inbox', href: '/admin/inbox', label: 'صندوق الدعم الكلاسيكي',
+    replacedBy: '/admin/support', reachableFrom: 'supportWorkspacePage',
+    stillOwns: 'محادثة التذكرة الكاملة والرد عليها',
+  },
+  {
+    id: 'console', href: '/admin/os', label: 'Admin OS',
+    replacedBy: '/admin', reachableFrom: 'controlCenterPage',
+    stillOwns: 'السلّم المعرفي وعرض التجارب بصيغتهما الأصلية',
+  },
+];
+
+/** Legacy routes as plain hrefs — used by the orphan test. */
+export function legacySurfaceHrefs(): string[] {
+  return ADMIN_LEGACY.map((l) => l.href);
+}
 
 /** Every destination, flattened — used by the route-coverage test. */
 export function adminDestinations(): AdminDestination[] {
@@ -115,7 +207,7 @@ export function adminSurfaceNav(active: AdminSurface): string {
     const items = section.items.map((i) =>
       `      <a class="nav-item${i.id === active ? ' active' : ''}" href="${i.href}" title="${i.purpose}">${i.label}</a>`,
     ).join('\n');
-    return `<div class="nav-label">${section.label}</div>\n${items}`;
+    return `<div class="nav-label" title="${section.question}">${section.label}</div>\n${items}`;
   }).join('\n');
   return `${sections}
 <div class="nav-label">&nbsp;</div>

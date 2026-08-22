@@ -86,6 +86,18 @@ import { supportPage } from '../web/pages/supportPage';
 import { metaReadinessPage } from '../web/pages/metaReadinessPage';
 import { brainObservatoryPage } from '../web/pages/brainObservatoryPage';
 import { addClientPage } from '../web/pages/addClientPage';
+// ── Control Plane surfaces. All rendered by the ONE shell in adminShell.ts ──
+import { controlCenterPage } from '../web/pages/controlCenterPage';
+import { systemGraphPage } from '../web/pages/systemGraphPage';
+import { metaDataWorkspacePage } from '../web/pages/metaDataWorkspacePage';
+import { intelligenceWorkspacePage } from '../web/pages/intelligenceWorkspacePage';
+import { operationsWorkspacePage } from '../web/pages/operationsWorkspacePage';
+import { customersWorkspacePage } from '../web/pages/customersWorkspacePage';
+import { supportWorkspacePage } from '../web/pages/supportWorkspacePage';
+import { buildArchitectureGraph } from '../graph/architecture';
+import { buildRuntimeOverlay } from '../graph/runtime';
+import { buildTraceOverlay } from '../graph/trace';
+import { parseGraphSnapshot } from '../graph/adapter';
 import { listSettings, getSetting, upsertSetting, deleteSetting, seedDefaults, SETTING_DEFAULTS } from '../services/platformSettings';
 import {
   createTicket, replyToTicket, getTicketWithMessages, adminListTickets,
@@ -656,7 +668,30 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // gate would make a locked-out operator unable to reach the only page
   // that can unlock them.
   app.get('/admin/login',          (c) => c.html(adminLoginPage()));
-  app.get('/admin',                (c) => adminPage(c, adminOsPage));
+
+  // ── The Control Plane. One shell, six domains ────────────────────────
+  //
+  // /admin is the Control Center now. The Admin OS that used to serve it
+  // moved to /admin/os rather than being deleted: it still renders the
+  // epistemic ladder and the experiments view in their original form, and
+  // its capabilities are only marked migrated because the Control Center
+  // actually serves them (asserted in test_admin_control_plane.ts, which
+  // checks the page calls the same route the registry names).
+  app.get('/admin',                (c) => adminPage(c, controlCenterPage));
+  app.get('/admin/graph',          (c) => adminPage(c, systemGraphPage));
+  app.get('/admin/meta',           (c) => adminPage(c, metaDataWorkspacePage));
+  app.get('/admin/intelligence',   (c) => adminPage(c, intelligenceWorkspacePage));
+  app.get('/admin/operations',     (c) => adminPage(c, operationsWorkspacePage));
+  app.get('/admin/customers',      (c) => adminPage(c, customersWorkspacePage));
+  app.get('/admin/support',        (c) => adminPage(c, supportWorkspacePage));
+
+  // ── Legacy surfaces, kept until parity is proven ─────────────────────
+  //
+  // Each is declared in ADMIN_LEGACY with the Control Plane route that now
+  // owns its domain and the page that must link to it. They are absent from
+  // the global sidebar and reached from their successor, which is the
+  // strangler contract — not a deletion, and not a second product either.
+  app.get('/admin/os',             (c) => adminPage(c, adminOsPage));
   app.get('/admin/classic',        (c) => adminPage(c, adminConsolePage));
   app.get('/admin/inbox',          (c) => adminPage(c, adminInboxPage));
   app.get('/admin/observability',  (c) => adminPage(c, adminDashboardPage));
@@ -1587,6 +1622,95 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       const msg = err instanceof Error ? err.message : 'unknown';
       console.error('[brain-observatory] snapshot failed:', msg);
       return c.json({ error: 'Failed to assemble the Brain trace', detail: msg.slice(0, 300) }, 500);
+    }
+  });
+
+  // ══ System graph. READ-ONLY, all three modes ═══════════════════════════
+  //
+  // Three GET routes and nothing else. There is no POST, PATCH or DELETE
+  // under /api/admin/graph, and there is deliberately no import endpoint:
+  // accepting a graph over the wire would make the map writable by whoever
+  // could reach the route, and the map is what an operator trusts when
+  // deciding whether something is safe to touch.
+  //
+  // Every response goes out through parseGraphSnapshot(), including our own
+  // builder's output. That is not ceremony — it means a builder bug that
+  // produces a dangling edge is refused here rather than rendered as a
+  // dependency that does not exist.
+
+  /**
+   * GET /api/admin/graph/architecture — repository truth.
+   *
+   * Never throws to the client. A malformed graph degrades the graph panel
+   * and leaves the rest of the console working, which is the whole point of
+   * an operations surface: the screen you use to find out what is broken
+   * must not be the screen that breaks.
+   */
+  app.get('/api/admin/graph/architecture', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    try {
+      const parsed = parseGraphSnapshot(JSON.parse(JSON.stringify(buildArchitectureGraph())));
+      if (!parsed.ok) {
+        console.error(`[graph] own snapshot refused: ${parsed.code} ${parsed.reason}`);
+        return c.json({ ok: false, code: parsed.code, reason: parsed.reason }, 500);
+      }
+      return c.json({ ok: true, snapshot: parsed.snapshot, adaptedBy: parsed.adaptedBy });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'graph build failed';
+      console.error(`[graph] architecture build failed: ${msg}`);
+      return c.json({ ok: false, code: 'BUILD_FAILED', reason: msg }, 500);
+    }
+  });
+
+  /**
+   * GET /api/admin/graph/runtime — observed state, keyed by node id.
+   *
+   * Returns an OVERLAY, not a graph. The client keeps the architecture
+   * snapshot it already has and paints this on top, so there is no response
+   * anywhere in the system that is half structure and half weather.
+   */
+  app.get('/api/admin/graph/runtime', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    try {
+      const snapshot = buildArchitectureGraph();
+      const ops = await getAdminOpsSnapshot(prisma);
+      return c.json(safeJson({ ok: true, overlay: buildRuntimeOverlay(snapshot, ops) }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'runtime overlay failed';
+      console.error(`[graph] runtime overlay failed: ${msg}`);
+      return c.json({ ok: false, code: 'OVERLAY_FAILED', reason: msg }, 500);
+    }
+  });
+
+  /**
+   * GET /api/admin/graph/trace/:campaignId — which layers took part.
+   *
+   * Delegates to buildBrainObservatory() and copies its verdicts. It does not
+   * reconcile, diagnose, score or recommend; a layer the Brain reports as
+   * NOT_REACHED comes back NOT_REACHED with the Brain's own reason attached.
+   * If that snapshot does not exist, this route says so — it does not
+   * assemble a partial chain that would read as a complete one.
+   */
+  app.get('/api/admin/graph/trace/:campaignId', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    try {
+      const observatory = await buildBrainObservatory(prisma, req.params['campaignId'] ?? '');
+      if (!observatory) {
+        return c.json({ ok: false, code: 'NO_SNAPSHOT',
+          reason: 'No measurable window for this campaign (or it does not exist)' }, 404);
+      }
+      const snapshot = buildArchitectureGraph();
+      return c.json(safeJson({ ok: true, overlay: buildTraceOverlay(snapshot, observatory) }));
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'trace overlay failed';
+      console.error(`[graph] trace overlay failed: ${msg}`);
+      return c.json({ ok: false, code: 'OVERLAY_FAILED', reason: msg }, 500);
     }
   });
 
