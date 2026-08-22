@@ -193,6 +193,25 @@ this cycle, and no Arabic page renders English because of it.
 **Reopen when** the detector is next touched, or a real English node appears
 alongside it.
 
+## D8. `RAILWAY_BUILD_QUEUE_LATENCY` — `NON_BLOCKING_DEBT` *(new)*
+
+**Owner** platform / Railway
+
+The Dockerfile build is materially slower than the Nixpacks build it replaced,
+and Railway serialises the service's builds. After two merges, three
+deployments sat `QUEUED` simultaneously — one of them for forty minutes — and
+one transitioned `BUILDING` back to `QUEUED`.
+
+**Why not blocking** it is deploy latency, not correctness: production keeps
+serving the last healthy build throughout, and nothing about the running
+system degrades. Half the pressure was self-inflicted and is fixed (see the
+duplicate-deployer entry in doc 15); the rest is platform-side and cannot be
+resolved from this repository.
+
+**Reopen when** a deployment is needed urgently and the queue is the reason it
+cannot happen — at which point the lever is build caching in the Dockerfile,
+not the builder choice, because reverting the builder reopens Gate A.
+
 ## Obsolete
 
 `PERIOD_FREQUENCY_DERIVATION_UNPROVEN` — **OBSOLETE**. It asked to prove that
@@ -205,7 +224,7 @@ identity would not license deriving it, so there is nothing to reopen.
 
 ## Count
 
-**7 open debt items**, all `NON_BLOCKING_DEBT`: D1–D7.
+**8 open debt items**, all `NON_BLOCKING_DEBT`: D1–D8.
 **3 reclassified upward and fixed** this cycle: R1, R2, R3.
 **1 obsolete.**
 

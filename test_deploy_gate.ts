@@ -261,6 +261,27 @@ function main() {
     const on = wf.slice(wf.indexOf('on:'), wf.indexOf('concurrency:'));
     if (/^\s*workflow_dispatch:/m.test(on)) ok('deploy-adlytic.yml exposes workflow_dispatch');
     else bad('deploy-adlytic.yml lost workflow_dispatch — a docs/CI-only release can no longer be shipped');
+
+    // ONE DEPLOYER PER PUSH. Railway's GitHub integration deploys every push
+    // to main on its own; it always has. While RAILWAY_TOKEN was unset this
+    // workflow's deploy job failed and created nothing, so the overlap was
+    // invisible. With a working token every merge queued TWO builds of the
+    // same commit — three sat QUEUED at once after two merges, which under the
+    // slower Dockerfile build is a real delay rather than a cosmetic one.
+    const deployJob = wf.slice(wf.indexOf('deploy-adlytic:'));
+    if (/if:\s*\$\{\{\s*github\.event_name\s*==\s*'workflow_dispatch'\s*\}\}/.test(deployJob)) {
+      ok('the deploy job runs only on dispatch — Railway owns the push path, so no duplicate builds');
+    } else {
+      bad('the deploy job is not dispatch-gated — it will double every push to main that Railway also deploys');
+    }
+    // The typecheck half must still run on push; gating the whole workflow
+    // would have removed CI from main to fix a deployment overlap.
+    const verifyJob = wf.slice(wf.indexOf('  verify:'), wf.indexOf('deploy-adlytic:'));
+    if (!/if:\s*\$\{\{\s*github\.event_name/.test(verifyJob)) {
+      ok('the verify job still runs on push — main keeps its typecheck');
+    } else {
+      bad('the verify job was gated too; main pushes would lose their typecheck');
+    }
   }
 
   // ── the live-verification workflow observes and nothing more ────────────
