@@ -62,8 +62,16 @@ export interface AdminShellOptions {
   title: string;
   /** One line under the title: what this surface answers. */
   subtitle: string;
-  /** The page body. Rendered inside the container, below the context bar. */
+  /** The page body. Rendered inside the measured content column. */
   body: string;
+  /**
+   * Optional page header, rendered above the view tabs.
+   *
+   * A surface with real depth needs a title in the CONTENT column, not only
+   * in the topbar — the topbar title scrolls away and says nothing about what
+   * to do here.
+   */
+  header?: string;
   /** Extra <style> the surface needs. Kept out of the shared sheet. */
   css?: string;
   /** Page script, run after the shell's own script. */
@@ -92,7 +100,33 @@ const SHELL_CSS = `
   .mono, code, .id { font-family: var(--font-mono); direction: ltr; unicode-bidi: isolate;
                      font-size: 11.5px; letter-spacing: -0.01em; }
 
-  .shell { display: grid; grid-template-columns: var(--rail) 1fr; min-height: 100%; }
+  /* ── The reveal gate ─────────────────────────────────────────────────
+     A customer must never see admin structure, not even for a frame. The
+     server is the real boundary — every /admin route resolves the session and
+     redirects a non-admin before a byte of this is sent — but a page restored
+     from the back/forward cache can put already-delivered HTML back on screen
+     without a request, and that is the gap this covers.
+
+     It lives HERE and only here. Four pages used to carry their own copy, and
+     every copy reached for chrome the shell now owns, so each one threw inside
+     its own try and left its page blank. One gate, one place, one behaviour. */
+  /* Namespaced. A bare .gate collided with a page that already had one of its
+     own inside a card, and the shell's position:fixed dragged it across the
+     whole viewport — the shell's classes must not be able to capture page
+     markup by name. */
+  .admin-gate { position: fixed; inset: 0; z-index: 999; background: var(--bg);
+          display: flex; align-items: center; justify-content: center; gap: 12px;
+          color: var(--text-2); font-weight: 600; padding: 24px; text-align: center; }
+  .admin-gate.hidden { display: none; }
+  .admin-gate-spin { width: 24px; height: 24px; border: 3px solid var(--border);
+               border-top-color: var(--accent); border-radius: 50%;
+               animation: admin-gate-sp 0.7s linear infinite; }
+  @keyframes admin-gate-sp { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .admin-gate-spin { animation: none; } }
+
+  .shell { display: grid; grid-template-columns: var(--rail) 1fr; min-height: 100%;
+           visibility: hidden; }
+  body.admin-ready .shell { visibility: visible; }
 
   /* ── Rail ───────────────────────────────────────────────────────── */
   .rail { background: var(--surface); border-inline-start: 1px solid var(--border);
@@ -153,29 +187,118 @@ const SHELL_CSS = `
   .ctx-v { font-weight: 600; }
   .ctx.is-unset { border-style: dashed; color: var(--text-3); }
 
-  .page { padding: 18px; flex: 1; }
-  .page > * + * { margin-top: 14px; }
+  /* ── Content column ───────────────────────────────────────────────
+     A deliberate measure, not the full viewport. The production screenshot
+     showed two small cards stranded at the top of a 1600px page with the
+     lower 60% empty background — which is not minimal, it is undesigned.
+     Content stops at a readable width and the page stops where the content
+     stops. */
+  .page { padding: 20px 24px 40px; flex: 1; }
+  .page-inner { max-width: 1320px; margin-inline: auto; }
+  .page-inner > * + * { margin-top: 16px; }
+
+  /* ── Page header: what this surface is, and what to do on it ──────── */
+  .phead { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
+           padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .phead-t { font-family: var(--font-display); font-size: 19px; font-weight: 800;
+             letter-spacing: -0.015em; line-height: 1.25; }
+  .phead-s { font-size: 12.5px; color: var(--text-2); margin-top: 3px; max-width: 74ch; }
+  .phead-actions { margin-inline-start: auto; display: flex; gap: 7px; align-items: center; }
+
+  /* ── Section: the unit of page composition ────────────────────────── */
+  .sec { }
+  .sec-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+  .sec-t { font-size: 13.5px; font-weight: 700; letter-spacing: -0.005em; }
+  .sec-n { font-size: 11.5px; color: var(--text-3); }
+  .sec-a { margin-inline-start: auto; display: flex; gap: 6px; }
+
+  /* ── Stat row: compact facts, never a giant card per number ───────── */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+           border: 1px solid var(--border); border-radius: var(--radius);
+           background: var(--surface); overflow: hidden; }
+  .stat { padding: 11px 14px; border-inline-start: 1px solid var(--border); }
+  .stat:first-child { border-inline-start: 0; }
+  .stat-k { font-size: 11px; color: var(--text-3); font-weight: 600; }
+  .stat-v { font-size: 17px; font-weight: 700; margin-top: 4px; line-height: 1.2;
+            display: flex; align-items: center; gap: 7px; }
+  .stat-w { font-size: 11px; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
+  .stat.absent .stat-v { color: var(--text-3); }
+  @media (max-width: 900px) {
+    .stat { border-inline-start: 0; border-top: 1px solid var(--border); }
+    .stat:first-child { border-top: 0; }
+  }
+
+  /* ── Attention strip: actionable, and it goes somewhere ───────────── */
+  .strip { display: flex; flex-direction: column; gap: 7px; }
+  .strip-i { display: flex; align-items: center; gap: 11px; padding: 10px 13px;
+             border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+             text-align: start; font: inherit; cursor: pointer; width: 100%;
+             transition: var(--transition); }
+  .strip-i:hover { border-color: var(--accent); background: var(--surface-2); }
+  .strip-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .strip-i.sev-ERROR { border-inline-start: 3px solid var(--error); }
+  .strip-i.sev-WARNING { border-inline-start: 3px solid var(--warning); }
+  .strip-i.sev-INFO { border-inline-start: 3px solid var(--border-2); }
+  .strip-t { font-weight: 700; font-size: 12.5px; }
+  .strip-w { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+  .strip-go { margin-inline-start: auto; font-size: 11.5px; color: var(--accent-2);
+              font-weight: 600; white-space: nowrap; }
+
+  /* ── Technical details: raw payloads live HERE, never in primary UI ─ */
+  details.tech { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+  details.tech > summary { cursor: pointer; padding: 9px 13px; font-size: 11.5px;
+                           font-weight: 600; color: var(--text-2); list-style: none; }
+  details.tech > summary::-webkit-details-marker { display: none; }
+  details.tech > summary::before { content: '▸'; margin-inline-end: 7px; color: var(--text-3); }
+  details.tech[open] > summary::before { content: '▾'; }
+  details.tech > summary:hover { color: var(--text); }
+  details.tech > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  details.tech .tech-b { padding: 0 13px 13px; }
+  pre.raw { background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+            padding: 11px 13px; font-family: var(--font-mono); font-size: 11px;
+            line-height: 1.6; direction: ltr; text-align: left; overflow: auto;
+            max-height: 340px; white-space: pre-wrap; word-break: break-word; }
 
   /* ── Secondary view strip (in-page tabs) ────────────────────────── */
-  .views { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 14px;
+  .views { display: flex; gap: 3px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
            overflow-x: auto; }
-  .view-tab { padding: 7px 13px; font-size: 12.5px; font-weight: 600; color: var(--text-3);
+  .view-tab { padding: 9px 15px; font-size: 13px; font-weight: 600; color: var(--text-2);
               border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap;
               background: none; border-inline: 0; border-top: 0; font-family: inherit;
               transition: var(--transition); }
   .view-tab:hover { color: var(--text); }
-  .view-tab.active { color: var(--accent-2); border-bottom-color: var(--accent); }
+  .view-tab.active { color: var(--accent-2); border-bottom-color: var(--accent); font-weight: 700; }
   .view-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .view { display: none; }
   .view.on { display: block; }
 
   /* ── Shared surface primitives ──────────────────────────────────── */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-          padding: 14px; }
-  .card > * + * { margin-top: 9px; }
+  /* ── Card anatomy ─────────────────────────────────────────────────
+     Explicit, because the clever version was wrong. Padding used to be
+     applied with :not(.card-h):not(.card-b) margins, whose specificity beat
+     the table rule — so every table inside a card rendered 13px outside it on
+     both sides while the card border stayed put. Card edges that do not line
+     up with their own content is precisely the composition defect this pass
+     exists to remove, and it was invisible to every structural check.
+
+     Two child kinds, two rules, no exceptions:
+       .card-h / .card-b  padded regions
+       table.t            spans the full card, edge to edge          */
+  .card { background: var(--surface); border: 1px solid var(--border);
+          border-radius: var(--radius); overflow: hidden; }
+  .card > .card-h { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .card > .card-b { padding: 14px; }
+  .card > .card-b > * + * { margin-top: 10px; }
+  .card > table.t { width: 100%; margin: 0; }
+  /* Legacy markup that puts loose children straight in a card still reads
+     correctly: they get the same padded gutter, and never a margin. */
+  .card > :not(.card-h):not(.card-b):not(table) { padding-inline: 14px; }
+  .card > :not(.card-h):not(.card-b):not(table):first-child { padding-top: 14px; }
+  .card > :not(.card-h):not(.card-b):not(table):last-child { padding-bottom: 14px; }
   .card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .h2 { font-size: 12.5px; font-weight: 700; letter-spacing: -0.005em; }
-  .muted { color: var(--text-3); font-size: 11.5px; }
+  .h2 { font-size: 13px; font-weight: 700; letter-spacing: -0.005em; }
+  .muted { color: var(--text-2); font-size: 12px; }
+  .dim { color: var(--text-3); font-size: 11.5px; }
   .grid { display: grid; gap: 12px; align-items: start; }
   .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -184,11 +307,12 @@ const SHELL_CSS = `
   @media (max-width: 720px)  { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
 
   table.t { width: 100%; border-collapse: collapse; font-size: 12px; }
-  table.t th { text-align: start; font-size: 10px; font-weight: 700; color: var(--text-3);
-               text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 9px;
+  table.t th { text-align: start; font-size: 11px; font-weight: 700; color: var(--text-2);
+               letter-spacing: 0.01em; padding: 9px 12px;
                border-bottom: 1px solid var(--border); position: sticky; top: 0;
-               background: var(--surface); }
-  table.t td { padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+               background: var(--surface); white-space: nowrap; }
+  table.t td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.t tbody tr:last-child td { border-bottom: 0; }
   table.t tbody tr:hover { background: var(--surface-2); }
   table.t .empty { text-align: center; color: var(--text-3); padding: 22px; }
 
@@ -238,6 +362,49 @@ const SHELL_CSS = `
   .cmd-empty { padding: 22px; text-align: center; color: var(--text-3); font-size: 12px; }
 
   /* Motion supports comprehension, and stops when the reader asks it to. */
+  /* ── Narrow widths ──────────────────────────────────────────────────
+     The shell is desktop-first because that is where the operator works, but
+     desktop-first is not desktop-only: /admin/os held together down to 390px
+     before it moved in here, and a 248px rail in a fixed grid took that away —
+     the page simply scrolled sideways by ~290px on a phone.
+
+     So below 900px the rail leaves the flow and slides over the content, with
+     a toggle in the topbar. Same markup, same nav, same everything; only the
+     rail's position changes. */
+  @media (max-width: 900px) {
+    .shell { grid-template-columns: 1fr; }
+    .rail { position: fixed; inset-block: 0; inset-inline-start: 0; width: var(--rail);
+            z-index: 60; transform: translateX(var(--rail-off, 100%));
+            transition: transform 0.18s ease; box-shadow: var(--shadow-2, 0 0 24px rgba(0,0,0,0.18)); }
+    :root[dir="ltr"] .rail, [dir="ltr"] .rail { --rail-off: -100%; }
+    body.rail-open .rail { transform: translateX(0); }
+    .rail-toggle { display: inline-flex; }
+    .rail-scrim { position: fixed; inset: 0; background: rgba(0,0,0,0.34);
+                  z-index: 55; display: none; }
+    body.rail-open .rail-scrim { display: block; }
+    /* The topbar carries a title, a 190px search button and the attention
+       button. At 390px they do not fit, and in RTL the overflow runs off the
+       START edge — which is why the page still scrolled 17px after the rail
+       was dealt with. Shrink to what is still useful: the title truncates,
+       the search button keeps its icon and drops its label and shortcut hint
+       (there is no Ctrl key on a phone anyway). */
+    .topbar { padding: 0 10px; gap: 7px; }
+    .topbar .sub { display: none; }
+    .topbar h1 { font-size: 14px; min-width: 0; overflow: hidden;
+                 text-overflow: ellipsis; }
+    .top-spacer { display: none; }
+    .search-btn { width: auto; min-width: 0; padding: 4px 8px; margin-inline-start: auto; }
+    .search-btn > span:first-child { display: none; }
+    .search-btn .kbd { display: none; }
+    .search-btn::after { content: '⌕'; font-size: 15px; line-height: 1; }
+    .ctxbar { overflow-x: auto; }
+    .page-inner { padding-inline: 12px; }
+  }
+  .rail-toggle { display: none; border: 1px solid var(--border-control); background: var(--surface);
+                 color: var(--text-2); border-radius: 7px; padding: 4px 9px; font-size: 12px;
+                 cursor: pointer; font-family: inherit; flex-shrink: 0; }
+  .rail-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
   @media (prefers-reduced-motion: reduce) {
     * { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
   }
@@ -319,12 +486,29 @@ function shellScript(commands: ShellCommand[]): string {
   };
 
   // ── Operator identity ────────────────────────────────────────────
+  function reveal() {
+    document.body.classList.add('admin-ready');
+    var g = el('admin-gate'); if (g) g.classList.add('hidden');
+  }
   window.adminFetch('/api/auth/me').then(function (me) {
     var u = me.user || me;
+    if (u.isPlatformAdmin === false || me.isPlatformAdmin === false) {
+      location.replace('/dashboard');
+      return;
+    }
+    reveal();
     var name = u.name || u.email || '—';
     var n = el('who-name'); if (n) n.textContent = name;
     var a = el('who-avatar'); if (a) a.textContent = (name[0] || '?').toUpperCase();
-  }).catch(function () {
+  }).catch(function (e) {
+    // A network failure is NOT a demotion. Hold the gate and offer a retry —
+    // sending an admin to /dashboard here is the bounce loop this product
+    // already paid for once.
+    var g = el('admin-gate');
+    if (g) g.innerHTML = '<div style="max-width:340px;line-height:1.9;">تعذّر التحقق من الصلاحية '
+      + '<span class="mono">(' + esc(String((e && e.message) || 'network')) + ')</span><br>'
+      + 'لم يتغيّر حسابك — هذه مشكلة اتصال. '
+      + '<a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">أعد المحاولة</a></div>';
     var n = el('who-name'); if (n) n.textContent = 'جلسة غير محمّلة';
   });
   var lo = el('btn-logout');
@@ -409,19 +593,32 @@ function shellScript(commands: ShellCommand[]): string {
   if (firstTab) showView(location.hash.slice(1) || firstTab.getAttribute('data-view'));
 
   // ── Command palette ──────────────────────────────────────────────
+  // A surface may contribute entries at runtime, not only the static ones it
+  // declared. window.adminCommands takes a plain array; window.adminCommandSource
+  // takes a function, so a page whose entries depend on data it has not loaded
+  // yet (workspaces, accounts) can still put them in the ONE palette instead of
+  // shipping a second one. An entry may carry a run() instead of an href when
+  // the destination is a state in the current page rather than a URL.
   var sel = 0, shown = [];
-  function extra() { return (window.adminCommands || []); }
+  function extra() {
+    var live = [];
+    try {
+      if (typeof window.adminCommandSource === 'function') live = window.adminCommandSource() || [];
+    } catch (e) { live = []; }
+    return (window.adminCommands || []).concat(live);
+  }
   function all() { return CMDS.concat(extra()); }
   function paint(q) {
     var list = el('cmd-list'); if (!list) return;
     var needle = q.trim().toLowerCase();
     shown = all().filter(function (c) {
       if (!needle) return true;
-      return (c.label + ' ' + (c.hint || '') + ' ' + c.href).toLowerCase().indexOf(needle) >= 0;
+      return (c.label + ' ' + (c.hint || '') + ' ' + (c.href || '')).toLowerCase().indexOf(needle) >= 0;
     }).slice(0, 40);
     if (sel >= shown.length) sel = 0;
     list.innerHTML = shown.length ? shown.map(function (c, i) {
-      return '<div class="cmd-row' + (i === sel ? ' sel' : '') + '" data-href="' + esc(c.href) + '">'
+      return '<div class="cmd-row' + (i === sel ? ' sel' : '') + '" data-i="' + i
+        + '" data-href="' + esc(c.href || '') + '">'
         + '<span>' + esc(c.label) + '</span>'
         + (c.hint ? '<span class="hint">' + esc(c.hint) + '</span>' : '') + '</div>';
     }).join('') : '<div class="cmd-empty">لا نتيجة</div>';
@@ -433,26 +630,45 @@ function shellScript(commands: ShellCommand[]): string {
     sel = 0; paint('');
   }
   function closePalette() { var c = el('cmd'); if (c) c.classList.remove('open'); }
-  function run(href) {
+  function run(cmd) {
     closePalette();
+    if (!cmd) return;
+    if (typeof cmd.run === 'function') { try { cmd.run(); } catch (e) {} return; }
+    var href = cmd.href;
     if (!href) return;
     if (href.charAt(0) === '#') showView(href.slice(1)); else location.href = href;
   }
+  // ── Rail, on a narrow screen ─────────────────────────────────────
+  function rail(on) {
+    document.body.classList.toggle('rail-open', !!on);
+    var t = el('btn-rail'); if (t) t.setAttribute('aria-expanded', on ? 'true' : 'false');
+  }
+  var rt = el('btn-rail');
+  if (rt) rt.addEventListener('click', function () {
+    rail(!document.body.classList.contains('rail-open'));
+  });
+  var rs = el('rail-scrim'); if (rs) rs.addEventListener('click', function () { rail(false); });
+  // Following a link should not leave the rail covering what it opened.
+  var rn = document.querySelector('.rail-nav');
+  if (rn) rn.addEventListener('click', function (e) {
+    if (e.target.closest && e.target.closest('.nav-item')) rail(false);
+  });
+
   var sb = el('btn-search'); if (sb) sb.addEventListener('click', openPalette);
   var ci = el('cmd-in');
   if (ci) ci.addEventListener('input', function () { sel = 0; paint(ci.value); });
   document.addEventListener('keydown', function (e) {
     if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); openPalette(); return; }
     var open = el('cmd') && el('cmd').classList.contains('open');
-    if (e.key === 'Escape') { closePalette(); drawer(false); return; }
+    if (e.key === 'Escape') { closePalette(); drawer(false); rail(false); return; }
     if (!open) return;
     if (e.key === 'ArrowDown') { e.preventDefault(); sel = Math.min(sel + 1, shown.length - 1); paint(el('cmd-in').value); }
     if (e.key === 'ArrowUp')   { e.preventDefault(); sel = Math.max(sel - 1, 0); paint(el('cmd-in').value); }
-    if (e.key === 'Enter')     { e.preventDefault(); if (shown[sel]) run(shown[sel].href); }
+    if (e.key === 'Enter')     { e.preventDefault(); if (shown[sel]) run(shown[sel]); }
   });
   document.addEventListener('click', function (e) {
     var row = e.target.closest ? e.target.closest('.cmd-row') : null;
-    if (row) run(row.getAttribute('data-href'));
+    if (row) run(shown[Number(row.getAttribute('data-i'))]);
     var box = e.target.closest ? e.target.closest('.cmd-box') : null;
     if (!box && el('cmd') && el('cmd').classList.contains('open')) closePalette();
   });
@@ -483,6 +699,9 @@ export function adminShell(o: AdminShellOptions): string {
   <style>${SHELL_CSS}${ADMIN_STATUS_CSS}${o.css ?? ''}</style>
 </head>
 <body>
+<div class="admin-gate" id="admin-gate" role="status">
+  <span class="admin-gate-spin" aria-hidden="true"></span><span>جارٍ التحقق من الصلاحية…</span>
+</div>
 <div class="shell">
   <aside class="rail">
     <div class="brand">
@@ -507,6 +726,7 @@ ${adminSurfaceNav(o.active)}
 
   <div class="main">
     <header class="topbar">
+      <button class="rail-toggle" id="btn-rail" aria-label="القائمة" aria-expanded="false">☰</button>
       <h1>${esc(o.title)}</h1>
       <div class="sub">${esc(o.subtitle)}</div>
       <div class="top-spacer"></div>
@@ -528,12 +748,16 @@ ${adminSurfaceNav(o.active)}
     </div>
 
     <main class="page">
-      ${viewTabs ? `<div class="views" role="tablist">${viewTabs}</div>` : ''}
-      ${o.body}
+      <div class="page-inner">
+        ${o.header ?? ''}
+        ${viewTabs ? `<div class="views" role="tablist">${viewTabs}</div>` : ''}
+        ${o.body}
+      </div>
     </main>
   </div>
 </div>
 
+<div class="rail-scrim" id="rail-scrim"></div>
 <div class="scrim" id="scrim"></div>
 <aside class="drawer" id="att-drawer" aria-label="مركز التنبيهات">
   <div class="drawer-h">

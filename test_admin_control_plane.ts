@@ -369,6 +369,28 @@ function run() {
     assert.equal(views.length, 2, 'the view strip must render the views it was given, and only those');
   });
 
+  check('every frame-positioning class the shell owns is namespaced', () => {
+    // A bare `.gate` in the shell captured a page's own `.gate` — a card's
+    // child — and position:fixed dragged it across the whole viewport. Any
+    // shell rule that takes an element OUT of normal flow can do that to page
+    // markup that happens to share the name, so those classes carry an
+    // admin- prefix. The list is read from the stylesheet, not restated here.
+    const sheet = readFileSync('src/web/adminShell.ts', 'utf8');
+    const css = sheet.slice(sheet.indexOf('const SHELL_CSS'), sheet.indexOf('const SHELL_CSS') + 40000);
+    const offenders: string[] = [];
+    for (const m of css.matchAll(/\n\s*\.([a-z][\w-]*)[^{]*\{([^}]*)\}/g)) {
+      const [, cls, body] = m;
+      if (!/position:\s*fixed/.test(body)) continue;
+      // Structural frame classes the shell has always owned outright are
+      // allowed; anything new that pins itself must say whose it is.
+      const OWNED = ['rail', 'scrim', 'drawer', 'cmd', 'topbar', 'ctxbar'];
+      if (cls.startsWith('admin-') || OWNED.some((o) => cls === o || cls.startsWith(o + '-'))) continue;
+      offenders.push(cls);
+    }
+    assert.deepEqual(offenders, [],
+      `shell classes that pin themselves must be namespaced: ${offenders.join(', ')}`);
+  });
+
   check('the shell escapes what surfaces hand it', () => {
     const hostile = adminShell({
       active: 'control-center', title: '<script>x</script>', subtitle: '"quo"', body: '',

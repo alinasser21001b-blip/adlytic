@@ -1,301 +1,162 @@
 // ════════════════════════════════════════════════════════════════════════
-//  src/web/pages/adminOsPage.ts — the Adlytic Admin Operating System.
+//  src/web/pages/adminOsPage.ts — the original Admin operating system.
 //
-//  A ground-up replacement for the console, not a restyle of it. The old
-//  console was organised around our database tables (customers,
-//  subscriptions, settings). This is organised around the operator's JOBS,
-//  in the order they actually occur:
+//  Organised around the operator's JOBS rather than our database tables, with
+//  the epistemic ladder and the capability-probe experiments in their first
+//  form. Both are still reachable here exactly as they were.
 //
-//      مراقبة (monitor)   الآن · الانتباه · النشاط
-//      تشغيل  (operate)   مساحات العمل · العمليات
-//      معرفة  (know)      حدود المعرفة · التجارب
-//      إدارة  (administer) الزبائن · الإيرادات · الإعدادات
+//  ── Why it renders inside the Control Plane shell ─────────────────────
 //
-//  THE DESIGN CONSTRAINTS ARE THE ADVERSARIAL FINDINGS. Each one is load-
-//  bearing here, not decorative:
+//  It drew its own rail, its own top bar and its own command palette. An
+//  operator who reached it — from a bookmark, or from the command palette
+//  entry that names it — left the Control Plane and arrived somewhere that
+//  looked like a different application.
 //
-//   · UNKNOWN and NOT_TESTED get their own glyph, colour and PLACE — the
-//     Knowledge Boundary is a destination in the navigation, not an
-//     apology tucked under a heading. An operator who can see the edge of
-//     the map navigates better than one shown a map with no edge.
-//   · ERROR never degrades into UNKNOWN, and UNKNOWN never renders red:
-//     "we could not determine this" is not "this is broken".
-//   · Fact and interpretation are visually separate everywhere: observed
-//     values use the mono/LTR evidence treatment, our reading of them uses
-//     prose.
-//   · No composite health score exists anywhere in this file.
-//
-//  Architectural constraints preserved: no React, no bundler, no package.
-//  Server-rendered HTML from a template literal, vanilla browser JS.
-//  Remember: a lone backslash is eaten at cook time — escape twice.
+//  Its own navigation is gone; the shell owns that. Everything it renders is
+//  untouched, because the ladder's four rungs and the experiments view are the
+//  reason this route still exists at all.
 // ════════════════════════════════════════════════════════════════════════
 
-import { TOKENS_CSS_PATH } from '../layout';
-import { SESSION_ROUTER_JS } from '../auth/sessionRouter';
-import { adminSurfaceNav } from './adminSurfaceNav';
+import { adminShell } from '../adminShell';
 
-/** Navigation grouped by operator job. Order is the order of work. */
-const NAV = [
-  { group: 'مراقبة', items: [
-    { id: 'now', label: 'الآن', hint: 'ما الذي يحدث' },
-    { id: 'attention', label: 'الانتباه', hint: 'ما الذي يحتاجني' },
-    { id: 'activity', label: 'النشاط', hint: 'ما الذي تغيّر' },
-  ] },
-  { group: 'تشغيل', items: [
-    { id: 'workspaces', label: 'مساحات العمل', hint: 'من المتأثر' },
-    { id: 'operations', label: 'العمليات', hint: 'حالة البنية' },
-  ] },
-  { group: 'معرفة', items: [
-    { id: 'intelligence', label: 'الذكاء', hint: 'من الواقعة إلى التوصية' },
-    { id: 'boundary', label: 'حدود المعرفة', hint: 'ما لا نعرفه' },
-    { id: 'experiments', label: 'التجارب', hint: 'مرقاب قدرات Meta' },
-  ] },
-  { group: 'إدارة', items: [
-    { id: 'customers', label: 'الزبائن', hint: '' },
-    { id: 'revenue', label: 'الإيرادات', hint: '' },
-    { id: 'platform', label: 'إعدادات المنصة', hint: '' },
-  ] },
-];
-
-function navHtml(): string {
-  // Cross-surface destinations come from THE one information architecture, so
-  // every admin window shows the same map — including the Brain Observatory,
-  // which appeared in none of the three maps that existed before it.
-  const shared = `
-      <div class="nav-group">${adminSurfaceNav('console')}</div>`;
-  const own = NAV.map((g) => `
-      <div class="nav-group">
-        <div class="nav-label">${g.group}</div>
-        ${g.items.map((i) => `<a class="nav-item" href="#${i.id}" data-view="${i.id}">
-          <span class="nav-item-label">${i.label}</span>
-          ${i.hint ? `<span class="nav-item-hint">${i.hint}</span>` : ''}
-        </a>`).join('\n        ')}
-      </div>`).join('');
-  // This page's own views nest UNDER the shared map, not instead of it.
-  return shared + own;
-}
-
-export function adminOsPage(): string {
-  return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Adlytic — نظام التشغيل الإداري</title>
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --font: var(--font-body); --rail: 244px; }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button, input, select { font: inherit; color: inherit; }
-    button { cursor: pointer; border: none; background: none; }
-
-    /* Technical values are LTR monospace ALWAYS. An account id or an error
+const CSS = `:root { --font: var(--font-body); --rail: 244px; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+/* Technical values are LTR monospace ALWAYS. An account id or an error
        string reversed by RTL is not merely ugly — it is unsearchable and
        unquotable, and an operator pastes these into tickets. */
     .ev { direction: ltr; text-align: left; font-family: ui-monospace, "SF Mono", Consolas, monospace;
       font-size: 11.5px; color: var(--text-3); word-break: break-all; }
-    .ev-inline { display: inline-block; }
-
-    .gate { position: fixed; inset: 0; z-index: 999; background: var(--bg);
+.ev-inline { display: inline-block; }
+.gate { position: fixed; inset: 0; z-index: 999; background: var(--bg);
       display: flex; align-items: center; justify-content: center; gap: 12px; color: var(--text-2); font-weight: 600; }
-    .gate.hidden { display: none; }
-    .spin { width: 26px; height: 26px; border: 3px solid var(--border); border-top-color: var(--accent);
+.gate.hidden { display: none; }
+.spin { width: 26px; height: 26px; border: 3px solid var(--border); border-top-color: var(--accent);
       border-radius: 50%; animation: sp 0.7s linear infinite; }
-    @keyframes sp { to { transform: rotate(360deg); } }
-
-    .os { display: none; min-height: 100vh; }
-    .rail { width: var(--rail); flex-shrink: 0; background: var(--surface); border-left: 1px solid var(--border);
-      display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
-    .brand { padding: 18px 18px 14px; border-bottom: 1px solid var(--border); }
-    .brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
-    .brand-name span { color: var(--accent); }
-    .brand-sub { font-size: 10.5px; color: var(--text-3); font-weight: 700; margin-top: 3px; }
-    .rail-nav { flex: 1; padding: 10px 8px; }
-    .nav-group { margin-bottom: 12px; }
-    .nav-label { font-size: 10px; font-weight: 800; color: var(--text-3); padding: 6px 10px 4px; letter-spacing: 0.06em; }
-    .nav-item { display: flex; flex-direction: column; gap: 1px; padding: 7px 10px; border-radius: 8px;
-      color: var(--text-2); font-weight: 600; font-size: 13px; }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
-    .nav-item-hint { font-size: 10.5px; color: var(--text-3); font-weight: 500; }
-    .nav-item.active .nav-item-hint { color: var(--accent-2); opacity: 0.75; }
-    .nav-count { margin-right: auto; font-size: 11px; font-weight: 800; }
-    .rail-foot { padding: 10px; border-top: 1px solid var(--border); }
-
-    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .top { height: 54px; display: flex; align-items: center; gap: 12px; padding: 0 20px;
-      border-bottom: 1px solid var(--border); background: var(--surface); position: sticky; top: 0; z-index: 20; }
-    .top h1 { font-size: 15px; font-weight: 800; }
-    .top-sub { font-size: 11.5px; color: var(--text-3); }
-    .cmd-open { margin-right: auto; display: flex; align-items: center; gap: 8px; padding: 6px 12px;
-      border: 1px solid var(--border-control); border-radius: 8px; color: var(--text-3); font-size: 12.5px; }
-    .cmd-open:hover { border-color: var(--accent); color: var(--text-2); }
-    .kbd { border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; font-size: 10.5px; font-family: ui-monospace, monospace; }
-    .body { padding: 20px; max-width: 1180px; }
-    .view { display: none; }
-    .view.on { display: block; }
-
-    .h2 { font-size: 13px; font-weight: 800; color: var(--text-2); margin: 0 0 10px;
+@keyframes sp { to { transform: rotate(360deg); }
+}
+.nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
+.nav-item.active .nav-item-hint { color: var(--accent-2); opacity: 0.75; }
+.nav-count { margin-right: auto; font-size: 11px; font-weight: 800; }
+.view { display: none; }
+.view.on { display: block; }
+.h2 { font-size: 13px; font-weight: 800; color: var(--text-2); margin: 0 0 10px;
       display: flex; align-items: baseline; gap: 10px; }
-    .h2 .muted { font-weight: 600; }
-    .muted { color: var(--text-3); font-size: 12px; }
-    .card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 14px 16px; }
-    .stack > * + * { margin-top: 10px; }
-    .sec + .sec { margin-top: 26px; }
-
-    /* ── Status: glyph + word + colour. Never colour alone. ──────────── */
+.h2 .muted { font-weight: 600; }
+.muted { color: var(--text-3); font-size: 12px; }
+.card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 14px 16px; }
+.stack > * + * { margin-top: 10px; }
+.sec + .sec { margin-top: 26px; }
+/* ── Status: glyph + word + colour. Never colour alone. ──────────── */
     .st { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .st-g { width: 15px; text-align: center; font-size: 11px; }
-    .st-HEALTHY { color: var(--success); }
-    .st-RUNNING { color: var(--accent-2); }
-    .st-DEGRADED, .st-WARNING { color: var(--warning); }
-    .st-ERROR, .st-BLOCKED { color: var(--error); }
-    /* UNKNOWN and NOT_TESTED are DELIBERATELY not red. "We could not
+.st-g { width: 15px; text-align: center; font-size: 11px; }
+.st-HEALTHY { color: var(--success); }
+.st-RUNNING { color: var(--accent-2); }
+.st-DEGRADED, .st-WARNING { color: var(--warning); }
+.st-ERROR, .st-BLOCKED { color: var(--error); }
+/* UNKNOWN and NOT_TESTED are DELIBERATELY not red. "We could not
        determine this" is not "this is broken", and colouring them alike
        teaches the operator to ignore both. */
     .st-UNKNOWN, .st-NOT_TESTED { color: var(--text-3); }
-
-    /* ── System pulse ─────────────────────────────────────────────────── */
+/* ── System pulse ─────────────────────────────────────────────────── */
     .pulse { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
-    .pulse-main { font-size: 20px; font-weight: 800; }
-    .pulse-known { font-size: 12px; color: var(--text-3); }
-    .pulse-unknown { font-size: 12px; color: var(--warning); font-weight: 700; }
-
-    .grid { display: grid; gap: 10px; }
-    .g3 { grid-template-columns: repeat(3, 1fr); }
-    .g2 { grid-template-columns: repeat(2, 1fr); }
-    @media (max-width: 900px) { .g3 { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 620px) { .g3, .g2 { grid-template-columns: 1fr; } }
-
-    /* ── Attention: severity by rail, never by fill ───────────────────── */
+.pulse-main { font-size: 20px; font-weight: 800; }
+.pulse-known { font-size: 12px; color: var(--text-3); }
+.pulse-unknown { font-size: 12px; color: var(--warning); font-weight: 700; }
+.grid { display: grid; gap: 10px; }
+.g3 { grid-template-columns: repeat(3, 1fr); }
+.g2 { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 900px) { .g3 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 620px) { .g3, .g2 { grid-template-columns: 1fr; }
+}
+/* ── Attention: severity by rail, never by fill ───────────────────── */
     .att { display: block; border: 1px solid var(--border); border-right-width: 3px; border-radius: 10px;
       background: var(--surface); padding: 12px 14px; }
-    .att-ERROR { border-right-color: var(--error); }
-    .att-WARNING { border-right-color: var(--warning); }
-    .att-INFO { border-right-color: var(--accent); }
-    .att-t { font-weight: 800; font-size: 13.5px; margin-bottom: 3px; }
-    .att-w { font-size: 12.5px; color: var(--text-2); line-height: 1.65; }
-    .att-a { font-size: 12px; color: var(--accent-2); font-weight: 700; margin-top: 6px; display: inline-block; }
-    .clear { padding: 20px; text-align: center; color: var(--success); font-weight: 700;
+.att-ERROR { border-right-color: var(--error); }
+.att-WARNING { border-right-color: var(--warning); }
+.att-INFO { border-right-color: var(--accent); }
+.att-t { font-weight: 800; font-size: 13.5px; margin-bottom: 3px; }
+.att-w { font-size: 12.5px; color: var(--text-2); line-height: 1.65; }
+.att-a { font-size: 12px; color: var(--accent-2); font-weight: 700; margin-top: 6px; display: inline-block; }
+.clear { padding: 20px; text-align: center; color: var(--success); font-weight: 700;
       border: 1px solid var(--success); border-radius: 10px; background: var(--success-dim); }
-
-    /* ── Boundary: the signature surface ──────────────────────────────── */
+/* ── Boundary: the signature surface ──────────────────────────────── */
     .bnd { border: 1px dashed var(--border-control); border-radius: 10px; background: var(--surface); padding: 13px 15px; }
-    .bnd-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 5px; }
-    .bnd-s { font-weight: 800; font-size: 13.5px; }
-    .bnd-w { font-size: 12.5px; color: var(--text-2); line-height: 1.65; }
-    .bnd-r { font-size: 12px; margin-top: 6px; }
-    .bnd-r b { color: var(--accent-2); }
-
-    table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
-    table.t th { text-align: right; padding: 9px 10px; font-size: 10.5px; color: var(--text-3);
+.bnd-h { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 5px; }
+.bnd-s { font-weight: 800; font-size: 13.5px; }
+.bnd-w { font-size: 12.5px; color: var(--text-2); line-height: 1.65; }
+.bnd-r { font-size: 12px; margin-top: 6px; }
+.bnd-r b { color: var(--accent-2); }
+table.t { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.t th { text-align: right; padding: 9px 10px; font-size: 10.5px; color: var(--text-3);
       border-bottom: 1px solid var(--border); font-weight: 800; letter-spacing: 0.03em; }
-    table.t td { padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    table.t tbody tr:hover td { background: var(--surface-hover); cursor: pointer; }
-    .empty { text-align: center; padding: 26px 12px; color: var(--text-3); }
-
-    .field { background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 8px;
+table.t td { padding: 11px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.t tbody tr:hover td { background: var(--surface-hover); cursor: pointer; }
+.empty { text-align: center; padding: 26px 12px; color: var(--text-3); }
+.field { background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 8px;
       padding: 7px 11px; color: var(--text); font-size: 12.5px; }
-    .field:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
-    .btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px;
+.field:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+.btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 8px;
       font-weight: 700; font-size: 12.5px; border: 1px solid transparent; }
-    .btn-p { background: var(--accent); color: #fff; }
-    .btn-s { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
-    .btn-s:hover { border-color: var(--accent); }
-    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-    :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-
-    /* ── The epistemic ladder: four layers, visually unmergeable ─────── */
+.btn-p { background: var(--accent); color: #fff; }
+.btn-s { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
+.btn-s:hover { border-color: var(--accent); }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* ── The epistemic ladder: four layers, visually unmergeable ─────── */
     .ladder { display: flex; flex-direction: column; gap: 0; }
-    .rung { border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
+.rung { border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
       padding: 14px 16px; position: relative; }
-    .rung + .rung { margin-top: 22px; }
-    /* The connector is the argument: each layer RESTS on the one below it,
+.rung + .rung { margin-top: 22px; }
+/* The connector is the argument: each layer RESTS on the one below it,
        and a break anywhere below invalidates everything above. */
     .rung + .rung::before { content: '\\2193'; position: absolute; top: -19px; right: 26px;
       color: var(--text-3); font-size: 15px; }
-    .rung-n { font-size: 10.5px; font-weight: 800; color: var(--text-3); letter-spacing: 0.08em; }
-    .rung-t { font-size: 15px; font-weight: 800; margin: 3px 0 6px; }
-    .rung-d { font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
-    .rung-ex { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
-    .rung-lbl { font-size: 10.5px; font-weight: 800; color: var(--text-3); letter-spacing: 0.05em; }
-
-    /* ── Step flow for the probe: configure → review → run → results ──── */
+.rung-n { font-size: 10.5px; font-weight: 800; color: var(--text-3); letter-spacing: 0.08em; }
+.rung-t { font-size: 15px; font-weight: 800; margin: 3px 0 6px; }
+.rung-d { font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+.rung-ex { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+.rung-lbl { font-size: 10.5px; font-weight: 800; color: var(--text-3); letter-spacing: 0.05em; }
+/* ── Step flow for the probe: configure → review → run → results ──── */
     .steps { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
-    .step { font-size: 11.5px; font-weight: 700; color: var(--text-3); padding: 5px 11px;
+.step { font-size: 11.5px; font-weight: 700; color: var(--text-3); padding: 5px 11px;
       border: 1px solid var(--border); border-radius: 999px; }
-    .step.on { color: var(--accent-2); border-color: var(--accent); background: var(--accent-dim); }
-    .step.done { color: var(--success); border-color: var(--success); }
-    .doc { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
+.step.on { color: var(--accent-2); border-color: var(--accent); background: var(--accent-dim); }
+.step.done { color: var(--success); border-color: var(--success); }
+.doc { background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px;
       max-height: 420px; overflow: auto; font-family: ui-monospace, "SF Mono", Consolas, monospace;
       font-size: 11.5px; line-height: 1.6; white-space: pre; direction: ltr; text-align: left; }
-    .tally { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
-    .tally span { border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; font-size: 11.5px; color: var(--text-2); }
-    .tally span b { color: var(--text); }
-
-    /* ── Command bar ──────────────────────────────────────────────────── */
+.tally { display: flex; flex-wrap: wrap; gap: 7px; margin: 10px 0; }
+.tally span { border: 1px solid var(--border); border-radius: 999px; padding: 3px 11px; font-size: 11.5px; color: var(--text-2); }
+.tally span b { color: var(--text); }
+/* ── Command bar ──────────────────────────────────────────────────── */
     .cmd { position: fixed; inset: 0; z-index: 90; background: var(--scrim); display: none;
       align-items: flex-start; justify-content: center; padding-top: 12vh; }
-    .cmd.open { display: flex; }
-    .cmd-box { width: min(560px, 92vw); background: var(--surface); border: 1px solid var(--border);
-      border-radius: 12px; overflow: hidden; }
-    .cmd-in { width: 100%; padding: 14px 16px; background: transparent; border: none; font-size: 15px; }
-    .cmd-in:focus { outline: none; }
-    .cmd-list { max-height: 320px; overflow-y: auto; border-top: 1px solid var(--border); }
-    .cmd-row { display: flex; align-items: center; gap: 10px; padding: 10px 16px; font-size: 13px; }
-    .cmd-row.sel { background: var(--accent-dim); color: var(--accent-2); }
-    .cmd-row .muted { margin-right: auto; }
-
-    /* ── Responsive: the rail folds, tables become labelled cards ─────── */
+.cmd.open { display: flex; }
+.cmd-row.sel { background: var(--accent-dim); color: var(--accent-2); }
+/* ── Responsive: the rail folds, tables become labelled cards ─────── */
     @media (max-width: 1000px) {
       .os { flex-direction: column; }
-      .rail { position: static; width: 100%; height: auto; border-left: none; border-bottom: 1px solid var(--border); }
-      .brand, .rail-foot { display: none; }
-      .rail-nav { display: flex; gap: 6px; overflow-x: auto; padding: 8px 10px; -webkit-overflow-scrolling: touch; }
-      .nav-group { display: flex; gap: 6px; margin: 0; }
-      .nav-label { display: none; }
-      .nav-item { flex-direction: row; white-space: nowrap; flex-shrink: 0; }
-      .nav-item-hint { display: none; }
-      .body { padding: 14px; }
-    }
-    @media (max-width: 760px) {
+}
+@media (max-width: 760px) {
       table.t thead { display: none; }
-      table.t tr { display: block; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 4px 0; }
-      table.t td { display: flex; justify-content: space-between; gap: 12px; border: none; padding: 7px 12px; }
-      table.t td::before { content: attr(data-th); font-size: 10.5px; font-weight: 800; color: var(--text-3); flex-shrink: 0; }
-    }
-  </style>
-</head>
-<body>
-<div class="gate" id="gate"><div class="spin"></div><div>جارٍ التحقق من الصلاحية…</div></div>
+table.t tr { display: block; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 4px 0; }
+table.t td { display: flex; justify-content: space-between; gap: 12px; border: none; padding: 7px 12px; }
+table.t td::before { content: attr(data-th); font-size: 10.5px; font-weight: 800; color: var(--text-3); flex-shrink: 0; }
+}`;
 
-<div class="os" id="os">
-  <aside class="rail">
-    <div class="brand">
-      <div class="brand-name">Ad<span>lytic</span></div>
-      <div class="brand-sub">نظام التشغيل الإداري</div>
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">نظام التشغيل الإداري</div>
+      <div class="phead-s">العرض الأصلي للسلّم المعرفي والتجارب — محفوظ كما كان، داخل لوحة التحكّم الواحدة.</div>
     </div>
-    <nav class="rail-nav" aria-label="التنقل">${navHtml()}</nav>
-    <div class="rail-foot">
-      <div class="muted ev" id="who">—</div>
-      <button class="btn btn-s" id="logout" style="width:100%;margin-top:8px;">تسجيل الخروج</button>
-    </div>
-  </aside>
+    <div class="phead-actions"><a class="btn" href="/admin">الحالة الآن</a></div>
+  </div>
+`;
 
-  <div class="main">
-    <header class="top">
-      <div>
-        <h1 id="title">الآن</h1>
-        <div class="top-sub" id="subtitle"></div>
-      </div>
-      <button class="cmd-open" id="cmd-open" type="button">
-        <span>بحث وأوامر</span><span class="kbd">Ctrl K</span>
-      </button>
-    </header>
-
-    <main class="body">
+const BODY = `
       <!-- ══ الآن — the decision surface ══ -->
       <section class="view on" id="v-now">
         <div class="sec">
@@ -451,19 +312,9 @@ export function adminOsPage(): string {
           </div>
         </div>
       </section>
-    </main>
-  </div>
-</div>
+    `;
 
-<div class="cmd" id="cmd">
-  <div class="cmd-box">
-    <input class="cmd-in" id="cmd-in" placeholder="اذهب إلى… أو ابحث عن مساحة عمل" aria-label="بحث وأوامر" />
-    <div class="cmd-list" id="cmd-list"></div>
-  </div>
-</div>
-
-<script>${SESSION_ROUTER_JS}</script>
-<script>
+const SCRIPT = `
 (function () {
   var S = { ops: null, customers: [], stats: null, view: 'now' };
   var ST = {
@@ -524,23 +375,25 @@ export function adminOsPage(): string {
   function show(v) {
     if (!TITLES[v]) v = 'now';
     S.view = v;
-    var els = document.querySelectorAll('.view');
-    for (var i = 0; i < els.length; i++) els[i].classList.remove('on');
-    var el = document.getElementById('v-' + v);
-    if (el) el.classList.add('on');
-    var navs = document.querySelectorAll('.nav-item');
-    for (var j = 0; j < navs.length; j++) {
-      navs[j].classList.toggle('active', navs[j].getAttribute('data-view') === v);
-    }
-    document.getElementById('title').textContent = TITLES[v][0];
-    document.getElementById('subtitle').textContent = TITLES[v][1];
-    if (('#' + v) !== location.hash) { try { history.replaceState(null, '', '#' + v); } catch (e) {} }
+    // Switching, the active tab and the hash are the shell's job — it renders
+    // the tab strip and owns .view/#v-<id>. This function keeps only what is
+    // genuinely this page's: the per-view lazy loads.
+    if (window.adminShowView) window.adminShowView(v);
+    else load(v);
+  }
+
+  function load(v) {
+    S.view = v;
     if (v === 'experiments') loadProbeWs();
     if (v === 'customers') renderCustomers();
     if (v === 'revenue') renderRevenue();
     if (v === 'intelligence') renderIntel();
   }
-  window.addEventListener('hashchange', function () { show((location.hash || '').replace('#', '') || 'now'); });
+  // The shell drives tab clicks and the hash; listen to its event instead of
+  // racing it with a second hashchange handler. It calls load(), not show():
+  // show() asks the shell to switch, and the shell answers with this event —
+  // routing that back into show() is a loop, not a refresh.
+  document.addEventListener('view:show', function (e) { load(e.detail); });
 
   function attHtml(a) {
     return '<div class="att att-' + esc(a.severity) + '">' +
@@ -893,47 +746,26 @@ export function adminOsPage(): string {
     }
   }
 
-  // ── Command bar ──────────────────────────────────────────────────────
-  var cmdSel = 0, cmdRows = [];
-  function cmdItems(q) {
-    q = (q || '').trim().toLowerCase();
-    var out = [];
-    Object.keys(TITLES).forEach(function (k) {
-      out.push({ label: TITLES[k][0], hint: TITLES[k][1] || 'انتقال', go: function () { show(k); } });
+  // ── What this surface puts in the palette ────────────────────────────
+  //
+  // The page used to ship its own palette, writing #cmd, #cmd-in and #cmd-list
+  // — the SHELL's element ids — so two components fought over the same three
+  // nodes and both bound Ctrl+K. Removing the duplicate was right; removing
+  // what it could DO would not have been. Its one capability the shell's
+  // static command list cannot express is finding a workspace by name and
+  // opening its evidence, because the workspaces are not known until the ops
+  // snapshot loads. So the page contributes them live instead.
+  window.adminCommandSource = function () {
+    var out = Object.keys(TITLES).map(function (k) {
+      return { label: TITLES[k][0], hint: TITLES[k][1] || 'انتقال',
+        run: function () { show(k); } };
     });
     if (S.ops) (S.ops.workspaces || []).forEach(function (w) {
-      out.push({ label: w.workspaceName, hint: 'مساحة عمل \\u00B7 ' + w.headline,
-        go: function () { openWs(w.workspaceId); } });
+      out.push({ label: w.workspaceName, hint: 'مساحة عمل \u00B7 ' + w.headline,
+        run: function () { openWs(w.workspaceId); } });
     });
-    return out.filter(function (i) {
-      return !q || (i.label + ' ' + i.hint).toLowerCase().indexOf(q) !== -1; }).slice(0, 20);
-  }
-  function cmdRender() {
-    cmdRows = cmdItems(document.getElementById('cmd-in').value);
-    if (cmdSel >= cmdRows.length) cmdSel = 0;
-    document.getElementById('cmd-list').innerHTML = cmdRows.map(function (r, i) {
-      return '<div class="cmd-row' + (i === cmdSel ? ' sel' : '') + '" data-i="' + i + '">' +
-        '<span>' + esc(r.label) + '</span><span class="muted">' + esc(r.hint) + '</span></div>'; }).join('');
-  }
-  function cmdOpen(on) {
-    document.getElementById('cmd').classList.toggle('open', on);
-    if (on) { cmdSel = 0; document.getElementById('cmd-in').value = ''; cmdRender(); document.getElementById('cmd-in').focus(); }
-  }
-  document.addEventListener('keydown', function (e) {
-    if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) { e.preventDefault(); cmdOpen(true); return; }
-    if (!document.getElementById('cmd').classList.contains('open')) return;
-    if (e.key === 'Escape') { cmdOpen(false); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); cmdSel = Math.min(cmdSel + 1, cmdRows.length - 1); cmdRender(); }
-    if (e.key === 'ArrowUp') { e.preventDefault(); cmdSel = Math.max(cmdSel - 1, 0); cmdRender(); }
-    if (e.key === 'Enter' && cmdRows[cmdSel]) { cmdRows[cmdSel].go(); cmdOpen(false); }
-  });
-  document.getElementById('cmd-in').addEventListener('input', function () { cmdSel = 0; cmdRender(); });
-  document.getElementById('cmd').addEventListener('click', function (e) {
-    if (e.target.id === 'cmd') { cmdOpen(false); return; }
-    var r = e.target.closest ? e.target.closest('.cmd-row') : null;
-    if (r) { var i = Number(r.getAttribute('data-i')); if (cmdRows[i]) { cmdRows[i].go(); cmdOpen(false); } }
-  });
-  document.getElementById('cmd-open').addEventListener('click', function () { cmdOpen(true); });
+    return out;
+  };
 
   // ── Wiring ───────────────────────────────────────────────────────────
   document.addEventListener('click', function (e) {
@@ -954,24 +786,27 @@ export function adminOsPage(): string {
   });
   document.addEventListener('input', function (e) { if (e.target.id === 'ws-q') renderWs(); });
   document.getElementById('pr-run').addEventListener('click', runProbe);
-  document.getElementById('logout').addEventListener('click', logout);
+  // Logout is the shell's control; logout() below stays because the shared
+  // session guard's contract still requires this page to own the admin exit.
 
   async function boot() {
     // One shared guard. A network failure yields UNRESOLVED and holds the
     // gate — it must never be read as "this admin became a customer", which
     // is the demotion that produced the /admin ↔ /dashboard bounce loop.
     await window.AdlyticSession.requireAdminSurface(onAdminReady, function (kind, reason) {
-      document.getElementById('gate').innerHTML =
-        '<div style="text-align:center;line-height:1.9;max-width:340px;">تعذّر التحقق من الهوية '
-        + '<span class="ev">(' + String(reason || kind) + ')</span><br>لم يتغيّر حسابك — هذه مشكلة اتصال. '
-        + '<a href="javascript:location.reload()" style="color:var(--accent);">أعد المحاولة</a></div>';
+      var host = document.getElementById('now-att');
+      if (host) host.innerHTML =
+        '<div class="att att-ERROR"><div class="att-t">تعذّر التحقق من الهوية</div>'
+        + '<div class="att-w">لم يتغيّر حسابك — هذه مشكلة اتصال. '
+        + '<a href="javascript:location.reload()" style="color:var(--accent);">أعد المحاولة</a></div>'
+        + '<div class="ev" style="margin-top:6px;">' + esc(String(reason || kind)) + '</div></div>';
     });
   }
 
   function onAdminReady(me) {
-    document.getElementById('gate').classList.add('hidden');
-    document.getElementById('os').style.display = 'flex';
-    document.getElementById('who').textContent = me.email || '';
+    // #gate, #os and #who were the old page's own chrome; the Control Plane
+    // shell renders identity and needs no reveal, so there is nothing to paint
+    // here any more. The guard itself is unchanged.
     try { sessionStorage.removeItem('adm_sync'); } catch (e) {}
     show((location.hash || '').replace('#', '') || 'now');
 
@@ -986,7 +821,33 @@ export function adminOsPage(): string {
   }
   boot();
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function adminOsPage(): string {
+  return adminShell({
+    active: 'console',
+    title: 'نظام التشغيل الإداري',
+    subtitle: 'العرض الأصلي — السلّم المعرفي والتجارب',
+    css: CSS,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    views: [
+      { id: 'now',          label: 'الآن',            hint: 'ما الذي يحدث في المنصة' },
+      { id: 'attention',    label: 'الانتباه',         hint: 'ما يحتاج تدخلاً' },
+      { id: 'activity',     label: 'النشاط',           hint: 'ما تغيّر مؤخراً' },
+      { id: 'workspaces',   label: 'مساحات العمل',     hint: 'من المتأثر ولماذا' },
+      { id: 'operations',   label: 'العمليات',         hint: 'حالة البنية التحتية' },
+      { id: 'boundary',     label: 'حدود المعرفة',     hint: 'ما لا نستطيع تحديده' },
+      { id: 'intelligence', label: 'الذكاء',           hint: 'أين تنتهي الملاحظة ويبدأ الاستدلال' },
+      { id: 'experiments',  label: 'التجارب',          hint: 'مرقاب قدرات Meta' },
+      { id: 'customers',    label: 'الزبائن' },
+      { id: 'revenue',      label: 'الإيرادات' },
+      { id: 'platform',     label: 'إعدادات المنصة' },
+    ],
+    commands: [
+      { label: 'الحالة الآن', href: '/admin', hint: 'مركز التحكّم' },
+      { label: 'السلّم المعرفي', href: '/admin/intelligence#ladder', hint: 'الذكاء' },
+    ],
+  });
 }

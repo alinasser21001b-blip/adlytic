@@ -162,6 +162,16 @@ export interface LegacySurface {
   reachableFrom: string;
   /** Why it still exists. Never "we did not get to it". */
   stillOwns: string;
+  /**
+   * Parity reached: the successor renders everything this page did, so no
+   * Control Plane surface links here any more. The route stays mounted for
+   * bookmarks and carries a banner pointing at its canonical home.
+   *
+   * This is the ONLY state in which a legacy route may have no inbound link,
+   * because it is the only state in which an inbound link would be a step
+   * backwards for the operator.
+   */
+  migrated?: boolean;
 }
 
 export const ADMIN_LEGACY: LegacySurface[] = [
@@ -178,7 +188,8 @@ export const ADMIN_LEGACY: LegacySurface[] = [
   {
     id: 'readiness', href: '/admin/meta-readiness', label: 'جاهزية Meta',
     replacedBy: '/admin/meta', reachableFrom: 'metaDataWorkspacePage',
-    stillOwns: 'تفاصيل الاستهلاك وسجل تدقيق نداءات Meta',
+    stillOwns: 'لا شيء — الاستهلاك ومعدّل الخطأ وتصنيف الأخطاء كلها في /admin/meta#quota الآن',
+    migrated: true,
   },
   {
     id: 'inbox', href: '/admin/inbox', label: 'صندوق الدعم الكلاسيكي',
@@ -202,10 +213,31 @@ export function adminDestinations(): AdminDestination[] {
   return ADMIN_IA.flatMap((s) => s.items);
 }
 
+/**
+ * Which sidebar item lights up for a surface.
+ *
+ * A legacy surface has no sidebar item of its own — that is what makes it
+ * legacy — so a naive `i.id === active` left the operator on /admin/classic
+ * with nothing highlighted and no way to tell where in the IA they were. The
+ * answer is already in the model: a legacy surface is the detail behind the
+ * domain that replaced it, so it highlights its `replacedBy`. Derived from
+ * ADMIN_LEGACY rather than hand-mapped, so retiring a route cannot leave a
+ * stale entry behind.
+ */
+export function navHighlightFor(active: AdminSurface): AdminSurface {
+  if (ADMIN_IA.some((s) => s.items.some((i) => i.id === active))) return active;
+  const legacy = ADMIN_LEGACY.find((l) => l.id === active);
+  if (!legacy) return active;
+  const owner = ADMIN_IA.flatMap((s) => s.items)
+    .find((i) => i.href === legacy.replacedBy);
+  return owner ? owner.id : active;
+}
+
 export function adminSurfaceNav(active: AdminSurface): string {
+  const highlight = navHighlightFor(active);
   const sections = ADMIN_IA.map((section) => {
     const items = section.items.map((i) =>
-      `      <a class="nav-item${i.id === active ? ' active' : ''}" href="${i.href}" title="${i.purpose}">${i.label}</a>`,
+      `      <a class="nav-item${i.id === highlight ? ' active' : ''}" href="${i.href}" title="${i.purpose}">${i.label}</a>`,
     ).join('\n');
     return `<div class="nav-label" title="${section.question}">${section.label}</div>\n${items}`;
   }).join('\n');

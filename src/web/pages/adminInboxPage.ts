@@ -1,230 +1,198 @@
-import { TOKENS_CSS_PATH } from '../layout';
-import { adminSurfaceNav } from './adminSurfaceNav';
+// ════════════════════════════════════════════════════════════════════════
+//  src/web/pages/adminInboxPage.ts
+//
+//  المحادثة الكاملة وسياق الزبون وأدوات الفرز — التفاصيل التي تكمّل «صندوق الدعم».
+//
+//  ── Why it renders inside the Control Plane shell ─────────────────────
+//
+//  This page was reachable from the Control Plane and drew its own sidebar,
+//  topbar and header. An operator who followed that link left one product and
+//  arrived in another — same platform, different application. The navigation
+//  audit named it: shell lost, context bar emptied, no active nav item.
+//
+//  Nothing it renders was removed. The detail it uniquely owns is exactly why
+//  this is a WRAP and not a redirect: deleting the route would delete the
+//  detail. What is gone is the chrome it duplicated — navigation, context,
+//  the command palette and operator identity belong to the shell, here as
+//  everywhere else.
+// ════════════════════════════════════════════════════════════════════════
 
-export function adminInboxPage(): string {
-  return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>صندوق الدعم — Adlytic</title>
-  <!-- Tokens + typefaces from the design system, no shell selectors.
-       This page used to carry a private copy of :root written for the
-       dark theme; when the product went light it stayed black, because
-       it was not reading the design system at all. -->
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* The page was authored against --font; the system calls it --font-body. */
+import { adminShell } from '../adminShell';
+
+const CSS = `
+/* The status filter strip that replaced the legacy sidebar's filter nav. */
+.filter-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+                margin-bottom: 12px; }
+.filter-strip .chip { display: inline-flex; align-items: center; gap: 7px;
+                      padding: 5px 11px; border-radius: 999px; cursor: pointer;
+                      border: 1px solid var(--border); background: var(--surface);
+                      color: var(--text-2); font-size: 12.5px; white-space: nowrap; }
+.filter-strip .chip:hover { border-color: var(--text-3); color: var(--text); }
+.filter-strip .chip.active { background: var(--surface-2); color: var(--text);
+                             border-color: var(--text-3); font-weight: 600; }
+.filter-strip .cnt { font-family: var(--font-mono); font-size: 11.5px;
+                     direction: ltr; color: var(--text-3); }
+.filter-strip .cnt.red { color: var(--error); }
+.filter-strip .cnt.gold { color: var(--warning); }
+.filter-strip .strip-spacer { flex: 1; }
+/* The page was authored against --font; the system calls it --font-body. */
     :root { --font: var(--font-body); }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button, input, select, textarea { font: inherit; color: inherit; }
-    button { cursor: pointer; border: none; background: none; }
-    .app { display: none; min-height: 100vh; }
-    .access-gate {
-      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      color: var(--text-2); font-size: 14px; font-weight: 600;
-    }
-    .access-gate.hidden { display: none; }
-    .access-gate .gate-spinner {
-      width: 30px; height: 30px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
-    }
-    @keyframes gate-spin { to { transform: rotate(360deg); } }
-    .sidebar {
-      width: 240px; flex-shrink: 0; background: var(--surface);
-      border-left: 1px solid var(--border); display: flex; flex-direction: column;
-      position: sticky; top: 0; height: 100vh;
-    }
-    .logo { padding: 22px 20px 16px; border-bottom: 1px solid var(--border); }
-    .logo-brand { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
-    .logo-brand span { color: var(--accent); }
-    .logo-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; font-weight: 600; }
-    .nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
-    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 8px 12px 6px; letter-spacing: 0.04em; }
-    .nav-item {
-      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
-      color: var(--text-2); font-weight: 600; font-size: 13.5px; transition: 0.15s;
-      justify-content: space-between;
-    }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
-    .nav-count {
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+.access-gate.hidden { display: none; }
+@keyframes gate-spin { to { transform: rotate(360deg); }
+}
+.nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
+.nav-count {
       display: inline-flex; align-items: center; justify-content: center; min-width: 20px;
       height: 20px; border-radius: 999px; font-size: 11px; font-weight: 800; padding: 0 6px;
     }
-    .nav-count.red { background: var(--error); color: #fff; }
-    .nav-count.gold { background: var(--accent-dim); color: var(--accent-2); }
-    .nav-count.muted { background: var(--surface-2); color: var(--text-3); }
-    .nav-foot { padding: 12px; border-top: 1px solid var(--border); }
-    .main-wrapper { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .topbar {
-      height: 60px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
+.nav-count.red { background: var(--error); color: #fff; }
+.nav-count.gold { background: var(--accent-dim); color: var(--accent-2); }
+.nav-count.muted { background: var(--surface-2); color: var(--text-3); }
+/* One card holding the three panes, sized to the content area rather than to
+   the sum of its children — the inbox is a workspace, not a document. */
+.inbox-split {
+      display: flex; align-items: stretch;
+      height: calc(100vh - var(--top-h) - var(--ctx-h) - 210px);
+      min-height: 460px;
+      border: 1px solid var(--border); border-radius: 12px;
+      background: var(--surface); overflow: hidden;
     }
-    .topbar h1 { font-size: 16px; font-weight: 800; }
-    .main { display: flex; flex: 1; min-height: 0; }
-    .ticket-list {
+.ticket-list {
       width: 380px; flex-shrink: 0; border-left: 1px solid var(--border);
       overflow-y: auto; display: flex; flex-direction: column;
     }
-    .ticket-list-header {
+.ticket-list-header {
       padding: 14px 16px; border-bottom: 1px solid var(--border);
       display: flex; flex-direction: column; gap: 8px;
     }
-    .ticket-list-header .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
-    .field {
+.ticket-list-header .toolbar { display: flex; gap: 8px; flex-wrap: wrap; }
+.field {
       background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 9px;
       padding: 7px 10px; color: var(--text); min-width: 0; font-size: 12.5px;
     }
-    .field:focus { outline: none; border-color: var(--accent); }
-    .ticket-item {
+.field:focus { outline: none; border-color: var(--accent); }
+.ticket-item {
       padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; transition: 0.15s;
     }
-    .ticket-item:hover { background: var(--surface-2); }
-    .ticket-item.active { background: var(--accent-dim); border-right: 3px solid var(--accent); }
-    .ticket-item.unread { border-right: 3px solid var(--error); }
-    .ticket-subject { font-weight: 700; font-size: 13px; margin-bottom: 4px; line-height: 1.4; }
-    .ticket-meta { font-size: 11px; color: var(--text-3); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .thread-pane {
+.ticket-item:hover { background: var(--surface-2); }
+.ticket-item.active { background: var(--accent-dim); border-right: 3px solid var(--accent); }
+.ticket-item.unread { border-right: 3px solid var(--error); }
+.ticket-subject { font-weight: 700; font-size: 13px; margin-bottom: 4px; line-height: 1.4; }
+.ticket-meta { font-size: 11px; color: var(--text-3); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.thread-pane {
       flex: 1; display: flex; flex-direction: column; min-width: 0;
     }
-    .thread-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 15px; }
-    .thread-header {
+.thread-empty { flex: 1; display: flex; align-items: center; justify-content: center; color: var(--text-3); font-size: 15px; }
+.thread-header {
       padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex;
       justify-content: space-between; align-items: flex-start; gap: 12px;
     }
-    .thread-title { font-size: 16px; font-weight: 800; line-height: 1.4; }
-    .thread-actions { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
-    .thread-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
-    .msg {
+.thread-title { font-size: 16px; font-weight: 800; line-height: 1.4; }
+.thread-actions { display: flex; gap: 6px; flex-wrap: wrap; flex-shrink: 0; }
+.thread-body { flex: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+.msg {
       max-width: 85%; padding: 12px 16px; border-radius: 14px; font-size: 13.5px; line-height: 1.7;
       white-space: pre-wrap; word-break: break-word;
     }
-    .msg.user { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
-    .msg.admin { align-self: flex-end; background: var(--accent-dim); border: 1px solid var(--accent-dim); }
-    .msg.internal { align-self: flex-end; background: var(--error-dim); border: 1px dashed var(--error); }
-    .msg-sender { font-size: 11px; font-weight: 700; color: var(--accent-2); margin-bottom: 4px; }
-    .msg-time { font-size: 10px; color: var(--text-3); margin-top: 4px; }
-    .msg-label { font-size: 10px; color: var(--error); font-weight: 700; }
-    .thread-compose {
+.msg.user { align-self: flex-start; background: var(--surface-2); border: 1px solid var(--border); }
+.msg.admin { align-self: flex-end; background: var(--accent-dim); border: 1px solid var(--accent-dim); }
+.msg.internal { align-self: flex-end; background: var(--error-dim); border: 1px dashed var(--error); }
+.msg-sender { font-size: 11px; font-weight: 700; color: var(--accent-2); margin-bottom: 4px; }
+.msg-time { font-size: 10px; color: var(--text-3); margin-top: 4px; }
+.msg-label { font-size: 10px; color: var(--error); font-weight: 700; }
+.thread-compose {
       padding: 14px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; align-items: flex-end;
     }
-    .compose-area {
+.compose-area {
       flex: 1; background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 12px;
       padding: 10px 14px; color: var(--text); resize: none; min-height: 42px; max-height: 160px;
       font-size: 13.5px; line-height: 1.6;
     }
-    .compose-area:focus { outline: none; border-color: var(--accent); }
-    .btn {
+.compose-area:focus { outline: none; border-color: var(--accent); }
+.btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13px;
       border: 1px solid transparent; transition: 0.15s;
     }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { filter: brightness(1.05); }
-    .btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
-    .btn-secondary:hover { border-color: var(--accent); }
-    .btn-danger { background: var(--error-dim); border-color: var(--error); color: var(--error); }
-    .btn-success { background: var(--success-dim); border-color: var(--success); color: var(--success); }
-    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
-    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .badge {
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-danger { background: var(--error-dim); border-color: var(--error); color: var(--error); }
+.btn-success { background: var(--success-dim); border-color: var(--success); color: var(--success); }
+.btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.badge {
       display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
       font-size: 10px; font-weight: 700; border: 1px solid transparent;
     }
-    .badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
-    .badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
-    .badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
-    .badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
-    .badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
-    .muted { color: var(--text-3); font-size: 12px; }
-    .context-panel {
+.badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+.badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+.badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
+.badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
+.badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
+.muted { color: var(--text-3); font-size: 12px; }
+.context-panel {
       width: 280px; flex-shrink: 0; border-right: 1px solid var(--border);
       overflow-y: auto; padding: 16px; display: none;
     }
-    .context-panel.open { display: block; }
-    .ctx-section { margin-bottom: 14px; }
-    .ctx-section h4 { font-size: 11px; font-weight: 800; color: var(--accent-2); margin-bottom: 6px; }
-    .ctx-row { font-size: 12px; color: var(--text-2); margin-bottom: 4px; display: flex; justify-content: space-between; }
-    .ctx-row .label { color: var(--text-3); }
-    .toast {
+.context-panel.open { display: block; }
+.ctx-section { margin-bottom: 14px; }
+.ctx-section h4 { font-size: 11px; font-weight: 800; color: var(--accent-2); margin-bottom: 6px; }
+.ctx-row { font-size: 12px; color: var(--text-2); margin-bottom: 4px; display: flex; justify-content: space-between; }
+.ctx-row .label { color: var(--text-3); }
+.toast {
       position: fixed; bottom: 20px; left: 20px; z-index: 60; padding: 12px 16px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
       box-shadow: none; display: none; max-width: 360px;
     }
-    .toast.show { display: block; }
-    .toast.ok { border-color: var(--success); }
-    .toast.err { border-color: var(--error); color: var(--error); }
-    .check-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
-    @media (max-width: 1024px) {
+.toast.show { display: block; }
+.toast.ok { border-color: var(--success); }
+.toast.err { border-color: var(--error); color: var(--error); }
+.check-row { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-2); }
+@media (max-width: 1024px) {
       .sidebar { display: none; }
-      .ticket-list { width: 100%; }
-      .context-panel { display: none !important; }
-    }
-  </style>
-</head>
-<body>
-<div class="access-gate" id="access-gate">
-  <div class="gate-spinner"></div>
-  <div>جارٍ التحقق من الصلاحية…</div>
-</div>
-<div class="app">
-  <aside class="sidebar">
-    <div class="logo">
-      <div class="logo-brand">Ad<span>lytic</span></div>
-      <div class="logo-sub">صندوق الدعم · Customer Inbox</div>
-    </div>
-    <nav class="nav">
-      ${adminSurfaceNav('inbox')}
-      <div class="nav-label">صندوق الوارد</div>
-      <a class="nav-item active" data-filter="OPEN">
-        <span>تحتاج رد</span>
-        <span class="nav-count red" id="cnt-open">0</span>
-      </a>
-      <a class="nav-item" data-filter="AWAITING_CUSTOMER">
-        <span>بانتظار العميل</span>
-        <span class="nav-count gold" id="cnt-awaiting">0</span>
-      </a>
-      <a class="nav-item" data-filter="RESOLVED">
-        <span>محلولة</span>
-        <span class="nav-count muted" id="cnt-resolved">0</span>
-      </a>
-      <a class="nav-item" data-filter="CLOSED">
-        <span>مغلقة</span>
-        <span class="nav-count muted" id="cnt-closed">0</span>
-      </a>
-      <a class="nav-item" data-filter="URGENT">
-        <span>عاجلة</span>
-        <span class="nav-count red" id="cnt-urgent">0</span>
-      </a>
-      <a class="nav-item" data-filter="STARRED">
-        <span>مميزة</span>
-        <span class="nav-count gold" id="cnt-starred">0</span>
-      </a>
-      <div class="nav-label">أخرى</div>
-      <a class="nav-item" href="/admin">لوحة الإدارة</a>
-      <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
-      <a class="nav-item" href="/dashboard">لوحة التحكم</a>
-    </nav>
-    <div class="nav-foot">
-      <div class="muted" id="admin-email">—</div>
-    </div>
-  </aside>
+.ticket-list { width: 100%; }
+.context-panel { display: none !important; }
+}`;
 
-  <div class="main-wrapper">
-    <header class="topbar">
-      <h1>صندوق الدعم</h1>
-      <div style="display:flex;gap:8px;align-items:center;">
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">صندوق الدعم التفصيلي</div>
+      <div class="phead-s">المحادثة الكاملة وسياق الزبون وأدوات الفرز — التفاصيل التي تكمّل «صندوق الدعم».</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/support">صندوق الدعم</a></div>
+  </div>
+`;
+
+const BODY = `
+      <!--
+        Ticket status filters. These were nav items in the legacy sidebar, so
+        the first wrap pass removed them along with it and took six live counts
+        with them. They are how this surface is worked — rebuilt here as a
+        filter strip rather than deleted to make the route tidier.
+      -->
+      <div class="filter-strip" id="status-filters">
+        <a class="chip active" data-filter="OPEN"><span>تحتاج رد</span><b class="cnt red" id="cnt-open">0</b></a>
+        <a class="chip" data-filter="AWAITING_CUSTOMER"><span>بانتظار العميل</span><b class="cnt gold" id="cnt-awaiting">0</b></a>
+        <a class="chip" data-filter="URGENT"><span>عاجلة</span><b class="cnt red" id="cnt-urgent">0</b></a>
+        <a class="chip" data-filter="STARRED"><span>مميزة</span><b class="cnt gold" id="cnt-starred">0</b></a>
+        <a class="chip" data-filter="RESOLVED"><span>محلولة</span><b class="cnt" id="cnt-resolved">0</b></a>
+        <a class="chip" data-filter="CLOSED"><span>مغلقة</span><b class="cnt" id="cnt-closed">0</b></a>
+        <span class="strip-spacer"></span>
         <span class="muted" id="unread-label"></span>
-        <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث</button>
+        <button class="btn btn-sm" id="btn-refresh">تحديث</button>
       </div>
-    </header>
 
-    <div class="main">
+      <!--
+        The three panes were laid out by the legacy .main; inside the shell
+        they had no flex parent and no height, so the list floated in a tall
+        empty band. This container is that missing parent.
+      -->
+      <div class="inbox-split">
       <div class="ticket-list">
         <div class="ticket-list-header">
           <div class="toolbar">
@@ -266,13 +234,16 @@ export function adminInboxPage(): string {
       <div class="context-panel" id="context-panel">
         <div id="context-body"></div>
       </div>
+      </div>
     </div>
   </div>
-</div>
 
-<div class="toast" id="toast"></div>
+  <!-- Every write on this surface reports through the toast. It sat outside
+       .main before the move into the shell, which is why the wrap lost it and
+       toast() has been writing to null ever since. -->
+  <div class="toast" id="toast"></div>`;
 
-<script>
+const SCRIPT = `
 (function () {
   var state = { tickets: [], current: null, currentFilter: 'OPEN' };
 
@@ -542,7 +513,8 @@ export function adminInboxPage(): string {
   }
 
   // Events
-  document.getElementById('btn-refresh').addEventListener('click', function() { loadCounts(); loadTickets(); });
+  var rf = document.getElementById('btn-refresh');
+  if (rf) rf.addEventListener('click', function() { loadCounts(); loadTickets(); });
   document.getElementById('btn-send').addEventListener('click', sendReply);
   document.getElementById('compose-input').addEventListener('keydown', function(e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendReply(); }
@@ -550,10 +522,10 @@ export function adminInboxPage(): string {
   document.getElementById('search-q').addEventListener('input', function() { loadTickets(); });
   document.getElementById('filter-category').addEventListener('change', function() { loadTickets(); });
 
-  document.querySelectorAll('.nav-item[data-filter]').forEach(function(el) {
+  document.querySelectorAll('#status-filters [data-filter]').forEach(function(el) {
     el.addEventListener('click', function(e) {
       e.preventDefault();
-      document.querySelectorAll('.nav-item[data-filter]').forEach(function(n) { n.classList.remove('active'); });
+      document.querySelectorAll('#status-filters [data-filter]').forEach(function(n) { n.classList.remove('active'); });
       el.classList.add('active');
       state.currentFilter = el.getAttribute('data-filter');
       loadTickets();
@@ -578,22 +550,14 @@ export function adminInboxPage(): string {
     if (sel) ticketAction('priority', sel.value);
   });
 
-  // Init — admin guard: only platform admins may see this page. The admin
-  // shell (.app) stays display:none and a neutral "checking access" gate
-  // covers the screen until /api/auth/me confirms isPlatformAdmin, so a
-  // customer never sees any admin structure — not even for a frame — before
-  // being redirected. Use location.replace so the blocked URL is not left in
-  // history for a back-button return.
+  // The client-side access gate is gone, and deliberately so. It reached for
+  // a chrome (.app, #access-gate, #admin-email) this page no longer owns — the
+  // Control Plane shell does — so it threw, the .catch() below treated that as
+  // a failed authorisation check, and the page redirected itself away instead
+  // of loading. Authorisation is the route's job: GET /admin/inbox resolves the
+  // session server-side and redirects a non-admin to /dashboard.
   if (!token()) { window.location.replace('/login'); return; }
-  api('/api/auth/me').then(function(me) {
-    if (!me || !me.isPlatformAdmin) {
-      window.location.replace('/support');
-      return;
-    }
-    document.getElementById('admin-email').textContent = me.email || '';
-    var gate = document.getElementById('access-gate');
-    if (gate) gate.classList.add('hidden');
-    document.querySelector('.app').style.display = 'flex';
+  (function() {
     loadCounts();
     loadTickets();
     var pollId = setInterval(function() { loadCounts(); loadTickets(); }, 15000);
@@ -607,13 +571,21 @@ export function adminInboxPage(): string {
         pollId = setInterval(function() { loadCounts(); loadTickets(); }, 15000);
       }
     });
-  }).catch(function(err) {
-    // 401 already redirected inside api(); anything else → send home, never
-    // leave the admin gate spinning or reveal the shell.
-    if (!err || err.message !== 'Unauthorized') window.location.replace('/support');
-  });
+  })();
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function adminInboxPage(): string {
+  return adminShell({
+    active: 'inbox',
+    title: 'صندوق الدعم التفصيلي',
+    subtitle: 'المحادثة الكاملة وسياق الزبون وأدوات الفرز — التفاصيل التي تكمّل «صندوق الدعم».',
+    css: CSS,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    commands: [
+      { label: 'صندوق الدعم', href: '/admin/support', hint: 'الدعم' },
+    ],
+  });
 }

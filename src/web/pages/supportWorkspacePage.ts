@@ -23,8 +23,14 @@
 import { adminShell } from '../adminShell';
 
 const CSS = `
-  .inbox { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 12px; align-items: start; }
-  @media (max-width: 940px) { .inbox { grid-template-columns: 1fr; } }
+  /* A mail client fills the screen even with two messages. The previous
+     layout sized to content, so an inbox with a short list left two-thirds of
+     the viewport as background — measured at 30% content occupancy. */
+  .inbox { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px;
+           align-items: stretch; min-height: calc(100vh - 250px); }
+  .inbox > .card { display: flex; flex-direction: column; min-height: 0; }
+  .inbox > .card > .card-b, .inbox .pane { overflow-y: auto; flex: 1; min-height: 0; }
+  @media (max-width: 940px) { .inbox { grid-template-columns: 1fr; min-height: 0; } }
   .tk { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; margin-bottom: 7px;
         cursor: pointer; transition: var(--transition); }
   .tk:hover { background: var(--surface-2); }
@@ -40,13 +46,30 @@ const CSS = `
   .inp, textarea.inp { border: 1px solid var(--border-control); background: var(--surface); color: var(--text);
     border-radius: 7px; padding: 6px 9px; font-size: 12px; font-family: inherit; width: 100%; }
   .bar { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-bottom: 9px; }
+  /* An empty pane that is 750px tall and holds one line reads as a rendering
+     bug. It gets real guidance, centred in the space it actually occupies. */
+  .empty-pane { height: 100%; display: flex; flex-direction: column; justify-content: center;
+                align-items: center; gap: 9px; padding: 40px 34px; text-align: center; }
+  .empty-pane-t { font-size: 15px; font-weight: 700; color: var(--text-2); }
+  .empty-pane-w { font-size: 12.5px; color: var(--text-3); max-width: 46ch; line-height: 1.7; }
+`;
+
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">صندوق الدعم</div>
+      <div class="phead-s">من يحتاج مساعدة، وما الذي لم يُحلّ بعد — مع سياق مساحة عمل الزبون.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/inbox">الصندوق الكلاسيكي</a></div>
+  </div>
 `;
 
 const BODY = `
   <div class="bar">
     <select class="inp" id="f-status" style="width:auto;">
-      <option value="">كل الحالات</option><option value="OPEN">مفتوحة</option>
-      <option value="PENDING">قيد المتابعة</option><option value="CLOSED">مغلقة</option>
+      <option value="">كل الحالات</option><option value="OPEN">تحتاج رد</option>
+      <option value="AWAITING_CUSTOMER">بانتظار العميل</option>
+      <option value="RESOLVED">محلولة</option><option value="CLOSED">مغلقة</option>
     </select>
     <select class="inp" id="f-priority" style="width:auto;">
       <option value="">كل الأولويات</option><option value="URGENT">عاجل</option>
@@ -54,22 +77,23 @@ const BODY = `
     </select>
     <button class="btn" id="reload">حدّث</button>
     <span class="muted" id="counts"></span>
-    <span style="flex:1"></span>
-    <a class="btn" href="/admin/inbox">الصندوق الكلاسيكي</a>
   </div>
 
   <div class="inbox">
     <div class="card">
-      <div class="h2">التذاكر</div>
-      <div id="list"><div class="skel"></div></div>
+      <div class="card-h"><div class="h2">التذاكر</div><div class="sec-n" id="tk-n"></div></div>
+      <div class="card-b pane" id="list"><div class="skel"></div></div>
     </div>
     <div class="card">
       <div class="card-h"><div class="h2" id="th-subject">لم تُختَر تذكرة</div>
         <div id="th-actions"></div></div>
-      <div class="muted" id="th-context"></div>
-      <div id="thread">
-        <div class="muted" style="padding:34px;text-align:center;">
-          اختر تذكرة من القائمة لعرض المحادثة وسياق مساحة عمل الزبون.
+      <div class="muted" id="th-context" style="padding:0 14px;"></div>
+      <div class="pane" id="thread">
+        <div class="empty-pane">
+          <div class="empty-pane-t">لم تُختَر تذكرة</div>
+          <div class="empty-pane-w">اختر تذكرة من القائمة لعرض المحادثة كاملة، مع بريد الزبون
+            ومساحة عمله وحالة التذكرة وأولويتها — قبل أن تردّ.</div>
+          <div class="empty-pane-w">المرشّحات في الأعلى تحصر القائمة بالحالة أو الأولوية.</div>
         </div>
       </div>
       <div id="reply-box" style="display:none;margin-top:10px;">
@@ -82,6 +106,18 @@ const BODY = `
 
 const SCRIPT = `
 (function () {
+  var ST_AR = { OPEN: 'تحتاج رد', AWAITING_CUSTOMER: 'بانتظار العميل',
+                RESOLVED: 'محلولة', CLOSED: 'مغلقة' };
+  var PR_AR = { URGENT: 'عاجل', HIGH: 'مرتفع', NORMAL: 'عادي', LOW: 'منخفض' };
+  /** An enum member is not a sentence. Unknown members print as themselves. */
+  function stAr(v) { return ST_AR[v] || v || '—'; }
+  function prAr(v) { return PR_AR[v] || v || '—'; }
+  /** The requester, from the relation the API actually returns. */
+  function who(t) {
+    return (t.user && (t.user.name || t.user.email))
+      || t.userEmail || t.customerEmail || '—';
+  }
+
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -116,10 +152,17 @@ const SCRIPT = `
             + (current === t.id ? ' sel' : '');
           return '<div class="' + cls + '" data-t="' + esc(t.id) + '">'
             + '<div class="tk-s">' + esc(t.subject || 'بلا عنوان') + '</div>'
-            + '<div class="tk-m">' + esc(t.status || '') + ' · ' + esc(t.priority || '')
-            + ' · ' + esc(t.userEmail || t.customerEmail || '') + '</div></div>';
+            + '<div class="tk-m">' + esc(stAr(t.status)) + ' · ' + esc(prAr(t.priority))
+            + ' · ' + esc(who(t)) + '</div></div>';
         }).join('')
-        : '<div class="muted" style="padding:26px;text-align:center;">لا تذكرة تطابق هذا المرشّح.</div>';
+        : '<div class="empty-pane"><div class="empty-pane-t">'
+          + (st || pr ? 'لا تذكرة بهذا المرشّح' : 'لا تذاكر مفتوحة')
+          + '</div><div class="empty-pane-w">'
+          + (st || pr
+              ? 'جرّب حالة أو أولوية أخرى، أو أزل المرشّحات لرؤية كل التذاكر.'
+              : 'لم يفتح أي زبون تذكرة دعم. تظهر التذاكر هنا فور وصولها، مرتّبة بالأولوية.')
+          + '</div></div>';
+        document.getElementById('tk-n').textContent = list.length ? (list.length + ' تذكرة') : '';
       }).catch(function (e) {
         host.innerHTML = '<div class="muted">تعذّر: ' + esc(e.message) + '</div>';
       });
@@ -135,8 +178,8 @@ const SCRIPT = `
       var msgs = r.messages || t.messages || [];
       document.getElementById('th-subject').textContent = t.subject || 'تذكرة';
       document.getElementById('th-context').textContent =
-        [t.userEmail || t.customerEmail, t.workspaceName || t.workspaceId, t.status, t.priority]
-          .filter(Boolean).join(' · ');
+        [who(t), (t.workspace && t.workspace.name) || t.workspaceName || t.workspaceId,
+         stAr(t.status), prAr(t.priority)].filter(Boolean).join(' · ');
       document.getElementById('th-actions').innerHTML =
         '<button class="btn" data-set="CLOSED">أغلق</button> '
         + '<button class="btn" data-set="OPEN">أعد الفتح</button>';
@@ -191,6 +234,7 @@ export function supportWorkspacePage(): string {
     title: 'صندوق الدعم',
     subtitle: 'من يحتاج مساعدة وما الذي لم يُحلّ',
     css: CSS,
+    header: HEADER,
     body: BODY,
     script: SCRIPT,
     commands: [

@@ -1,0 +1,23 @@
+{
+  // ══════════════════════════════════════════════════════════════════════
+  //  Typecheck for the acceptance harness.
+  //
+  //  tools/admin-acceptance/fixtures.ts opens by arguing that fixtures must
+  //  be typed against the real service types so drift becomes a compile
+  //  error. It imported those types and did exactly that — and none of it
+  //  was ever checked, because the root tsconfig includes only src/ and the
+  //  harness runs under tsx, which strips types without checking them.
+  //
+  //  So a fixture went on inventing `reach: { workspaces, accounts }` against
+  //  a service that returns `{ totalWorkspaces, totalAdAccounts }`, and the
+  //  rendered page answered with four em-dashes, «ليس رقمًا IQD»,
+  //  «آخر undefined أيام» and «محسوبة منذ NaN ساعة». The protection was
+  //  described, not had.
+  //
+  //  Separate from the root config on purpose: the root one EMITS into dist/
+  //  and that output is the deployed artifact. This one only checks.
+  // ══════════════════════════════════════════════════════════════════════
+  "extends": "./tsconfig.json",
+  "compilerOptions": { "noEmit": true },
+  "include": ["tools/**/*.ts", "src/**/*.ts"]
+}

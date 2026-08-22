@@ -35,20 +35,36 @@ const CSS = `
   .inp { border: 1px solid var(--border-control); background: var(--surface); color: var(--text);
          border-radius: 7px; padding: 5px 9px; font-size: 12px; font-family: inherit; }
   .bar { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+  .two-o { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  @media (max-width: 940px) { .two-o { grid-template-columns: 1fr; } }
+`;
+
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">تشغيل المنصة</div>
+      <div class="phead-s">الخدمات والطوابير والعمّال وهوية النسخة العاملة — هل المنصة نفسها تعمل بشكل صحيح.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/observability">مراقبة المنصة التفصيلية</a></div>
+  </div>
 `;
 
 const BODY = `
   <section class="view on" id="v-services">
     <div class="grid g3" id="subs"><div class="skel"></div><div class="skel"></div><div class="skel"></div></div>
-    <div class="card">
-      <div class="h2">ما لم نستطع تحديده</div>
-      <div class="muted" id="unknown">…</div>
-    </div>
-    <div class="card">
-      <div class="card-h"><div class="h2">الطوابير</div></div>
-      <div class="muted">أسماء الطوابير معلَنة في lib/queue.ts. عمق كل طابور غير مرصود — لا فحص حي لكل طابور،
-        وعرض رقم هنا سيكون اختراعاً.</div>
-      <div id="queues" class="mono muted"></div>
+    <div class="two-o">
+      <div class="card">
+        <div class="card-h"><div class="h2">ما لم نستطع تحديده</div></div>
+        <div class="card-b"><div class="muted" id="unknown">…</div></div>
+      </div>
+      <div class="card">
+        <div class="card-h"><div class="h2">الطوابير</div></div>
+        <div class="card-b">
+          <div class="muted">أسماء الطوابير معلَنة في lib/queue.ts. عمق كل طابور غير مرصود —
+            لا فحص حي لكل طابور، وعرض رقم هنا سيكون اختراعاً.</div>
+          <div id="queues" class="mono dim"></div>
+        </div>
+      </div>
     </div>
   </section>
 
@@ -64,7 +80,7 @@ const BODY = `
           <button class="btn" id="bust">أبطل ذاكرة الإحصاءات</button>
           <a class="btn" href="/admin/observability">صفحة المراقبة السابقة</a>
         </div>
-        <div class="muted">الصفحة السابقة ما زالت تملك جداول الوصول والأموال المفصّلة.</div>
+        <div class="muted">«مراقبة المنصة» ما زالت تملك جداول الوصول والأموال المفصّلة وقائمة المستخدمين.</div>
       </div>
     </div>
   </section>
@@ -222,6 +238,7 @@ export function operationsWorkspacePage(): string {
     title: 'تشغيل المنصة',
     subtitle: 'هل المنصة نفسها تعمل بشكل صحيح؟',
     css: CSS,
+    header: HEADER,
     body: BODY,
     views: [
       { id: 'services', label: 'الخدمات', hint: 'الأنظمة الفرعية والطوابير' },

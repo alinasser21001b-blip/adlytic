@@ -23,7 +23,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import { SCENARIOS } from './tools/admin-acceptance/fixtures.mjs';
+import { SCENARIOS, USAGE } from './tools/admin-acceptance/fixtures';
 
 let passed = 0;
 const failures: string[] = [];
@@ -33,10 +33,22 @@ function check(name: string, fn: () => void) {
 }
 const src = (rel: string) => readFileSync(join(__dirname, rel), 'utf8');
 
+/**
+ * Source with comments removed, for guards that must judge CODE, not prose.
+ *
+ * These files document the defect they were rebuilt to remove, quoting the
+ * offending expression verbatim. A guard that fires on the explanation
+ * pressures the next author to delete the explanation, which is the opposite
+ * of what a comment like that is for.
+ */
+function code(rel: string): string {
+  return src(rel).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+}
+
 /** Surfaces fed by the ops snapshot, and the regions each one fills from it. */
 const OPS_DRIVEN: Array<[string, string[]]> = [
   ['controlCenterPage', ['pulse', 'attention', 'timeline', 'risk']],
-  ['metaDataWorkspacePage', ['meta-sub', 'conn', 'sync', 'cov']],
+  ['metaDataWorkspacePage', ['health', 'conn', 'sync', 'cov']],
   ['intelligenceWorkspacePage', ['boundary', 'ladder']],
   ['operationsWorkspacePage', ['subs', 'acts', 'unknown']],
 ];
@@ -62,6 +74,35 @@ function run() {
     assert.deepEqual(missing, [], `unscenarioed operator states: ${missing.join(', ')}`);
   });
 
+  check('the meta-usage fixture is derived from the service type, not invented', () => {
+    // The previous fixture was `{ callCount, appUsage }`. Neither field exists
+    // on MetaUsageStats. It is typed now, so drift is a compile error — but
+    // assert the nesting explicitly, because the nesting is what broke.
+    const u = USAGE.healthy;
+    assert.ok(u.counts && typeof u.counts === 'object', 'counts must be the nested object it really is');
+    assert.ok(u.errorBreakdown15d && typeof u.errorBreakdown15d === 'object');
+    assert.ok(u.latest && typeof u.latest === 'object');
+    assert.ok(Object.keys(u.counts).length >= 10,
+      'the real counts object has a dozen fields — a thin fixture hides the dump');
+  });
+
+  check('fixtures cannot describe a platform the services could not produce', () => {
+    // A hand-written `attention: []` beside a blocked workspace made the
+    // Control Center print "nothing needs intervention" directly above a failed
+    // account — a self-contradiction no real snapshot can contain, because
+    // adminOpsHealth pushes an ERROR item for every blocked connection.
+    for (const [name, sc] of Object.entries(SCENARIOS)) {
+      const ops = (sc.api as any).ops;
+      if (!ops || ops.__status) continue;
+      const blocked = (ops.workspaces ?? []).filter(
+        (w: any) => w.connection === 'ERROR' || w.connection === 'BLOCKED');
+      if (!blocked.length) continue;
+      assert.ok((ops.attention ?? []).length > 0,
+        `scenario "${name}" has ${blocked.length} blocked workspace(s) and an empty attention queue — `
+        + 'the ops snapshot cannot produce that state');
+    }
+  });
+
   check('the fixtures describe real shapes, not convenient ones', () => {
     // A fixture that omits the awkward fields tests a product that does not
     // exist. Each of these is a field the UI must survive being null.
@@ -79,15 +120,23 @@ function run() {
   console.log('\n── 2. Failure states, not spinners ──');
 
   check('every ops-driven surface handles the snapshot failing', () => {
+    // Static reach only: a handler may repaint a region directly OR by calling
+    // a render function that reads the now-null snapshot. Grepping for the id
+    // would fail the second, correct pattern — and pushing authors to name ids
+    // in the handler just to satisfy a grep is writing code for the test.
+    // The rendered audit owns the real proof: it fails any page still showing
+    // a skeleton after its request failed, per scenario.
     for (const [page, regions] of OPS_DRIVEN) {
       const p = src(`src/web/pages/${page}.ts`);
       assert.ok(p.includes("'ops:failed'"),
         `${page} reads the ops snapshot but never handles it failing`);
       const handler = p.slice(p.indexOf("addEventListener('ops:failed'"));
-      for (const r of regions) {
-        assert.ok(handler.includes(`'${r}'`),
-          `${page} leaves #${r} untouched when the ops snapshot fails — it keeps loading forever`);
-      }
+      const end = handler.indexOf('\n  });');
+      const body = handler.slice(0, end > 0 ? end : 1200);
+      const touchesDirectly = regions.some((r) => body.includes(`'${r}'`));
+      const touchesViaRender = /render[A-Z]\w*\(\)/.test(body);
+      assert.ok(touchesDirectly || touchesViaRender,
+        `${page}'s ops:failed handler repaints nothing — its regions keep loading forever`);
     }
   });
 
@@ -115,6 +164,87 @@ function run() {
       const catches = (p.match(/\.catch\(/g) || []).length;
       assert.ok(catches >= 1, `${page} calls ${fetches} endpoints and catches nothing`);
     }
+  });
+
+  console.log('\n── 2b. No raw JSON in primary operator UI ──');
+
+  check('no admin surface stringifies a payload into primary content', () => {
+    // THE regression that shipped. metaDataWorkspacePage rendered
+    //   Object.keys(payload).slice(0,12).map(v => typeof v === 'object' ? JSON.stringify(v) : v)
+    // which, against the real three-nested-object MetaUsageStats, printed raw
+    // serialized JSON at an operator and overflowed its own card.
+    //
+    // Raw payloads are allowed ONLY inside a <details class="tech"> disclosure.
+    for (const page of ALL_SURFACES) {
+      const p = code(`src/web/pages/${page}.ts`);
+      // The key-dump fallback, in the position that ships the defect: an
+      // inline `typeof x === 'object' ? JSON.stringify(x)` in RENDER code.
+      // The same expression inside a named `editableValue()` helper is the
+      // classified exception — a settings editor must show the stored literal,
+      // because editing it is the whole point of the field.
+      const dumps = [...p.matchAll(/typeof\s+\w+\s*===\s*'object'[\s\S]{0,40}?JSON\.stringify/g)]
+        .filter((m) => {
+          const before = p.slice(Math.max(0, m.index! - 220), m.index!);
+          return !/function editableValue/.test(before);
+        });
+      assert.deepEqual(dumps.map((m) => m[0].slice(0, 40)), [],
+        `${page} falls back to JSON.stringify for object values in render code — that is a key-dumper, not a UI`);
+
+      // Any stringify that reaches the DOM must land inside a tech disclosure.
+      // Two ways that can be true: the call site sits next to the disclosure
+      // markup, or it writes into an element whose id lives inside one.
+      const disclosedIds = new Set<string>();
+      for (const block of p.match(/<details class="tech"[\s\S]*?<\/details>/g) || []) {
+        for (const id of block.match(/id="([\w-]+)"/g) || []) {
+          disclosedIds.add(id.slice(4, -1));
+        }
+      }
+      const renders = [...p.matchAll(/JSON\.stringify\([^)]*\)/g)]
+        .filter((m) => {
+          const around = p.slice(Math.max(0, m.index! - 260), m.index! + 120);
+          if (/body:\s*JSON|method:\s*'(POST|PATCH|PUT|DELETE)'/.test(around)) return false;
+          // The classified exception, applied consistently with the check
+          // above: a named editor helper whose job is to surface the stored
+          // literal for editing.
+          if (/function editableValue/.test(p.slice(Math.max(0, m.index! - 220), m.index!))) return false;
+          return /innerHTML|textContent|<pre/.test(around);
+        });
+      for (const m of renders) {
+        const before = p.slice(Math.max(0, m.index! - 400), m.index! + 200);
+        if (/details class="tech"|class="raw"/.test(before)) continue;
+        const target = /getElementById\('([\w-]+)'\)[^;]*$/.exec(p.slice(Math.max(0, m.index! - 200), m.index!));
+        if (target && disclosedIds.has(target[1]!)) continue;
+        assert.fail(`${page} renders ${m[0].slice(0, 46)} outside a Technical-details disclosure`);
+      }
+    }
+  });
+
+  check('the Meta workspace explains quota instead of dumping its field names', () => {
+    const p = code('src/web/pages/metaDataWorkspacePage.ts');
+    // Raw Meta-quota field names must not be the operator-facing label.
+    for (const raw of ['redisAvailable', 'errorRateGatePct', 'progressToThresholdPct',
+                       'meetsErrorGate', 'recentWindowSize']) {
+      const asLabel = new RegExp(`>\\s*${raw}\\s*<|'${raw}'\\s*\\+|esc\\(\\s*'?${raw}`);
+      assert.ok(!asLabel.test(p), `${raw} is shown to the operator as a label rather than translated`);
+    }
+    // And the translation must actually be present.
+    for (const [needle, what] of [
+      ['معدّل الخطأ', 'the error rate, in operator language'],
+      ['سقف', 'the gate ceiling stated as a ceiling'],
+      ['عدّاد الاستهلاك غير متاح', 'the Redis-down case saying "no measurement", not zero'],
+      ['التقدّم نحو رفع الطبقة', 'threshold progress as a goal, not a percentage field'],
+    ] as const) {
+      assert.ok(p.includes(needle), `the quota view is missing ${what}`);
+    }
+  });
+
+  check('a downed counter backend reads as unknown, never as zero', () => {
+    assert.equal(USAGE.noRedis.redisAvailable, false);
+    assert.equal(USAGE.noRedis.counts.last15Days, 0);
+    const p = src('src/web/pages/metaDataWorkspacePage.ts');
+    assert.ok(/redisAvailable\)\s*\{[\s\S]{0,600}لا قياس/.test(p)
+      || p.includes('لا قياس'),
+      'with Redis down the page must say "no measurement" — a 0 there reads as "no errors"');
   });
 
   console.log('\n── 3. Absence keeps its meaning under every scenario ──');

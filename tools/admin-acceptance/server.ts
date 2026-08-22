@@ -13,7 +13,8 @@
 // ════════════════════════════════════════════════════════════════════════
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
-import { SCENARIOS, FIXTURE_CUSTOMERS, FIXTURE_TICKETS } from './fixtures.mjs';
+import { SCENARIOS, FIXTURE_CUSTOMERS, FIXTURE_TICKETS, USAGE } from './fixtures';
+import type { AdminOpsSnapshot } from '../../src/services/adminOpsHealth';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
 import { controlCenterPage } from '../../src/web/pages/controlCenterPage';
@@ -23,6 +24,13 @@ import { intelligenceWorkspacePage } from '../../src/web/pages/intelligenceWorks
 import { operationsWorkspacePage } from '../../src/web/pages/operationsWorkspacePage';
 import { customersWorkspacePage } from '../../src/web/pages/customersWorkspacePage';
 import { supportWorkspacePage } from '../../src/web/pages/supportWorkspacePage';
+import { brainObservatoryPage } from '../../src/web/pages/brainObservatoryPage';
+import { addClientPage } from '../../src/web/pages/addClientPage';
+import { metaReadinessPage } from '../../src/web/pages/metaReadinessPage';
+import { adminDashboardPage } from '../../src/web/pages/adminDashboardPage';
+import { adminConsolePage } from '../../src/web/pages/adminConsolePage';
+import { adminInboxPage } from '../../src/web/pages/adminInboxPage';
+import { adminOsPage } from '../../src/web/pages/adminOsPage';
 import { buildArchitectureGraph } from '../../src/graph/architecture';
 import { buildRuntimeOverlay } from '../../src/graph/runtime';
 import { CSS_ASSETS } from '../../src/web/layout';
@@ -35,6 +43,16 @@ const PAGES: Record<string, () => string> = {
   '/admin/operations': operationsWorkspacePage,
   '/admin/customers': customersWorkspacePage,
   '/admin/support': supportWorkspacePage,
+  // Sidebar destinations that are not Control Plane pages of our own making,
+  // and the migrated legacy route — all three must be walkable end to end,
+  // because a transition audit that skips them audits nothing.
+  '/admin/brain-observatory': brainObservatoryPage,
+  '/admin/add-client': addClientPage,
+  '/admin/meta-readiness': metaReadinessPage,
+  '/admin/observability': adminDashboardPage,
+  '/admin/classic': adminConsolePage,
+  '/admin/inbox': adminInboxPage,
+  '/admin/os': adminOsPage,
 };
 
 const ARCH = JSON.parse(JSON.stringify(buildArchitectureGraph()));
@@ -89,7 +107,15 @@ const server = createServer((req: any, res: any) => {
     return res.end(Buffer.alloc(0));
   }
 
-  if (p === '/api/auth/me') return json(res, { user: { name: 'المشغّل', email: 'ops@adlytic.io' } });
+  if (p === '/api/auth/me') {
+    // Legacy surfaces gate themselves on isPlatformAdmin before rendering, so
+    // an audit without it walks into a redirect and reports "shell lost" on a
+    // page that is fine. The harness authenticates like a real operator.
+    return json(res, {
+      user: { name: 'المشغّل', email: 'ops@adlytic.io', isPlatformAdmin: true },
+      isPlatformAdmin: true, name: 'المشغّل', email: 'ops@adlytic.io',
+    });
+  }
   if (p === '/api/admin/ops') return serveFixture(res, api.ops, SCENARIOS.healthy.api.ops);
   if (p === '/api/admin/platform-stats') return serveFixture(res, api.stats, SCENARIOS.healthy.api.stats);
 
@@ -97,7 +123,11 @@ const server = createServer((req: any, res: any) => {
     return serveFixture(res, api.graphArchitecture, { ok: true, adaptedBy: null, snapshot: ARCH });
   }
   if (p === '/api/admin/graph/runtime') {
-    const opsFixture = api.ops && !('__status' in api.ops) ? api.ops : SCENARIOS.healthy.api.ops;
+    // A scenario may replace `ops` with an HTTP failure marker ({ __status });
+    // the overlay builder wants a snapshot, so fall back to the healthy one.
+    const raw = api.ops as Record<string, unknown> | undefined;
+    const opsFixture = (raw && typeof raw === 'object' && !('__status' in raw)
+      ? raw : SCENARIOS.healthy.api.ops) as AdminOpsSnapshot;
     return json(res, { ok: true, overlay: buildRuntimeOverlay(ARCH, opsFixture) });
   }
   if (p.startsWith('/api/admin/graph/trace/')) {
@@ -105,6 +135,7 @@ const server = createServer((req: any, res: any) => {
       reason: 'No measurable window for this campaign (or it does not exist)' }, 404);
   }
 
+  if (p.startsWith('/api/admin/onboarding')) return json(res, []);
   if (p === '/api/admin/brain-observatory/campaigns') {
     return serveFixture(res, api.campaigns, [
       { id: 'c_1', name: 'حملة الرسائل — آب' },
@@ -112,7 +143,7 @@ const server = createServer((req: any, res: any) => {
     ]);
   }
   if (p === '/api/admin/meta-usage') {
-    return serveFixture(res, api.metaUsage, { callCount: 1284, appUsage: { call_count: 12, total_time: 5 } });
+    return serveFixture(res, api.metaUsage, USAGE.healthy);
   }
   if (p === '/api/admin/meta-audit') {
     return serveFixture(res, api.metaAudit, { events: [
@@ -123,42 +154,108 @@ const server = createServer((req: any, res: any) => {
   if (p === '/api/admin/overview') {
     return serveFixture(res, api.overview, { users: 2, workspaces: 3, paidSubscriptions: 1, adAccounts: 3 });
   }
-  if (p === '/api/admin/customers') return serveFixture(res, api.customers, FIXTURE_CUSTOMERS);
+  // ── Envelopes, matched to the real routes ────────────────────────────
+  // Five endpoints here returned bare arrays where the API returns a named
+  // envelope, so every consuming page read `data.<key>` as undefined and
+  // rendered an empty table under a filled heading. Same defect as the
+  // inbox's: a harness that PARAPHRASES the contract tests the paraphrase.
+  //   /customers      → { customers, total, take, skip }
+  //   /subscriptions  → { subscriptions }
+  //   /payment-events → { events }
+  //   /settings       → { settings, defaults }
+  //   /users          → { users }
+  if (p === '/api/admin/customers') {
+    return serveFixture(res, api.customers, {
+      customers: FIXTURE_CUSTOMERS, total: FIXTURE_CUSTOMERS.length, take: 50, skip: 0,
+    });
+  }
   if (p.startsWith('/api/admin/customers/')) {
     return json(res, { user: { id: 'u_1', name: 'علي ناصر', email: 'ali@example.com' } });
   }
   if (p === '/api/admin/subscriptions') {
-    return serveFixture(res, api.subscriptions, [
-      { workspaceId: 'ws_1', workspaceName: 'متجر النخبة', tier: 'PREMIUM', expiresAt: '2026-12-31' },
-      { workspaceId: 'ws_2', workspaceName: 'صيدلية الشفاء', tier: 'FREE', expiresAt: null },
-    ]);
+    return serveFixture(res, api.subscriptions, { subscriptions: [
+      { workspaceId: 'ws_1', workspaceName: 'متجر النخبة', tier: 'PREMIUM',
+        subscriptionStatus: 'ACTIVE', expiresAt: '2026-12-31T00:00:00.000Z',
+        ownerEmail: 'ali@example.com' },
+      { workspaceId: 'ws_2', workspaceName: 'صيدلية الشفاء', tier: 'FREE',
+        subscriptionStatus: 'TRIAL', expiresAt: null, ownerEmail: 'sara@example.com' },
+    ] });
   }
   if (p === '/api/admin/payment-events') {
-    return serveFixture(res, api.payments, [
-      { createdAt: '2026-08-01T10:00:00.000Z', type: 'MANUAL_ACTIVATION', workspaceId: 'ws_1', amount: 0 },
-    ]);
+    return serveFixture(res, api.payments, { events: [
+      { id: 'pe_1', createdAt: '2026-08-01T10:00:00.000Z', type: 'MANUAL_ACTIVATION',
+        workspaceId: 'ws_1', workspaceName: 'متجر النخبة', amount: 0, currency: 'IQD',
+        note: 'تفعيل يدوي بعد تأكيد التحويل' },
+    ] });
   }
   if (p === '/api/admin/settings') {
-    return serveFixture(res, api.settings, [
-      { key: 'SYNC_LOOKBACK_DAYS', value: '30' },
-      { key: 'BRAIN_NARRATION_ENABLED', value: 'true' },
-    ]);
+    return serveFixture(res, api.settings, {
+      settings: [
+        { key: 'SYNC_LOOKBACK_DAYS', value: '30' },
+        { key: 'BRAIN_NARRATION_ENABLED', value: 'true' },
+      ],
+      defaults: { SYNC_LOOKBACK_DAYS: '30', BRAIN_NARRATION_ENABLED: 'true' },
+    });
   }
   if (p === '/api/admin/users') {
-    return serveFixture(res, api.users, [
-      { id: 'u_1', name: 'علي ناصر', email: 'ali@example.com', isActive: true },
-      { id: 'u_2', name: 'سارة عبد الله', email: 'sara@example.com', isActive: false, status: 'pending' },
-    ]);
-  }
-  if (p === '/api/admin/support/counts') {
-    return serveFixture(res, api.supportCounts, { open: 2, urgent: 1, unread: 1 });
-  }
-  if (p === '/api/admin/support/tickets') return serveFixture(res, api.tickets, FIXTURE_TICKETS);
-  if (p.startsWith('/api/admin/support/tickets/')) {
-    return json(res, { ticket: FIXTURE_TICKETS[0], messages: [
-      { createdAt: '2026-08-22T08:00:00.000Z', body: 'الأرقام في اللوحة أقل مما أراه في مدير الإعلانات.', authorName: 'علي' },
-      { createdAt: '2026-08-22T08:20:00.000Z', body: 'نتحقّق من نافذة الإسناد الآن.', authorRole: 'ADMIN' },
+    return serveFixture(res, api.users, { users: [
+      { id: 'u_1', name: 'علي ناصر', email: 'ali@example.com', isActive: true,
+        createdAt: '2026-06-11T09:00:00.000Z', tier: 'PREMIUM', workspaceCount: 2 },
+      { id: 'u_2', name: 'سارة عبد الله', email: 'sara@example.com', isActive: false,
+        createdAt: '2026-08-18T14:20:00.000Z', tier: 'FREE', workspaceCount: 1 },
     ] });
+  }
+  // Counts and the filtered list are DERIVED from the ticket fixture with the
+  // same rules adminInboxCounts/adminListTickets apply, rather than restated.
+  // A hand-written count is how the inbox came to display "2 need a reply"
+  // above an empty list — and the envelope was wrong too: the service returns
+  // { tickets, total, take, skip }, the harness returned a bare array, so the
+  // page's `data.tickets` was undefined on every load.
+  if (p === '/api/admin/support/counts') {
+    const t = (api.tickets as typeof FIXTURE_TICKETS | undefined) ?? FIXTURE_TICKETS;
+    const by = (f: (x: (typeof FIXTURE_TICKETS)[number]) => boolean) => t.filter(f).length;
+    return serveFixture(res, api.supportCounts, {
+      open: by((x) => x.status === 'OPEN'),
+      awaiting: by((x) => x.status === 'AWAITING_CUSTOMER'),
+      resolved: by((x) => x.status === 'RESOLVED'),
+      closed: by((x) => x.status === 'CLOSED'),
+      urgent: by((x) => x.priority === 'URGENT'
+        && (x.status === 'OPEN' || x.status === 'AWAITING_CUSTOMER')),
+      starred: by((x) => x.isStarred),
+      pinned: by((x) => x.isPinned),
+      unread: by((x) => x.unreadForAdmin),
+    });
+  }
+  if (p === '/api/admin/support/tickets') {
+    if (api.tickets && typeof api.tickets === 'object' && '__status' in (api.tickets as object)) {
+      return serveFixture(res, api.tickets, null);
+    }
+    const all = (api.tickets as typeof FIXTURE_TICKETS | undefined) ?? FIXTURE_TICKETS;
+    const status = url.searchParams.get('status') ?? 'all';
+    const priority = url.searchParams.get('priority') ?? 'all';
+    const category = url.searchParams.get('category') ?? 'all';
+    const q = (url.searchParams.get('q') ?? '').trim().toLowerCase();
+    const tickets = all.filter((t) =>
+      (status === 'all' || t.status === status)
+      && (priority === 'all' || t.priority === priority)
+      && (category === 'all' || t.category === category)
+      && (!q || (t.subject + ' ' + t.user.email + ' ' + t.user.name).toLowerCase().includes(q)));
+    return json(res, { tickets, total: tickets.length, take: 50, skip: 0 });
+  }
+  if (p.startsWith('/api/admin/support/tickets/')) {
+    // getTicketWithMessages nests `messages` INSIDE the ticket and gives each
+    // one a `sender` relation; the harness used to return them as a sibling
+    // key, so the thread pane had nothing to render however it was opened.
+    const id = decodeURIComponent(p.split('/').pop() || '');
+    const base = FIXTURE_TICKETS.find((t) => t.id === id) ?? FIXTURE_TICKETS[0];
+    return json(res, { ticket: { ...base, messages: [
+      { id: 'm_1', createdAt: '2026-08-22T08:00:00.000Z', isInternal: false,
+        body: 'الأرقام في اللوحة أقل مما أراه في مدير الإعلانات.',
+        sender: { id: base.user.id, name: base.user.name, email: base.user.email } },
+      { id: 'm_2', createdAt: '2026-08-22T08:20:00.000Z', isInternal: false,
+        body: 'نتحقّق من نافذة الإسناد الآن — الفارق يظهر عادة من نافذة إسناد مختلفة.',
+        sender: { id: 'admin_1', name: 'المشغّل', email: 'ops@adlytic.io' } },
+    ] } });
   }
 
   const render = PAGES[p];
@@ -167,7 +264,9 @@ const server = createServer((req: any, res: any) => {
       'Content-Type': 'text/html; charset=utf-8',
       'Set-Cookie': `acceptance_scenario=${encodeURIComponent(scenarioKey)}; Path=/; SameSite=Lax`,
     });
-    return res.end(render());
+    // Seed the bearer token the legacy pages look for before they will render.
+    return res.end(render().replace('<body>',
+      `<body><script>try{localStorage.setItem('adlytic_token','acceptance-harness-token');}catch(e){}</script>`));
   }
   if (process.env.LOG_404) console.error('[acceptance] 404', p);
   res.writeHead(404, { 'Content-Type': 'text/plain' });

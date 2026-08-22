@@ -1,240 +1,179 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/web/pages/addClientPage.ts
 //
-//  Operator cockpit over the Connection Orchestrator (Arabic RTL, admin-only).
+//  ADD CLIENT — /admin/add-client. The guided onboarding wizard.
 //
-//  This page used to render a static 4-step checklist the operator followed by
-//  hand. It now DRIVES the orchestrator instead: it creates onboarding records,
-//  renders the engine's own live plan (planJson) as a progress list, surfaces
-//  the single blocking requirement when the engine reports BLOCKED, shows the
-//  audit timeline, and polls until the record reaches a terminal state.
+//  ── Why it now renders inside the Control Plane shell ─────────────────
 //
-//  Endpoints consumed (all gated by requirePlatformAdmin):
-//    POST /api/admin/onboarding                 — start / re-attach
-//    GET  /api/admin/onboarding?workspaceId=    — records for a workspace
-//    GET  /api/admin/onboarding/:id             — record + timeline
-//    POST /api/admin/onboarding/:id/check       — "تحقق الآن" nudge
-//    GET  /api/admin/customers                  — workspace picker source
-//    GET  /api/admin/meta/discover-accounts     — secondary visibility table
+//  Like the Brain Observatory, this is a SIDEBAR DESTINATION that used to
+//  draw its own sidebar, logo, topbar and logout control. The navigation
+//  transition audit caught it: clicking "إضافة عميل" from the Control Center
+//  lost the shell, emptied the context bar and left no nav item active — the
+//  operator walked into a different-looking application without being told.
 //
-//  Every server-provided string (account names, engine messages, blocked
-//  requirements, error text) is rendered through escHtml() — never interpolated raw.
+//  The wizard itself — discovery, onboarding records, the audit timeline, the
+//  "check now" nudge — is unchanged. Only the duplicated chrome is gone, and
+//  the access gate with it: the shell and the server-side adminPage gate
+//  already own that, and a second client-side gate was never a boundary.
 // ════════════════════════════════════════════════════════════════════════
 
-import { TOKENS_CSS_PATH } from '../layout';
-import { adminSurfaceNav } from './adminSurfaceNav';
+import { adminShell } from '../adminShell';
 
-export function addClientPage(): string {
-  return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <meta name="theme-color" content="#F2F7F4" />
-  <title>إضافة عميل — Adlytic</title>
-  <!-- Tokens + typefaces from the design system, no shell selectors: this
-       page has its own sidebar and tables and must not inherit the app's.
-       It used to carry a private copy of :root written for the dark theme,
-       which is why it stayed black after the product went light. It also
-       used to pull Tajawal from fonts.googleapis.com on every load — two
-       cross-origin round trips before a single glyph could paint. -->
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* The page was authored against --font; the system calls it
+const CSS = `/* The page was authored against --font; the system calls it
        --font-body. One alias beats 40 edits. */
     :root { --font: var(--font-body); }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button, input, select, textarea { font: inherit; color: inherit; }
-    button { cursor: pointer; border: none; background: none; }
-    .app { display: none; min-height: 100vh; }
-    .access-gate {
-      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      color: var(--text-2); font-size: 14px; font-weight: 600; text-align: center; padding: 24px;
-    }
-    .access-gate.hidden { display: none; }
-    .access-gate .gate-spinner {
-      width: 30px; height: 30px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
-    }
-    @keyframes gate-spin { to { transform: rotate(360deg); } }
-    .sidebar {
-      width: 240px; flex-shrink: 0; background: var(--surface);
-      border-left: 1px solid var(--border); display: flex; flex-direction: column;
-      position: sticky; top: 0; height: 100vh;
-    }
-    .logo { padding: 22px 20px 16px; border-bottom: 1px solid var(--border); }
-    .logo-brand { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
-    .logo-brand span { color: var(--accent); }
-    .logo-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; font-weight: 600; }
-    .nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
-    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 8px 12px 6px; letter-spacing: 0.04em; }
-    .nav-item {
-      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
-      color: var(--text-2); font-weight: 600; font-size: 13.5px; transition: 0.15s;
-    }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
-    .nav-foot { padding: 12px; border-top: 1px solid var(--border); }
-    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .topbar {
-      height: 60px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
-    }
-    .topbar h1 { font-size: 16px; font-weight: 800; }
-    .topbar-actions { display: flex; gap: 8px; align-items: center; }
-    .content { padding: 22px 24px 40px; max-width: 1100px; }
-    .btn {
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+@keyframes gate-spin { to { transform: rotate(360deg); }
+}
+.nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
+.btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13px;
       border: 1px solid transparent; transition: 0.15s;
     }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { filter: brightness(1.05); }
-    .btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
-    .btn-secondary:hover { border-color: var(--accent); }
-    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
-    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .panel {
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.panel {
       border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
       margin-bottom: 16px; overflow: hidden;
     }
-    .panel-head {
+.panel-head {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
-    .panel-title { font-size: 15px; font-weight: 800; }
-    .panel-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
-    .panel-body { padding: 16px; }
-    .intro {
+.panel-title { font-size: 15px; font-weight: 800; }
+.panel-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.panel-body { padding: 16px; }
+.intro {
       color: var(--text-2); font-size: 13.5px; line-height: 1.85; margin-bottom: 18px;
       border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px;
       background: linear-gradient(145deg, var(--accent-dim), var(--surface));
     }
-    @media (max-width: 768px) { .sidebar { display: none; } }
-    .field {
+@media (max-width: 768px) { .sidebar { display: none; }
+}
+.field {
       background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 9px;
       padding: 9px 12px; color: var(--text); min-width: 0;
     }
-    .field:focus { outline: none; border-color: var(--accent); }
-    select.field { cursor: pointer; }
-    .form-grid { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; align-items: end; }
-    @media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; } }
-    .form-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-3); margin-bottom: 6px; }
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-
-    /* ── State pill ─────────────────────────────────────────────────────── */
+.field:focus { outline: none; border-color: var(--accent); }
+select.field { cursor: pointer; }
+.form-grid { display: grid; grid-template-columns: 1.4fr 1fr auto; gap: 10px; align-items: end; }
+@media (max-width: 900px) { .form-grid { grid-template-columns: 1fr; }
+}
+.form-label { display: block; font-size: 11.5px; font-weight: 700; color: var(--text-3); margin-bottom: 6px; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* ── State pill ─────────────────────────────────────────────────────── */
     .state-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
-    .state-pill {
+.state-pill {
       display: inline-flex; align-items: center; gap: 9px; padding: 9px 18px; border-radius: 999px;
       font-size: 14px; font-weight: 800; border: 1px solid transparent;
     }
-    .state-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
-    .state-pill.live .dot { animation: pulse-dot 1.5s ease-in-out infinite; }
-    .state-accent { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
-    .state-success { background: var(--success-dim); color: var(--success); border-color: var(--success); }
-    .state-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
-    .state-error { background: var(--error-dim); color: var(--error); border-color: var(--error); }
-    @keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.35; transform: scale(0.8); } }
-
-    /* ── Live plan ──────────────────────────────────────────────────────── */
+.state-pill .dot { width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+.state-pill.live .dot { animation: pulse-dot 1.5s ease-in-out infinite; }
+.state-accent { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
+.state-success { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+.state-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+.state-error { background: var(--error-dim); color: var(--error); border-color: var(--error); }
+@keyframes pulse-dot { 0%,100% { opacity: 1; transform: scale(1); }
+50% { opacity: 0.35; transform: scale(0.8); }
+}
+/* ── Live plan ──────────────────────────────────────────────────────── */
     .plan { list-style: none; }
-    .plan-step { display: flex; gap: 12px; align-items: flex-start; padding: 13px 2px; }
-    .plan-step + .plan-step { border-top: 1px solid var(--border); }
-    .plan-dot {
+.plan-step { display: flex; gap: 12px; align-items: flex-start; padding: 13px 2px; }
+.plan-step + .plan-step { border-top: 1px solid var(--border); }
+.plan-dot {
       flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
       display: flex; align-items: center; justify-content: center; font-weight: 800; font-size: 12.5px;
       background: var(--surface-2); color: var(--text-3); border: 1px solid var(--border);
     }
-    .plan-label { font-weight: 700; font-size: 14px; color: var(--text-2); line-height: 1.6; }
-    .plan-meta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
-    .plan-step.done .plan-dot { background: var(--success-dim); color: var(--success); border-color: var(--success); }
-    .plan-step.done .plan-label { color: var(--text); }
-    .plan-step.active .plan-dot {
+.plan-label { font-weight: 700; font-size: 14px; color: var(--text-2); line-height: 1.6; }
+.plan-meta { font-size: 11.5px; color: var(--text-3); margin-top: 3px; }
+.plan-step.done .plan-dot { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+.plan-step.done .plan-label { color: var(--text); }
+.plan-step.active .plan-dot {
       background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent);
       animation: pulse-step 1.7s ease-in-out infinite;
     }
-    .plan-step.active .plan-label { color: var(--accent-2); font-weight: 800; }
-    .plan-step.pending .plan-label { color: var(--text-3); }
-    @keyframes pulse-step {
+.plan-step.active .plan-label { color: var(--accent-2); font-weight: 800; }
+.plan-step.pending .plan-label { color: var(--text-3); }
+@keyframes pulse-step {
       0%, 100% { box-shadow: 0 0 0 0 var(--accent-glow); }
-      50% { box-shadow: 0 0 0 7px transparent; }
-    }
-    @media (prefers-reduced-motion: reduce) {
-      .plan-step.active .plan-dot, .state-pill.live .dot, .access-gate .gate-spinner { animation: none; }
-      .plan-step.active .plan-dot { box-shadow: 0 0 0 3px var(--accent-glow); }
-    }
-
-    /* ── Requirement / error / waiting cards ────────────────────────────── */
+50% { box-shadow: 0 0 0 7px transparent; }
+}
+@media (prefers-reduced-motion: reduce) {
+      .plan-step.active .plan-dot, .state-pill.live .dot { animation: none; }
+.plan-step.active .plan-dot { box-shadow: 0 0 0 3px var(--accent-glow); }
+}
+/* ── Requirement / error / waiting cards ────────────────────────────── */
     .callout { border-radius: 12px; padding: 16px 18px; margin-bottom: 16px; border: 1px solid transparent; }
-    .callout-title { font-weight: 800; font-size: 14.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
-    .callout-text { line-height: 1.95; font-size: 13.5px; color: var(--text); }
-    .callout-warn { border-color: var(--warning); background: var(--warning-dim); }
-    .callout-warn .callout-title { color: var(--warning); }
-    .callout-err { border-color: var(--error); background: var(--error-dim); }
-    .callout-err .callout-title { color: var(--error); }
-    .callout-info { border-color: var(--accent); background: var(--accent-dim); }
-    .callout-info .callout-title { color: var(--accent-2); }
-    .callout-ok { border-color: var(--success); background: var(--success-dim); }
-    .callout-ok .callout-title { color: var(--success); }
-    .callout-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-
-    /* ── Timeline ───────────────────────────────────────────────────────── */
+.callout-title { font-weight: 800; font-size: 14.5px; margin-bottom: 8px; display: flex; align-items: center; gap: 8px; }
+.callout-text { line-height: 1.95; font-size: 13.5px; color: var(--text); }
+.callout-warn { border-color: var(--warning); background: var(--warning-dim); }
+.callout-warn .callout-title { color: var(--warning); }
+.callout-err { border-color: var(--error); background: var(--error-dim); }
+.callout-err .callout-title { color: var(--error); }
+.callout-info { border-color: var(--accent); background: var(--accent-dim); }
+.callout-info .callout-title { color: var(--accent-2); }
+.callout-ok { border-color: var(--success); background: var(--success-dim); }
+.callout-ok .callout-title { color: var(--success); }
+.callout-actions { margin-top: 12px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+/* ── Timeline ───────────────────────────────────────────────────────── */
     .tl { display: flex; flex-direction: column; }
-    .tl-item {
+.tl-item {
       display: grid; grid-template-columns: 138px 108px 1fr; gap: 10px;
       padding: 10px 2px; border-bottom: 1px solid var(--border); align-items: start; font-size: 12.5px;
     }
-    .tl-item:last-child { border-bottom: none; }
-    .tl-time { color: var(--text-3); font-size: 11.5px; direction: ltr; text-align: right; unicode-bidi: embed; }
-    .tl-msg { color: var(--text-2); line-height: 1.75; }
-    .tl-states { color: var(--text-3); font-size: 11px; margin-top: 3px; direction: ltr; text-align: right; unicode-bidi: embed; }
-    @media (max-width: 768px) { .tl-item { grid-template-columns: 1fr; gap: 4px; } .tl-time { text-align: right; } }
-
-    /* ── Onboarding list rows ───────────────────────────────────────────── */
+.tl-item:last-child { border-bottom: none; }
+.tl-time { color: var(--text-3); font-size: 11.5px; direction: ltr; text-align: right; unicode-bidi: embed; }
+.tl-msg { color: var(--text-2); line-height: 1.75; }
+.tl-states { color: var(--text-3); font-size: 11px; margin-top: 3px; direction: ltr; text-align: right; unicode-bidi: embed; }
+@media (max-width: 768px) { .tl-item { grid-template-columns: 1fr; gap: 4px; }
+.tl-time { text-align: right; }
+}
+/* ── Onboarding list rows ───────────────────────────────────────────── */
     .ob-row {
       width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 12px 14px; border: 1px solid var(--border); border-radius: 11px;
       background: var(--surface-2); margin-bottom: 8px; text-align: right; transition: 0.15s; flex-wrap: wrap;
     }
-    .ob-row:hover { border-color: var(--accent); }
-    .ob-row.selected { border-color: var(--accent); background: var(--accent-dim); }
-    .ob-row:last-child { margin-bottom: 0; }
-
-    table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
-    table.data th {
+.ob-row:hover { border-color: var(--accent); }
+.ob-row.selected { border-color: var(--accent); background: var(--accent-dim); }
+.ob-row:last-child { margin-bottom: 0; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data th {
       text-align: right; padding: 10px 12px; font-size: 11px; color: var(--text-3);
       border-bottom: 1px solid var(--border); font-weight: 700;
     }
-    table.data td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    table.data tr:hover td { background: var(--surface-hover); }
-    .table-wrap { overflow-x: auto; }
-    td.currency-cell { font-weight: 800; color: var(--accent-2); white-space: nowrap; }
-    .badge {
+table.data td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.data tr:hover td { background: var(--surface-hover); }
+.table-wrap { overflow-x: auto; }
+td.currency-cell { font-weight: 800; color: var(--accent-2); white-space: nowrap; }
+.badge {
       display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; border: 1px solid transparent; white-space: nowrap;
     }
-    .badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
-    .badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
-    .badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
-    .badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
-    .badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
-    .muted { color: var(--text-3); font-size: 12px; }
-    .mono { font-family: monospace; direction: ltr; text-align: left; unicode-bidi: embed; }
-    .error-box {
+.badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+.badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+.badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
+.badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
+.badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
+.muted { color: var(--text-3); font-size: 12px; }
+.mono { font-family: monospace; direction: ltr; text-align: left; unicode-bidi: embed; }
+.error-box {
       padding: 14px 16px; border-radius: 10px; border: 1px solid var(--error);
       background: var(--error-dim); color: var(--error); margin-bottom: 14px;
     }
-    .info-box {
+.info-box {
       padding: 14px 16px; border-radius: 10px; border: 1px solid var(--warning);
       background: var(--warning-dim); color: var(--warning); margin-bottom: 14px; line-height: 1.8;
     }
-    .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
-
-    /* ══════════════════════════════════════════════════════════════════════
+.empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
+/* ══════════════════════════════════════════════════════════════════════
        MOBILE FLOW — five steps, one screen each.
        ══════════════════════════════════════════════════════════════════════
        A phone gets a different SHAPE of the same job, not a squeezed cockpit:
@@ -246,63 +185,63 @@ export function addClientPage(): string {
        shared MOBILE SYSTEM block — that stays the integrator's to own.
        ══════════════════════════════════════════════════════════════════════ */
     .mflow { display: none; }
-    @media (max-width: 768px) {
-      /* .app carries an inline display:flex once the admin gate clears, so the
-         phone shell has to out-specify it. */
-      body.mf-on .app { display: none !important; }
-      body.mf-on .mflow { display: flex; }
-    }
-    .mflow {
+@media (max-width: 768px) {
+      /* On a phone this flow IS the page: hide the Control Plane chrome behind
+         it rather than stacking two navigations on a 390px screen. */
+      body.mf-on .shell { display: none !important; }
+body.mf-on .mflow { display: flex; }
+}
+.mflow {
+      position: fixed; inset: 0; z-index: 60; background: var(--bg);
       flex-direction: column;
       min-height: 100vh;
       min-height: 100dvh;   /* excludes the browser chrome that vh ignores */
       width: 100%; max-width: 100%; overflow-x: hidden;
     }
-    .mf-top {
+.mf-top {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 14px 18px; padding-top: calc(14px + env(safe-area-inset-top));
       border-bottom: 1px solid var(--border); flex-shrink: 0;
     }
-    .mf-brand { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
-    .mf-brand span { color: var(--accent); }
-    .mf-dots { display: flex; gap: 6px; flex-shrink: 0; }
-    .mf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
-    .mf-dot.done { background: var(--success); }
-    .mf-dot.on   { background: var(--accent); transform: scale(1.35); }
-    .mf-dot.stop { background: var(--error); transform: scale(1.35); }
-
-    /* flex:1 0 auto pins the footer to the bottom on a short screen and lets a
+.mf-brand { font-size: 17px; font-weight: 800; letter-spacing: -0.3px; }
+.mf-brand span { color: var(--accent); }
+.mf-dots { display: flex; gap: 6px; flex-shrink: 0; }
+.mf-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--border); }
+.mf-dot.done { background: var(--success); }
+.mf-dot.on   { background: var(--accent); transform: scale(1.35); }
+.mf-dot.stop { background: var(--error); transform: scale(1.35); }
+/* flex:1 0 auto pins the footer to the bottom on a short screen and lets a
        long one grow past it, so the action is always the last thing reached. */
     .mf-body { flex: 1 0 auto; padding: 28px 18px 22px; min-width: 0; }
-    .mf-icon { font-size: 38px; line-height: 1; margin-bottom: 16px; }
-    .mf-h { font-size: 22px; font-weight: 800; line-height: 1.55; margin-bottom: 10px; }
-    .mf-p { font-size: 15px; line-height: 1.95; color: var(--text-2); overflow-wrap: anywhere; }
-    .mf-note { font-size: 13px; line-height: 1.85; color: var(--text-3); margin-top: 14px; }
-    .mf-form { margin-top: 24px; }
-    .mf-label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
-    .mf-chip {
+.mf-icon { font-size: 38px; line-height: 1; margin-bottom: 16px; }
+.mf-h { font-size: 22px; font-weight: 800; line-height: 1.55; margin-bottom: 10px; }
+.mf-p { font-size: 15px; line-height: 1.95; color: var(--text-2); overflow-wrap: anywhere; }
+.mf-note { font-size: 13px; line-height: 1.85; color: var(--text-3); margin-top: 14px; }
+.mf-form { margin-top: 24px; }
+.mf-label { display: block; font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.mf-chip {
       display: inline-block; margin-top: 18px; padding: 9px 13px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border);
       font-family: monospace; font-size: 14px; direction: ltr; unicode-bidi: embed;
     }
-    .mf-input, .mf-select {
+.mf-input, .mf-select {
       width: 100%; min-height: 52px;   /* ≥44px touch floor */
       font-size: 16px;                 /* 16px: anything smaller makes iOS Safari zoom on focus */
       padding: 12px 14px; border-radius: 12px;
       background: var(--surface-2); border: 1px solid var(--border-control); color: var(--text);
     }
-    .mf-input { direction: ltr; text-align: left; font-family: monospace; letter-spacing: 0.04em; }
-    .mf-input:focus, .mf-select:focus { outline: none; border-color: var(--accent); }
-    .mf-select { margin-bottom: 20px; }
-    .mf-err {
+.mf-input { direction: ltr; text-align: left; font-family: monospace; letter-spacing: 0.04em; }
+.mf-input:focus, .mf-select:focus { outline: none; border-color: var(--accent); }
+.mf-select { margin-bottom: 20px; }
+.mf-err {
       margin-top: 16px; padding: 12px 14px; border-radius: 10px; font-size: 14px; line-height: 1.8;
       border: 1px solid var(--error); background: var(--error-dim); color: var(--error);
     }
-    .mf-spin {
+.mf-spin {
       width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent);
       border-radius: 50%; animation: gate-spin 0.8s linear infinite; margin-bottom: 18px;
     }
-    /* Sticky, not fixed: it keeps its place in the flow (so it can never sit on
+/* Sticky, not fixed: it keeps its place in the flow (so it can never sit on
        top of the content) while staying reachable on a long screen. The bottom
        offset is the height the on-screen keyboard covers — see mfKeyboardInset. */
     .mf-foot {
@@ -311,49 +250,34 @@ export function addClientPage(): string {
       padding: 14px 18px; padding-bottom: calc(14px + env(safe-area-inset-bottom));
       display: flex; flex-direction: column; gap: 10px;
     }
-    .mf-btn {
+.mf-btn {
       display: flex; align-items: center; justify-content: center; gap: 8px;
       width: 100%; min-height: 52px; border-radius: 13px;
       font-size: 16px; font-weight: 800; border: 1px solid transparent; text-align: center;
     }
-    .mf-btn-primary { background: var(--accent); color: #fff; }
-    .mf-btn-quiet { background: transparent; border-color: var(--border); color: var(--text-2); }
-    .mf-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .mf-ok { color: var(--success); }
-    .mf-warn { color: var(--warning); }
-    .mf-bad { color: var(--error); }
-    @media (prefers-reduced-motion: reduce) { .mf-spin { animation: none; } }
-  </style>
-</head>
-<body>
-<div class="access-gate" id="access-gate">
-  <div class="gate-spinner"></div>
-  <div>جارٍ التحقق من الصلاحية…</div>
-</div>
-<div class="app">
-  <aside class="sidebar">
-    <div class="logo">
-      <div class="logo-brand">Ad<span>lytic</span></div>
-      <div class="logo-sub">لوحة المالك · إضافة عميل</div>
-    </div>
-    <nav class="nav">
-      ${adminSurfaceNav('add-client')}
-    </nav>
-    <div class="nav-foot">
-      <div class="muted" id="admin-email">—</div>
-      <button class="btn btn-secondary btn-sm" id="btn-logout" style="margin-top:8px;width:100%;">تسجيل الخروج</button>
-    </div>
-  </aside>
+.mf-btn-primary { background: var(--accent); color: #fff; }
+.mf-btn-quiet { background: transparent; border-color: var(--border); color: var(--text-2); }
+.mf-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.mf-ok { color: var(--success); }
+.mf-warn { color: var(--warning); }
+.mf-bad { color: var(--error); }
+@media (prefers-reduced-motion: reduce) { .mf-spin { animation: none; }
+}`;
 
-  <div class="main">
-    <header class="topbar">
-      <h1>إضافة عميل</h1>
-      <div class="topbar-actions">
-        <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث</button>
-      </div>
-    </header>
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">إضافة عميل</div>
+      <div class="phead-s">منسّق الربط يقود العملية كاملة: طلب الوصول لحساب العميل الإعلاني،
+        مراقبة موافقته في مدير الأعمال، ثم أول مزامنة.</div>
+    </div>
+    <div class="phead-actions">
+      <button class="btn" id="btn-refresh">تحديث</button>
+    </div>
+  </div>
+`;
 
-    <main class="content">
+const BODY = `
       <div id="gate-error" class="error-box" style="display:none;"></div>
 
       <div class="intro">
@@ -463,25 +387,27 @@ export function addClientPage(): string {
           <div id="accounts-empty" class="empty" style="display:none;">لا حسابات مرئية بعد — تأكد من موافقة العميل وتعيين الحساب لمستخدم النظام.</div>
         </div>
       </section>
-    </main>
-  </div>
-</div>
 
-<!-- ════════════════════════════════════════════════════════════════════════
-     MOBILE FLOW — the phone shell. Empty until the admin gate clears; every
-     screen is painted by mfRender() from the same record the desktop cockpit
-     reads, driven by the same poll.
-     ════════════════════════════════════════════════════════════════════════ -->
-<div class="mflow" id="mflow" role="region" aria-label="ربط حساب عميل">
-  <header class="mf-top">
-    <div class="mf-brand">Ad<span>lytic</span></div>
-    <div class="mf-dots" id="mf-dots" aria-hidden="true"></div>
-  </header>
-  <main class="mf-body" id="mf-body" aria-live="polite"></main>
-  <footer class="mf-foot" id="mf-foot" style="display:none;"></footer>
-</div>
+      <!-- ════════════════════════════════════════════════════════════════
+           MOBILE FLOW — the phone shell. Empty until first paint; every
+           screen is painted by mfRender() from the same record the desktop
+           cockpit reads, driven by the same poll.
 
-<script>
+           It lived outside .app before this surface moved into the Control
+           Plane shell, which is why the move lost it: the wrap took the body
+           content and this sat beside it. Restored here, inside the page.
+           ════════════════════════════════════════════════════════════════ -->
+      <div class="mflow" id="mflow" role="region" aria-label="ربط حساب عميل">
+        <header class="mf-top">
+          <div class="mf-brand">Ad<span>lytic</span></div>
+          <div class="mf-dots" id="mf-dots" aria-hidden="true"></div>
+        </header>
+        <main class="mf-body" id="mf-body" aria-live="polite"></main>
+        <footer class="mf-foot" id="mf-foot" style="display:none;"></footer>
+      </div>
+    `;
+
+const SCRIPT = `
 (function () {
   var POLL_MS = 10000;
   var MAX_POLL_FAILURES = 3;
@@ -1445,29 +1371,14 @@ export function addClientPage(): string {
   }
 
   // ── Admin gate ────────────────────────────────────────────────────────────
-  async function ensureAdmin() {
-    try {
-      var me = await api('/api/auth/me');
-      if (!me || !me.isPlatformAdmin) { window.location.replace('/dashboard'); return false; }
-      var accessGate = document.getElementById('access-gate');
-      if (accessGate) accessGate.classList.add('hidden');
-      document.querySelector('.app').style.display = 'flex';
-      // Hands the phone shell over to CSS: on a narrow viewport this hides the
-      // cockpit and reveals the five-step flow. Nothing is decided in JS, so a
-      // rotate or a resize picks the right shell with no re-render.
-      document.body.classList.add('mf-on');
-      document.getElementById('admin-email').textContent = me.email || (me.user && me.user.email) || '';
-      return true;
-    } catch (e) {
-      var g = document.getElementById('access-gate');
-      if (isAuthError(e)) {
-        if (g) g.innerHTML = '<div style="max-width:320px;line-height:1.8;">غير مصرّح. <a href="/login" style="color:var(--accent);text-decoration:underline;">تسجيل الدخول</a></div>';
-        return false;
-      }
-      if (g) g.innerHTML = '<div style="max-width:320px;line-height:1.8;">تعذّر التحقق من الصلاحية. تحقق من اتصالك ثم <a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">أعد المحاولة</a>.</div>';
-      return false;
-    }
-  }
+  // The client-side authorization branch that used to live here is gone.
+  //
+  // Its markup (the access-gate overlay) was chrome the shell now owns, and
+  // its logic was never a boundary: /admin/add-client is served through the
+  // server-side adminPage gate, which reads the session cookie and refuses
+  // before any of this reaches a browser. A page that hides a control is not
+  // a guard, and keeping a second one here meant this surface redirected
+  // itself out of the Control Plane whenever the check was inconclusive.
 
   // ── Wiring ────────────────────────────────────────────────────────────────
   document.getElementById('btn-logout').addEventListener('click', logout);
@@ -1501,16 +1412,25 @@ export function addClientPage(): string {
   });
   window.addEventListener('beforeunload', stopPolling);
 
-  if (!token()) { window.location.replace('/login'); return; }
   mfKeyboardInset();
   mfRender();                         // step 1 is on screen before any request lands
-  ensureAdmin().then(function (ok) {
-    if (!ok) return;
-    loadWorkspaces().then(mfResolveWorkspace);
+loadWorkspaces().then(mfResolveWorkspace);
     loadDiscover();
-  });
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function addClientPage(): string {
+  return adminShell({
+    active: 'add-client',
+    title: 'إضافة عميل',
+    subtitle: 'معالج الإعداد من الصفر حتى أول مزامنة',
+    css: CSS,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    commands: [
+      { label: 'اكتشاف حسابات Meta', href: '/admin/meta#entities', hint: 'Meta والبيانات' },
+      { label: 'الزبائن والاشتراكات', href: '/admin/customers', hint: 'الزبائن' },
+    ],
+  });
 }

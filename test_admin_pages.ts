@@ -105,7 +105,11 @@ async function main() {
   console.log('\n── the capability-probe panel is wired ──');
   {
     const html = PAGES[0].html;
-    const needed = ['view-probe', 'probe-ws', 'probe-run', 'probe-status', 'probe-tally', 'probe-out', 'probe-matrix', 'probe-report'];
+    // v-probe, not view-probe: the console's eight views moved onto the shell's
+    // tab strip, which owns .view/#v-<id>. Renaming them was the point — the
+    // page's own switcher targeted a sidebar the shell replaced, so seven of
+    // the eight views had become unreachable.
+    const needed = ['v-probe', 'probe-ws', 'probe-run', 'probe-status', 'probe-tally', 'probe-out', 'probe-matrix', 'probe-report'];
     const missing = needed.filter((id) => !html.includes(`id="${id}"`));
     if (missing.length) bad(`markup is missing: ${missing.join(', ')}`);
     else ok(`all ${needed.length} panel ids exist in the markup`);
@@ -141,7 +145,7 @@ async function main() {
     // Every class the probe panel uses must exist in the page CSS. The panel
     // once shipped with .hint/.row/.btn-ghost undefined and rendered as bare
     // unstyled text.
-    const probeSection = html.slice(html.indexOf('id="view-probe"'), html.indexOf('id="view-settings"'));
+    const probeSection = html.slice(html.indexOf('id="v-probe"'), html.indexOf('id="v-settings"'));
     const usedClasses = [...new Set([...probeSection.matchAll(/class="([^"]+)"/g)].flatMap((m) => m[1].split(/\s+/)))];
     // A class earns its keep either as a CSS rule or as a JS selector hook
     // (querySelectorAll('.view')); only a class referenced NOWHERE outside its

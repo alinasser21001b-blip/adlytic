@@ -99,8 +99,17 @@ export const GRAPH_VIEW_CSS = `
   .gv-canvas { display: block; width: 100%; touch-action: none; cursor: grab; }
   .gv-canvas.drag { cursor: grabbing; }
   .gv-node rect { stroke-width: 1.2px; }
-  .gv-node text { font-family: var(--font-mono); fill: var(--text-2); pointer-events: none;
-                  direction: ltr; }
+  /*
+    A node label is one of two things and they need opposite treatment.
+    An identifier (adminConsole.ts, GET /api/admin/ops, AdAccount) is mono and
+    LTR — that is the project's rule and it is right. An Arabic NAME («خدمة
+    الواجهة») is prose, and forcing prose into a monospace face pins every
+    glyph to a fixed advance: the cursive joins stretch and words visibly come
+    apart. Which one a label is comes from the label itself, below.
+  */
+  .gv-node text { fill: var(--text-2); pointer-events: none;
+                  font-family: var(--font-body); direction: rtl; }
+  .gv-node text.id { font-family: var(--font-mono); direction: ltr; }
   .gv-node.sel rect { stroke: var(--accent); stroke-width: 2.4px; }
   .gv-node.hit rect { stroke: var(--accent-2); stroke-width: 2px; }
   .gv-node.dim { opacity: 0.13; }
@@ -202,6 +211,19 @@ window.AdlyticGraph = (function () {
    * thirty-nine of them into the same illegible stub. The end is what tells
    * them apart, so the end is what survives.
    */
+  /**
+   * Is this label an identifier or a name?
+   *
+   * Derived from the text, not from the node class: the same class carries
+   * both (a MODULE is adminConsole.ts, a SERVICE is «خدمة الواجهة»), and a
+   * hand-kept class list would go stale the first time either side gained a
+   * member. Any Arabic letter means prose; everything else is an identifier
+   * and keeps the mono, LTR treatment the rest of the product gives them.
+   */
+  function isIdentifier(text) {
+    return !/[\u0600-\u06FF]/.test(String(text || ''));
+  }
+
   function shortLabel(n, max) {
     var s = n.label;
     max = max || 21;
@@ -518,7 +540,8 @@ window.AdlyticGraph = (function () {
           + (S.mode === 'architecture' ? 0.2 : 0.5) + '" stroke="'
           + (dashed ? 'var(--text-3)' : (fill === 'transparent' ? 'var(--border-2)' : fill)) + '"'
           + (dashed ? ' stroke-dasharray="3 2"' : '') + '></rect>'
-          + '<text x="' + p.x + '" y="' + (p.y + 3.5) + '" text-anchor="middle" font-size="10">'
+          + '<text class="' + (isIdentifier(shortLabel(n)) ? 'id' : 'name')
+          + '" x="' + p.x + '" y="' + (p.y + 3.5) + '" text-anchor="middle" font-size="10">'
           + esc(shortLabel(n)) + '</text></g>');
       });
       parts.push('</g>');

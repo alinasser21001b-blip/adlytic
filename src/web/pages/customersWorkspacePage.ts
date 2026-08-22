@@ -33,19 +33,30 @@ const CSS = `
          border-radius: 7px; padding: 5px 9px; font-size: 12px; font-family: inherit; }
   .inp:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .bar { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-  .big { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+  .two-c { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; align-items: start; }
+  @media (max-width: 940px) { .two-c { grid-template-columns: 1fr; } }
   .danger { color: var(--error); border-color: var(--error); }
   form.stack { display: grid; gap: 8px; max-width: 420px; }
   label.f { font-size: 11px; color: var(--text-3); font-weight: 600; }
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">الزبائن ومساحات العمل</div>
+      <div class="phead-s">من نخدم، وكيف أُعدّت مساحاتهم، وحالة اشتراكاتهم ومدفوعاتهم.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/add-client">إضافة عميل</a></div>
+  </div>
+`;
+
 const BODY = `
   <section class="view on" id="v-customers">
-    <div class="grid g4" id="kpis">
-      <div class="card"><div class="muted">الزبائن</div><div class="big mono" id="k-users">—</div></div>
-      <div class="card"><div class="muted">مساحات العمل</div><div class="big mono" id="k-ws">—</div></div>
-      <div class="card"><div class="muted">اشتراكات مدفوعة</div><div class="big mono" id="k-sub">—</div></div>
-      <div class="card"><div class="muted">حسابات إعلانية</div><div class="big mono" id="k-acc">—</div></div>
+    <div class="stats">
+      <div class="stat"><div class="stat-k">الزبائن</div><div class="stat-v" id="k-users">—</div></div>
+      <div class="stat"><div class="stat-k">مساحات العمل</div><div class="stat-v" id="k-ws">—</div></div>
+      <div class="stat"><div class="stat-k">اشتراكات مدفوعة</div><div class="stat-v" id="k-sub">—</div></div>
+      <div class="stat"><div class="stat-k">حسابات إعلانية</div><div class="stat-v" id="k-acc">—</div></div>
     </div>
     <div class="card">
       <div class="bar">
@@ -60,6 +71,20 @@ const BODY = `
       <table class="t"><thead><tr>
         <th>الزبون</th><th>البريد</th><th>الخطة</th><th>مساحات</th><th>إجراءات</th>
       </tr></thead><tbody id="cust"><tr><td colspan="5" class="empty">اضغط «بحث»</td></tr></tbody></table>
+    </div>
+    <div class="two-c">
+      <div class="card">
+        <div class="card-h"><div class="h2">الاشتراكات</div>
+          <button class="btn" data-view-jump="subscriptions">إدارة الاشتراكات</button></div>
+        <table class="t"><thead><tr><th>مساحة العمل</th><th>الخطة</th><th>ينتهي</th></tr></thead>
+          <tbody id="sub-brief"><tr><td colspan="3" class="empty">جارٍ التحميل…</td></tr></tbody></table>
+      </div>
+      <div class="card">
+        <div class="card-h"><div class="h2">أحدث المدفوعات</div>
+          <button class="btn" data-view-jump="payments">السجل الكامل</button></div>
+        <table class="t"><thead><tr><th>الوقت</th><th>الحدث</th><th>المبلغ</th></tr></thead>
+          <tbody id="pay-brief"><tr><td colspan="3" class="empty">جارٍ التحميل…</td></tr></tbody></table>
+      </div>
     </div>
     <div class="card" id="detail-card" style="display:none;">
       <div class="card-h"><div class="h2">تفاصيل الزبون</div>
@@ -124,6 +149,11 @@ const SCRIPT = `
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
     });
   }
+  /** The stored literal, for an input the operator edits. Never for display. */
+  function editableValue(v) {
+    return v && typeof v === 'object' ? JSON.stringify(v) : v;
+  }
+
   function fail(host, e) {
     document.getElementById(host).innerHTML =
       '<tr><td colspan="6" class="empty">تعذّر: ' + esc(e.message) + '</td></tr>';
@@ -137,6 +167,10 @@ const SCRIPT = `
       ? g('paidSubscriptions') : g('subscriptions');
     document.getElementById('k-acc').textContent = g('adAccounts');
   }).catch(function () { /* KPI strip stays em-dashed rather than showing zeros */ });
+
+  // The overview summarises without waiting for a click: an operator opening
+  // this page should see the shape of the business, not four empty tables.
+  loadCustomers(); loadSubs(); loadPays();
 
   function loadCustomers() {
     var q = document.getElementById('cq').value.trim();
@@ -156,6 +190,10 @@ const SCRIPT = `
       }).catch(function (e) { fail('cust', e); });
   }
   document.getElementById('cload').addEventListener('click', loadCustomers);
+  document.addEventListener('click', function (e) {
+    var j = e.target.closest ? e.target.closest('[data-view-jump]') : null;
+    if (j) window.adminShowView(j.getAttribute('data-view-jump'));
+  });
   document.getElementById('detail-close').addEventListener('click', function () {
     document.getElementById('detail-card').style.display = 'none';
   });
@@ -239,14 +277,43 @@ const SCRIPT = `
   function loadSubs() {
     var host = document.getElementById('subs');
     host.innerHTML = '<tr><td colspan="4" class="empty">جارٍ التحميل…</td></tr>';
+  /**
+   * An expiry date, read as a date.
+   *
+   * window.adminTime phrases everything in the past ("قبل ٣ أيام") because
+   * that is what it exists for — timestamps of things that happened. An
+   * expiry is in the future, so it gets its own formatter here rather than a
+   * misleading one, and never the raw ISO string the API sends.
+   */
+  function expiry(iso) {
+    if (!iso) return '—';
+    var t = Date.parse(iso);
+    if (!isFinite(t)) return String(iso);
+    var d = new Date(t);
+    var pad = function (x) { return x < 10 ? '0' + x : String(x); };
+    var day = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    var days = Math.round((t - Date.now()) / 86400000);
+    var rel = days < 0 ? 'انتهى' : days === 0 ? 'ينتهي اليوم'
+      : days < 31 ? ('خلال ' + days + ' يوم') : ('خلال ' + Math.round(days / 30) + ' شهر');
+    return '<span class="mono">' + esc(day) + '</span> <span class="muted">' + esc(rel) + '</span>';
+  }
+
     window.adminFetch('/api/admin/subscriptions').then(function (r) {
       var list = (r && (r.subscriptions || r.items || r)) || [];
       if (!Array.isArray(list)) list = [];
+      var brief = document.getElementById('sub-brief');
+      if (brief) {
+        brief.innerHTML = list.length ? list.slice(0, 6).map(function (s) {
+          return '<tr><td>' + esc(s.workspaceName || (s.workspace && s.workspace.name) || '—') + '</td>'
+            + '<td>' + esc(s.tier || s.plan || '—') + '</td>'
+            + '<td>' + expiry(s.expiresAt || s.currentPeriodEnd) + '</td></tr>';
+        }).join('') : '<tr><td colspan="3" class="empty">لا اشتراكات.</td></tr>';
+      }
       host.innerHTML = list.length ? list.map(function (s) {
         var id = s.workspaceId || (s.workspace && s.workspace.id) || '';
         return '<tr><td>' + esc(s.workspaceName || (s.workspace && s.workspace.name) || id) + '</td>'
           + '<td>' + esc(s.tier || s.plan || '—') + '</td>'
-          + '<td class="mono">' + esc(s.expiresAt || s.currentPeriodEnd || '—') + '</td>'
+          + '<td>' + expiry(s.expiresAt || s.currentPeriodEnd) + '</td>'
           + '<td><button class="btn" data-sub="activate" data-ws="' + esc(id) + '">فعّل</button> '
           + '<button class="btn" data-sub="extend" data-ws="' + esc(id) + '">مدّد</button> '
           + '<button class="btn danger" data-sub="cancel" data-ws="' + esc(id) + '">ألغِ</button></td></tr>';
@@ -277,6 +344,14 @@ const SCRIPT = `
     window.adminFetch('/api/admin/payment-events').then(function (r) {
       var list = (r && (r.events || r.items || r)) || [];
       if (!Array.isArray(list)) list = [];
+      var pbrief = document.getElementById('pay-brief');
+      if (pbrief) {
+        pbrief.innerHTML = list.length ? list.slice(0, 6).map(function (p) {
+          return '<tr><td>' + window.adminTime(p.createdAt || p.at) + '</td>'
+            + '<td>' + esc(p.type || p.event || '') + '</td>'
+            + '<td class="mono">' + esc(p.amount != null ? p.amount : '—') + '</td></tr>';
+        }).join('') : '<tr><td colspan="3" class="empty">لا أحداث دفع.</td></tr>';
+      }
       host.innerHTML = list.length ? list.map(function (p) {
         return '<tr><td>' + window.adminTime(p.createdAt || p.at) + '</td>'
           + '<td>' + esc(p.type || p.event || '') + '</td>'
@@ -296,10 +371,19 @@ const SCRIPT = `
         return { key: k, value: list[k] };
       });
       host.innerHTML = list.length ? list.map(function (s) {
-        var v = s.value;
-        if (v && typeof v === 'object') v = JSON.stringify(v);
+        // CLASSIFIED: legitimate raw edit surface, not a key-dump.
+        //
+        // A platform setting whose stored value IS a JSON object has to be
+        // editable as that literal — summarising it would make the field
+        // unusable for the one job this row exists to do. The distinction
+        // from the defect this page family shipped is that the raw text lives
+        // in an EDITOR the operator asked for, labelled as the stored value,
+        // and never as prose presented for reading.
+        var v = editableValue(s.value);
+        var isJson = s.value && typeof s.value === 'object';
         return '<tr><td class="mono">' + esc(s.key) + '</td>'
-          + '<td><input class="inp" data-key="' + esc(s.key) + '" value="' + esc(v) + '" size="34" /></td>'
+          + '<td><input class="inp" data-key="' + esc(s.key) + '" value="' + esc(v) + '" size="34" />'
+          + (isJson ? '<div class="dim">قيمة مركّبة — تُحرَّر كنص JSON</div>' : '') + '</td>'
           + '<td><button class="btn" data-save="' + esc(s.key) + '">احفظ</button></td></tr>';
       }).join('') : '<tr><td colspan="3" class="empty">لا إعدادات مخزّنة.</td></tr>';
     }).catch(function (e) { fail('sets', e); });
@@ -329,6 +413,7 @@ export function customersWorkspacePage(): string {
     title: 'الزبائن ومساحات العمل',
     subtitle: 'من نخدم وكيف أُعدّت مساحاتهم',
     css: CSS,
+    header: HEADER,
     body: BODY,
     views: [
       { id: 'customers', label: 'الزبائن', hint: 'البحث والتفاصيل' },

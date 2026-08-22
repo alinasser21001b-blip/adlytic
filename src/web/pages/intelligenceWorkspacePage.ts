@@ -60,6 +60,16 @@ const CSS = `
          border-radius: 7px; padding: 5px 9px; font-size: 12px; font-family: inherit; }
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">مساحة الذكاء</div>
+      <div class="phead-s">ماذا تعرف أدلَيتِك، وكيف استنتجت، وماذا قرّرت — وأين تنتهي معرفتها.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/brain-observatory">مرصد الدماغ</a></div>
+  </div>
+`;
+
 const BODY = `
   <section class="view on" id="v-overview">
     <div class="grid g3">
@@ -84,6 +94,11 @@ const BODY = `
         <a class="btn btn-primary" href="/admin/brain-observatory">افتح مرصد الدماغ</a>
         <a class="btn" href="/admin/graph">اعرض الأثر على الخريطة</a>
       </div>
+    </div>
+    <div class="card">
+      <div class="card-h"><div class="h2">ما لا نعرفه بعد</div>
+        <button class="btn" data-view-jump="boundary">حدود المعرفة</button></div>
+      <div class="card-b" id="boundary-brief"><div class="skel"></div></div>
     </div>
   </section>
 
@@ -211,6 +226,13 @@ const SCRIPT = `
   document.addEventListener('ops:ready', function (e) {
     LADDER.ops = e.detail; renderLadder();
     var items = e.detail.boundary || [];
+    document.getElementById('boundary-brief').innerHTML = items.length
+      ? items.slice(0, 3).map(function (b) {
+          return '<div class="bnd"><div class="bnd-s">' + esc(b.state) + '</div>'
+            + '<div class="bnd-t">' + esc(b.subject) + '</div>'
+            + '<div class="bnd-w">' + esc(b.why) + '</div></div>';
+        }).join('')
+      : '<div class="muted">لا فجوة مسجّلة في هذه اللقطة.</div>';
     document.getElementById('boundary').innerHTML = items.length ? items.map(function (b) {
       return '<div class="bnd">'
         + '<div class="bnd-s">' + esc(b.state) + '</div>'
@@ -227,6 +249,13 @@ const SCRIPT = `
     document.getElementById('ladder').innerHTML =
       '<div class="muted">تعذّر قراءة لقطة التشغيل — لا يمكن وصف الطبقة الأولى، '
       + 'وبدونها لا معنى لحالة الطبقات فوقها.</div>';
+    document.getElementById('boundary-brief').innerHTML =
+      '<div class="muted">غير متاح — لم تُقرأ اللقطة.</div>';
+  });
+
+  document.addEventListener('click', function (e) {
+    var j = e.target.closest ? e.target.closest('[data-view-jump]') : null;
+    if (j) window.adminShowView(j.getAttribute('data-view-jump'));
   });
 
   window.adminFetch('/api/admin/brain-observatory/campaigns').then(function (r) {
@@ -251,6 +280,7 @@ export function intelligenceWorkspacePage(): string {
     title: 'مساحة الذكاء',
     subtitle: 'ماذا تعرف أدلَيتِك، وكيف استنتجت، وماذا قرّرت',
     css: CSS,
+    header: HEADER,
     body: BODY,
     views: [
       { id: 'overview', label: 'نظرة المشغّل', hint: 'التغطية والسلسلة' },

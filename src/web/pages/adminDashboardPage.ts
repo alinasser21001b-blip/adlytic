@@ -1,155 +1,92 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/web/pages/adminDashboardPage.ts
 //
-//  Platform-admin observability page.
+//  جداول الوصول والأموال وقائمة المستخدمين بتفصيلها الكامل — التفاصيل التي تكمّل «تشغيل المنصة».
 //
-//  Mirrors the visual language of dashboardPage.ts (same CSS custom
-//  properties, same sidebar/topbar layout, vanilla JS hydration). The page
-//  HTML is served to anyone who visits /admin — every piece of sensitive
-//  data is fetched from /api/admin/platform-stats which gates on
-//  `requirePlatformAdmin`. Non-admins see "Forbidden" in the content area.
+//  ── Why it renders inside the Control Plane shell ─────────────────────
 //
-//  Widgets:
-//    1. Reach card        — workspaces / accounts / active campaigns
-//    2. Money table       — one row per currency, daily + implied monthly
-//    3. Brain Health card — last-7d snapshot + narration coverage
-//    4. Cache meta footer — computedAt + fromCache badge + Refresh Now button
-//                           (POSTs /api/admin/cache/bust then refetches)
+//  This page was reachable from the Control Plane and drew its own sidebar,
+//  topbar and header. An operator who followed that link left one product and
+//  arrived in another — same platform, different application. The navigation
+//  audit named it: shell lost, context bar emptied, no active nav item.
+//
+//  Nothing it renders was removed. The detail it uniquely owns is exactly why
+//  this is a WRAP and not a redirect: deleting the route would delete the
+//  detail. What is gone is the chrome it duplicated — navigation, context,
+//  the command palette and operator identity belong to the shell, here as
+//  everywhere else.
 // ════════════════════════════════════════════════════════════════════════
 
-import { TOKENS_CSS_PATH } from '../layout';
-import { adminSurfaceNav } from './adminSurfaceNav';
+import { adminShell } from '../adminShell';
 
-export function adminDashboardPage(): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Admin — Adlytic</title>
-  <!-- Tokens + typefaces from the design system, no shell selectors.
-       This page used to carry a private copy of :root written for the
-       dark theme; when the product went light it stayed black, because
-       it was not reading the design system at all. -->
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* The page was authored against --font; the system calls it --font-body. */
+const CSS = `/* The page was authored against --font; the system calls it --font-body. */
     :root { --font: var(--font-body); }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
-
-    .app { display: none; height: 100vh; overflow: hidden; }
-    .access-gate {
-      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      color: var(--text-2); font-size: 14px; font-weight: 600;
-    }
-    .access-gate.hidden { display: none; }
-    .access-gate .gate-spinner {
-      width: 30px; height: 30px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
-    }
-    @keyframes gate-spin { to { transform: rotate(360deg); } }
-
-    .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sidebar-logo { padding: 20px 20px 16px; font-size: 18px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); letter-spacing: -0.3px; }
-    .sidebar-logo span { color: var(--accent); }
-    .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 10px 12px 4px; letter-spacing: 0.04em; }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
-
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .topbar { height: 56px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
-    .topbar-left { display: flex; align-items: center; gap: 12px; }
-    .workspace-name { font-weight: 600; font-size: 15px; color: var(--text); }
-    .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
-    .btn-logout { padding: 6px 14px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); font-size: 13px; font-weight: 500; transition: background 0.15s, color 0.15s; }
-    .btn-logout:hover { background: var(--border); color: var(--text); }
-
-    .content { flex: 1; overflow-y: auto; padding: 24px; }
-    .page-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .page-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
-
-    .state-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 16px; }
-    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .state-title { font-size: 16px; font-weight: 600; color: var(--text); }
-    .state-text { font-size: 13px; color: var(--text-2); text-align: center; max-width: 420px; }
-
-    /* Admin-specific widgets */
+button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+.access-gate.hidden { display: none; }
+@keyframes gate-spin { to { transform: rotate(360deg); }
+}
+.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+.sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.workspace-name { font-weight: 600; font-size: 15px; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
+.btn-logout { padding: 6px 14px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); font-size: 13px; font-weight: 500; transition: background 0.15s, color 0.15s; }
+.btn-logout:hover { background: var(--border); color: var(--text); }
+.page-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.page-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
+.state-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 16px; }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); }
+}
+.state-title { font-size: 16px; font-weight: 600; color: var(--text); }
+.state-text { font-size: 13px; color: var(--text-2); text-align: center; max-width: 420px; }
+/* Admin-specific widgets */
     .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 18px; }
-    .card { padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .card-title { font-size: 14px; font-weight: 600; color: var(--text); }
-    .card-meta { font-size: 12px; color: var(--text-3); }
-    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
-    .kpi { display: flex; flex-direction: column; gap: 4px; }
-    .kpi-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-value { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.1; }
-    .kpi-value.hero { font-size: 32px; color: var(--accent); }
+.card { padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.card-meta { font-size: 12px; color: var(--text-3); }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 12px; }
+.kpi { display: flex; flex-direction: column; gap: 4px; }
+.kpi-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-value { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.kpi-value.hero { font-size: 32px; color: var(--accent); }
+table.money { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.money th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); border-bottom: 1px solid var(--border); }
+table.money td { padding: 12px; border-bottom: 1px solid var(--border); }
+table.money td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
+table.money tr:last-child td { border-bottom: none; }
+table.money .ccy-badge { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: var(--accent); }
+.cache-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
+.cache-info { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-2); }
+.badge { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
+.badge-cache { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.badge-fresh { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
+.btn-refresh:hover { opacity: 0.9; }
+.btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }
+.btn-activate { padding: 6px 12px; border-radius: 6px; background: var(--success); color: #fff; font-size: 12px; font-weight: 600; }
+.btn-activate:hover { opacity: 0.9; }
+.btn-activate[disabled] { opacity: 0.5; cursor: not-allowed; }
+.badge-active { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.badge-inactive { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }`;
 
-    table.money { width: 100%; border-collapse: collapse; font-size: 13px; }
-    table.money th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    table.money td { padding: 12px; border-bottom: 1px solid var(--border); }
-    table.money td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; color: var(--text); }
-    table.money tr:last-child td { border-bottom: none; }
-    table.money .ccy-badge { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; font-weight: 700; letter-spacing: 0.5px; color: var(--accent); }
-
-    .cache-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
-    .cache-info { display: flex; align-items: center; gap: 10px; font-size: 12px; color: var(--text-2); }
-    .badge { padding: 3px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; }
-    .badge-cache { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-    .badge-fresh { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
-    .btn-refresh:hover { opacity: 0.9; }
-    .btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .btn-activate { padding: 6px 12px; border-radius: 6px; background: var(--success); color: #fff; font-size: 12px; font-weight: 600; }
-    .btn-activate:hover { opacity: 0.9; }
-    .btn-activate[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .badge-active { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .badge-inactive { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-
-    .error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
-  </style>
-</head>
-<body>
-<div class="access-gate" id="access-gate">
-  <div class="gate-spinner"></div>
-  <div>Verifying access…</div>
-</div>
-<div class="app">
-  <aside class="sidebar">
-    <div class="sidebar-logo">Ad<span>lytic</span></div>
-    <nav class="sidebar-nav">
-      ${adminSurfaceNav('observability')}
-    </nav>
-    <div class="sidebar-bottom">
-      <div class="nav-item" id="sidebar-user" style="pointer-events:none;">
-        <div class="avatar" id="sidebar-avatar">?</div>
-        <span id="sidebar-name" style="font-size:13px;color:var(--text-2);">Loading…</span>
-      </div>
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">مراقبة المنصة</div>
+      <div class="phead-s">جداول الوصول والأموال وقائمة المستخدمين بتفصيلها الكامل — التفاصيل التي تكمّل «تشغيل المنصة».</div>
     </div>
-  </aside>
+    <div class="phead-actions">
+      <button class="btn" id="btn-refresh">تحديث</button>
+      <a class="btn" href="/admin/operations">تشغيل المنصة</a>
+    </div>
+  </div>
+`;
 
-  <div class="main">
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="workspace-name">Platform Observability</span>
-      </div>
-      <div class="topbar-right">
-        <div class="avatar" id="top-avatar">?</div>
-        <button class="btn-logout" id="btn-logout">Logout</button>
-      </div>
-    </header>
-
-    <main class="content">
+const BODY = `
       <div class="page-title">Admin Dashboard</div>
       <div class="page-subtitle">Platform-wide reach, money under management, brain health</div>
 
@@ -246,11 +183,9 @@ export function adminDashboardPage(): string {
         </div>
 
       </div>
-    </main>
-  </div>
-</div>
+    `;
 
-<script>
+const SCRIPT = `
 (function() {
   function getToken() {
     try { return localStorage.getItem('adlytic_token'); } catch (e) { return null; }
@@ -460,45 +395,42 @@ export function adminDashboardPage(): string {
   async function init() {
     var token = getToken();
     if (!token) { window.location.replace('/login'); return; }
-    document.getElementById('btn-logout').addEventListener('click', logout);
-    document.getElementById('btn-refresh').addEventListener('click', function(e) {
-      bustAndReload(e.currentTarget);
-    });
+    // Logout is the shell's control now, not this page's — binding it here
+    // would fire the same handler twice.
+    var rf = document.getElementById('btn-refresh');
+    if (rf) rf.addEventListener('click', function(e) { bustAndReload(e.currentTarget); });
 
-    // Admin gate — the shell ships display:none behind a full-screen access
-    // gate; reveal it only after /api/auth/me confirms isPlatformAdmin, so a
-    // customer never sees admin structure before being redirected.
+    // The client-side access gate is gone, and deliberately so. It reached for
+    // a chrome (.app, #access-gate, #sidebar-avatar) that this page no longer
+    // owns — the Control Plane shell does — so it threw inside its own try and
+    // fell through to the error branch, which is why the page rendered an
+    // error instead of its data. Authorisation was never this gate's job:
+    // the route resolves the session server-side and redirects a non-admin to
+    // /dashboard, so this HTML only ever reaches a platform admin.
     try {
-      var me = await apiFetch('/api/auth/me');
-      if (!me || !me.isPlatformAdmin) {
-        window.location.replace('/dashboard');
-        return;
-      }
-      var accessGate = document.getElementById('access-gate');
-      if (accessGate) accessGate.classList.add('hidden');
-      document.querySelector('.app').style.display = 'flex';
-      var userName = me.name || me.email || 'Admin';
-      document.getElementById('sidebar-avatar').textContent = initials(userName);
-      document.getElementById('top-avatar').textContent = initials(userName);
-      document.getElementById('sidebar-name').textContent = userName;
-
       await loadStats();
       await loadUsers();
     } catch (err) {
       if (err && err.message === 'Unauthorized') return; // api() already redirected
-      var g = document.getElementById('access-gate');
-      if (g && !g.classList.contains('hidden')) {
-        // Could not verify admin status — show retry on the gate, never reveal chrome.
-        g.innerHTML = '<div style="max-width:320px;text-align:center;line-height:1.8;">Could not verify access. Check your connection and <a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">retry</a>.</div>';
-      } else {
-        showError('Failed to load admin stats: ' + (err.message || String(err)));
-      }
+      showError('Failed to load admin stats: ' + (err.message || String(err)));
     }
   }
 
   document.addEventListener('DOMContentLoaded', init);
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function adminDashboardPage(): string {
+  return adminShell({
+    active: 'observability',
+    title: 'مراقبة المنصة',
+    subtitle: 'جداول الوصول والأموال وقائمة المستخدمين بتفصيلها الكامل — التفاصيل التي تكمّل «تشغيل المنصة».',
+    css: CSS,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    commands: [
+      { label: 'تشغيل المنصة', href: '/admin/operations', hint: 'العمليات' },
+    ],
+  });
 }

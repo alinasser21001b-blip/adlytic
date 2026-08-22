@@ -46,6 +46,16 @@ const CSS = `
 ${GRAPH_VIEW_CSS}
 `;
 
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">الحالة الآن</div>
+      <div class="phead-s">نبض المنظومة، وما يحتاج تدخّلاً، ومن تأثّر — قبل أي شيء آخر.</div>
+    </div>
+    <div class="phead-actions"><a class="btn" href="/admin/graph">خريطة المنظومة</a></div>
+  </div>
+`;
+
 const BODY = `
   <section class="card">
     <div class="card-h"><div class="h2">نبض المنظومة</div>
@@ -182,7 +192,7 @@ const SCRIPT = `
         + '<div class="risk-sub">' + esc(w.adAccountName || 'لا حساب إعلاني') + '</div></td>'
         + '<td>' + chip(w.connection) + '</td>'
         + '<td>' + chip(w.data)
-        + (w.dataAgeDays != null ? ' <span class="muted mono">' + w.dataAgeDays + 'ي</span>' : '') + '</td>'
+        + (w.dataAgeDays != null ? ' <span class="muted"><span class="mono">' + w.dataAgeDays + '</span>\u064A</span>' : '') + '</td>'
         + '<td>' + esc(w.headline) + '</td>'
         + '</tr>';
     }).join('');
@@ -253,6 +263,7 @@ export function controlCenterPage(): string {
     title: 'الحالة الآن',
     subtitle: 'ما الذي يحدث في المنصة هذه اللحظة',
     css: CSS,
+    header: HEADER,
     body: BODY,
     script: GRAPH_VIEW_JS + SCRIPT,
     commands: [
