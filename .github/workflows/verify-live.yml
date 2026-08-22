@@ -175,7 +175,7 @@ jobs:
           # ever considered, and even those are scrubbed of anything
           # token-shaped and of the external account id before printing.
           jq -r '.data.deploymentLogs[]?.message // empty' "$BODY" \
-            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing' \
+            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: |holds this account|sync already in progress|full sync done|Auto-sync: ' \
             | sed -E -e 's/(Bearer|token|secret|key)[[:space:]=:]+[A-Za-z0-9._\-]{8,}/\1 [redacted]/gI' \
                      -e 's/\[adlytic:auto-sync:[^]]*\]/[adlytic:auto-sync:<redacted>]/g' \
                      -e 's/act_[0-9]+/act_<redacted>/g' \
@@ -224,7 +224,26 @@ jobs:
             echo "WORKER_SYNC_COMPLETED=UNPROVEN"
           fi
 
+          # PHASE MARKERS. Per backgroundScheduler.ts an account reaching Phase 2b
+          # logs EITHER "period facts:" OR "syncPeriodInsights failed (non-fatal)"
+          # — there is no silent path. Phase 3 then logs "ads:". So:
+          #   no period facts AND no syncPeriodInsights failure AND no ads
+          #     => the pass has not REACHED Phase 2b yet (still in Phase 1/2)
+          #   ads present but no period facts
+          #     => impossible per source; would mean the log was truncated
           g() { grep -q "$1" matched.txt 2>/dev/null && echo YES || echo NO; }
+          echo "ACCOUNT_LOCK_SKIPPED=$(g \"holds this account\")"
+          echo "COMPETING_QUEUE_OR_WEBHOOK_SKIP=$(g 'sync already in progress')"
+          echo "ACCOUNT_SYNC_COMPLETION_OBSERVED=$(g 'full sync done')"
+          echo "PERIOD_SYNC_EXCEPTION_OBSERVED=$(g 'syncPeriodInsights failed')"
+          echo "PHASE3_ADS_REACHED=$(g ' ads: ')"
+          if [ "$PF" -eq 0 ] && ! grep -q 'syncPeriodInsights failed' matched.txt 2>/dev/null; then
+            if grep -q ' ads: ' matched.txt 2>/dev/null; then
+              echo "PERIOD_PHASE_CLASSIFICATION=UNEXPLAINED — Phase 3 reached without a Phase 2b line; suspect log truncation (raise log_lines)"
+            else
+              echo "PERIOD_PHASE_CLASSIFICATION=PASS_STILL_BEFORE_PHASE_2B — account sync in progress, not a failure"
+            fi
+          fi
           echo "AUTO_SYNC_LOCK_SKIPPED=$(g 'Another instance holds the auto-sync lock')"
           echo "ELIGIBLE_ACCOUNT_SYNC_OBSERVED=$(g 'Syncing [0-9]* account')"
           echo "TOKEN_DECRYPT_FAILURE_OBSERVED=$(g 'token decrypt failed')"

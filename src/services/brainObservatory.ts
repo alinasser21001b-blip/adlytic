@@ -672,7 +672,13 @@ export async function buildBrainObservatory(
   // ── 1. META TRUTH — stored canonical values, copied, never recomputed. ──
   const metaFacts: ObservatoryFact[] = [
     { kind: 'OBSERVED_FACT', label: 'Impressions', value: w.cur.impressions, baseline: w.pri.impressions, source: 'daily_stats.impressions (via buildEntityFunnel)' },
-    { kind: 'OBSERVED_FACT', label: 'Reach', value: w.cur.reach, baseline: w.pri.reach, source: 'daily_stats.reach' },
+    // REACH IS NOT A DAILY VALUE. It is read from period_insights by
+    // readPeriodFact() on the exact (entityType, entityId, since, until) tuple
+    // — entityIntelligence.ts assigns `cur.reach = periodCur?.reach ?? null`
+    // and that is the only assignment. Meta de-duplicates people inside a
+    // time_range and never publishes the cross-day overlap, so no sum or max
+    // of daily rows can reconstruct it. A null here means UNKNOWN, never zero.
+    { kind: 'OBSERVED_FACT', label: 'Reach', value: w.cur.reach, baseline: w.pri.reach, source: 'period_insights.reach — Meta period fact for the exact window tuple, via readPeriodFact(). NOT daily_stats: reach is not additive. null ⇒ UNKNOWN, never 0.' },
     { kind: 'OBSERVED_FACT', label: 'Link clicks', value: w.cur.linkClicks, baseline: w.pri.linkClicks, source: 'daily_stats.link_clicks' },
     { kind: 'OBSERVED_FACT', label: 'Landing page views', value: w.cur.landingPageViews, baseline: w.pri.landingPageViews, source: 'daily_stats.landing_page_views' },
     { kind: 'OBSERVED_FACT', label: 'Messages', value: w.cur.messages, baseline: w.pri.messages, source: 'daily_stats.messages' },
@@ -694,7 +700,23 @@ export async function buildBrainObservatory(
     { kind: 'DERIVED_FACT', label: 'Link CTR (%)', value: w.linkCtrCur, baseline: w.linkCtrPri, source: 'entityIntelligence.ts::buildEntityFunnel \u2014 daily_stats.link_clicks over daily_stats.impressions, in the same percent units as the all-clicks CTR above. DERIVED: Meta\'s own inline_link_click_ctr is not requested (see DEFAULT_INSIGHT_FIELDS), so this is not a stored Meta field.' },
     { kind: 'OBSERVED_FACT', label: 'CPM (minor units)', value: w.cpmCur, baseline: w.cpmPri, source: "daily_stats.cpm — Meta's own reported value" },
     { kind: 'OBSERVED_FACT', label: 'CPC (minor units)', value: w.cpcCur, baseline: w.cpcPri, source: 'daily_stats.cpc' },
-    { kind: 'OBSERVED_FACT', label: 'Frequency', value: w.freqCur, baseline: w.freqPri, source: 'daily_stats.frequency' },
+    // Same provenance as Reach, and the same prohibition: frequency is Meta's
+    // own period value (`periodCur?.frequency ?? null`). It is never computed
+    // here from the two component metrics. Meta's own figure happens to equal
+    // that ratio over the same span, which is why the numbers agree — but
+    // deriving it locally would invent a value precisely in the case where
+    // Meta declined to supply one.
+    //
+    // (Deliberately not spelling that ratio out: a line wrapping onto `//`
+    //  followed by a metric name reads as division to the arithmetic-
+    //  containment guard in test_brain_observatory.ts, which scans the raw
+    //  file. The guard is right to be blunt; the comment can be clearer.)
+    { kind: 'OBSERVED_FACT', label: 'Frequency', value: w.freqCur, baseline: w.freqPri, source: 'period_insights.frequency — Meta period fact for the exact window tuple. NEVER derived from impressions ÷ reach. null ⇒ UNKNOWN and is a legitimate outcome.' },
+    // The provenance itself, stated rather than inferred. Without this a
+    // reviewer can only deduce "the period fact resolved" from Reach being
+    // non-null, which silently conflates "Meta said nothing" with "we never
+    // looked". UNAVAILABLE means neither window resolved a row.
+    { kind: 'OBSERVED_FACT', label: 'Period fact provenance', value: w.periodFactSource, baseline: null, source: 'entityIntelligence.ts — META_PERIOD_FACT when readPeriodFact() resolved a row for either window, UNAVAILABLE when neither did. Governs Reach and Frequency above.' },
     { kind: 'DERIVED_FACT', label: 'Primary result count', value: w.resultCur, baseline: w.resultPri, source: 'analytics/resultSemantics.ts (unit-safe)' },
     { kind: 'DERIVED_FACT', label: 'Cost per result (minor units)', value: w.costPerResultCur, baseline: w.costPerResultPri, source: 'buildEntityFunnel window context' },
   ];
