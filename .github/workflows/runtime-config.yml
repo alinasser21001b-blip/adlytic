@@ -146,13 +146,17 @@ jobs:
 
           # One upsert per service: JWT_SECRET on both, BULLMQ_ENABLED=false on
           # production only (validation already runs bullmq=disabled).
+          # replace:false is EXPLICIT, not defaulted: the proven input type
+          # carries a `replace` flag, and replace-true semantics would wipe
+          # every other variable on the service — a default is not a promise,
+          # so the non-destructive mode is stated rather than assumed.
           jq -n --rawfile v jwt.txt --arg p "$PROJECT_ID" --arg e "$ENVIRONMENT_ID" --arg s "$PROD_SERVICE_ID" \
             '{query:"mutation vc($input: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $input) }",
-              variables:{input:{projectId:$p, environmentId:$e, serviceId:$s,
+              variables:{input:{projectId:$p, environmentId:$e, serviceId:$s, replace:false,
                                 variables:{JWT_SECRET:$v, BULLMQ_ENABLED:"false"}}}}' > up_prod.json
           jq -n --rawfile v jwt.txt --arg p "$PROJECT_ID" --arg e "$ENVIRONMENT_ID" --arg s "$VAL_SERVICE_ID" \
             '{query:"mutation vc($input: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $input) }",
-              variables:{input:{projectId:$p, environmentId:$e, serviceId:$s,
+              variables:{input:{projectId:$p, environmentId:$e, serviceId:$s, replace:false,
                                 variables:{JWT_SECRET:$v}}}}' > up_val.json
           for svc in prod val; do
             gql "up_${svc}.json" > "resp_${svc}.json" || true
