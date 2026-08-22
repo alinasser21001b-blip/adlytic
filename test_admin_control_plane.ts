@@ -190,6 +190,21 @@ function run() {
       `capabilities with no Control Plane home: ${orphans.join(', ')}`);
   });
 
+  check('an unhosted capability must say WHY, classified', () => {
+    // "We did not get to it" and "a button here would be dangerous" are
+    // opposite conclusions that look identical in a table of nulls. Without
+    // this, the second decays into a to-do somebody later "fixes" by adding
+    // the button — which is how a bulk history rewrite gets a one-click UI.
+    for (const c of unhostedCapabilities()) {
+      assert.ok(c.unhostedReason, `${c.id} has no Control Plane home and no stated reason`);
+      assert.ok(c.unhostedReason!.why.trim().length > 40,
+        `${c.id}'s reason must be an argument, not a label`);
+    }
+    const reconcile = ADMIN_CAPABILITIES.find((c) => c.id === 'cap.ops.reconcileActions')!;
+    assert.equal(reconcile.unhostedReason!.kind, 'MANUAL_ONLY',
+      'a bulk rewrite of stored measurement history is manual-only, not a missing feature');
+  });
+
   check('every domain actually holds capabilities', () => {
     for (const s of ADMIN_IA) {
       const domain = s.key === 'CONTROL_CENTER' ? 'CONTROL_CENTER' : s.key;

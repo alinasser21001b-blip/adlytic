@@ -38,6 +38,21 @@ const CSS = `
   .bnd-t { font-weight: 700; font-size: 12.5px; margin-top: 3px; }
   .bnd-w { font-size: 11.5px; color: var(--text-2); margin-top: 4px; }
   .bnd-r { font-size: 11.5px; margin-top: 5px; }
+  /* The epistemic ladder, ported from the Admin OS. The connector arrow IS
+     the argument: each layer rests on the one below, and a break anywhere
+     below invalidates everything above it. */
+  .ladder { display: flex; flex-direction: column; }
+  .rung { border: 1px solid var(--border); border-radius: 11px; background: var(--surface);
+          padding: 13px 15px; position: relative; }
+  .rung + .rung { margin-top: 21px; }
+  .rung + .rung::before { content: '\\2193'; position: absolute; top: -18px; inset-inline-end: 26px;
+                          color: var(--text-3); font-size: 15px; }
+  .rung-n { font-size: 10px; font-weight: 800; color: var(--text-3); letter-spacing: 0.08em; }
+  .rung-t { font-size: 14.5px; font-weight: 800; margin: 3px 0 6px;
+            display: flex; align-items: center; gap: 8px; }
+  .rung-d { font-size: 12.5px; color: var(--text-2); line-height: 1.7; }
+  .rung-ex { margin-top: 8px; padding-top: 8px; border-top: 1px dashed var(--border); }
+  .rung-lbl { font-size: 10px; font-weight: 800; color: var(--text-3); letter-spacing: 0.05em; }
   .chain { display: flex; gap: 5px; flex-wrap: wrap; }
   .chain span { border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px;
                 font-size: 10.5px; font-family: var(--font-mono); }
@@ -72,6 +87,15 @@ const BODY = `
     </div>
   </section>
 
+  <section class="view" id="v-ladder">
+    <p class="muted" style="line-height:1.8;margin-bottom:16px;max-width:72ch;">
+      كل رقم يعرضه Adlytic يقع على واحدة من أربع طبقات. الخلط بينها هو أصل
+      «أنا أشكّ بالأرقام» — فرقمٌ مُلاحَظ ورقمٌ مُستنتَج يبدوان متطابقين على الشاشة
+      بينما يستحقان ثقتين مختلفتين تماماً. هذه الصفحة تفصلهما.
+    </p>
+    <div class="ladder" id="ladder"><div class="skel"></div></div>
+  </section>
+
   <section class="view" id="v-boundary">
     <div class="card">
       <div class="h2">حدود المعرفة</div>
@@ -98,7 +122,80 @@ const SCRIPT = `
     });
   }
 
+  var GLYPH = { ok: '●', warn: '▲', bad: '■', absent: '◌' };
+  var TONE = {
+    HEALTHY: ['ok', 'سليم'], DEGRADED: ['warn', 'متدهور'], WARNING: ['warn', 'يحتاج نظراً'],
+    ERROR: ['bad', 'فاشل'], UNKNOWN: ['absent', 'غير معروف'], NOT_TESTED: ['absent', 'لم يُختبر']
+  };
+  function chip(s) {
+    var m = TONE[s] || ['absent', s];
+    return '<span class="st-chip st-' + m[0] + '" title="' + esc(s) + '">'
+      + '<span class="st-glyph">' + GLYPH[m[0]] + '</span>' + esc(m[1]) + '</span>';
+  }
+
+  /**
+   * The epistemic ladder — ported from the Admin OS, unchanged in substance.
+   *
+   * It is the operator-facing form of the chain the acceptance brief names:
+   * observed fact → derived signal → interpretation → recommendation. Each
+   * rung's state comes from evidence we already hold — a count of fresh
+   * accounts from the ops snapshot, narration coverage from platform stats —
+   * and the top two rungs stay NOT_TESTED because no live check exists. That
+   * is the honest answer, not a gap to paper over, and it is why this belongs
+   * beside the knowledge boundary rather than on a status page.
+   */
+  var LADDER = { ops: null, stats: null };
+  function renderLadder() {
+    var host = document.getElementById('ladder');
+    if (!host) return;
+    var o = LADDER.ops, st = LADDER.stats;
+    if (!o && !st) return;
+    var wss = o ? (o.workspaces || []) : [];
+    var fresh = wss.filter(function (w) { return w.data === 'HEALTHY'; }).length;
+    var connected = wss.filter(function (w) { return w.adAccountId; }).length;
+    var cov = st && st.brain ? st.brain.narrationCoveragePct : null;
+    var snaps = st && st.brain ? st.brain.snapshotsLastNDays : 0;
+
+    var rungs = [
+      { n: '١ · OBSERVED FACT', t: 'واقعة مرصودة',
+        d: 'ما قالته Meta حرفياً، أو ما قرأناه من قاعدة بياناتنا. لا تفسير، لا حساب.',
+        state: connected ? (fresh ? 'HEALTHY' : 'WARNING') : 'NOT_TESTED',
+        ev: connected ? (fresh + ' من ' + connected + ' حساب ببيانات طازجة')
+                      : 'لا حساب إعلاني مرتبط — لا وقائع تُرصَد',
+        note: 'المصدر: daily_stats · sync_jobs · ad_accounts' },
+      { n: '٢ · DERIVED SIGNAL', t: 'إشارة مشتقّة',
+        d: 'ما حسبناه نحن من الوقائع: CTR، التكرار، الاتجاهات. صحيحة حسابياً بقدر صحّة مدخلاتها فقط.',
+        state: fresh ? 'HEALTHY' : connected ? 'DEGRADED' : 'NOT_TESTED',
+        ev: fresh ? 'تُحسب من الحسابات الطازجة أعلاه'
+                  : 'بلا بيانات طازجة تحتها، أي إشارة مشتقّة تصف الماضي لا الحاضر',
+        note: 'الاعتماد: كل ما في الطبقة ١' },
+      { n: '٣ · INTERPRETATION', t: 'تفسير',
+        d: 'حكم النظام على الإشارات: «إرهاق إعلان»، «تشبّع جمهور». هنا يبدأ الاستدلال، وهنا يبدأ احتمال الخطأ.',
+        state: 'NOT_TESTED',
+        ev: snaps ? (snaps + ' لقطة · تغطية سردية ' + (cov == null ? '—' : cov + '%'))
+                  : 'لا لقطات في نافذة الرصد',
+        note: 'لا فحص حيّ لصحّة محرّك التفسير — التغطية السردية مؤشر جانبي، لا قياس' },
+      { n: '٤ · RECOMMENDATION', t: 'توصية',
+        d: 'ما نطلب من التاجر فعله. لا تكون أقوى من التفسير تحتها، ولا التفسير أقوى من إشارته.',
+        state: 'NOT_TESTED',
+        ev: 'لم تُقَس دقّة التوصيات مقابل نتائج حقيقية',
+        note: 'يُحسم بـ: تتبّع أثر التوصيات المطبَّقة — غير مبنيّ' }
+    ];
+
+    host.innerHTML = rungs.map(function (r) {
+      return '<div class="rung">'
+        + '<div class="rung-n">' + esc(r.n) + '</div>'
+        + '<div class="rung-t">' + esc(r.t) + chip(r.state) + '</div>'
+        + '<div class="rung-d">' + esc(r.d) + '</div>'
+        + '<div class="rung-ex"><div class="rung-lbl">ما نعرفه الآن</div>'
+        + '<div class="rung-d">' + esc(r.ev) + '</div>'
+        + '<div class="muted" style="margin-top:5px;line-height:1.7;">' + esc(r.note) + '</div>'
+        + '</div></div>';
+    }).join('');
+  }
+
   window.adminFetch('/api/admin/platform-stats').then(function (s) {
+    LADDER.stats = s; renderLadder();
     var b = (s && s.brain) || {};
     document.getElementById('k-snap').textContent = b.snapshotsLastNDays != null ? b.snapshotsLastNDays : '—';
     document.getElementById('k-narr').textContent = b.narrationsLastNDays != null ? b.narrationsLastNDays : '—';
@@ -112,6 +209,7 @@ const SCRIPT = `
   });
 
   document.addEventListener('ops:ready', function (e) {
+    LADDER.ops = e.detail; renderLadder();
     var items = e.detail.boundary || [];
     document.getElementById('boundary').innerHTML = items.length ? items.map(function (b) {
       return '<div class="bnd">'
@@ -126,6 +224,9 @@ const SCRIPT = `
   document.addEventListener('ops:failed', function () {
     document.getElementById('boundary').innerHTML =
       '<div class="muted">تعذّر قراءة لقطة التشغيل — حدود المعرفة غير متاحة.</div>';
+    document.getElementById('ladder').innerHTML =
+      '<div class="muted">تعذّر قراءة لقطة التشغيل — لا يمكن وصف الطبقة الأولى، '
+      + 'وبدونها لا معنى لحالة الطبقات فوقها.</div>';
   });
 
   window.adminFetch('/api/admin/brain-observatory/campaigns').then(function (r) {
@@ -153,11 +254,13 @@ export function intelligenceWorkspacePage(): string {
     body: BODY,
     views: [
       { id: 'overview', label: 'نظرة المشغّل', hint: 'التغطية والسلسلة' },
+      { id: 'ladder', label: 'السلّم المعرفي', hint: 'واقعة → إشارة → تفسير → توصية' },
       { id: 'boundary', label: 'حدود المعرفة', hint: 'ما لا نعرفه' },
       { id: 'campaigns', label: 'الحملات', hint: 'قابلة للفحص العميق' },
     ],
     script: SCRIPT,
     commands: [
+      { label: 'السلّم المعرفي', href: '#ladder', hint: 'الذكاء' },
       { label: 'حدود المعرفة', href: '#boundary', hint: 'الذكاء' },
       { label: 'مرصد الدماغ', href: '/admin/brain-observatory', hint: 'فحص عميق' },
     ],

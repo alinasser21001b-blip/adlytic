@@ -93,6 +93,19 @@ export interface AdminCapability {
    * being deprecated. Never fill this in optimistically.
    */
   controlPlaneRoute: string | null;
+  /**
+   * Why a capability has no Control Plane home, classified.
+   *
+   * Required whenever `controlPlaneRoute` is null, and asserted — because
+   * "we did not get to it" and "a button here would be dangerous" are
+   * opposite conclusions that look identical in a table of nulls, and the
+   * second one must not silently decay into a to-do somebody later "fixes"
+   * by adding the button.
+   */
+  unhostedReason?: {
+    kind: 'INTERNAL_DETAIL' | 'NEEDS_UI' | 'OBSOLETE' | 'MANUAL_ONLY' | 'FUTURE';
+    why: string;
+  };
 }
 
 import { adminDestinations } from './adminSurfaceNav';
@@ -331,6 +344,14 @@ export const ADMIN_CAPABILITIES: AdminCapability[] = [
     // Deliberately null: it has no operator surface today, in either console.
     // Recording it as hosted would be the exact dishonesty this file prevents.
     controlPlaneRoute: null,
+    unhostedReason: {
+      kind: 'MANUAL_ONLY',
+      why: 'يعيد كتابة وقائع قياس تاريخية مخزّنة بالجملة. المسار مصمَّم للاستخدام '
+        + 'اليدوي عمداً: تشغيل جاف افتراضياً، و{"apply":true} مطلوب للكتابة، وترقيم '
+        + 'بالمؤشّر بحدّ أقصى 5000 صف. الاحتكاك هو الميزة — زرّ واحد في لوحة التحكّم '
+        + 'يحذف الخطوة التي يرى فيها المشغّل الأثر قبل أن يلتزم به. يُشغَّل بعد تصحيح '
+        + 'في المُخطِّط، وهي حالة نادرة يراجعها إنسان.',
+    },
   }),
 
   // ── CUSTOMERS & WORKSPACES ────────────────────────────────────────────
