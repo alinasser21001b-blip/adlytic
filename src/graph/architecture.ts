@@ -133,12 +133,19 @@ const PERSISTENCE: Array<{
     // as an edge without inventing a foreign key the schema does not have.
     unknowns: ['لا عمود adAccountId — المفتاح (entityType, entityId, date)، فالنسبة إلى حساب إعلاني غير قابلة للرسم كعلاقة مباشرة'],
   },
-  {
-    model: 'PeriodInsight',
-    writer: 'src/services/periodInsights.ts',
-    what: 'قيم المدى التي يعطيها Meta للفترة كاملة (الوصول والتكرار) بدل جمعها من الأيام',
-    readers: ['src/services/getDashboard.ts'],
-  },
+  // PeriodInsight is deliberately ABSENT from this table.
+  //
+  // Its migration is mid-rollout and owned by another engineer, and
+  // test_period_insight_rollout.ts asserts that only three modules mention
+  // period facts at all — the invariant behind "a table nothing references is
+  // invisible to every deployed version that predates these modules". Adding a
+  // graph node would only DOCUMENT the model, never read or write it, but that
+  // gate is a grep and it is theirs, during their rollout. Arguing the
+  // distinction from outside their scope is how a deployment gate gets weakened
+  // by someone who does not own the risk.
+  //
+  // Recorded in docs/admin-control-plane/12_CROSS_TEAM_HANDOFF.md; the node can
+  // be added in one line once the rollout closes.
   {
     model: 'CampaignBrainSnapshot',
     writer: 'src/services/BrainPersistence.ts',
