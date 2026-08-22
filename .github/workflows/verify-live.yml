@@ -175,7 +175,7 @@ jobs:
           # ever considered, and even those are scrubbed of anything
           # token-shaped and of the external account id before printing.
           jq -r '.data.deploymentLogs[]?.message // empty' "$BODY" \
-            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: ' \
+            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: |holds this account|sync already in progress|full sync done|Auto-sync: ' \
             | sed -E -e 's/(Bearer|token|secret|key)[[:space:]=:]+[A-Za-z0-9._\-]{8,}/\1 [redacted]/gI' \
                      -e 's/\[adlytic:auto-sync:[^]]*\]/[adlytic:auto-sync:<redacted>]/g' \
                      -e 's/act_[0-9]+/act_<redacted>/g' \
@@ -232,6 +232,9 @@ jobs:
           #   ads present but no period facts
           #     => impossible per source; would mean the log was truncated
           g() { grep -q "$1" matched.txt 2>/dev/null && echo YES || echo NO; }
+          echo "ACCOUNT_LOCK_SKIPPED=$(g \"holds this account\")"
+          echo "COMPETING_QUEUE_OR_WEBHOOK_SKIP=$(g 'sync already in progress')"
+          echo "ACCOUNT_SYNC_COMPLETION_OBSERVED=$(g 'full sync done')"
           echo "PERIOD_SYNC_EXCEPTION_OBSERVED=$(g 'syncPeriodInsights failed')"
           echo "PHASE3_ADS_REACHED=$(g ' ads: ')"
           if [ "$PF" -eq 0 ] && ! grep -q 'syncPeriodInsights failed' matched.txt 2>/dev/null; then
