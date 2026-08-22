@@ -425,24 +425,41 @@ jobs:
           curl -sS --max-time 60 -o "$OUT" -X POST "https://backboard.railway.app/graphql/v2" \
             -H @"$HDR" -H "Content-Type: application/json" \
             -d "$(jq -n --arg q "$Q" --arg s "$SERVICE_ID" --arg e "$ENVIRONMENT_ID" \
-                  '{query:$q, variables:{input:{serviceId:$s, environmentId:$e}, first:6}}')" || true
+                  '{query:$q, variables:{input:{serviceId:$s, environmentId:$e}, first:25}}')" || true
           if jq -e '.errors' "$OUT" >/dev/null 2>&1; then
             echo "DEPLOYMENT_STATUS_READ=REJECTED — $(jq -r '[.errors[].message]|join("; ")' "$OUT" | head -c 200)"
             exit 0
           fi
           echo "DEPLOYMENT_STATUS_READ=OK"
+          FETCHED=$(jq -r '[.data.deployments.edges[]?] | length' "$OUT" 2>/dev/null || echo 0)
+          echo "DEPLOYMENTS_FETCHED=${FETCHED:-0}"
           echo "── recent deployments (id, status, createdAt, commit — no other field printed)"
           jq -r '.data.deployments.edges[]?.node
                  | [.id, .status, .createdAt, ((.meta.commitHash // "")[0:7])] | @tsv' "$OUT" 2>/dev/null \
-            | head -6 || echo "  (none)"
+            | head -12 || echo "  (none)"
 
           # A queue that is not moving is its own finding, and it reads
           # identically to a slow build unless it is counted.
+          #
+          # COUNTED OVER THE WHOLE FETCHED PAGE, and the page size is stated.
+          # The first version of this fetched 6 and printed the count without
+          # saying so; two SKIPPED rows then pushed the oldest QUEUED
+          # deployment out of the window and the number fell from 4 to 3 while
+          # nothing had actually drained. A count whose denominator moves is
+          # the "all clear because I have no data" failure in miniature, and it
+          # nearly got read as progress.
           QN=$(jq -r '[.data.deployments.edges[]?.node | select(.status=="QUEUED")] | length' "$OUT" 2>/dev/null || echo 0)
-          echo "DEPLOYMENTS_QUEUED=${QN:-0}"
-          if [ "${QN:-0}" -ge 2 ]; then
-            echo "DEPLOY_QUEUE_STATE=BACKLOG — more than one build is waiting; a new trigger will"
-            echo "  join the queue rather than replace it, so triggering again does not help."
+          echo "DEPLOYMENTS_QUEUED=${QN:-0} (of ${FETCHED:-0} most recent)"
+          OLDEST_Q=$(jq -r '[.data.deployments.edges[]?.node | select(.status=="QUEUED") | .createdAt] | sort | .[0] // "none"' "$OUT" 2>/dev/null || echo none)
+          echo "OLDEST_QUEUED_AT=${OLDEST_Q}"
+          BN=$(jq -r '[.data.deployments.edges[]?.node | select(.status=="BUILDING")] | length' "$OUT" 2>/dev/null || echo 0)
+          echo "DEPLOYMENTS_BUILDING=${BN:-0}"
+          if [ "${QN:-0}" -ge 2 ] && [ "${BN:-0}" -eq 0 ]; then
+            echo "DEPLOY_QUEUE_STATE=STALLED — builds are waiting and none is running. A new"
+            echo "  trigger joins the queue rather than replacing it, so triggering again does"
+            echo "  not help; this was tried and produced one more queued deployment."
+          elif [ "${QN:-0}" -ge 2 ]; then
+            echo "DEPLOY_QUEUE_STATE=BACKLOG — more than one build is waiting, one is running."
           else
             echo "DEPLOY_QUEUE_STATE=CLEAR"
           fi
