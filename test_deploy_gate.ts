@@ -306,6 +306,31 @@ function main() {
         else bad('deploymentLogs is read without an allowlist filter — raw log could reach a public log');
       }
 
+      // A BUILD log is the other log this workflow can reach, and it is the
+      // more dangerous one: a build echoes its own environment. Two conditions,
+      // both structural.
+      const BUILD_LOG_FIELDS = ['buildLogs', 'deploymentBuildLogs'];
+      if (BUILD_LOG_FIELDS.some((f) => body.includes(f))) {
+        // 1. The field must be PROVEN by introspection before it is called.
+        //    Querying a guessed field returns an error, and an error path that
+        //    prints "0 warnings" would be a false clean — the exact false-green
+        //    shape this gate exists to stop.
+        if (body.includes('__schema')) {
+          ok('the build-log field is proven by introspection before it is queried');
+        } else {
+          bad('a build-log field is queried without introspecting for it — a guessed field '
+            + 'would answer with an error that could be misread as a clean build');
+        }
+        // 2. Build log output must be reduced to bare identifiers. An allowlist
+        //    is not enough here: allowlists sanitise lines, and a build line can
+        //    carry a value beside the name it matched on.
+        if (/grep -oaE '\(ARG\|ENV\) "\[A-Z\]/.test(body)) {
+          ok('build-log output is reduced to variable NAMES — no log line can be printed');
+        } else {
+          bad('build-log messages are printed without being reduced to bare identifiers');
+        }
+      }
+
       if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
       else bad('verify-live.yml is not dispatch-only — an observation job must not self-trigger');
     }

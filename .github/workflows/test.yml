@@ -53,6 +53,7 @@ on:
   push:
     branches:
       - claude/brain-admin-v2-integration
+      - claude/adlytic-graphify-analysis-ai34bu
     paths:
       - 'src/**'
       - 'prisma/**'
