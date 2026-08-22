@@ -18,7 +18,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && node dist/src/api/serve.js",
+    "startCommand": "node .deploy/start.js",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 60,
     "overlapSeconds": 30,
