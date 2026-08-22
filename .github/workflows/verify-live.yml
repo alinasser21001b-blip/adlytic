@@ -58,16 +58,24 @@ jobs:
           jq . body.json 2>/dev/null || cat body.json || true
           echo ""
           echo "── the fields the close gates actually ask for"
-          jq -r '
-            "status              = \(.status // "ABSENT")",
-            "db                  = \(.db // "ABSENT")",
-            "role                = \(.role // "ABSENT")",
-            "runsBackgroundSync  = \(.runsBackgroundSync // "ABSENT")",
-            "bullmq              = \(.bullmq // "ABSENT")",
-            "build.resolved      = \(.build.resolved // "ABSENT")",
-            "build.commit        = \(.build.commit // "ABSENT")",
-            "build.shortCommit   = \(.build.shortCommit // "ABSENT")",
-            "build.branch        = \(.build.branch // "ABSENT")"
+          # `// "ABSENT"` must NOT be used here. jq's alternative operator
+          # treats `false` as empty, so a genuine `false` would print as
+          # ABSENT — and the two values that matter most on this page,
+          # runsBackgroundSync and build.resolved, are booleans. Reporting
+          # `resolved: false` as "ABSENT" would hide the exact wrong-source
+          # case the note below tells the reader to escalate. `has()`
+          # distinguishes a missing key from a present-and-false one.
+          jq -r 'def f(k): if has(k) then (.[k]|tostring) else "ABSENT" end;
+            def b(k): (.build // {}) | if has(k) then (.[k]|tostring) else "ABSENT" end;
+            "status              = \(f("status"))",
+            "db                  = \(f("db"))",
+            "role                = \(f("role"))",
+            "runsBackgroundSync  = \(f("runsBackgroundSync"))",
+            "bullmq              = \(f("bullmq"))",
+            "build.resolved      = \(b("resolved"))",
+            "build.commit        = \(b("commit"))",
+            "build.shortCommit   = \(b("shortCommit"))",
+            "build.branch        = \(b("branch"))"
           ' body.json 2>/dev/null || echo "  (no JSON body to read fields from)"
           echo ""
           echo "NOTE: an ABSENT build object means the running artifact was not"
@@ -87,11 +95,15 @@ jobs:
           jq . vbody.json 2>/dev/null || cat vbody.json || true
           echo ""
           echo "── the validation service must stay a READER"
-          jq -r '
-            "role                = \(.role // "ABSENT")        (must be: api)",
-            "runsBackgroundSync  = \(.runsBackgroundSync // "ABSENT")        (must be: false)",
-            "bullmq              = \(.bullmq // "ABSENT")        (must be: disabled)",
-            "build.shortCommit   = \(.build.shortCommit // "ABSENT")"
+          # has(), not `//` — see the note on the production step. This block
+          # asserts runsBackgroundSync is FALSE, so a reader that cannot tell
+          # false from absent is useless exactly where it is needed.
+          jq -r 'def f(k): if has(k) then (.[k]|tostring) else "ABSENT" end;
+            def b(k): (.build // {}) | if has(k) then (.[k]|tostring) else "ABSENT" end;
+            "role                = \(f("role"))        (must be: api)",
+            "runsBackgroundSync  = \(f("runsBackgroundSync"))        (must be: false)",
+            "bullmq              = \(f("bullmq"))        (must be: disabled)",
+            "build.shortCommit   = \(b("shortCommit"))"
           ' vbody.json 2>/dev/null || echo "  (no JSON body to read fields from)"
 
       - name: What this run did and did not prove
