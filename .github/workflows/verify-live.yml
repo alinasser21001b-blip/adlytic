@@ -459,21 +459,27 @@ jobs:
           echo "BUILD_LOG_LINES=$(wc -l < blog.txt | tr -d ' ')"
           echo "── matched failure signatures (names and counts only)"
           hit=0
-          while IFS='|' read -r name pat; do
-            n=$(grep -acE "$pat" blog.txt 2>/dev/null || true); n=${n:-0}
-            if [ "$n" -gt 0 ]; then echo "  ${name}=${n}"; hit=1; fi
-          done <<'SIGS'
-          DOCKERFILE_PARSE|dockerfile parse error|unknown instruction|failed to read dockerfile
+          # NOT a heredoc. A heredoc terminator has to sit at column 0, which
+          # would close this YAML block scalar early — the same trap that broke
+          # this file once before. The signature table is a single newline-
+          # separated string fed through a pipe instead.
+          SIGS='DOCKERFILE_PARSE|dockerfile parse error|unknown instruction|failed to read dockerfile
           BUILDER_UNKNOWN|[Uu]nknown builder|builder not supported|invalid builder
           BASE_IMAGE_PULL|manifest unknown|failed to resolve source metadata|pull access denied
-          APT_FAILED|E: Unable to locate package|apt-get.*Error|Could not resolve .deb.debian.org
+          APT_FAILED|E: Unable to locate package|Could not resolve .deb.debian.org
           NPM_FAILED|npm ERR!|npm error
           TSC_FAILED|error TS[0-9]+
           PRISMA_FAILED|Error: Prisma|prisma:error
           OOM_OR_DISK|no space left on device|Killed|out of memory
-          EXECUTOR_FAILED|executor failed running|process .* did not complete successfully|failed to solve
-          TIMEOUT|context deadline exceeded|build timed out
-SIGS
+          EXECUTOR_FAILED|executor failed running|did not complete successfully|failed to solve
+          TIMEOUT|context deadline exceeded|build timed out'
+          while IFS= read -r row; do
+            row="$(printf '%s' "$row" | sed -E 's/^[[:space:]]+//')"
+            [ -z "$row" ] && continue
+            name="${row%%|*}"; pat="${row#*|}"
+            n=$(grep -acE "$pat" blog.txt 2>/dev/null || true); n=${n:-0}
+            if [ "$n" -gt 0 ]; then echo "  ${name}=${n}"; hit=1; fi
+          done <<< "$SIGS"
           [ "$hit" -eq 0 ] && echo "  (no known signature matched — the failure is outside this closed set)"
           echo "BUILD_FAILURE_CLASSIFY=DONE"
 
