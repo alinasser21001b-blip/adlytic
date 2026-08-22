@@ -1,172 +1,113 @@
 // ════════════════════════════════════════════════════════════════════════
-//  src/web/pages/brainObservatoryPage.ts — THE BRAIN'S X-RAY VIEW
+//  src/web/pages/brainObservatoryPage.ts
 //
-//  Developer/admin-only inspector for how the Brain reached a conclusion on
-//  ONE campaign. Not a dashboard, not a merchant surface, not a redesign.
+//  BRAIN OBSERVATORY — /admin/brain-observatory.
 //
-//  Ten panes, in chain order:
-//    1 OBJECT IDENTITY → 2 TEMPORAL TRUTH → 3 META TRUTH → 4 SEMANTICS
-//    → 5 ANOMALIES → 6 EVIDENCE → 7 DIAGNOSIS → 8 DECISION
-//    → 9 LLM LAYER → 10 TRACE
+//  Read-only X-ray of how the Brain reached its conclusion for one campaign.
+//  Every value is printed verbatim from the canonical engines; this page
+//  computes nothing.
 //
-//  IDENTITY and TEMPORAL TRUTH lead deliberately. Every question the panes
-//  below answer is meaningless until "which entity, at which level, over
-//  which days?" is settled, and both were previously left implicit.
+//  ── Why it now renders inside the Control Plane shell ─────────────────
 //
-//  ── FRONTEND CONTRACT ─────────────────────────────────────────────────
+//  This is a SIDEBAR DESTINATION, not a legacy route — and it used to draw
+//  its own sidebar, its own topbar and its own page header. The navigation
+//  transition audit caught the consequence: clicking "مرصد الدماغ" from the
+//  Control Center lost the shell, emptied the context bar and left no nav item
+//  active. The operator was silently moved into a different-looking product
+//  while believing they were still in the same one.
 //
-//  This page RENDERS. It does not reason. Every number, verdict and label
-//  below is printed verbatim from /api/admin/brain-observatory/:campaignId,
-//  which is assembled by services/brainObservatory.ts out of the canonical
-//  engines. The client-side JS here contains no threshold, no ratio, no
-//  metric arithmetic, and no objective/family mapping — deliberately, and
-//  test_brain_observatory.ts fails the build if any appears.
-//
-//  Fact kinds are colour-coded so a reviewer can see at a glance which
-//  statements are measured, which are inferred, and which are LLM prose:
-//    OBSERVED_FACT · DERIVED_FACT · ANOMALY · DIAGNOSIS
-//    RECOMMENDATION · DO_NOT_DO · LLM_EXPLANATION · NOT_MEASURED
+//  The reasoning-chain UI below is unchanged. What was removed is the chrome
+//  it duplicated: the shell owns navigation, context, the command palette and
+//  the operator identity, here as everywhere else.
 // ════════════════════════════════════════════════════════════════════════
 
-import { TOKENS_CSS_PATH } from '../layout';
-import { adminSurfaceNav } from './adminSurfaceNav';
+import { adminShell } from '../adminShell';
 
-export function brainObservatoryPage(): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Brain Observatory — Adlytic</title>
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root { --font: var(--font-body); }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
-
-    .app { display: flex; height: 100vh; overflow: hidden; }
-    .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sidebar-logo { padding: 20px 20px 16px; font-size: 18px; font-weight: 700; border-bottom: 1px solid var(--border); letter-spacing: -0.3px; }
-    .sidebar-logo span { color: var(--accent); }
-    .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
-    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 10px 12px 4px; letter-spacing: 0.04em; }
-
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .topbar { height: 56px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; gap: 16px; }
-    .topbar-title { font-weight: 600; font-size: 15px; }
-    .content { flex: 1; overflow-y: auto; padding: 24px; }
-    .page-title { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
-    .page-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 20px; }
-
-    select#campaign-picker { min-width: 320px; max-width: 46vw; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; }
-    .btn { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; }
-    .btn:hover { opacity: 0.9; }
-    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-
-    .spinner { width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .state-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; gap: 14px; }
-    .state-text { font-size: 13px; color: var(--text-2); text-align: center; max-width: 460px; }
-    .error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
-
-    /* Chain panes */
+const CSS = `:root { --font: var(--font-body); }
+button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+select#campaign-picker { min-width: 320px; max-width: 46vw; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-2); color: var(--text); font-size: 13px; }
+.btn { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; }
+.btn:hover { opacity: 0.9; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.spinner { width: 34px; height: 34px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); }
+}
+.state-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 280px; gap: 14px; }
+.state-text { font-size: 13px; color: var(--text-2); text-align: center; max-width: 460px; }
+.error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
+/* Chain panes */
     .stage { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-bottom: 14px; overflow: hidden; }
-    .stage-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
-    .stage-num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .stage-title { font-size: 13.5px; font-weight: 700; letter-spacing: 0.02em; }
-    .stage-meta { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
-    .stage-body { padding: 14px 16px; }
-
-    table.facts { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    table.facts th { text-align: left; padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    table.facts td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    table.facts tr:last-child td { border-bottom: none; }
-    td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-    td.src { color: var(--text-3); font-size: 11px; font-family: var(--font-mono, monospace); }
-
-    .kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
-    .kind-OBSERVED_FACT   { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .kind-DERIVED_FACT    { background: var(--accent-dim);  color: var(--accent);  border: 1px solid var(--accent); }
-    .kind-ANOMALY         { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-    .kind-DIAGNOSIS       { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-    .kind-RECOMMENDATION  { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .kind-DO_NOT_DO       { background: var(--error-dim);   color: var(--error);   border: 1px solid var(--error); }
-    .kind-LLM_EXPLANATION { background: var(--surface-2);   color: var(--text-3);  border: 1px dashed var(--text-3); }
-    .kind-NOT_MEASURED    { background: var(--surface-2);   color: var(--text-3);  border: 1px dashed var(--border); }
-
-    /* Action states: an endorsement and a mere absence of veto must not look alike. */
+.stage-head { display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.stage-num { width: 22px; height: 22px; border-radius: 50%; background: var(--accent); color: #fff; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.stage-title { font-size: 13.5px; font-weight: 700; letter-spacing: 0.02em; }
+.stage-meta { margin-left: auto; font-size: 11.5px; color: var(--text-3); }
+.stage-body { padding: 14px 16px; }
+table.facts { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.facts th { text-align: left; padding: 7px 10px; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); border-bottom: 1px solid var(--border); }
+table.facts td { padding: 8px 10px; border-bottom: 1px solid var(--border); vertical-align: top; }
+table.facts tr:last-child td { border-bottom: none; }
+td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+td.src { color: var(--text-3); font-size: 11px; font-family: var(--font-mono, monospace); }
+.kind { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
+.kind-OBSERVED_FACT   { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.kind-DERIVED_FACT    { background: var(--accent-dim);  color: var(--accent);  border: 1px solid var(--accent); }
+.kind-ANOMALY         { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.kind-DIAGNOSIS       { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.kind-RECOMMENDATION  { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.kind-DO_NOT_DO       { background: var(--error-dim);   color: var(--error);   border: 1px solid var(--error); }
+.kind-LLM_EXPLANATION { background: var(--surface-2);   color: var(--text-3);  border: 1px dashed var(--text-3); }
+.kind-NOT_MEASURED    { background: var(--surface-2);   color: var(--text-3);  border: 1px dashed var(--border); }
+/* Action states: an endorsement and a mere absence of veto must not look alike. */
     .st { display: inline-block; padding: 2px 7px; border-radius: 5px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.04em; white-space: nowrap; }
-    .st-RECOMMENDED { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .st-NOT_VETOED  { background: transparent; color: var(--text-3); border: 1px dashed var(--text-3); }
-    .st-FORBIDDEN   { background: var(--error-dim); color: var(--error); border: 1px solid var(--error); }
-    .st-AUTHORITY_INVARIANT_VIOLATION { background: var(--error); color: #fff; border: 1px solid var(--error); }
+.st-RECOMMENDED { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.st-NOT_VETOED  { background: transparent; color: var(--text-3); border: 1px dashed var(--text-3); }
+.st-FORBIDDEN   { background: var(--error-dim); color: var(--error); border: 1px solid var(--error); }
+.st-AUTHORITY_INVARIANT_VIOLATION { background: var(--error); color: #fff; border: 1px solid var(--error); }
+.dates { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.date-chip { padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-family: var(--font-mono, monospace); background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.date-chip.absent { background: var(--surface-2); color: var(--text-3); border: 1px dashed var(--text-3); }
+.basis { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-left: 2px solid var(--border); padding-left: 10px; }
+.trace-step.absent .trace-layer { color: var(--text-3); }
+.trace-src { font-size: 10.5px; color: var(--text-3); font-family: var(--font-mono, monospace); margin-top: 3px; }
+.counter-item { border-left: 2px solid var(--warning); padding: 6px 0 6px 10px; margin-bottom: 8px; font-size: 12.5px; }
+.pill { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.pill-ok    { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.pill-warn  { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.pill-bad   { background: var(--error-dim);   color: var(--error);   border: 1px solid var(--error); }
+.pill-muted { background: var(--surface-2);   color: var(--text-2);  border: 1px solid var(--border); }
+.kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
+.kv-item { display: flex; flex-direction: column; gap: 3px; }
+.kv-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+.kv-value { font-size: 15px; font-weight: 700; }
+.llm-box { padding: 12px 14px; border: 1px dashed var(--text-3); border-radius: 8px; background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1.7; }
+.llm-warn { font-size: 11px; font-weight: 700; color: var(--warning); letter-spacing: 0.03em; margin-bottom: 8px; }
+.trace-step { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
+.trace-step:last-child { border-bottom: none; }
+.trace-layer { font-weight: 700; color: var(--accent); min-width: 180px; font-family: var(--font-mono, monospace); font-size: 11.5px; }
+.chain-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 16px; font-size: 11.5px; }
+.chain-node { padding: 5px 10px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 600; }
+.chain-arrow { color: var(--text-3); }
+.muted { color: var(--text-3); font-size: 12px; }
+.ev-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+.ev-head { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
+.ev-code { font-weight: 700; font-size: 12.5px; font-family: var(--font-mono, monospace); }`;
 
-    .dates { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
-    .date-chip { padding: 2px 6px; border-radius: 4px; font-size: 10.5px; font-family: var(--font-mono, monospace); background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .date-chip.absent { background: var(--surface-2); color: var(--text-3); border: 1px dashed var(--text-3); }
-    .basis { margin-top: 8px; font-size: 11.5px; line-height: 1.6; color: var(--text-2); border-left: 2px solid var(--border); padding-left: 10px; }
-    .trace-step.absent .trace-layer { color: var(--text-3); }
-    .trace-src { font-size: 10.5px; color: var(--text-3); font-family: var(--font-mono, monospace); margin-top: 3px; }
-    .counter-item { border-left: 2px solid var(--warning); padding: 6px 0 6px 10px; margin-bottom: 8px; font-size: 12.5px; }
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">مرصد الدماغ</div>
+      <div class="phead-s">أشعّة قراءة فقط على سلسلة استدلال الدماغ لحملة واحدة — كل قيمة منسوخة
+        حرفياً من المحرّكات الرسمية. هذه الصفحة لا تحسب شيئاً.</div>
+    </div>
+    <div class="phead-actions">
+      <select id="campaign-picker" class="inp"><option value="">Loading campaigns…</option></select>
+      <button class="btn btn-primary" id="btn-inspect" disabled>Inspect</button>
+    </div>
+  </div>
+`;
 
-    .pill { display: inline-block; padding: 3px 9px; border-radius: 6px; font-size: 11px; font-weight: 700; }
-    .pill-ok    { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .pill-warn  { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-    .pill-bad   { background: var(--error-dim);   color: var(--error);   border: 1px solid var(--error); }
-    .pill-muted { background: var(--surface-2);   color: var(--text-2);  border: 1px solid var(--border); }
-
-    .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
-    .kv-item { display: flex; flex-direction: column; gap: 3px; }
-    .kv-label { font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
-    .kv-value { font-size: 15px; font-weight: 700; }
-
-    .llm-box { padding: 12px 14px; border: 1px dashed var(--text-3); border-radius: 8px; background: var(--surface-2); color: var(--text-2); font-size: 13px; line-height: 1.7; }
-    .llm-warn { font-size: 11px; font-weight: 700; color: var(--warning); letter-spacing: 0.03em; margin-bottom: 8px; }
-
-    .trace-step { display: flex; gap: 10px; padding: 8px 0; border-bottom: 1px dashed var(--border); font-size: 12.5px; }
-    .trace-step:last-child { border-bottom: none; }
-    .trace-layer { font-weight: 700; color: var(--accent); min-width: 180px; font-family: var(--font-mono, monospace); font-size: 11.5px; }
-    .chain-strip { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 16px; font-size: 11.5px; }
-    .chain-node { padding: 5px 10px; border-radius: 6px; background: var(--surface-2); border: 1px solid var(--border); font-weight: 600; }
-    .chain-arrow { color: var(--text-3); }
-    .muted { color: var(--text-3); font-size: 12px; }
-    .ev-item { border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
-    .ev-head { display: flex; gap: 8px; align-items: center; margin-bottom: 6px; flex-wrap: wrap; }
-    .ev-code { font-weight: 700; font-size: 12.5px; font-family: var(--font-mono, monospace); }
-  </style>
-</head>
-<body>
-<div class="app">
-  <aside class="sidebar">
-    <div class="sidebar-logo">Ad<span>lytic</span></div>
-    <nav class="sidebar-nav">
-      ${adminSurfaceNav('observability')}
-      <div class="nav-label">Brain</div>
-      <a class="nav-item active" href="/admin/brain-observatory">Brain Observatory</a>
-    </nav>
-  </aside>
-
-  <div class="main">
-    <header class="topbar">
-      <span class="topbar-title">Brain Observatory</span>
-      <div style="display:flex;gap:10px;align-items:center;">
-        <select id="campaign-picker"><option value="">Loading campaigns…</option></select>
-        <button class="btn" id="btn-inspect" disabled>Inspect</button>
-      </div>
-    </header>
-
-    <main class="content">
-      <div class="page-title">Brain Observatory</div>
-      <div class="page-subtitle">
-        Read-only X-ray of how the Brain reached its conclusion for one campaign.
-        Every value is printed verbatim from the canonical engines — this page computes nothing.
-      </div>
-
+const BODY = `
       <div class="chain-strip">
         <span class="chain-node">Meta</span><span class="chain-arrow">→</span>
         <span class="chain-node">Semantics</span><span class="chain-arrow">→</span>
@@ -185,11 +126,9 @@ export function brainObservatoryPage(): string {
       </div>
       <div id="error-state" style="display:none;"><div class="error-box" id="error-msg"></div></div>
       <div id="report" style="display:none;"></div>
-    </main>
-  </div>
-</div>
+    `;
 
-<script>
+const SCRIPT = `
 (function () {
   'use strict';
   function getToken() { try { return localStorage.getItem('adlytic_token') || ''; } catch (e) { return ''; } }
@@ -590,7 +529,23 @@ export function brainObservatoryPage(): string {
   setState('idle-state');
   loadCampaigns();
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function brainObservatoryPage(): string {
+  return adminShell({
+    active: 'observatory',
+    title: 'مرصد الدماغ',
+    subtitle: 'من حقيقة Meta إلى القرار — طبقة بطبقة',
+    css: CSS + `
+      .inp { border: 1px solid var(--border-control); background: var(--surface); color: var(--text);
+             border-radius: 7px; padding: 5px 9px; font-size: 12.5px; font-family: inherit; }
+    `,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    commands: [
+      { label: 'اعرض الأثر على الخريطة', href: '/admin/graph', hint: 'الذكاء' },
+      { label: 'مساحة الذكاء', href: '/admin/intelligence', hint: 'الذكاء' },
+    ],
+  });
 }

@@ -62,8 +62,16 @@ export interface AdminShellOptions {
   title: string;
   /** One line under the title: what this surface answers. */
   subtitle: string;
-  /** The page body. Rendered inside the container, below the context bar. */
+  /** The page body. Rendered inside the measured content column. */
   body: string;
+  /**
+   * Optional page header, rendered above the view tabs.
+   *
+   * A surface with real depth needs a title in the CONTENT column, not only
+   * in the topbar — the topbar title scrolls away and says nothing about what
+   * to do here.
+   */
+  header?: string;
   /** Extra <style> the surface needs. Kept out of the shared sheet. */
   css?: string;
   /** Page script, run after the shell's own script. */
@@ -153,29 +161,105 @@ const SHELL_CSS = `
   .ctx-v { font-weight: 600; }
   .ctx.is-unset { border-style: dashed; color: var(--text-3); }
 
-  .page { padding: 18px; flex: 1; }
-  .page > * + * { margin-top: 14px; }
+  /* ── Content column ───────────────────────────────────────────────
+     A deliberate measure, not the full viewport. The production screenshot
+     showed two small cards stranded at the top of a 1600px page with the
+     lower 60% empty background — which is not minimal, it is undesigned.
+     Content stops at a readable width and the page stops where the content
+     stops. */
+  .page { padding: 20px 24px 40px; flex: 1; }
+  .page-inner { max-width: 1320px; margin-inline: auto; }
+  .page-inner > * + * { margin-top: 16px; }
+
+  /* ── Page header: what this surface is, and what to do on it ──────── */
+  .phead { display: flex; align-items: flex-start; gap: 14px; flex-wrap: wrap;
+           padding-bottom: 14px; border-bottom: 1px solid var(--border); }
+  .phead-t { font-family: var(--font-display); font-size: 19px; font-weight: 800;
+             letter-spacing: -0.015em; line-height: 1.25; }
+  .phead-s { font-size: 12.5px; color: var(--text-2); margin-top: 3px; max-width: 74ch; }
+  .phead-actions { margin-inline-start: auto; display: flex; gap: 7px; align-items: center; }
+
+  /* ── Section: the unit of page composition ────────────────────────── */
+  .sec { }
+  .sec-h { display: flex; align-items: baseline; gap: 10px; margin-bottom: 9px; }
+  .sec-t { font-size: 13.5px; font-weight: 700; letter-spacing: -0.005em; }
+  .sec-n { font-size: 11.5px; color: var(--text-3); }
+  .sec-a { margin-inline-start: auto; display: flex; gap: 6px; }
+
+  /* ── Stat row: compact facts, never a giant card per number ───────── */
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr));
+           border: 1px solid var(--border); border-radius: var(--radius);
+           background: var(--surface); overflow: hidden; }
+  .stat { padding: 11px 14px; border-inline-start: 1px solid var(--border); }
+  .stat:first-child { border-inline-start: 0; }
+  .stat-k { font-size: 11px; color: var(--text-3); font-weight: 600; }
+  .stat-v { font-size: 17px; font-weight: 700; margin-top: 4px; line-height: 1.2;
+            display: flex; align-items: center; gap: 7px; }
+  .stat-w { font-size: 11px; color: var(--text-2); margin-top: 3px; line-height: 1.45; }
+  .stat.absent .stat-v { color: var(--text-3); }
+  @media (max-width: 900px) {
+    .stat { border-inline-start: 0; border-top: 1px solid var(--border); }
+    .stat:first-child { border-top: 0; }
+  }
+
+  /* ── Attention strip: actionable, and it goes somewhere ───────────── */
+  .strip { display: flex; flex-direction: column; gap: 7px; }
+  .strip-i { display: flex; align-items: center; gap: 11px; padding: 10px 13px;
+             border: 1px solid var(--border); border-radius: 9px; background: var(--surface);
+             text-align: start; font: inherit; cursor: pointer; width: 100%;
+             transition: var(--transition); }
+  .strip-i:hover { border-color: var(--accent); background: var(--surface-2); }
+  .strip-i:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+  .strip-i.sev-ERROR { border-inline-start: 3px solid var(--error); }
+  .strip-i.sev-WARNING { border-inline-start: 3px solid var(--warning); }
+  .strip-i.sev-INFO { border-inline-start: 3px solid var(--border-2); }
+  .strip-t { font-weight: 700; font-size: 12.5px; }
+  .strip-w { font-size: 11.5px; color: var(--text-2); margin-top: 2px; }
+  .strip-go { margin-inline-start: auto; font-size: 11.5px; color: var(--accent-2);
+              font-weight: 600; white-space: nowrap; }
+
+  /* ── Technical details: raw payloads live HERE, never in primary UI ─ */
+  details.tech { border: 1px solid var(--border); border-radius: 9px; background: var(--surface); }
+  details.tech > summary { cursor: pointer; padding: 9px 13px; font-size: 11.5px;
+                           font-weight: 600; color: var(--text-2); list-style: none; }
+  details.tech > summary::-webkit-details-marker { display: none; }
+  details.tech > summary::before { content: '▸'; margin-inline-end: 7px; color: var(--text-3); }
+  details.tech[open] > summary::before { content: '▾'; }
+  details.tech > summary:hover { color: var(--text); }
+  details.tech > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+  details.tech .tech-b { padding: 0 13px 13px; }
+  pre.raw { background: var(--bg); border: 1px solid var(--border); border-radius: 7px;
+            padding: 11px 13px; font-family: var(--font-mono); font-size: 11px;
+            line-height: 1.6; direction: ltr; text-align: left; overflow: auto;
+            max-height: 340px; white-space: pre-wrap; word-break: break-word; }
 
   /* ── Secondary view strip (in-page tabs) ────────────────────────── */
-  .views { display: flex; gap: 2px; border-bottom: 1px solid var(--border); margin-bottom: 14px;
+  .views { display: flex; gap: 3px; border-bottom: 1px solid var(--border); margin-bottom: 16px;
            overflow-x: auto; }
-  .view-tab { padding: 7px 13px; font-size: 12.5px; font-weight: 600; color: var(--text-3);
+  .view-tab { padding: 9px 15px; font-size: 13px; font-weight: 600; color: var(--text-2);
               border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap;
               background: none; border-inline: 0; border-top: 0; font-family: inherit;
               transition: var(--transition); }
   .view-tab:hover { color: var(--text); }
-  .view-tab.active { color: var(--accent-2); border-bottom-color: var(--accent); }
+  .view-tab.active { color: var(--accent-2); border-bottom-color: var(--accent); font-weight: 700; }
   .view-tab:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
   .view { display: none; }
   .view.on { display: block; }
 
   /* ── Shared surface primitives ──────────────────────────────────── */
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-          padding: 14px; }
-  .card > * + * { margin-top: 9px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); }
+  .card > .card-h { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+  .card > .card-b { padding: 14px; }
+  .card > .card-b > * + * { margin-top: 10px; }
+  /* Cards with no explicit body still get padding, so existing markup holds. */
+  .card > *:not(.card-h):not(.card-b):first-child { margin: 14px 14px 0; }
+  .card > *:not(.card-h):not(.card-b) { margin-inline: 14px; }
+  .card > *:not(.card-h):not(.card-b):last-child { margin-bottom: 14px; }
+  .card > table.t { margin: 0; width: 100%; }
   .card-h { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .h2 { font-size: 12.5px; font-weight: 700; letter-spacing: -0.005em; }
-  .muted { color: var(--text-3); font-size: 11.5px; }
+  .h2 { font-size: 13px; font-weight: 700; letter-spacing: -0.005em; }
+  .muted { color: var(--text-2); font-size: 12px; }
+  .dim { color: var(--text-3); font-size: 11.5px; }
   .grid { display: grid; gap: 12px; align-items: start; }
   .g2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .g3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -184,11 +268,12 @@ const SHELL_CSS = `
   @media (max-width: 720px)  { .g2, .g3, .g4 { grid-template-columns: 1fr; } }
 
   table.t { width: 100%; border-collapse: collapse; font-size: 12px; }
-  table.t th { text-align: start; font-size: 10px; font-weight: 700; color: var(--text-3);
-               text-transform: uppercase; letter-spacing: 0.05em; padding: 7px 9px;
+  table.t th { text-align: start; font-size: 11px; font-weight: 700; color: var(--text-2);
+               letter-spacing: 0.01em; padding: 9px 12px;
                border-bottom: 1px solid var(--border); position: sticky; top: 0;
-               background: var(--surface); }
-  table.t td { padding: 7px 9px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+               background: var(--surface); white-space: nowrap; }
+  table.t td { padding: 9px 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+  table.t tbody tr:last-child td { border-bottom: 0; }
   table.t tbody tr:hover { background: var(--surface-2); }
   table.t .empty { text-align: center; color: var(--text-3); padding: 22px; }
 
@@ -528,8 +613,11 @@ ${adminSurfaceNav(o.active)}
     </div>
 
     <main class="page">
-      ${viewTabs ? `<div class="views" role="tablist">${viewTabs}</div>` : ''}
-      ${o.body}
+      <div class="page-inner">
+        ${o.header ?? ''}
+        ${viewTabs ? `<div class="views" role="tablist">${viewTabs}</div>` : ''}
+        ${o.body}
+      </div>
     </main>
   </div>
 </div>

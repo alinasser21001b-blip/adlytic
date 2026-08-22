@@ -1,22 +1,32 @@
 // ════════════════════════════════════════════════════════════════════════
-//  tools/admin-acceptance/fixtures.mjs
+//  tools/admin-acceptance/fixtures.ts
 //
 //  Operator scenarios for the Control Plane acceptance audit.
 //
-//  Each scenario is a complete set of admin API responses describing one
-//  state the platform can genuinely be in. They exist because judging an
-//  operations console from its happy path is how consoles ship with an
-//  empty state nobody ever looked at, and an error state that renders as a
-//  blank card.
+//  ── Why this file is TypeScript, and why that is the whole point ──────
 //
-//  Shapes are copied from the real services — adminOpsHealth.AdminOpsSnapshot,
-//  getPlatformStats.PlatformStats, the support and customer routes — so a
-//  scenario that renders here renders in production.
+//  The previous version was .mjs and its shapes were WRITTEN FROM MEMORY.
+//  The meta-usage fixture was `{ callCount, appUsage: {...} }`. Neither field
+//  exists on `MetaUsageStats`. The real payload carries three large nested
+//  objects — `counts`, `errorBreakdown15d`, `latest` — where the fixture had
+//  one small one, so the page's `JSON.stringify(value)` fallback produced a
+//  short, visually unremarkable string in the harness and three raw JSON
+//  blobs in production. The audit went green on a page that was, in
+//  production, dumping serialized objects at an operator.
+//
+//  So the fixtures are now typed against the ACTUAL service return types.
+//  `MetaUsageStats` and `AdminOpsSnapshot` are imported, not described. If a
+//  service changes shape, this file stops compiling — which is the only kind
+//  of fixture-drift protection that does not depend on someone remembering.
+//
+//  A fixture that a human wrote from imagination is a test of the imagination.
 // ════════════════════════════════════════════════════════════════════════
+import type { MetaUsageStats } from '../../src/services/metaUsageTracker';
+import type { AdminOpsSnapshot, OpsStatus, SubsystemHealth } from '../../src/services/adminOpsHealth';
 
 const build = { commit: 'a113858ffed1', environment: 'production', source: 'RAILWAY_GIT_COMMIT_SHA' };
 
-const ws = (over = {}) => ({
+const ws = (over: Record<string, unknown> = {}): any => ({
   workspaceId: 'ws_1', workspaceName: 'متجر النخبة', ownerEmail: 'owner@example.com',
   adAccountId: 'aa_1', adAccountName: 'النخبة — الحساب الرئيسي', externalAccountId: 'act_1029384756',
   currency: 'IQD', hasToken: true, tokenSource: 'SYSTEM_USER', tokenExpiresAt: '2026-12-01T00:00:00.000Z',
@@ -26,20 +36,20 @@ const ws = (over = {}) => ({
   ...over,
 });
 
-const subsystems = (over = {}) => ([
-  { key: 'database', status: over.database ?? 'HEALTHY', summary: over.databaseSummary ?? 'يستجيب' },
-  { key: 'redis', status: over.redis ?? 'HEALTHY', summary: over.redisSummary ?? 'متصل',
+const subsystems = (over: Record<string, string> = {}): SubsystemHealth[] => ([
+  { key: 'database', status: (over.database as OpsStatus) ?? 'HEALTHY', summary: over.databaseSummary ?? 'يستجيب' },
+  { key: 'redis', status: (over.redis as OpsStatus) ?? 'HEALTHY', summary: over.redisSummary ?? 'متصل',
     actionHref: '/admin/meta', actionLabel: 'أثر الانقطاع على عدّادات Meta' },
-  { key: 'queue', status: over.queue ?? 'HEALTHY', summary: over.queueSummary ?? 'يقبل المهام' },
-  { key: 'workers', status: over.workers ?? 'HEALTHY', summary: over.workersSummary ?? 'مزامنة ناجحة خلال 48 ساعة',
+  { key: 'queue', status: (over.queue as OpsStatus) ?? 'HEALTHY', summary: over.queueSummary ?? 'يقبل المهام' },
+  { key: 'workers', status: (over.workers as OpsStatus) ?? 'HEALTHY', summary: over.workersSummary ?? 'مزامنة ناجحة خلال 48 ساعة',
     detail: 'role=combined' },
-  { key: 'meta', status: over.meta ?? 'HEALTHY', summary: over.metaSummary ?? '1 حساب متصل',
+  { key: 'meta', status: (over.meta as OpsStatus) ?? 'HEALTHY', summary: over.metaSummary ?? '1 حساب متصل',
     actionHref: '/admin#workspaces', actionLabel: 'افحص مساحات العمل' },
   { key: 'intelligence', status: 'NOT_TESTED',
     summary: 'صحة الذكاء تُقاس بالتغطية السردية في لوحة الحالة — لا يوجد فحص حي بعد' },
 ]);
 
-const ops = (over = {}) => ({
+const ops = (over: Record<string, any> = {}): AdminOpsSnapshot => ({
   computedAt: '2026-08-22T09:15:00.000Z',
   overall: over.overall ?? 'HEALTHY',
   known: over.known ?? ['database', 'redis', 'queue', 'workers', 'meta'],
@@ -59,7 +69,7 @@ const ops = (over = {}) => ({
   build: over.build ?? build,
 });
 
-const stats = (over = {}) => ({
+const stats = (over: Record<string, any> = {}): any => ({
   reach: { workspaces: 1, accounts: 1, activeAccounts: 1, campaigns: 12, ...(over.reach ?? {}) },
   money: { byCurrency: [{ currency: 'IQD', activeCampaigns: 7, totalDailyBudgetMajor: '1,250,000', impliedMonthlyMajor: '37,500,000' }] },
   brain: over.brain ?? { snapshotsLastNDays: 34, narrationsLastNDays: 31, narrationCoveragePct: 91 },
@@ -77,16 +87,88 @@ const tickets = [
     userEmail: 'sara@example.com', workspaceName: 'سارة ستور', unreadForAdmin: false },
 ];
 
+/**
+ * Meta usage, typed against the real service.
+ *
+ * THIS is the payload the previous fixture got wrong. Three nested objects,
+ * not one — and every field name here is a Meta-quota implementation detail
+ * (`errorRateGatePct`, `meetsErrorGate`, `recentWindowSize`) that means
+ * nothing to an operator until the UI translates it.
+ */
+const usage = (over: Partial<MetaUsageStats> = {}): MetaUsageStats => ({
+  redisAvailable: true,
+  callThreshold: 500,
+  errorRateGatePct: 15,
+  counts: {
+    today: 128, yesterday: 341, last7Days: 1_842, last15Days: 3_106,
+    progressToThresholdPct: 621.2,
+    errorsLast15Days: 47, errorRatePct15d: 1.5,
+    recentWindowSize: 500, errorRateLast500: 1.2,
+    meetsCallThreshold: true, meetsErrorGate: true,
+    ...(over.counts ?? {}),
+  },
+  errorBreakdown15d: {
+    token: 4, rate_limit: 19, permission: 6, invalid_params: 11, server: 5, other: 2,
+    ...(over.errorBreakdown15d ?? {}),
+  },
+  latest: {
+    appUsage: { callCount: 12, totalCpuTime: 3, totalTime: 5 },
+    adAccountUsage: { utilizationPct: 18, tier: 'STANDARD' },
+    businessUseCase: null,
+    lastUpdated: '2026-08-22T09:02:00.000Z',
+    ...(over.latest ?? {}),
+  },
+  ...(over.redisAvailable !== undefined ? { redisAvailable: over.redisAvailable } : {}),
+});
+
+/** Redis down: the tracker returns its empty shape, and every counter is a lie if shown as 0. */
+const usageNoRedis = (): MetaUsageStats => ({
+  redisAvailable: false,
+  callThreshold: 500,
+  errorRateGatePct: 15,
+  counts: {
+    today: 0, yesterday: 0, last7Days: 0, last15Days: 0, progressToThresholdPct: 0,
+    errorsLast15Days: 0, errorRatePct15d: 0, recentWindowSize: 0, errorRateLast500: 0,
+    meetsCallThreshold: false, meetsErrorGate: false,
+  },
+  errorBreakdown15d: { token: 0, rate_limit: 0, permission: 0, invalid_params: 0, server: 0, other: 0 },
+  latest: { appUsage: null, adAccountUsage: null, businessUseCase: null, lastUpdated: null },
+});
+
+export const USAGE = {
+  healthy: usage(),
+  noRedis: usageNoRedis(),
+  zeroCalls: usage({
+    counts: {
+      today: 0, yesterday: 0, last7Days: 0, last15Days: 0, progressToThresholdPct: 0,
+      errorsLast15Days: 0, errorRatePct15d: 0, recentWindowSize: 0, errorRateLast500: 0,
+      meetsCallThreshold: false, meetsErrorGate: false,
+    },
+    latest: { appUsage: null, adAccountUsage: null, businessUseCase: null, lastUpdated: null },
+  }),
+  highErrorRate: usage({
+    counts: {
+      today: 96, yesterday: 402, last7Days: 1_501, last15Days: 2_804,
+      progressToThresholdPct: 560.8,
+      errorsLast15Days: 812, errorRatePct15d: 22.5,
+      recentWindowSize: 500, errorRateLast500: 24.6,
+      meetsCallThreshold: true, meetsErrorGate: false,
+    },
+    errorBreakdown15d: { token: 61, rate_limit: 540, permission: 128, invalid_params: 44, server: 33, other: 6 },
+  }),
+};
+
 /** Every scenario. `api` maps a route prefix to a response or an HTTP failure. */
-export const SCENARIOS = {
+export const SCENARIOS: Record<string, { label: string; api: Record<string, unknown> }> = {
   healthy: {
     label: 'Healthy system',
-    api: { ops: ops(), stats: stats() },
+    api: { ops: ops(), stats: stats(), metaUsage: USAGE.healthy },
   },
 
   meta_disconnected: {
     label: 'Meta disconnected',
     api: {
+      metaUsage: USAGE.healthy,
       ops: ops({
         overall: 'ERROR',
         subsystems: subsystems({ meta: 'ERROR', metaSummary: '1 من 1 حساب محجوب' }),
@@ -112,6 +194,7 @@ export const SCENARIOS = {
         workspaces: [ws({ connection: 'WARNING', overall: 'WARNING', headline: 'صلاحية ناقصة' })],
       }),
       stats: stats(),
+      metaUsage: USAGE.highErrorRate,
     },
   },
 
@@ -145,6 +228,7 @@ export const SCENARIOS = {
           action: 'افحص REDIS_URL وسجلّ الإقلاع', href: '/admin/meta' }],
       }),
       stats: stats(),
+      metaUsage: USAGE.noRedis,
     },
   },
 
@@ -187,6 +271,7 @@ export const SCENARIOS = {
       }),
       stats: stats({ reach: { workspaces: 0, accounts: 0, activeAccounts: 0, campaigns: 0 },
         brain: { snapshotsLastNDays: 0, narrationsLastNDays: 0, narrationCoveragePct: null } }),
+      metaUsage: USAGE.zeroCalls,
       customers: [], tickets: [],
     },
   },

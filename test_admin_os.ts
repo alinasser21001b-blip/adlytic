@@ -108,14 +108,27 @@ function run() {
     // Removing a route from the menu without linking it from the surface that
     // replaced it is not consolidation — it is hiding, which is how capability
     // gets lost while everyone believes it was migrated.
+    //
+    // The one exception is a MIGRATED route: its successor renders everything
+    // it did, so an inbound link would walk the operator backwards into an
+    // older generation of Admin. Those keep their mount for bookmarks and
+    // carry a banner instead.
     for (const l of ADMIN_LEGACY) {
       assert.ok(serverSrc.includes(`'${l.href}'`),
         `${l.href} is declared legacy but is no longer mounted — capability would vanish`);
-      const successor = src(`src/web/pages/${l.reachableFrom}.ts`);
-      assert.ok(successor.includes(l.href),
-        `${l.reachableFrom} must link to ${l.href} until parity is proven`);
       assert.ok(l.stillOwns.trim().length > 0,
         `${l.href} must say what it still owns, not merely that it exists`);
+      const successor = src(`src/web/pages/${l.reachableFrom}.ts`);
+      if (l.migrated) {
+        assert.ok(!successor.includes(l.href),
+          `${l.href} is migrated, so ${l.reachableFrom} must NOT link back into it`);
+        const legacyPage = src(`src/web/pages/${l.id === 'readiness' ? 'metaReadinessPage' : l.reachableFrom}.ts`);
+        assert.ok(legacyPage.includes(l.replacedBy),
+          `${l.href} is migrated but does not point the operator at ${l.replacedBy}`);
+      } else {
+        assert.ok(successor.includes(l.href),
+          `${l.reachableFrom} must link to ${l.href} until parity is proven`);
+      }
     }
   });
 

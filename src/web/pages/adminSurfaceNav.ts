@@ -162,6 +162,16 @@ export interface LegacySurface {
   reachableFrom: string;
   /** Why it still exists. Never "we did not get to it". */
   stillOwns: string;
+  /**
+   * Parity reached: the successor renders everything this page did, so no
+   * Control Plane surface links here any more. The route stays mounted for
+   * bookmarks and carries a banner pointing at its canonical home.
+   *
+   * This is the ONLY state in which a legacy route may have no inbound link,
+   * because it is the only state in which an inbound link would be a step
+   * backwards for the operator.
+   */
+  migrated?: boolean;
 }
 
 export const ADMIN_LEGACY: LegacySurface[] = [
@@ -178,7 +188,8 @@ export const ADMIN_LEGACY: LegacySurface[] = [
   {
     id: 'readiness', href: '/admin/meta-readiness', label: 'جاهزية Meta',
     replacedBy: '/admin/meta', reachableFrom: 'metaDataWorkspacePage',
-    stillOwns: 'تفاصيل الاستهلاك وسجل تدقيق نداءات Meta',
+    stillOwns: 'لا شيء — الاستهلاك ومعدّل الخطأ وتصنيف الأخطاء كلها في /admin/meta#quota الآن',
+    migrated: true,
   },
   {
     id: 'inbox', href: '/admin/inbox', label: 'صندوق الدعم الكلاسيكي',

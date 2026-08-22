@@ -169,7 +169,7 @@ export const ADMIN_CAPABILITIES: AdminCapability[] = [
   // ── META & DATA ───────────────────────────────────────────────────────
   C({
     id: 'cap.meta.readiness', name: 'جاهزية Meta',
-    currentRoute: '/admin/meta-readiness', currentPage: 'metaReadinessPage',
+    currentRoute: '/admin/meta', currentPage: 'metaDataWorkspacePage',
     canonicalBackend: 'GET /api/admin/meta-usage',
     access: 'READ_ONLY', authLevel: 'PLATFORM_ADMIN',
     operatorValue: 'الصلاحيات والقدرات وحدود الاستهلاك مقابل Meta',
@@ -198,7 +198,7 @@ export const ADMIN_CAPABILITIES: AdminCapability[] = [
   }),
   C({
     id: 'cap.meta.usage', name: 'استهلاك واجهة Meta',
-    currentRoute: '/admin/meta-readiness', currentPage: 'metaReadinessPage',
+    currentRoute: '/admin/meta', currentPage: 'metaDataWorkspacePage',
     canonicalBackend: 'GET /api/admin/meta-usage',
     access: 'READ_ONLY', authLevel: 'PLATFORM_ADMIN',
     operatorValue: 'أين نحن من حدود المعدّل قبل أن نصطدم بها',
@@ -207,7 +207,7 @@ export const ADMIN_CAPABILITIES: AdminCapability[] = [
   }),
   C({
     id: 'cap.meta.audit', name: 'تدقيق مكالمات Meta',
-    currentRoute: '/admin/meta-readiness', currentPage: 'metaReadinessPage',
+    currentRoute: '/admin/meta', currentPage: 'metaDataWorkspacePage',
     canonicalBackend: 'GET /api/admin/meta-audit',
     access: 'READ_ONLY', authLevel: 'PLATFORM_ADMIN',
     operatorValue: 'أي نداء فشل ولماذا — سجل الإخفاقات لا ملخّصها',

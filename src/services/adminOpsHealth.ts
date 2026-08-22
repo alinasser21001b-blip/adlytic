@@ -399,7 +399,11 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
         ? 'غير مضبوط — العدّادات والأقفال تعمل بالبدائل داخل العملية'
         : redisOk ? 'متصل' : 'غير متصل — العدّادات تقرأ صفراً',
       ...(redisErr && !redisOk ? { detail: redisErr.slice(0, 200) } : {}),
-      actionHref: '/admin/meta-readiness',
+      // Points at the canonical Meta workspace, not the legacy readiness page:
+      // quota detail was ported there, and an attention item that lands the
+      // operator in a previous generation of Admin is the fragmentation this
+      // console exists to remove.
+      actionHref: '/admin/meta#quota',
       actionLabel: 'أثر الانقطاع على عدّادات Meta',
     },
     {
@@ -465,7 +469,7 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
       title: 'Redis غير متصل',
       because: 'عدّادات استخدام Meta تقرأ صفراً، والأقفال والطوابير تعمل ببدائل داخل العملية فقط.',
       action: 'افحص REDIS_URL وسجلّ الإقلاع',
-      href: '/admin/meta-readiness',
+      href: '/admin/meta#quota',
     });
   }
   if (config.features.bullmqEnabled && !queueOn) {

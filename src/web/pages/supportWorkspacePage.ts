@@ -23,8 +23,14 @@
 import { adminShell } from '../adminShell';
 
 const CSS = `
-  .inbox { display: grid; grid-template-columns: 320px minmax(0, 1fr); gap: 12px; align-items: start; }
-  @media (max-width: 940px) { .inbox { grid-template-columns: 1fr; } }
+  /* A mail client fills the screen even with two messages. The previous
+     layout sized to content, so an inbox with a short list left two-thirds of
+     the viewport as background — measured at 30% content occupancy. */
+  .inbox { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 14px;
+           align-items: stretch; min-height: calc(100vh - 250px); }
+  .inbox > .card { display: flex; flex-direction: column; min-height: 0; }
+  .inbox > .card > .card-b, .inbox .pane { overflow-y: auto; flex: 1; min-height: 0; }
+  @media (max-width: 940px) { .inbox { grid-template-columns: 1fr; min-height: 0; } }
   .tk { border: 1px solid var(--border); border-radius: 9px; padding: 9px 11px; margin-bottom: 7px;
         cursor: pointer; transition: var(--transition); }
   .tk:hover { background: var(--surface-2); }
@@ -40,6 +46,12 @@ const CSS = `
   .inp, textarea.inp { border: 1px solid var(--border-control); background: var(--surface); color: var(--text);
     border-radius: 7px; padding: 6px 9px; font-size: 12px; font-family: inherit; width: 100%; }
   .bar { display: flex; gap: 7px; align-items: center; flex-wrap: wrap; margin-bottom: 9px; }
+  /* An empty pane that is 750px tall and holds one line reads as a rendering
+     bug. It gets real guidance, centred in the space it actually occupies. */
+  .empty-pane { height: 100%; display: flex; flex-direction: column; justify-content: center;
+                align-items: center; gap: 9px; padding: 40px 34px; text-align: center; }
+  .empty-pane-t { font-size: 15px; font-weight: 700; color: var(--text-2); }
+  .empty-pane-w { font-size: 12.5px; color: var(--text-3); max-width: 46ch; line-height: 1.7; }
 `;
 
 const BODY = `
@@ -60,16 +72,19 @@ const BODY = `
 
   <div class="inbox">
     <div class="card">
-      <div class="h2">التذاكر</div>
-      <div id="list"><div class="skel"></div></div>
+      <div class="card-h"><div class="h2">التذاكر</div><div class="sec-n" id="tk-n"></div></div>
+      <div class="card-b pane" id="list"><div class="skel"></div></div>
     </div>
     <div class="card">
       <div class="card-h"><div class="h2" id="th-subject">لم تُختَر تذكرة</div>
         <div id="th-actions"></div></div>
-      <div class="muted" id="th-context"></div>
-      <div id="thread">
-        <div class="muted" style="padding:34px;text-align:center;">
-          اختر تذكرة من القائمة لعرض المحادثة وسياق مساحة عمل الزبون.
+      <div class="muted" id="th-context" style="padding:0 14px;"></div>
+      <div class="pane" id="thread">
+        <div class="empty-pane">
+          <div class="empty-pane-t">لم تُختَر تذكرة</div>
+          <div class="empty-pane-w">اختر تذكرة من القائمة لعرض المحادثة كاملة، مع بريد الزبون
+            ومساحة عمله وحالة التذكرة وأولويتها — قبل أن تردّ.</div>
+          <div class="empty-pane-w">المرشّحات في الأعلى تحصر القائمة بالحالة أو الأولوية.</div>
         </div>
       </div>
       <div id="reply-box" style="display:none;margin-top:10px;">
@@ -119,7 +134,14 @@ const SCRIPT = `
             + '<div class="tk-m">' + esc(t.status || '') + ' · ' + esc(t.priority || '')
             + ' · ' + esc(t.userEmail || t.customerEmail || '') + '</div></div>';
         }).join('')
-        : '<div class="muted" style="padding:26px;text-align:center;">لا تذكرة تطابق هذا المرشّح.</div>';
+        : '<div class="empty-pane"><div class="empty-pane-t">'
+          + (st || pr ? 'لا تذكرة بهذا المرشّح' : 'لا تذاكر مفتوحة')
+          + '</div><div class="empty-pane-w">'
+          + (st || pr
+              ? 'جرّب حالة أو أولوية أخرى، أو أزل المرشّحات لرؤية كل التذاكر.'
+              : 'لم يفتح أي زبون تذكرة دعم. تظهر التذاكر هنا فور وصولها، مرتّبة بالأولوية.')
+          + '</div></div>';
+        document.getElementById('tk-n').textContent = list.length ? (list.length + ' تذكرة') : '';
       }).catch(function (e) {
         host.innerHTML = '<div class="muted">تعذّر: ' + esc(e.message) + '</div>';
       });

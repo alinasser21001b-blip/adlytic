@@ -85,6 +85,11 @@ const BODY = `
         <a class="btn" href="/admin/graph">اعرض الأثر على الخريطة</a>
       </div>
     </div>
+    <div class="card">
+      <div class="card-h"><div class="h2">ما لا نعرفه بعد</div>
+        <button class="btn" data-view-jump="boundary">حدود المعرفة</button></div>
+      <div class="card-b" id="boundary-brief"><div class="skel"></div></div>
+    </div>
   </section>
 
   <section class="view" id="v-ladder">
@@ -211,6 +216,13 @@ const SCRIPT = `
   document.addEventListener('ops:ready', function (e) {
     LADDER.ops = e.detail; renderLadder();
     var items = e.detail.boundary || [];
+    document.getElementById('boundary-brief').innerHTML = items.length
+      ? items.slice(0, 3).map(function (b) {
+          return '<div class="bnd"><div class="bnd-s">' + esc(b.state) + '</div>'
+            + '<div class="bnd-t">' + esc(b.subject) + '</div>'
+            + '<div class="bnd-w">' + esc(b.why) + '</div></div>';
+        }).join('')
+      : '<div class="muted">لا فجوة مسجّلة في هذه اللقطة.</div>';
     document.getElementById('boundary').innerHTML = items.length ? items.map(function (b) {
       return '<div class="bnd">'
         + '<div class="bnd-s">' + esc(b.state) + '</div>'
@@ -227,6 +239,13 @@ const SCRIPT = `
     document.getElementById('ladder').innerHTML =
       '<div class="muted">تعذّر قراءة لقطة التشغيل — لا يمكن وصف الطبقة الأولى، '
       + 'وبدونها لا معنى لحالة الطبقات فوقها.</div>';
+    document.getElementById('boundary-brief').innerHTML =
+      '<div class="muted">غير متاح — لم تُقرأ اللقطة.</div>';
+  });
+
+  document.addEventListener('click', function (e) {
+    var j = e.target.closest ? e.target.closest('[data-view-jump]') : null;
+    if (j) window.adminShowView(j.getAttribute('data-view-jump'));
   });
 
   window.adminFetch('/api/admin/brain-observatory/campaigns').then(function (r) {

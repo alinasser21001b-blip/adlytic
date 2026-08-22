@@ -13,7 +13,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';
-import { SCENARIOS, FIXTURE_CUSTOMERS, FIXTURE_TICKETS } from './fixtures.mjs';
+import { SCENARIOS, FIXTURE_CUSTOMERS, FIXTURE_TICKETS, USAGE } from './fixtures';
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 
 import { controlCenterPage } from '../../src/web/pages/controlCenterPage';
@@ -23,6 +23,9 @@ import { intelligenceWorkspacePage } from '../../src/web/pages/intelligenceWorks
 import { operationsWorkspacePage } from '../../src/web/pages/operationsWorkspacePage';
 import { customersWorkspacePage } from '../../src/web/pages/customersWorkspacePage';
 import { supportWorkspacePage } from '../../src/web/pages/supportWorkspacePage';
+import { brainObservatoryPage } from '../../src/web/pages/brainObservatoryPage';
+import { addClientPage } from '../../src/web/pages/addClientPage';
+import { metaReadinessPage } from '../../src/web/pages/metaReadinessPage';
 import { buildArchitectureGraph } from '../../src/graph/architecture';
 import { buildRuntimeOverlay } from '../../src/graph/runtime';
 import { CSS_ASSETS } from '../../src/web/layout';
@@ -35,6 +38,12 @@ const PAGES: Record<string, () => string> = {
   '/admin/operations': operationsWorkspacePage,
   '/admin/customers': customersWorkspacePage,
   '/admin/support': supportWorkspacePage,
+  // Sidebar destinations that are not Control Plane pages of our own making,
+  // and the migrated legacy route — all three must be walkable end to end,
+  // because a transition audit that skips them audits nothing.
+  '/admin/brain-observatory': brainObservatoryPage,
+  '/admin/add-client': addClientPage,
+  '/admin/meta-readiness': metaReadinessPage,
 };
 
 const ARCH = JSON.parse(JSON.stringify(buildArchitectureGraph()));
@@ -89,7 +98,15 @@ const server = createServer((req: any, res: any) => {
     return res.end(Buffer.alloc(0));
   }
 
-  if (p === '/api/auth/me') return json(res, { user: { name: 'المشغّل', email: 'ops@adlytic.io' } });
+  if (p === '/api/auth/me') {
+    // Legacy surfaces gate themselves on isPlatformAdmin before rendering, so
+    // an audit without it walks into a redirect and reports "shell lost" on a
+    // page that is fine. The harness authenticates like a real operator.
+    return json(res, {
+      user: { name: 'المشغّل', email: 'ops@adlytic.io', isPlatformAdmin: true },
+      isPlatformAdmin: true, name: 'المشغّل', email: 'ops@adlytic.io',
+    });
+  }
   if (p === '/api/admin/ops') return serveFixture(res, api.ops, SCENARIOS.healthy.api.ops);
   if (p === '/api/admin/platform-stats') return serveFixture(res, api.stats, SCENARIOS.healthy.api.stats);
 
@@ -105,6 +122,7 @@ const server = createServer((req: any, res: any) => {
       reason: 'No measurable window for this campaign (or it does not exist)' }, 404);
   }
 
+  if (p.startsWith('/api/admin/onboarding')) return json(res, []);
   if (p === '/api/admin/brain-observatory/campaigns') {
     return serveFixture(res, api.campaigns, [
       { id: 'c_1', name: 'حملة الرسائل — آب' },
@@ -112,7 +130,7 @@ const server = createServer((req: any, res: any) => {
     ]);
   }
   if (p === '/api/admin/meta-usage') {
-    return serveFixture(res, api.metaUsage, { callCount: 1284, appUsage: { call_count: 12, total_time: 5 } });
+    return serveFixture(res, api.metaUsage, USAGE.healthy);
   }
   if (p === '/api/admin/meta-audit') {
     return serveFixture(res, api.metaAudit, { events: [
@@ -167,7 +185,9 @@ const server = createServer((req: any, res: any) => {
       'Content-Type': 'text/html; charset=utf-8',
       'Set-Cookie': `acceptance_scenario=${encodeURIComponent(scenarioKey)}; Path=/; SameSite=Lax`,
     });
-    return res.end(render());
+    // Seed the bearer token the legacy pages look for before they will render.
+    return res.end(render().replace('<body>',
+      `<body><script>try{localStorage.setItem('adlytic_token','acceptance-harness-token');}catch(e){}</script>`));
   }
   if (process.env.LOG_404) console.error('[acceptance] 404', p);
   res.writeHead(404, { 'Content-Type': 'text/plain' });

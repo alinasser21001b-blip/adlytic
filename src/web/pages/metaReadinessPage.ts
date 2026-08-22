@@ -141,6 +141,17 @@ export function metaReadinessPage(): string {
   </style>
 </head>
 <body>
+<!-- Parity reached: everything this page renders now lives in /admin/meta#quota,
+     translated into operator language instead of raw counters. The route stays
+     mounted so existing bookmarks resolve, and says so rather than silently
+     being a second, older Meta product. -->
+<div style="background:var(--accent-dim);border-bottom:1px solid var(--accent);
+            padding:11px 18px;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+  <strong>انتقلت هذه الصفحة.</strong>
+  <span>الاستهلاك ومعدّل الخطأ وتصنيف الأخطاء صارت جزءاً من «Meta والبيانات» بصياغة تشغيلية.</span>
+  <a href="/admin/meta#quota" style="margin-inline-start:auto;background:var(--accent);color:#fff;
+     border-radius:7px;padding:5px 12px;font-weight:600;text-decoration:none;">افتح Meta والبيانات ←</a>
+</div>
 <div class="access-gate" id="access-gate">
   <div class="gate-spinner"></div>
   <div>Verifying access…</div>
