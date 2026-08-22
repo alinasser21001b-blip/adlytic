@@ -1,0 +1,119 @@
+# ════════════════════════════════════════════════════════════════════════
+#  Test — the pre-merge gate that did not exist.
+#
+#  Before this workflow, NO workflow ran the test suite. deploy-adlytic.yml
+#  was the only one covering src/**: it runs typecheck alone, fires on
+#  push-to-main, and then triggers a production Railway deploy. So CI evidence
+#  and production deployment were fused — you could not obtain the first
+#  without doing the second — and a pull request triggered nothing at all.
+#
+#  This workflow runs the real suite BEFORE merge, and deploys nothing.
+#
+#  ── Why the path list is long ─────────────────────────────────────────
+#
+#  The suite deliberately asserts against files outside src/: the
+#  architecture-doc test reads docs/ and README.md, the committed-secret test
+#  reads deploy_production.command, the deployment-safety test reads the
+#  railway configs, and the deploy-gate test reads .deploy/railway-deploy.sh.
+#  A paths filter that omitted any of those would let a real regression merge
+#  with a green tick — the precise false-green this repository has already
+#  been burned by once. Every entry below is here because a test reads it.
+# ════════════════════════════════════════════════════════════════════════
+name: Test
+
+on:
+  # The list is duplicated rather than shared through a YAML anchor: GitHub
+  # Actions does not reliably expand anchors in workflow files, and a gate
+  # whose entire purpose is reliability must not depend on that. Keep the two
+  # copies identical — a test asserts they are.
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'prisma.config.ts'
+      - 'test_*.ts'
+      - 'test_*.mjs'          # test_admin_scenarios.mjs runs in test:all
+      - 'tests/**'            # fixtures the suites load
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.npmrc'              # changes how `npm ci` resolves
+      - 'docs/**'             # test_architecture_doc_truth asserts on these
+      - 'README.md'           #   ""
+      - 'deploy_production.command'   # test_no_committed_secrets reads it
+      - 'railway*.json'       # test_validation_deployment_safety reads these
+      - 'railway*.toml'       #   ""
+      - 'railway.setup.txt'   #   ""
+      - 'nixpacks.toml'       #   ""
+      - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
+      - '.github/workflows/test.yml'
+  push:
+    branches:
+      - claude/brain-admin-v2-integration
+    paths:
+      - 'src/**'
+      - 'prisma/**'
+      - 'prisma.config.ts'
+      - 'test_*.ts'
+      - 'test_*.mjs'          # test_admin_scenarios.mjs runs in test:all
+      - 'tests/**'            # fixtures the suites load
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig*.json'
+      - '.npmrc'              # changes how `npm ci` resolves
+      - 'docs/**'             # test_architecture_doc_truth asserts on these
+      - 'README.md'           #   ""
+      - 'deploy_production.command'   # test_no_committed_secrets reads it
+      - 'railway*.json'       # test_validation_deployment_safety reads these
+      - 'railway*.toml'       #   ""
+      - 'railway.setup.txt'   #   ""
+      - 'nixpacks.toml'       #   ""
+      - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
+      - '.github/workflows/test.yml'
+
+# A newer push supersedes an in-flight run for the same ref.
+concurrency:
+  group: adlytic-test-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Repository truth: package.json engines >=22, nixpacks nodejs_22,
+          # deploy-adlytic.yml '22'. Kept identical so CI cannot pass on a
+          # runtime production never uses.
+          node-version: '22'
+          cache: npm
+
+      - run: npm ci
+
+      # The client is generated from schema.prisma alone — no database
+      # connection, no migration, no DATABASE_URL. `postinstall` already does
+      # this; repeated explicitly because it is a real precondition of
+      # typecheck and should fail loudly here rather than confusingly later.
+      - run: npx prisma generate
+
+      - run: npm run typecheck
+
+      # test_admin_scenarios.mjs drives the shipped admin page in a real
+      # browser to assert what an OPERATOR can see — two different incidents
+      # must read differently. That boundary genuinely needs a DOM, so the
+      # browser is provided rather than the test mocked down to markup checks.
+      # Chromium only; the suite launches nothing else.
+      - run: npx playwright install --with-deps chromium
+
+      # 46 suites. Verified to need no credentials and no network: the full
+      # suite passes with DATABASE_URL, JWT_SECRET, TOKEN_ENCRYPTION_KEY,
+      # PLATFORM_ADMIN_EMAILS, the API keys and every proxy variable stripped
+      # from the environment. Suites that need config supply their own dummy
+      # values before importing config.ts. Nothing here reaches Meta, Railway
+      # or a database, so no secret is required and none is provided.
+      - run: npm run test:all

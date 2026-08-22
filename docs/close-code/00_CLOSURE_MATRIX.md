@@ -54,7 +54,28 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 43 | Admin console page merge | `adminConsolePage` / `adminOsPage` | — | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 44 | Security & Audit admin section | — | `test_admin_os` §1 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 45 | `recommend.ts` ungoverned actions | `recommend.ts::templateFor` | matrix, doc 03 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
-| 46 | **Live validation** | Railway | — | **OPEN_CLOSE_BLOCKER** | NO | NO |
+| 46 | **Gate A — Nixpacks build-secret exposure** | Railway config | doc 07 | **OPEN_CLOSE_BLOCKER** | NO | YES |
+| 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **OPEN_CLOSE_BLOCKER** | NO | YES |
+| 48 | **Gate C — CI workflow able to run the suite** | `.github/workflows/test.yml` | doc 15, CI run `32572081116` | **CLOSED_PROVEN** | YES | YES |
+| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | NO |
 
-**Close blockers: 1** (item 46). Everything else is closed or classified as
-non-blocking debt with a named reopening trigger in doc 13.
+**Remaining gates: 3** (items 46, 47, 49) — all operational, and all three
+blocked by the **same single cause**: `RAILWAY_TOKEN` is unset, so no deploy
+has succeeded since 19 August and no build or running service exists to
+observe. Item 48, the one repository-governance gate, is closed:
+`.github/workflows/test.yml` runs the full suite on `pull_request` and on
+pushes to the branch, and CI run `32572081116` is green on `0dbd60b`.
+
+Within the three open gates, everything not requiring live access is done —
+A1/A2/A3, B1/B2 and D5 (doc 07, doc 15). `4fc27c2` itself is now on `main` via
+PR #88, which deployed nothing.
+
+The gates surround **one completed application-behaviour candidate**
+(`4fc27c2`) and are not architectural defects. The final *repository*
+candidate is `0dbd60b`; the diff between the two over `src/`, `prisma/`,
+`package.json`, `package-lock.json` and `tsconfig.json` is empty. Everything
+else is closed or classified as non-blocking debt with a named reopening
+trigger in doc 13.
+
+`APPLICATION_BEHAVIOR_CLOSE_COMPLETE=YES` · `REPOSITORY_RELEASE_GATE_COMPLETE=YES`
+· `OPERATIONAL_CLOSE_COMPLETE=NO`

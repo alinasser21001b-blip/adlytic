@@ -1,7 +1,47 @@
 # 13 — Open debt register
 
-Nothing here blocks closure. Each item names its owner, why it was not fixed,
-and the exact trigger that reopens it.
+**Two categories, and the distinction matters.** Debt is what ships unfixed
+with a named reopening trigger. A **gate** is what must pass before closure.
+They were previously mixed, which is how this register could list a
+secret-exposure risk while doc 15 declared `SECURITY_GAPS = 0`.
+
+---
+
+# Part 1 — Open close gates (NOT debt)
+
+Three gates remain around one completed application-behaviour candidate. They
+are **not architectural defects**; the code is done. Full detail in doc 15.
+
+| Gate | Class | State |
+|---|---|---|
+| **A. NIXPACKS_SECRET_GATE** | deployment / security operational | OPEN — doc 07 |
+| **B. PERIOD_TRUTH_LIVE_GATE** | data migration / live behaviour operational | OPEN — doc 07 |
+| **C. CI_GATE** | **repository governance** | **CLOSED** — doc 15 |
+| **D. FINAL_HEALTH_BUILD_GATE** | deployment / live verification | OPEN — doc 15 |
+
+Gate C was **inside the repository**, not an external operation: no workflow
+existed that could execute the test suite for `src/**` changes. It is now
+closed by `.github/workflows/test.yml`, green on `0dbd60b` in CI run
+`32572081116`. That took two governance-only commits, which changed the final
+repository candidate SHA (`4fc27c2` → `0dbd60b`) without changing application
+behaviour.
+
+The three that remain are **all operational**, and they share **one** blocker:
+`RAILWAY_TOKEN` is unset, so no deploy has succeeded since 19 August — the
+PR #88 merge of `4fc27c2` into main deployed nothing. None can be closed by a
+repository change, and none is reachable from the build environment.
+
+Every part of A, B and D that did not require live access has been completed:
+A1 exposure model, A2 runtime-only mechanism, A3 rotation plan, B1 migration
+safety, B2 deployment order, and D5 CI + local verification. What is left is
+observation of a running system.
+
+---
+
+# Part 2 — Open debt
+
+Nothing in this part blocks closure. Each item names its owner, why it was not
+fixed, and the exact trigger that reopens it.
 
 ---
 
@@ -65,23 +105,10 @@ capability that does not exist.
 
 ---
 
-## 5. `NIXPACKS_BUILD_SECRET_PROPAGATION_RISK`
+## 5. `NIXPACKS_BUILD_SECRET_PROPAGATION_RISK` — **reclassified as GATE A**
 
-**Class** deployment/security · **Severity** medium · **Owner** Railway config
-
-Railway injects all service variables into the build environment; Nixpacks'
-generated Dockerfile emits `ENV` lines that BuildKit lints as
-`SecretsUsedInArgOrEnv`, baking `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` into
-image layers.
-
-**Why not fixed** Platform-generated, not repository behaviour: no
-`Dockerfile`, no `ARG`/`ENV` in `nixpacks.toml`, no build env in any railway
-config, and both values are read at runtime only. No repository change would
-fix it.
-
-**Reopen** immediately — remediation is a Railway setting excluding those
-variables from the build environment. Rotate both if image layers were ever
-accessible outside the team.
+Moved out of debt. It is a close gate, not something that ships unfixed. See
+Part 1 and doc 07.
 
 ---
 
@@ -101,13 +128,14 @@ close it later.
 
 ---
 
-## 7. `PERIOD_TRUTH_NOT_LIVE_VALIDATED`
+## 7. `PERIOD_TRUTH_NOT_LIVE_VALIDATED` — **reclassified as GATE B**
 
-**Class** behaviour · **Severity** high until validated · **Owner** deployment
+Moved out of debt. See Part 1 and the evidence ladder in doc 07.
 
-Reach and frequency correctly report UNKNOWN until the migration is applied
-**and a worker** has completed a sync pass. A validation-API deploy alone
-cannot populate them.
+---
 
-**Reopen** at live validation — this is part of the single close blocker. Until
-then, UNKNOWN is the correct live result and must not be read as a defect.
+## Debt count
+
+**4 open debt items**: 2 (recommend.ts ungoverned actions), 3 (console page
+merge), 4 (absent Security & Audit section), 6 (unproven frequency
+derivation). Item 1 is closed; items 5 and 7 are gates.
