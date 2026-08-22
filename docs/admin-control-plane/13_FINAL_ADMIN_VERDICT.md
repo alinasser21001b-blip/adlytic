@@ -102,6 +102,13 @@ in the component.
 - **Per-queue depth, separate-worker liveness and the admin allowlist** are not
   observable. They are recorded as node `unknowns` and rendered, not hidden.
 
+> **SUPERSEDED IN PART.** This document's visual verdict was falsified by a
+> production screenshot of `/admin/meta`. See
+> [`18_FALSE_GREEN_POSTMORTEM.md`](./18_FALSE_GREEN_POSTMORTEM.md) for why the
+> gate passed a broken page, and `20_UI_STABILIZATION.md` for what changed.
+> The architectural verdict below stands; the visual one was re-earned on
+> branch `claude/admin-control-plane-ui-stabilization`.
+
 ## Acceptance pass addendum
 
 Everything above was verified from source. The acceptance pass verified it

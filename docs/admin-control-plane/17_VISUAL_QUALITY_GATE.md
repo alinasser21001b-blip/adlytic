@@ -1,5 +1,10 @@
 # 17 — Visual quality gate
 
+> **SUPERSEDED.** The answers below were measured against a harness whose
+> fixtures did not match the real API shapes, so `/admin/meta` passed while
+> rendering raw JSON in production. See doc 18 for the postmortem and doc 20
+> for the re-measured answers.
+
 Answered against the rendered product, not the source. Evidence is the browser
 audit in `tools/admin-acceptance/`: 7 surfaces × 11 scenarios × 2 viewports,
 plus an LTR pass and 19 driven operator questions.
