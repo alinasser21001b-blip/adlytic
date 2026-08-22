@@ -34,6 +34,12 @@ const TRANSITIONS = [
   ['/admin/graph', '/admin', 'sidebar'],
   ['/admin', '/admin/brain-observatory', 'sidebar'],
   ['/admin', '/admin/add-client', 'sidebar'],
+  // The three former legacy fallbacks. They are reached by a button inside
+  // the workspace that replaced them, not from the sidebar — and they must
+  // arrive inside the same Control Plane.
+  ['/admin/operations', '/admin/observability', 'inpage'],
+  ['/admin/customers', '/admin/classic', 'inpage'],
+  ['/admin/support', '/admin/inbox', 'inpage'],
 ];
 
 /** Routes the Control Plane still links into. Each must be classified. */
@@ -76,6 +82,9 @@ for (const [from, to, via] of TRANSITIONS) {
       for (const t of tabs) {
         if (await t.getAttribute('data-view') === hash) { await t.click(); clicked = true; break; }
       }
+    } else if (via === 'inpage') {
+      const link = await page.$(`a[href="${target}"]`);
+      if (link) { await link.click(); clicked = true; }
     } else {
       const link = await page.$(`.rail .nav-item[href="${target}"]`);
       if (link) { await link.click(); clicked = true; }
@@ -91,8 +100,10 @@ for (const [from, to, via] of TRANSITIONS) {
 
     row.shellKept = after.shell && after.rails === 1;
     row.contextKept = after.ctxFilled >= 1;
-    row.activeNavCorrect = after.activeNav.length === 1
-      && (after.activeNav[0] === target || target === '/admin');
+    row.activeNavCorrect = via === 'inpage'
+      ? after.activeNav.length <= 1                 // a detail surface may own no domain
+      : (after.activeNav.length === 1
+         && (after.activeNav[0] === target || target === '/admin'));
     row.tabCorrect = hash ? (after.visibleView === 'v-' + hash) : true;
     row.noLegacyChrome = after.legacyChrome === 0;
     row.titlePresent = after.title.trim().length > 0;
@@ -122,8 +133,11 @@ for (const [from, to, via] of TRANSITIONS) {
   await page.close();
 }
 
-// Which Control Plane surfaces still link into a legacy product?
+// A link to a historical route is not the defect. LEAVING the Control Plane is.
+// So the measurement is what the operator ARRIVES at: does the destination
+// still render its own product, or does it render inside the one shell?
 const leaks = [];
+const legacyChrome = [];
 for (const surface of ['/admin', '/admin/meta', '/admin/intelligence', '/admin/operations',
                        '/admin/customers', '/admin/support', '/admin/graph']) {
   const page = await ctx.newPage();
@@ -132,6 +146,24 @@ for (const surface of ['/admin', '/admin/meta', '/admin/intelligence', '/admin/o
   const hrefs = await page.$$eval('a[href]', (as) => as.map((a) => a.getAttribute('href')));
   for (const l of LEGACY_TARGETS) {
     if (hrefs.includes(l)) leaks.push({ surface, legacy: l });
+  }
+  await page.close();
+}
+for (const l of [...LEGACY_TARGETS, '/admin/meta-readiness']) {
+  const page = await ctx.newPage();
+  try {
+    await page.goto(`${BASE}${l}?scenario=healthy`, { waitUntil: 'networkidle', timeout: 20000 });
+    await page.waitForTimeout(700);
+    const m = await inspect(page);
+    const own = await page.$$eval('.app, .sidebar, .main-wrapper, .topbar-title',
+      (els) => els.length).catch(() => 0);
+    if (!m.shell || m.rails !== 1) {
+      legacyChrome.push(`${l}: renders its own product (rails=${m.rails}, shell=${m.shell})`);
+      defects.push(`${l}: an operator arriving here leaves the Control Plane`);
+    }
+    if (own > 0) legacyChrome.push(`${l}: ${own} legacy chrome element(s) still rendered`);
+  } catch (e) {
+    legacyChrome.push(`${l}: failed to load — ${e.message.slice(0, 60)}`);
   }
   await page.close();
 }
@@ -147,7 +179,7 @@ await page.close();
 await ctx.close();
 await browser.close();
 
-writeFileSync(`${OUT}/matrix.json`, JSON.stringify({ rows, defects, leaks }, null, 2));
+writeFileSync(`${OUT}/matrix.json`, JSON.stringify({ rows, defects, leaks, legacyChrome }, null, 2));
 
 console.log('\nADMIN_NAVIGATION_TRANSITION_MATRIX\n');
 console.log('from → to'.padEnd(52) + 'shell ctx nav tab back');
@@ -156,8 +188,11 @@ for (const r of rows) {
   console.log(`${(r.from + ' → ' + r.to).padEnd(52)}${y(r.shellKept)}${y(r.contextKept)}${y(r.activeNavCorrect)}${y(r.tabCorrect)}${y(r.backCorrect)}`);
 }
 console.log(`\nTRANSITIONS_TESTED=${rows.length}`);
-console.log(`LEGACY_LINKS_FROM_CONTROL_PLANE=${leaks.length}` +
+console.log(`LINKS_TO_HISTORICAL_ROUTES=${leaks.length}` +
   (leaks.length ? ' → ' + leaks.map((l) => `${l.surface}→${l.legacy}`).join(', ') : ''));
+console.log(`LEGACY_CHROME_EXPOSED=${legacyChrome.length ? 'YES' : 'NO'}`);
+for (const c of legacyChrome) console.log('  ✗ ' + c);
+console.log(`VISIBLE_LEGACY_TRANSITIONS=${legacyChrome.length}`);
 console.log(`BROKEN_TRANSITIONS=${defects.length}`);
 for (const d of defects) console.log('  ✗ ' + d);
 if (defects.length) process.exit(1);

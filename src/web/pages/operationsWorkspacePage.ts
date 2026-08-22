@@ -45,7 +45,7 @@ const HEADER = `
       <div class="phead-t">تشغيل المنصة</div>
       <div class="phead-s">الخدمات والطوابير والعمّال وهوية النسخة العاملة — هل المنصة نفسها تعمل بشكل صحيح.</div>
     </div>
-    <div class="phead-actions"><a class="btn" href="/admin/observability">الصفحة السابقة</a></div>
+    <div class="phead-actions"><a class="btn" href="/admin/observability">مراقبة المنصة التفصيلية</a></div>
   </div>
 `;
 
@@ -80,7 +80,7 @@ const BODY = `
           <button class="btn" id="bust">أبطل ذاكرة الإحصاءات</button>
           <a class="btn" href="/admin/observability">صفحة المراقبة السابقة</a>
         </div>
-        <div class="muted">الصفحة السابقة ما زالت تملك جداول الوصول والأموال المفصّلة.</div>
+        <div class="muted">«مراقبة المنصة» ما زالت تملك جداول الوصول والأموال المفصّلة وقائمة المستخدمين.</div>
       </div>
     </div>
   </section>

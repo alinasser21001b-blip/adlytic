@@ -213,10 +213,31 @@ export function adminDestinations(): AdminDestination[] {
   return ADMIN_IA.flatMap((s) => s.items);
 }
 
+/**
+ * Which sidebar item lights up for a surface.
+ *
+ * A legacy surface has no sidebar item of its own — that is what makes it
+ * legacy — so a naive `i.id === active` left the operator on /admin/classic
+ * with nothing highlighted and no way to tell where in the IA they were. The
+ * answer is already in the model: a legacy surface is the detail behind the
+ * domain that replaced it, so it highlights its `replacedBy`. Derived from
+ * ADMIN_LEGACY rather than hand-mapped, so retiring a route cannot leave a
+ * stale entry behind.
+ */
+export function navHighlightFor(active: AdminSurface): AdminSurface {
+  if (ADMIN_IA.some((s) => s.items.some((i) => i.id === active))) return active;
+  const legacy = ADMIN_LEGACY.find((l) => l.id === active);
+  if (!legacy) return active;
+  const owner = ADMIN_IA.flatMap((s) => s.items)
+    .find((i) => i.href === legacy.replacedBy);
+  return owner ? owner.id : active;
+}
+
 export function adminSurfaceNav(active: AdminSurface): string {
+  const highlight = navHighlightFor(active);
   const sections = ADMIN_IA.map((section) => {
     const items = section.items.map((i) =>
-      `      <a class="nav-item${i.id === active ? ' active' : ''}" href="${i.href}" title="${i.purpose}">${i.label}</a>`,
+      `      <a class="nav-item${i.id === highlight ? ' active' : ''}" href="${i.href}" title="${i.purpose}">${i.label}</a>`,
     ).join('\n');
     return `<div class="nav-label" title="${section.question}">${section.label}</div>\n${items}`;
   }).join('\n');

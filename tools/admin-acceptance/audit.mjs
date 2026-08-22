@@ -24,6 +24,14 @@ const SURFACES = [
   ['/admin/operations', 'operations'],
   ['/admin/customers', 'customers'],
   ['/admin/support', 'support'],
+  // Once a legacy page is wrapped in the shell it stops being legacy: it is a
+  // Control Plane surface and is held to the same composition standard. A gate
+  // that audits only the pages we authored would grade its own homework.
+  ['/admin/observability', 'observability'],
+  ['/admin/classic', 'classic'],
+  ['/admin/inbox', 'inbox'],
+  ['/admin/os', 'admin-os'],
+  ['/admin/meta-readiness', 'meta-readiness'],
 ];
 
 const VIEWPORTS = [
@@ -112,6 +120,47 @@ async function inspect(page, surface, scenario, viewport) {
       }
     }
 
+    // 1b. Language artifacts. `undefined`, `NaN` and `[object Object]` are the
+    //     same defect as raw JSON wearing plainer clothes: an internal value
+    //     that escaped without being read. The JSON check misses them because
+    //     they carry no braces, and a screenshot is the only reason we caught
+    //     «آخر undefined أيام» and «محسوبة منذ NaN ساعة» — which is exactly the
+    //     kind of thing that should not need an eye.
+    const artifacts = [];
+    for (const el of document.querySelectorAll('.page-inner *')) {
+      if (el.children.length) continue;
+      if (el.closest('details')) continue;   // disclosed raw payload = allowed
+      const t = (el.textContent || '').trim();
+      if (!t) continue;
+      // Word-bounded so a legitimate word containing them is not flagged, and
+      // an element that IS the literal string counts too.
+      if (/(^|[\s(:،·])(undefined|NaN|\[object Object\]|null)([\s).,،·]|$)/.test(t)) {
+        artifacts.push(t.slice(0, 70));
+      }
+      // A full ISO-8601 timestamp is a machine value too. The formatted
+      // stamps this product renders ("2026-08-01 10:00 قبل 22 يوم") do not
+      // match; only an unformatted one with its T and Z does.
+      if (/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?Z?/.test(t)) {
+        artifacts.push('raw ISO timestamp: ' + t.slice(0, 60));
+      }
+    }
+
+    // 1c. Arabic must never be set in a monospace face.
+    //     A monospace font pins every glyph to one advance width. Latin
+    //     survives that; Arabic does not — the cursive joins stretch and words
+    //     visibly come apart, which is what the graph's node labels were doing
+    //     to «خدمة الواجهة» and «قاعدة البيانات». The rule the product already
+    //     follows is identifiers mono, prose in the body face; this checks it
+    //     against what actually rendered.
+    const monoArabic = [];
+    for (const el of document.querySelectorAll('.page-inner *, svg text')) {
+      if (el.children.length) continue;
+      const t = (el.textContent || '').trim();
+      if (!t || !/[\u0600-\u06FF]/.test(t)) continue;
+      const fam = getComputedStyle(el).fontFamily.toLowerCase();
+      if (/mono|courier|consolas/.test(fam)) monoArabic.push(t.slice(0, 40));
+    }
+
     // 2. Content occupancy: how much of the rendered page height carries
     //    content, versus how much is background. Detects the "two small cards
     //    stranded at the top of a 1600px page" pathology.
@@ -186,7 +235,8 @@ async function inspect(page, surface, scenario, viewport) {
       overflowing: [...new Set(overflowing)].slice(0, 8),
       clipped: [...new Set(clipped)].slice(0, 8),
       sparse, skeletons, emptyCells, chips, graphLabelPx,
-      jsonLeaks, occupancy, clippedPrimary, legacyShell, deadMeters, misaligned,
+      jsonLeaks,
+      artifacts, monoArabic, occupancy, clippedPrimary, legacyShell, deadMeters, misaligned,
       activeNav: [...document.querySelectorAll('.nav-item.active')].map((a) => a.getAttribute('href')),
       dir: doc.getAttribute('dir'),
       railCount: document.querySelectorAll('.rail').length,
@@ -210,6 +260,12 @@ async function inspect(page, surface, scenario, viewport) {
   }
   for (const j of m.jsonLeaks) {
     finding('HIGH', surface, scenario, viewport, `raw JSON in primary UI: ${j}`);
+  }
+  for (const a of [...new Set(m.artifacts)]) {
+    finding('HIGH', surface, scenario, viewport, `internal value rendered to the operator: ${a}`);
+  }
+  for (const a of [...new Set(m.monoArabic)]) {
+    finding('MEDIUM', surface, scenario, viewport, `Arabic set in a monospace face: ${a}`);
   }
   // Only pathological emptiness, and only where there is data to render.
   //

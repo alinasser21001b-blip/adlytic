@@ -367,7 +367,7 @@ const SCRIPT = `
         + (w.tokenExpiresAt ? '<div class="wssub mono">' + esc(String(w.tokenExpiresAt).slice(0, 10)) + '</div>' : '') + '</td>'
         + '<td>' + window.adminTime(w.lastSyncedAt) + '</td>'
         + '<td>' + chip(w.data)
-        + (w.dataAgeDays != null ? ' <span class="dim mono">' + w.dataAgeDays + 'ي</span>' : '') + '</td>'
+        + (w.dataAgeDays != null ? ' <span class="dim"><span class="mono">' + w.dataAgeDays + '</span>\u064A</span>' : '') + '</td>'
         + '<td class="impact">' + esc(impactOf(w)) + '</td>'
         + '<td><a class="btn" href="/admin/customers">افتح الزبون</a></td></tr>';
     }).join('');

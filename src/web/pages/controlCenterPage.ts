@@ -192,7 +192,7 @@ const SCRIPT = `
         + '<div class="risk-sub">' + esc(w.adAccountName || 'لا حساب إعلاني') + '</div></td>'
         + '<td>' + chip(w.connection) + '</td>'
         + '<td>' + chip(w.data)
-        + (w.dataAgeDays != null ? ' <span class="muted mono">' + w.dataAgeDays + 'ي</span>' : '') + '</td>'
+        + (w.dataAgeDays != null ? ' <span class="muted"><span class="mono">' + w.dataAgeDays + '</span>\u064A</span>' : '') + '</td>'
         + '<td>' + esc(w.headline) + '</td>'
         + '</tr>';
     }).join('');

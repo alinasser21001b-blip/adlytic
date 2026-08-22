@@ -226,10 +226,15 @@ const readTop = (page) => page.evaluate(() => ({
   else bad(`S2: axes collapsed — connection="${conn}" data="${data}"`);
 }
 
+// The Admin OS's views are reached through the Control Plane shell's tab
+// strip (.view-tab[data-view]) now, not the legacy sidebar's .nav-item list.
+// The sidebar went when the page moved into the one shell; the views did not,
+// and the shell renders and switches them. Selectors below follow.
+
 // ── S3: a probe RUN failure must not read as a capability verdict ────────
 {
   const { page } = await open(SCENARIOS['S3 probe failed']);
-  await page.click('.nav-item[data-view="experiments"]');
+  await page.click('.view-tab[data-view="experiments"]');
   await page.waitForTimeout(300);
   await page.selectOption('#pr-ws', { index: 1 }).catch(() => {});
   await page.click('#pr-run');
@@ -245,7 +250,7 @@ const readTop = (page) => page.evaluate(() => ({
 // ── S4: mixed verdicts must be countable without reading the raw matrix ──
 {
   const { page } = await open(SCENARIOS['S4 probe mixed verdicts']);
-  await page.click('.nav-item[data-view="experiments"]');
+  await page.click('.view-tab[data-view="experiments"]');
   await page.waitForTimeout(300);
   await page.selectOption('#pr-ws', { index: 1 }).catch(() => {});
   await page.click('#pr-run');
@@ -295,7 +300,7 @@ const readTop = (page) => page.evaluate(() => ({
 // ── S6: two causes → two distinct rows, each naming its own cause ────────
 {
   const { page } = await open(SCENARIOS['S6 two different causes']);
-  await page.click('.nav-item[data-view="workspaces"]');
+  await page.click('.view-tab[data-view="workspaces"]');
   await page.waitForTimeout(300);
   const rows = await page.evaluate(() => [...document.querySelectorAll('#ws-body tr')].map((r) => r.textContent.replace(/\s+/g, ' ').trim()));
   await page.close();
@@ -325,7 +330,7 @@ const readTop = (page) => page.evaluate(() => ({
     activity: [{ at: now(), workspaceName: 'مساحة', kind: 'SYNC', status: 'FAILED', detail: 'HTTP 500' }],
   });
   const b = await page.evaluate(() => ({
-    navHasBoundary: !!document.querySelector('.nav-item[data-view="boundary"]'),
+    navHasBoundary: !!document.querySelector('.view-tab[data-view="boundary"]'),
     onHome: document.querySelectorAll('#now-bnd .bnd').length,
     onPage: document.querySelectorAll('#bnd-all .bnd').length,
     // Every boundary item must name what would RESOLVE it. A blind spot
@@ -361,7 +366,7 @@ const readTop = (page) => page.evaluate(() => ({
       bootedAt: new Date(Date.now() - 3600000).toISOString(), resolved: true,
     },
   });
-  await page.evaluate(() => document.querySelector('.nav-item[data-view="operations"]').click());
+  await page.evaluate(() => document.querySelector('.view-tab[data-view="operations"]').click());
   const r = await page.evaluate(() => ({
     text: document.getElementById('ops-build').textContent.trim(),
     sha: !!document.querySelector('#ops-build .ev'),
@@ -385,7 +390,7 @@ const readTop = (page) => page.evaluate(() => ({
       resolvedBy: 'فعّل ربط المستودع في Railway',
     }],
   });
-  await page.evaluate(() => document.querySelector('.nav-item[data-view="operations"]').click());
+  await page.evaluate(() => document.querySelector('.view-tab[data-view="operations"]').click());
   const r = await page.evaluate(() => ({
     text: document.getElementById('ops-build').textContent.trim(),
     chip: document.querySelector('#ops-build .chip')?.textContent.trim() || '',
@@ -423,7 +428,7 @@ const readTop = (page) => page.evaluate(() => ({
 // ── OS-specific: fact and interpretation are visually separated ──────────
 {
   const { page } = await open(SCENARIOS['S1 token expired']);
-  await page.click('.nav-item[data-view="workspaces"]');
+  await page.click('.view-tab[data-view="workspaces"]');
   await page.waitForTimeout(200);
   await page.click('#ws-body tr');
   await page.waitForTimeout(300);
@@ -451,7 +456,7 @@ const readTop = (page) => page.evaluate(() => ({
 {
   const { page } = await open(SCENARIOS['S5 healthy but intelligence untested']);
   for (const v of ['now', 'workspaces', 'operations', 'boundary', 'intelligence', 'activity']) {
-    await page.click('.nav-item[data-view="' + v + '"]').catch(() => {});
+    await page.click('.view-tab[data-view="' + v + '"]').catch(() => {});
     await page.waitForTimeout(120);
   }
   const bad_ = await page.evaluate(() => {

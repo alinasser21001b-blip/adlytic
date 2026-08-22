@@ -14,6 +14,11 @@ const S = { '/api/auth/me': { isPlatformAdmin: true, email: 'a@t' },
   '/api/admin/platform-stats': { computedAt: Date.now(), fromCache: false, reach: {}, money: { byCurrency: [] }, brain: { lookbackDays: 7, narrationCoveragePct: null } } };
 const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
 let fail = 0;
+// The Admin OS's views are the Control Plane shell's tab strip now
+// (.view-tab[data-view]); the legacy sidebar that held them is gone. The rail
+// still has to be REACHABLE at every width — below 900px it slides over the
+// content behind a toggle rather than sitting in the grid, which is what kept
+// a phone from scrolling ~290px sideways.
 for (const w of [390, 430, 768, 1024, 1440]) {
   const p = await b.newPage({ viewport: { width: w, height: 900 } });
   await p.addInitScript(() => localStorage.setItem('adlytic_token', 't'));
@@ -28,9 +33,9 @@ for (const w of [390, 430, 768, 1024, 1440]) {
     const over = [...document.querySelectorAll('#ops-sys .card,.att,#ws-body tr,.bnd')].filter((e) => e.getBoundingClientRect().width > vw + 1).length;
     const nav = document.querySelector('.rail');
     return { hScroll: de.scrollWidth - de.clientWidth, over, navVisible: nav ? getComputedStyle(nav).display !== 'none' : false,
-      navReachable: [...document.querySelectorAll('.nav-item[data-view]')].filter((e) => e.getBoundingClientRect().width > 0).length };
+      navReachable: [...document.querySelectorAll('.view-tab[data-view]')].filter((e) => e.getBoundingClientRect().width > 0).length };
   }, w);
-  await p.click('.nav-item[data-view="workspaces"]').catch(() => {});
+  await p.click('.view-tab[data-view="workspaces"]').catch(() => {});
   await p.waitForTimeout(200);
   const tbl = await p.evaluate(() => { const t = document.querySelector('#ws-body tr td'); return t ? getComputedStyle(t).display : 'none'; });
   const bad = m.hScroll > 1 || m.over > 0 || !m.navVisible || m.navReachable === 0;

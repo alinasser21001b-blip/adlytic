@@ -15,7 +15,9 @@ const html = JSON.parse(execSync(
     import { adminDashboardPage } from './src/web/pages/adminDashboardPage';
     import { metaReadinessPage } from './src/web/pages/metaReadinessPage';
     import { addClientPage } from './src/web/pages/addClientPage';
+    import { ADMIN_IA } from './src/web/pages/adminSurfaceNav';
     const out = {
+      ia: ADMIN_IA,
       console: adminConsolePage(),
       os: adminOsPage(),
       adminLogin: adminLoginPage(),
@@ -103,18 +105,27 @@ async function newPage(doc) {
   const { page, errors } = await newPage(html.console);
   await page.waitForTimeout(600);
 
-  const appVisible = await page.evaluate(() => document.querySelector('.app') && getComputedStyle(document.querySelector('.app')).display !== 'none');
-  report.push([appVisible ? 'ok' : 'FAIL', 'console: app shell revealed after ensureAdmin']);
+  // .app was this page's own chrome; the Control Plane shell renders .shell
+  // and reveals it once /api/auth/me confirms a platform admin.
+  const appVisible = await page.evaluate(() =>
+    document.body.classList.contains('admin-ready')
+    && !!document.querySelector('.rail')
+    && getComputedStyle(document.querySelector('.shell')).visibility !== 'hidden');
+  report.push([appVisible ? 'ok' : 'FAIL', 'console: shell revealed once identity is confirmed']);
   if (!appVisible) failures++;
 
   for (const tab of ['workspaces', 'customers', 'create', 'subscriptions', 'ledger', 'probe', 'settings', 'overview']) {
-    await page.click(`.nav-item[data-tab="${tab}"]`);
+    await page.click(`.view-tab[data-view="${tab}"]`);
     await page.waitForTimeout(250);
+    // #v-<id> and an .on class, not #view-<id> and an inline display: the
+    // shell owns view switching now, and these follow its convention.
     const visible = await page.evaluate((t) => {
-      const el = document.getElementById('view-' + t);
-      return !!el && el.style.display !== 'none' && getComputedStyle(el).display !== 'none';
+      const el = document.getElementById('v-' + t);
+      return !!el && getComputedStyle(el).display !== 'none';
     }, tab);
-    const others = await page.evaluate((t) => [...document.querySelectorAll('.view')].filter((el) => el.id !== 'view-' + t && el.style.display !== 'none').map((el) => el.id), tab);
+    const others = await page.evaluate((t) => [...document.querySelectorAll('.view')]
+      .filter((el) => el.id !== 'v-' + t && getComputedStyle(el).display !== 'none')
+      .map((el) => el.id), tab);
     const okRow = visible && others.length === 0;
     report.push([okRow ? 'ok' : 'FAIL', `console: tab ${tab} → visible=${visible}${others.length ? ' leaking: ' + others.join(',') : ''}`]);
     if (!okRow) failures++;
@@ -149,7 +160,7 @@ async function newPage(doc) {
   // Workspace filter narrows to problems only. The control lives inside the
   // workspaces view, so switch to it first — a hidden <select> is not
   // selectable, and that is correct behaviour, not a defect.
-  await page.click('.nav-item[data-tab="workspaces"]');
+  await page.click('.view-tab[data-view="workspaces"]');
   await page.waitForTimeout(200);
   await page.selectOption('#ws-filter', 'problems');
   await page.waitForTimeout(150);
@@ -158,7 +169,7 @@ async function newPage(doc) {
   report.push([filterOk ? 'ok' : 'FAIL', `console: workspace 'problems' filter → ${filtered} row(s), expected 1`]);
   if (!filterOk) failures++;
   await page.selectOption('#ws-filter', 'all');
-  await page.click('.nav-item[data-tab="overview"]');
+  await page.click('.view-tab[data-view="overview"]');
   await page.waitForTimeout(200);
 
   // customers table rendered rows from the stub?
@@ -167,7 +178,7 @@ async function newPage(doc) {
   if (!rows) failures++;
 
   // probe dropdown got the workspace from the flattened shape?
-  await page.click('.nav-item[data-tab="probe"]');
+  await page.click('.view-tab[data-view="probe"]');
   await page.waitForTimeout(400);
   const opts = await page.evaluate(() => [...document.querySelectorAll('#probe-ws option')].map((o) => o.textContent));
   const hasWs = opts.some((t) => t && t.includes('متجر النور'));
@@ -187,8 +198,16 @@ for (const [name, doc] of [['adminOS', html.os], ['inbox', html.inbox], ['observ
   else report.push(['ok', `${name}: loaded with zero JS errors`]);
 
   // The inbox once had NO way back to the console — a dead end. Every admin
-  // surface must carry the full shared nav so no page can regress into one.
-  const SURFACE_HREFS = ['/admin', '/admin/inbox', '/admin/add-client', '/admin/observability', '/admin/meta-readiness', '/dashboard'];
+  // surface must carry the shared nav so no page can regress into one.
+  //
+  // What "the shared nav" MEANS is ADMIN_IA, and this list used to name the
+  // routes by hand — including three that the Control Plane deliberately
+  // dropped from the sidebar. /admin/inbox, /admin/observability and
+  // /admin/meta-readiness are historical surfaces reached as drill-downs from
+  // the domain that replaced each of them, and meta-readiness has reached
+  // parity and is meant to have NO inbound link at all. A hardcoded list
+  // cannot express that; the IA already does, so read it.
+  const SURFACE_HREFS = [...html.ia.flatMap((s) => s.items.map((i) => i.href)), '/dashboard'];
   // A page need not link to ITSELF — the Admin OS *is* /admin, and demanding
   // a self-link would be the guard misreading its own rule. Every other
   // destination must still be reachable, so no page can become an island.
@@ -232,8 +251,13 @@ for (const [name, doc] of [['adminOS', html.os], ['inbox', html.inbox], ['observ
   {
     const { page, errs } = await openAs(html.os, AS_ADMIN, { seed: { adlytic_token: 't', adlytic_workspace_id: 'w9' } });
     const r = await page.evaluate(() => ({
-      shell: document.getElementById('os') && getComputedStyle(document.getElementById('os')).display !== 'none',
-      gateHidden: document.getElementById('gate').classList.contains('hidden'),
+      // #os and #gate were the Admin OS's own chrome and its reveal gate; the
+      // Control Plane shell owns both now. "Revealed" means the shell was
+      // actually made visible, which is the thing invariant 7 is about — the
+      // markup is always present, so its presence proves nothing.
+      shell: document.body.classList.contains('admin-ready'),
+      gateHidden: !!document.getElementById('admin-gate')
+        && document.getElementById('admin-gate').classList.contains('hidden'),
       ws: localStorage.getItem('adlytic_workspace_id'),
       mode: localStorage.getItem('adlytic_session_mode'),
       url: location.pathname,
@@ -257,8 +281,27 @@ for (const [name, doc] of [['adminOS', html.os], ['inbox', html.inbox], ['observ
     let r = null;
     try {
       r = await page.evaluate(() => ({
-        shell: document.getElementById('os') && getComputedStyle(document.getElementById('os')).display !== 'none',
-        body: document.body.innerText.slice(0, 400),
+        // Presence is not visibility. The shell markup is in every admin
+        // document; what a customer must never get is the REVEAL, which only
+        // a confirmed platform admin triggers.
+        shell: document.body.classList.contains('admin-ready'),
+        // innerText is a DOM reading, not a camera: it returns text inside a
+        // visibility:hidden subtree, which is painted nowhere. Collect only
+        // what a person could actually see.
+        body: (function () {
+          var out = '';
+          var w = document.createTreeWalker(document.body, NodeFilter.SHOW_ELEMENT);
+          var n;
+          while ((n = w.nextNode())) {
+            if (n.children.length) continue;
+            var st = getComputedStyle(n);
+            if (st.visibility === 'hidden' || st.display === 'none' || Number(st.opacity) === 0) continue;
+            if (!n.getClientRects().length) continue;
+            out += ' ' + (n.textContent || '');
+            if (out.length > 400) break;
+          }
+          return out.slice(0, 400);
+        })(),
       }));
     } catch (e) {
       r = { redirected: true };
@@ -277,15 +320,22 @@ for (const [name, doc] of [['adminOS', html.os], ['inbox', html.inbox], ['observ
   // Scenario D — /api/auth/me fails; an admin must NOT become a customer.
   {
     const { page, navs } = await openAs(html.os, AS_ADMIN, { seed: { adlytic_token: 't' }, meFails: true });
+    // What this scenario protects is invariant 5: a failed identity check must
+    // never demote an admin to a customer. It used to check that by watching a
+    // client-side reveal gate — but that gate never protected anything, since
+    // the HTML had already been delivered by then. Authorisation is the
+    // route's: GET /admin/os resolves the session server-side and redirects a
+    // non-admin, so the page below only ever reaches an admin. What the page
+    // still owes the operator is an honest report and a way to retry.
     const r = await page.evaluate(() => ({
-      shell: document.getElementById('os') && getComputedStyle(document.getElementById('os')).display !== 'none',
-      gate: document.getElementById('gate').innerText,
+      gate: (document.getElementById('admin-gate') || {}).innerText || '',
+      revealed: document.body.classList.contains('admin-ready'),
     }));
     await page.close();
-    if (r.shell) bad('network failure: admin shell revealed without identity confirmation');
-    else ok('network failure: shell stays hidden');
-    if (!/أعد المحاولة/.test(r.gate)) bad(`network failure: no retry gate — saw "${r.gate.slice(0, 60)}"`);
-    else ok('network failure: neutral retry gate shown');
+    if (r.revealed) bad('network failure: shell revealed without a confirmed identity');
+    else ok('network failure: the shell stays behind the gate');
+    if (!/أعد المحاولة/.test(r.gate)) bad(`network failure: no retry offered — saw "${r.gate.slice(0, 60)}"`);
+    else ok('network failure: the failure is reported with a retry');
     if (navs.includes('/dashboard')) bad('network failure: navigated to /dashboard — invariant 5 violated');
     else ok('network failure: never navigates to the customer dashboard');
   }

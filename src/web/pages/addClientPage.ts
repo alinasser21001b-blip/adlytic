@@ -186,12 +186,13 @@ td.currency-cell { font-weight: 800; color: var(--accent-2); white-space: nowrap
        ══════════════════════════════════════════════════════════════════════ */
     .mflow { display: none; }
 @media (max-width: 768px) {
-      /* .app carries an inline display:flex once the admin gate clears, so the
-         phone shell has to out-specify it. */
-      body.mf-on .app { display: none !important; }
+      /* On a phone this flow IS the page: hide the Control Plane chrome behind
+         it rather than stacking two navigations on a 390px screen. */
+      body.mf-on .shell { display: none !important; }
 body.mf-on .mflow { display: flex; }
 }
 .mflow {
+      position: fixed; inset: 0; z-index: 60; background: var(--bg);
       flex-direction: column;
       min-height: 100vh;
       min-height: 100dvh;   /* excludes the browser chrome that vh ignores */
@@ -386,6 +387,24 @@ const BODY = `
           <div id="accounts-empty" class="empty" style="display:none;">لا حسابات مرئية بعد — تأكد من موافقة العميل وتعيين الحساب لمستخدم النظام.</div>
         </div>
       </section>
+
+      <!-- ════════════════════════════════════════════════════════════════
+           MOBILE FLOW — the phone shell. Empty until first paint; every
+           screen is painted by mfRender() from the same record the desktop
+           cockpit reads, driven by the same poll.
+
+           It lived outside .app before this surface moved into the Control
+           Plane shell, which is why the move lost it: the wrap took the body
+           content and this sat beside it. Restored here, inside the page.
+           ════════════════════════════════════════════════════════════════ -->
+      <div class="mflow" id="mflow" role="region" aria-label="ربط حساب عميل">
+        <header class="mf-top">
+          <div class="mf-brand">Ad<span>lytic</span></div>
+          <div class="mf-dots" id="mf-dots" aria-hidden="true"></div>
+        </header>
+        <main class="mf-body" id="mf-body" aria-live="polite"></main>
+        <footer class="mf-foot" id="mf-foot" style="display:none;"></footer>
+      </div>
     `;
 
 const SCRIPT = `

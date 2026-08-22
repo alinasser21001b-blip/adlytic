@@ -67,8 +67,9 @@ const HEADER = `
 const BODY = `
   <div class="bar">
     <select class="inp" id="f-status" style="width:auto;">
-      <option value="">كل الحالات</option><option value="OPEN">مفتوحة</option>
-      <option value="PENDING">قيد المتابعة</option><option value="CLOSED">مغلقة</option>
+      <option value="">كل الحالات</option><option value="OPEN">تحتاج رد</option>
+      <option value="AWAITING_CUSTOMER">بانتظار العميل</option>
+      <option value="RESOLVED">محلولة</option><option value="CLOSED">مغلقة</option>
     </select>
     <select class="inp" id="f-priority" style="width:auto;">
       <option value="">كل الأولويات</option><option value="URGENT">عاجل</option>
@@ -76,8 +77,6 @@ const BODY = `
     </select>
     <button class="btn" id="reload">حدّث</button>
     <span class="muted" id="counts"></span>
-    <span style="flex:1"></span>
-    <a class="btn" href="/admin/inbox">الصندوق الكلاسيكي</a>
   </div>
 
   <div class="inbox">
@@ -107,6 +106,18 @@ const BODY = `
 
 const SCRIPT = `
 (function () {
+  var ST_AR = { OPEN: 'تحتاج رد', AWAITING_CUSTOMER: 'بانتظار العميل',
+                RESOLVED: 'محلولة', CLOSED: 'مغلقة' };
+  var PR_AR = { URGENT: 'عاجل', HIGH: 'مرتفع', NORMAL: 'عادي', LOW: 'منخفض' };
+  /** An enum member is not a sentence. Unknown members print as themselves. */
+  function stAr(v) { return ST_AR[v] || v || '—'; }
+  function prAr(v) { return PR_AR[v] || v || '—'; }
+  /** The requester, from the relation the API actually returns. */
+  function who(t) {
+    return (t.user && (t.user.name || t.user.email))
+      || t.userEmail || t.customerEmail || '—';
+  }
+
   function esc(v) {
     return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -141,8 +152,8 @@ const SCRIPT = `
             + (current === t.id ? ' sel' : '');
           return '<div class="' + cls + '" data-t="' + esc(t.id) + '">'
             + '<div class="tk-s">' + esc(t.subject || 'بلا عنوان') + '</div>'
-            + '<div class="tk-m">' + esc(t.status || '') + ' · ' + esc(t.priority || '')
-            + ' · ' + esc(t.userEmail || t.customerEmail || '') + '</div></div>';
+            + '<div class="tk-m">' + esc(stAr(t.status)) + ' · ' + esc(prAr(t.priority))
+            + ' · ' + esc(who(t)) + '</div></div>';
         }).join('')
         : '<div class="empty-pane"><div class="empty-pane-t">'
           + (st || pr ? 'لا تذكرة بهذا المرشّح' : 'لا تذاكر مفتوحة')
@@ -167,8 +178,8 @@ const SCRIPT = `
       var msgs = r.messages || t.messages || [];
       document.getElementById('th-subject').textContent = t.subject || 'تذكرة';
       document.getElementById('th-context').textContent =
-        [t.userEmail || t.customerEmail, t.workspaceName || t.workspaceId, t.status, t.priority]
-          .filter(Boolean).join(' · ');
+        [who(t), (t.workspace && t.workspace.name) || t.workspaceName || t.workspaceId,
+         stAr(t.status), prAr(t.priority)].filter(Boolean).join(' · ');
       document.getElementById('th-actions').innerHTML =
         '<button class="btn" data-set="CLOSED">أغلق</button> '
         + '<button class="btn" data-set="OPEN">أعد الفتح</button>';

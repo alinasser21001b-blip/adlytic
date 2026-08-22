@@ -1,187 +1,109 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/web/pages/metaReadinessPage.ts
 //
-//  Meta Marketing API Access Tier — readiness checklist (platform-admin only).
+//  التفصيل الأصلي للاستهلاك والقدرات. الصياغة التشغيلية لهذه الأرقام في «Meta والبيانات».
 //
-//  A single-purpose internal page that answers one question for whoever is
-//  preparing the Meta App Review / access-tier request: "Are we there yet?"
-//  It renders the two gating conditions Meta measures, plus the per-category
-//  error breakdown, straight from getMetaUsageStats():
+//  ── Why it renders inside the Control Plane shell ─────────────────────
 //
-//    1. ≥ 500 successful Marketing API calls over the rolling 15-day window
-//    2. < 15% error rate over the LAST 500 calls
+//  This page was reachable from the Control Plane and drew its own sidebar,
+//  topbar and header. An operator who followed that link left one product and
+//  arrived in another — same platform, different application. The navigation
+//  audit named it: shell lost, context bar emptied, no active nav item.
 //
-//  Mirrors adminDashboardPage.ts: the HTML is served to anyone who visits
-//  /admin/meta-readiness, but every number comes from /api/admin/meta-usage
-//  which gates on requirePlatformAdmin. A client-side `me.isPlatformAdmin`
-//  check is only a friendly UI guard — the server route is the real boundary.
+//  Nothing it renders was removed. The detail it uniquely owns is exactly why
+//  this is a WRAP and not a redirect: deleting the route would delete the
+//  detail. What is gone is the chrome it duplicated — navigation, context,
+//  the command palette and operator identity belong to the shell, here as
+//  everywhere else.
 // ════════════════════════════════════════════════════════════════════════
 
-import { TOKENS_CSS_PATH } from '../layout';
-import { adminSurfaceNav } from './adminSurfaceNav';
+import { adminShell } from '../adminShell';
 
-export function metaReadinessPage(): string {
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Meta Readiness — Adlytic</title>
-  <!-- Tokens + typefaces from the design system, no shell selectors.
-       This page used to carry a private copy of :root written for the
-       dark theme; when the product went light it stayed black, because
-       it was not reading the design system at all. -->
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* The page was authored against --font; the system calls it --font-body. */
+const CSS = `/* The page was authored against --font; the system calls it --font-body. */
     :root { --font: var(--font-body); }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font-body); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
-
-    .app { display: none; height: 100vh; overflow: hidden; }
-    .access-gate {
-      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      color: var(--text-2); font-size: 14px; font-weight: 600;
-    }
-    .access-gate.hidden { display: none; }
-    .access-gate .gate-spinner {
-      width: 30px; height: 30px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
-    }
-    @keyframes gate-spin { to { transform: rotate(360deg); } }
-
-    .sidebar { width: 220px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; }
-    .sidebar-logo { padding: 20px 20px 16px; font-size: 18px; font-weight: 700; color: var(--text); border-bottom: 1px solid var(--border); letter-spacing: -0.3px; }
-    .sidebar-logo span { color: var(--accent); }
-    .sidebar-nav { flex: 1; padding: 12px 8px; display: flex; flex-direction: column; gap: 2px; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; color: var(--text-2); font-size: 13.5px; font-weight: 500; transition: background 0.15s, color 0.15s; }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 10px 12px 4px; letter-spacing: 0.04em; }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent); }
-    .nav-item svg { width: 16px; height: 16px; flex-shrink: 0; }
-    .sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
-
-    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
-    .topbar { height: 56px; flex-shrink: 0; background: var(--surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; }
-    .topbar-left { display: flex; align-items: center; gap: 12px; }
-    .workspace-name { font-weight: 600; font-size: 15px; color: var(--text); }
-    .topbar-right { display: flex; align-items: center; gap: 12px; }
-    .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
-    .btn-logout { padding: 6px 14px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); font-size: 13px; font-weight: 500; transition: background 0.15s, color 0.15s; }
-    .btn-logout:hover { background: var(--border); color: var(--text); }
-
-    .content { flex: 1; overflow-y: auto; padding: 24px; }
-    .page-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
-    .page-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
-
-    .state-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 16px; }
-    .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
-    @keyframes spin { to { transform: rotate(360deg); } }
-    .state-text { font-size: 13px; color: var(--text-2); text-align: center; max-width: 420px; }
-
-    .grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 18px; }
-    .card { padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
-    .card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
-    .card-title { font-size: 14px; font-weight: 600; color: var(--text); }
-    .card-meta { font-size: 12px; color: var(--text-3); }
-
-    /* Verdict banner */
+button { cursor: pointer; border: none; background: none; font: inherit; color: inherit; }
+.access-gate.hidden { display: none; }
+@keyframes gate-spin { to { transform: rotate(360deg); }
+}
+.nav-item.active { background: var(--accent-dim); color: var(--accent); }
+.sidebar-bottom { padding: 12px 8px; border-top: 1px solid var(--border); }
+.topbar-left { display: flex; align-items: center; gap: 12px; }
+.workspace-name { font-weight: 600; font-size: 15px; color: var(--text); }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--accent); display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; color: #fff; }
+.btn-logout { padding: 6px 14px; border-radius: 7px; background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2); font-size: 13px; font-weight: 500; transition: background 0.15s, color 0.15s; }
+.btn-logout:hover { background: var(--border); color: var(--text); }
+.page-title { font-size: 20px; font-weight: 700; color: var(--text); margin-bottom: 4px; }
+.page-subtitle { font-size: 13px; color: var(--text-2); margin-bottom: 24px; }
+.state-overlay { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 300px; gap: 16px; }
+.spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.75s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); }
+}
+.state-text { font-size: 13px; color: var(--text-2); text-align: center; max-width: 420px; }
+.grid-2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 18px; }
+.card { padding: 18px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+.card-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.card-title { font-size: 14px; font-weight: 600; color: var(--text); }
+.card-meta { font-size: 12px; color: var(--text-3); }
+/* Verdict banner */
     .verdict { display: flex; align-items: center; gap: 14px; padding: 18px 20px; border-radius: 12px; margin-bottom: 18px; border: 1px solid var(--border); background: var(--surface); }
-    .verdict-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 20px; font-weight: 700; }
-    .verdict-ready .verdict-icon { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .verdict-notready .verdict-icon { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-    .verdict-title { font-size: 16px; font-weight: 700; }
-    .verdict-ready .verdict-title { color: var(--success); }
-    .verdict-notready .verdict-title { color: var(--warning); }
-    .verdict-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
-
-    /* Gate checklist */
+.verdict-icon { width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 20px; font-weight: 700; }
+.verdict-ready .verdict-icon { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.verdict-notready .verdict-icon { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.verdict-title { font-size: 16px; font-weight: 700; }
+.verdict-ready .verdict-title { color: var(--success); }
+.verdict-notready .verdict-title { color: var(--warning); }
+.verdict-sub { font-size: 12px; color: var(--text-2); margin-top: 2px; }
+/* Gate checklist */
     .gate { display: flex; align-items: flex-start; gap: 14px; padding: 16px 0; border-bottom: 1px solid var(--border); }
-    .gate:last-child { border-bottom: none; }
-    .gate-check { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; font-weight: 700; margin-top: 2px; }
-    .gate-check.ok { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
-    .gate-check.no { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
-    .gate-body { flex: 1; }
-    .gate-label { font-size: 14px; font-weight: 600; color: var(--text); }
-    .gate-detail { font-size: 12.5px; color: var(--text-2); margin-top: 3px; }
-    .gate-value { font-size: 22px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
-    .gate-value.ok { color: var(--success); }
-    .gate-value.no { color: var(--warning); }
-
-    /* progress bar */
+.gate:last-child { border-bottom: none; }
+.gate-check { width: 26px; height: 26px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 14px; font-weight: 700; margin-top: 2px; }
+.gate-check.ok { background: var(--success-dim); color: var(--success); border: 1px solid var(--success); }
+.gate-check.no { background: var(--warning-dim); color: var(--warning); border: 1px solid var(--warning); }
+.gate-body { flex: 1; }
+.gate-label { font-size: 14px; font-weight: 600; color: var(--text); }
+.gate-detail { font-size: 12.5px; color: var(--text-2); margin-top: 3px; }
+.gate-value { font-size: 22px; font-weight: 700; margin-top: 6px; font-variant-numeric: tabular-nums; }
+.gate-value.ok { color: var(--success); }
+.gate-value.no { color: var(--warning); }
+/* progress bar */
     .bar { height: 8px; border-radius: 4px; background: var(--surface-2); overflow: hidden; margin-top: 10px; }
-    .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
-    .bar-fill.ok { background: var(--success); }
-    .bar-fill.no { background: var(--warning); }
+.bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+.bar-fill.ok { background: var(--success); }
+.bar-fill.no { background: var(--warning); }
+.kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.kpi { display: flex; flex-direction: column; gap: 4px; }
+.kpi-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
+.kpi-value { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.1; }
+.kpi-value.hero { font-size: 30px; color: var(--accent); }
+table.brk { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.brk th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); border-bottom: 1px solid var(--border); }
+table.brk td { padding: 11px 12px; border-bottom: 1px solid var(--border); }
+table.brk td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+table.brk tr:last-child td { border-bottom: none; }
+.cat-badge { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; font-weight: 700; letter-spacing: 0.3px; color: var(--text-2); }
+.warn-box { padding: 12px 16px; border: 1px solid var(--warning); background: var(--warning-dim); border-radius: 10px; color: var(--warning); font-size: 12.5px; margin-bottom: 18px; }
+.error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
+.footer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
+.footer-info { font-size: 12px; color: var(--text-2); }
+.btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
+.btn-refresh:hover { opacity: 0.9; }
+.btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }`;
 
-    .kpi-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
-    .kpi { display: flex; flex-direction: column; gap: 4px; }
-    .kpi-label { font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.5px; }
-    .kpi-value { font-size: 24px; font-weight: 700; color: var(--text); line-height: 1.1; }
-    .kpi-value.hero { font-size: 30px; color: var(--accent); }
-
-    table.brk { width: 100%; border-collapse: collapse; font-size: 13px; }
-    table.brk th { text-align: left; padding: 10px 12px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-3); border-bottom: 1px solid var(--border); }
-    table.brk td { padding: 11px 12px; border-bottom: 1px solid var(--border); }
-    table.brk td.num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
-    table.brk tr:last-child td { border-bottom: none; }
-    .cat-badge { padding: 3px 8px; border-radius: 6px; background: var(--surface-2); font-size: 11px; font-weight: 700; letter-spacing: 0.3px; color: var(--text-2); }
-
-    .warn-box { padding: 12px 16px; border: 1px solid var(--warning); background: var(--warning-dim); border-radius: 10px; color: var(--warning); font-size: 12.5px; margin-bottom: 18px; }
-    .error-box { padding: 16px; border: 1px solid var(--error); background: var(--error-dim); border-radius: 10px; color: var(--error); font-size: 13px; }
-
-    .footer-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); margin-top: 4px; }
-    .footer-info { font-size: 12px; color: var(--text-2); }
-    .btn-refresh { padding: 8px 14px; border-radius: 7px; background: var(--accent); color: #fff; font-size: 12px; font-weight: 600; transition: opacity 0.15s; }
-    .btn-refresh:hover { opacity: 0.9; }
-    .btn-refresh[disabled] { opacity: 0.5; cursor: not-allowed; }
-  </style>
-</head>
-<body>
-<!-- Parity reached: everything this page renders now lives in /admin/meta#quota,
-     translated into operator language instead of raw counters. The route stays
-     mounted so existing bookmarks resolve, and says so rather than silently
-     being a second, older Meta product. -->
-<div style="background:var(--accent-dim);border-bottom:1px solid var(--accent);
-            padding:11px 18px;font-size:13px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-  <strong>انتقلت هذه الصفحة.</strong>
-  <span>الاستهلاك ومعدّل الخطأ وتصنيف الأخطاء صارت جزءاً من «Meta والبيانات» بصياغة تشغيلية.</span>
-  <a href="/admin/meta#quota" style="margin-inline-start:auto;background:var(--accent);color:#fff;
-     border-radius:7px;padding:5px 12px;font-weight:600;text-decoration:none;">افتح Meta والبيانات ←</a>
-</div>
-<div class="access-gate" id="access-gate">
-  <div class="gate-spinner"></div>
-  <div>Verifying access…</div>
-</div>
-<div class="app">
-  <aside class="sidebar">
-    <div class="sidebar-logo">Ad<span>lytic</span></div>
-    <nav class="sidebar-nav">
-      ${adminSurfaceNav('readiness')}
-    </nav>
-    <div class="sidebar-bottom">
-      <div class="nav-item" id="sidebar-user" style="pointer-events:none;">
-        <div class="avatar" id="sidebar-avatar">?</div>
-        <span id="sidebar-name" style="font-size:13px;color:var(--text-2);">Loading…</span>
-      </div>
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">جاهزية Meta — العرض التفصيلي</div>
+      <div class="phead-s">التفصيل الأصلي للاستهلاك والقدرات. الصياغة التشغيلية لهذه الأرقام في «Meta والبيانات».</div>
     </div>
-  </aside>
+    <div class="phead-actions">
+      <button class="btn" id="btn-refresh">Refresh</button>
+      <a class="btn btn-primary" href="/admin/meta#quota">Meta والبيانات</a>
+    </div>
+  </div>
+`;
 
-  <div class="main">
-    <header class="topbar">
-      <div class="topbar-left">
-        <span class="workspace-name">Meta API Access Tier — Readiness</span>
-      </div>
-      <div class="topbar-right">
-        <div class="avatar" id="top-avatar">?</div>
-        <button class="btn-logout" id="btn-logout">Logout</button>
-      </div>
-    </header>
-
-    <main class="content">
+const BODY = `
       <div class="page-title">Meta Marketing API — Readiness Checklist</div>
       <div class="page-subtitle">Two conditions gate the access-tier request: ≥ <span id="thr-calls">500</span> successful calls over 15 days, and &lt; <span id="thr-err">15</span>% error rate over the last 500 calls.</div>
 
@@ -292,11 +214,9 @@ export function metaReadinessPage(): string {
         </div>
 
       </div>
-    </main>
-  </div>
-</div>
+    `;
 
-<script>
+const SCRIPT = `
 (function() {
   var CAT_META = {
     token:          'OAuth / token expired — reconnect needed',
@@ -478,41 +398,41 @@ export function metaReadinessPage(): string {
   async function init() {
     var token = getToken();
     if (!token) { window.location.replace('/login'); return; }
-    document.getElementById('btn-logout').addEventListener('click', logout);
-    document.getElementById('btn-refresh').addEventListener('click', function(e) { refresh(e.currentTarget); });
+    // Logout is the shell's control now, not this page's — binding it here
+    // would fire the same handler twice.
+    var rf = document.getElementById('btn-refresh');
+    if (rf) rf.addEventListener('click', function(e) { refresh(e.currentTarget); });
 
-    // Admin gate — the shell ships display:none behind a full-screen access
-    // gate; reveal it only after /api/auth/me confirms isPlatformAdmin, so a
-    // customer never sees admin structure before being redirected.
+    // The client-side access gate is gone, and deliberately so. It reached for
+    // a chrome (.app, #access-gate, #sidebar-avatar) that this page no longer
+    // owns — the Control Plane shell does — so it threw inside its own try and
+    // fell through to the error branch, which is why the page rendered an
+    // error instead of its data. Authorisation was never this gate's job:
+    // the route resolves the session server-side and redirects a non-admin to
+    // /dashboard, so this HTML only ever reaches a platform admin.
     try {
-      var me = await apiFetch('/api/auth/me');
-      if (!me || !me.isPlatformAdmin) {
-        window.location.replace('/dashboard');
-        return;
-      }
-      var accessGate = document.getElementById('access-gate');
-      if (accessGate) accessGate.classList.add('hidden');
-      document.querySelector('.app').style.display = 'flex';
-      var userName = me.name || me.email || 'Admin';
-      document.getElementById('sidebar-avatar').textContent = initials(userName);
-      document.getElementById('top-avatar').textContent = initials(userName);
-      document.getElementById('sidebar-name').textContent = userName;
-
       await loadStats();
     } catch (err) {
       if (err && err.message === 'Unauthorized') return; // api() already redirected
-      var g = document.getElementById('access-gate');
-      if (g && !g.classList.contains('hidden')) {
-        g.innerHTML = '<div style="max-width:320px;text-align:center;line-height:1.8;">Could not verify access. Check your connection and <a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">retry</a>.</div>';
-      } else {
-        showError('Failed to load readiness stats: ' + (err.message || String(err)));
-      }
+      showError('Failed to load readiness stats: ' + (err.message || String(err)));
     }
   }
 
   document.addEventListener('DOMContentLoaded', init);
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function metaReadinessPage(): string {
+  return adminShell({
+    active: 'readiness',
+    title: 'جاهزية Meta — العرض التفصيلي',
+    subtitle: 'التفصيل الأصلي للاستهلاك والقدرات. الصياغة التشغيلية لهذه الأرقام في «Meta والبيانات».',
+    css: CSS,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    commands: [
+      { label: 'Meta والبيانات', href: '/admin/meta#quota', hint: 'Meta' },
+    ],
+  });
 }

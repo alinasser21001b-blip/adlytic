@@ -1,247 +1,201 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/web/pages/adminConsolePage.ts
 //
-//  Platform-owner console (Arabic RTL): create customers, manage
-//  activation/subscriptions, edit accounts, delete accounts, and inspect
-//  activity. Data is gated by /api/admin/* + PLATFORM_ADMIN_EMAILS.
+//  أدراج تحرير الزبون والاشتراك والإعدادات بتفاصيلها الكاملة — التفاصيل التي تكمّل «الزبائن ومساحات العمل».
+//
+//  ── Why it renders inside the Control Plane shell ─────────────────────
+//
+//  This page was reachable from the Control Plane and drew its own sidebar,
+//  topbar and header. An operator who followed that link left one product and
+//  arrived in another — same platform, different application. The navigation
+//  audit named it: shell lost, context bar emptied, no active nav item.
+//
+//  Nothing it renders was removed. The detail it uniquely owns is exactly why
+//  this is a WRAP and not a redirect: deleting the route would delete the
+//  detail. What is gone is the chrome it duplicated — navigation, context,
+//  the command palette and operator identity belong to the shell, here as
+//  everywhere else.
 // ════════════════════════════════════════════════════════════════════════
 
-import { TOKENS_CSS_PATH } from '../layout';
-import { adminSurfaceNav } from './adminSurfaceNav';
+import { adminShell } from '../adminShell';
 
-export function adminConsolePage(): string {
-  return `<!DOCTYPE html>
-<html lang="ar" dir="rtl">
-<head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>إدارة المنصة — Adlytic</title>
-  <!-- Tokens + typefaces from the design system, no shell selectors.
-       This page used to carry a private copy of :root written for the
-       dark theme; when the product went light it stayed black, because
-       it was not reading the design system at all. -->
-  <link rel="stylesheet" href="${TOKENS_CSS_PATH}" />
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    /* The page was authored against --font; the system calls it --font-body. */
+const CSS = `/* The page was authored against --font; the system calls it --font-body. */
     :root { --font: var(--font-body); }
-    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: var(--font); font-size: 14px; }
-    a { color: inherit; text-decoration: none; }
-    button, input, select, textarea { font: inherit; color: inherit; }
-    button { cursor: pointer; border: none; background: none; }
-    .app { display: none; min-height: 100vh; }
-    .access-gate {
-      position: fixed; inset: 0; z-index: 9999; background: var(--bg);
-      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-      color: var(--text-2); font-size: 14px; font-weight: 600;
-    }
-    .access-gate.hidden { display: none; }
-    .access-gate .gate-spinner {
-      width: 30px; height: 30px; border: 3px solid var(--border);
-      border-top-color: var(--accent); border-radius: 50%; animation: gate-spin 0.7s linear infinite;
-    }
-    @keyframes gate-spin { to { transform: rotate(360deg); } }
-    .sidebar {
-      width: 240px; flex-shrink: 0; background: var(--surface);
-      border-left: 1px solid var(--border); display: flex; flex-direction: column;
-      position: sticky; top: 0; height: 100vh;
-    }
-    .logo { padding: 22px 20px 16px; border-bottom: 1px solid var(--border); }
-    .logo-brand { font-size: 20px; font-weight: 800; letter-spacing: -0.3px; }
-    .logo-brand span { color: var(--accent); }
-    .logo-sub { font-size: 11px; color: var(--text-3); margin-top: 4px; font-weight: 600; }
-    .nav { flex: 1; padding: 14px 10px; display: flex; flex-direction: column; gap: 4px; }
-    .nav-label { font-size: 10px; font-weight: 700; color: var(--text-3); padding: 8px 12px 6px; letter-spacing: 0.04em; }
-    .nav-item {
-      display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-radius: 10px;
-      color: var(--text-2); font-weight: 600; font-size: 13.5px; transition: 0.15s;
-    }
-    .nav-item:hover { background: var(--surface-2); color: var(--text); }
-    .nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
-    .nav-foot { padding: 12px; border-top: 1px solid var(--border); }
-    .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-    .topbar {
-      height: 60px; display: flex; align-items: center; justify-content: space-between;
-      padding: 0 24px; border-bottom: 1px solid var(--border); background: rgba(255,255,255,0.92);
-      backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
-    }
-    .topbar h1 { font-size: 16px; font-weight: 800; }
-    .topbar-actions { display: flex; gap: 8px; align-items: center; }
-    .content { padding: 22px 24px 40px; max-width: 1280px; }
-    .btn {
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; border: none; background: none; }
+.access-gate.hidden { display: none; }
+@keyframes gate-spin { to { transform: rotate(360deg); }
+}
+.nav-item.active { background: var(--accent-dim); color: var(--accent-2); }
+.btn {
       display: inline-flex; align-items: center; justify-content: center; gap: 6px;
       padding: 9px 14px; border-radius: 9px; font-weight: 700; font-size: 13px;
       border: 1px solid transparent; transition: 0.15s;
     }
-    .btn-primary { background: var(--accent); color: #fff; }
-    .btn-primary:hover { filter: brightness(1.05); }
-    .btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
-    .btn-secondary:hover { border-color: var(--accent); }
-    .btn-danger { background: var(--error-dim); border-color: var(--error); color: var(--error); }
-    .btn-success { background: var(--success-dim); border-color: var(--success); color: var(--success); }
-    .btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
-    .btn[disabled] { opacity: 0.5; cursor: not-allowed; }
-    .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
-    /* ≤1024px: the sidebar used to be display:none here, which removed the ONLY
+.btn-primary { background: var(--accent); color: #fff; }
+.btn-primary:hover { filter: brightness(1.05); }
+.btn-secondary { background: var(--surface-2); border-color: var(--border-control); color: var(--text); }
+.btn-secondary:hover { border-color: var(--accent); }
+.btn-danger { background: var(--error-dim); border-color: var(--error); color: var(--error); }
+.btn-success { background: var(--success-dim); border-color: var(--success); color: var(--success); }
+.btn-sm { padding: 6px 10px; font-size: 12px; border-radius: 7px; }
+.btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+.kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 18px; }
+/* ≤1024px: the sidebar used to be display:none here, which removed the ONLY
        navigation the console has — on a tablet no tab was reachable at all.
        It folds into a horizontal strip instead. */
     @media (max-width: 1024px) {
       .kpi-grid { grid-template-columns: repeat(2, 1fr); }
-      .app { flex-direction: column; }
-      .sidebar {
-        position: static; width: 100%; height: auto;
-        border-left: none; border-bottom: 1px solid var(--border);
-      }
-      .logo { display: none; }
-      .nav { flex-direction: row; overflow-x: auto; padding: 8px 10px; gap: 6px; -webkit-overflow-scrolling: touch; }
-      .nav-label { display: none; }
-      .nav-item { white-space: nowrap; padding: 8px 12px; flex-shrink: 0; }
-      .nav-foot { display: none; }
-    }
-    @media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; } }
-    .kpi {
+}
+@media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; }
+}
+.kpi {
       padding: 16px; border-radius: 12px; border: 1px solid var(--border);
       background: linear-gradient(145deg, var(--accent-dim), var(--surface));
     }
-    .kpi[data-goto] { cursor: pointer; transition: border-color 0.15s; }
-    .kpi[data-goto]:hover { border-color: var(--accent); }
-    .kpi-label { font-size: 12px; color: var(--text-3); font-weight: 700; margin-bottom: 6px; }
-    .kpi-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
-    .kpi-value.gold { color: var(--accent); }
-    .panel {
+.kpi[data-goto] { cursor: pointer; transition: border-color 0.15s; }
+.kpi[data-goto]:hover { border-color: var(--accent); }
+.kpi-label { font-size: 12px; color: var(--text-3); font-weight: 700; margin-bottom: 6px; }
+.kpi-value { font-size: 26px; font-weight: 800; color: var(--text); line-height: 1; }
+.kpi-value.gold { color: var(--accent); }
+.panel {
       border: 1px solid var(--border); border-radius: 14px; background: var(--surface);
       margin-bottom: 16px; overflow: hidden;
     }
-    .panel-head {
+.panel-head {
       display: flex; align-items: center; justify-content: space-between; gap: 12px;
       padding: 14px 16px; border-bottom: 1px solid var(--border); flex-wrap: wrap;
     }
-    .panel-title { font-size: 15px; font-weight: 800; }
-    .panel-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
-    .panel-body { padding: 16px; }
-    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-    .field {
+.panel-title { font-size: 15px; font-weight: 800; }
+.panel-sub { font-size: 12px; color: var(--text-3); margin-top: 2px; }
+.panel-body { padding: 16px; }
+.toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.field {
       background: var(--surface-2); border: 1px solid var(--border-control); border-radius: 9px;
       padding: 9px 12px; color: var(--text); min-width: 0;
     }
-    .field:focus { outline: none; border-color: var(--accent); }
-    .field-sm { padding: 7px 10px; font-size: 12.5px; }
-    table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
-    table.data th {
+.field:focus { outline: none; border-color: var(--accent); }
+.field-sm { padding: 7px 10px; font-size: 12.5px; }
+table.data { width: 100%; border-collapse: collapse; font-size: 13px; }
+table.data th {
       text-align: right; padding: 10px 12px; font-size: 11px; color: var(--text-3);
       border-bottom: 1px solid var(--border); font-weight: 700;
     }
-    table.data td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
-    table.data tr:hover td { background: var(--surface-hover); }
-    .badge {
+table.data td { padding: 12px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.data tr:hover td { background: var(--surface-hover); }
+.badge {
       display: inline-flex; align-items: center; padding: 3px 8px; border-radius: 999px;
       font-size: 11px; font-weight: 700; border: 1px solid transparent;
     }
-    .badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
-    .badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
-    .badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
-    .badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
-    .badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
-    .muted { color: var(--text-3); font-size: 12px; }
-    .error-box {
+.badge-ok { background: var(--success-dim); color: var(--success); border-color: var(--success); }
+.badge-warn { background: var(--warning-dim); color: var(--warning); border-color: var(--warning); }
+.badge-err { background: var(--error-dim); color: var(--error); border-color: var(--error); }
+.badge-muted { background: var(--surface-2); color: var(--text-3); border-color: var(--border); }
+.badge-gold { background: var(--accent-dim); color: var(--accent-2); border-color: var(--accent); }
+.muted { color: var(--text-3); font-size: 12px; }
+.error-box {
       padding: 14px 16px; border-radius: 10px; border: 1px solid var(--error);
       background: var(--error-dim); color: var(--error); margin-bottom: 14px;
     }
-    .empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
-    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-    @media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; } }
-    .form-group { display: flex; flex-direction: column; gap: 6px; }
-    .form-group label { font-size: 12px; font-weight: 700; color: var(--text-2); }
-    .form-group.full { grid-column: 1 / -1; }
-    .check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
-    .drawer-backdrop {
+.empty { text-align: center; padding: 28px 12px; color: var(--text-3); }
+.form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+@media (max-width: 768px) { .form-grid { grid-template-columns: 1fr; }
+}
+.form-group { display: flex; flex-direction: column; gap: 6px; }
+.form-group label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.form-group.full { grid-column: 1 / -1; }
+.check-row { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.drawer-backdrop {
       position: fixed; inset: 0; background: var(--scrim); z-index: 40;
       display: none; align-items: stretch; justify-content: flex-start;
     }
-    .drawer-backdrop.open { display: flex; }
-    .drawer {
+.drawer-backdrop.open { display: flex; }
+.drawer {
       width: min(520px, 100%); background: var(--surface); border-left: 1px solid var(--border);
       padding: 18px; overflow-y: auto; box-shadow: none;
     }
-    .drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
-    .drawer-title { font-size: 18px; font-weight: 800; }
-    .section { margin-bottom: 18px; }
-    .section h3 { font-size: 13px; font-weight: 800; color: var(--accent-2); margin-bottom: 8px; }
-    .section.danger { border: 1px solid var(--error); border-radius: 10px; padding: 12px; background: var(--error-dim); }
-    .section.danger h3 { color: var(--error); }
-    .list-card {
+.drawer-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+.drawer-title { font-size: 18px; font-weight: 800; }
+.section { margin-bottom: 18px; }
+.section h3 { font-size: 13px; font-weight: 800; color: var(--accent-2); margin-bottom: 8px; }
+.section.danger { border: 1px solid var(--error); border-radius: 10px; padding: 12px; background: var(--error-dim); }
+.section.danger h3 { color: var(--error); }
+.list-card {
       border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; margin-bottom: 8px;
       background: var(--bg);
     }
-    /* ── Status system ──────────────────────────────────────────────────
+/* ── Status system ──────────────────────────────────────────────────
        Status NEVER relies on colour alone: every chip carries a glyph and a
        word. A red dot and an amber dot are the same dot to a colour-blind
        operator, and identical in a greyscale screenshot pasted into a
        support thread. */
     .st { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; white-space: nowrap; }
-    .st-glyph { width: 16px; text-align: center; font-size: 11px; line-height: 1; }
-    .st-HEALTHY, .st-SUCCESS { color: var(--success); }
-    .st-RUNNING { color: var(--accent-2); }
-    .st-DEGRADED, .st-WARNING { color: var(--warning); }
-    .st-ERROR, .st-BLOCKED { color: var(--error); }
-    .st-UNKNOWN, .st-NOT_TESTED { color: var(--text-3); }
-    .sys-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
-    @media (max-width: 900px) { .sys-grid { grid-template-columns: repeat(2, 1fr); } }
-    @media (max-width: 560px) { .sys-grid { grid-template-columns: 1fr; } }
-    .sys-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 12px 14px; }
-    .sys-name { font-size: 12px; font-weight: 800; color: var(--text-2); margin-bottom: 6px; }
-    .sys-sum { font-size: 12.5px; color: var(--text-2); line-height: 1.6; margin-top: 6px; }
-    .sys-detail {
+.st-glyph { width: 16px; text-align: center; font-size: 11px; line-height: 1; }
+.st-HEALTHY, .st-SUCCESS { color: var(--success); }
+.st-RUNNING { color: var(--accent-2); }
+.st-DEGRADED, .st-WARNING { color: var(--warning); }
+.st-ERROR, .st-BLOCKED { color: var(--error); }
+.st-UNKNOWN, .st-NOT_TESTED { color: var(--text-3); }
+.sys-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 14px; }
+@media (max-width: 900px) { .sys-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 560px) { .sys-grid { grid-template-columns: 1fr; }
+}
+.sys-card { border: 1px solid var(--border); border-radius: 12px; background: var(--surface); padding: 12px 14px; }
+.sys-name { font-size: 12px; font-weight: 800; color: var(--text-2); margin-bottom: 6px; }
+.sys-sum { font-size: 12.5px; color: var(--text-2); line-height: 1.6; margin-top: 6px; }
+.sys-detail {
       direction: ltr; text-align: left; font-family: ui-monospace, "SF Mono", Consolas, monospace;
       font-size: 11px; color: var(--text-3); margin-top: 6px; word-break: break-all;
     }
-    .att-item {
+.att-item {
       display: flex; gap: 10px; align-items: flex-start; padding: 12px 14px;
       border: 1px solid var(--border); border-right-width: 3px; border-radius: 10px;
       background: var(--surface); margin-bottom: 8px;
     }
-    .att-ERROR { border-right-color: var(--error); }
-    .att-WARNING { border-right-color: var(--warning); }
-    .att-INFO { border-right-color: var(--accent); }
-    .att-title { font-weight: 800; font-size: 13.5px; margin-bottom: 3px; }
-    .att-because { font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
-    .att-action { font-size: 12px; color: var(--accent-2); font-weight: 700; margin-top: 5px; display: inline-block; }
-    .att-clear { padding: 18px; text-align: center; color: var(--success); font-weight: 700; font-size: 13px;
+.att-ERROR { border-right-color: var(--error); }
+.att-WARNING { border-right-color: var(--warning); }
+.att-INFO { border-right-color: var(--accent); }
+.att-title { font-weight: 800; font-size: 13.5px; margin-bottom: 3px; }
+.att-because { font-size: 12.5px; color: var(--text-2); line-height: 1.6; }
+.att-action { font-size: 12px; color: var(--accent-2); font-weight: 700; margin-top: 5px; display: inline-block; }
+.att-clear { padding: 18px; text-align: center; color: var(--success); font-weight: 700; font-size: 13px;
       border: 1px solid var(--success); border-radius: 10px; background: var(--success-dim); }
-    /* Mobile tables become cards: a squeezed 8-column table is unreadable,
+/* Mobile tables become cards: a squeezed 8-column table is unreadable,
        and horizontal scrolling hides exactly the status column that matters. */
     @media (max-width: 760px) {
       table.data thead { display: none; }
-      table.data tr { display: block; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 6px 0; }
-      table.data td { display: flex; justify-content: space-between; gap: 12px; border: none; padding: 7px 12px; }
-      table.data td::before {
+table.data tr { display: block; border: 1px solid var(--border); border-radius: 10px; margin-bottom: 10px; padding: 6px 0; }
+table.data td { display: flex; justify-content: space-between; gap: 12px; border: none; padding: 7px 12px; }
+table.data td::before {
         content: attr(data-th); font-size: 11px; font-weight: 700; color: var(--text-3); flex-shrink: 0;
       }
-      table.data td:empty { display: none; }
-    }
-    .ps-split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 14px; }
-    @media (max-width: 900px) { .ps-split { grid-template-columns: 1fr; } }
-    .ps-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; }
-    .ps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
-    .ps-title { font-size: 14px; font-weight: 800; }
-    .ps-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px; }
-    .ps-label { font-size: 11px; font-weight: 700; color: var(--text-3); letter-spacing: 0.03em; margin-bottom: 4px; }
-    .ps-value { font-size: 24px; font-weight: 800; line-height: 1.1; }
-    .ps-cov.ok { color: var(--success); }
-    .ps-cov.warn { color: var(--warning); }
-    .ps-cov.err { color: var(--error); }
-    .ps-fresh {
+table.data td:empty { display: none; }
+}
+.ps-split { display: grid; grid-template-columns: 1.3fr 1fr; gap: 14px; margin-bottom: 14px; }
+@media (max-width: 900px) { .ps-split { grid-template-columns: 1fr; }
+}
+.ps-card { border: 1px solid var(--border); border-radius: 14px; background: var(--surface); padding: 16px; }
+.ps-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.ps-title { font-size: 14px; font-weight: 800; }
+.ps-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px 16px; }
+.ps-label { font-size: 11px; font-weight: 700; color: var(--text-3); letter-spacing: 0.03em; margin-bottom: 4px; }
+.ps-value { font-size: 24px; font-weight: 800; line-height: 1.1; }
+.ps-cov.ok { color: var(--success); }
+.ps-cov.warn { color: var(--warning); }
+.ps-cov.err { color: var(--error); }
+.ps-fresh {
       display: flex; justify-content: space-between; align-items: center; gap: 10px;
       border: 1px solid var(--border); border-radius: 12px; background: var(--surface);
       padding: 10px 14px; margin-bottom: 18px; flex-wrap: wrap;
     }
-    .hint { font-size: 12.5px; color: var(--text-3); line-height: 1.7; margin-bottom: 10px; max-width: 720px; }
-    .row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
-    .row label { font-size: 12px; font-weight: 700; color: var(--text-2); }
-    .btn-ghost { background: var(--surface-2); border: 1px solid var(--border-control); color: var(--text-2); }
-    .btn-ghost:hover { border-color: var(--accent); color: var(--text); }
-    .probe-h { font-size: 13px; font-weight: 800; color: var(--accent-2); margin: 14px 0 8px; }
-    .probe-doc {
+.hint { font-size: 12.5px; color: var(--text-3); line-height: 1.7; margin-bottom: 10px; max-width: 720px; }
+.row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.row label { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.btn-ghost { background: var(--surface-2); border: 1px solid var(--border-control); color: var(--text-2); }
+.btn-ghost:hover { border-color: var(--accent); color: var(--text); }
+.probe-h { font-size: 13px; font-weight: 800; color: var(--accent-2); margin: 14px 0 8px; }
+.probe-doc {
       background: var(--surface-2);
       border: 1px solid var(--border);
       border-radius: 8px;
@@ -257,71 +211,41 @@ export function adminConsolePage(): string {
       direction: ltr;
       text-align: left;
     }
-    .probe-tally { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
-    .probe-tally span {
+.probe-tally { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
+.probe-tally span {
       border: 1px solid var(--border); border-radius: 999px;
       padding: 3px 12px; font-size: 12px; color: var(--text-2);
     }
-    .probe-tally span b { color: var(--text); font-weight: 700; }
-    .toast {
+.probe-tally span b { color: var(--text); font-weight: 700; }
+.toast {
       position: fixed; bottom: 20px; left: 20px; z-index: 60; padding: 12px 16px; border-radius: 10px;
       background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
       box-shadow: none; display: none; max-width: 360px;
     }
-    .toast.show { display: block; }
-    .toast.ok { border-color: var(--success); }
-    .toast.err { border-color: var(--error); color: var(--error); }
-    .actions { display: flex; gap: 6px; flex-wrap: wrap; }
-  </style>
-</head>
-<body>
-<div class="access-gate" id="access-gate">
-  <div class="gate-spinner"></div>
-  <div>جارٍ التحقق من الصلاحية…</div>
-</div>
-<div class="app">
-  <aside class="sidebar">
-    <div class="logo">
-      <div class="logo-brand">Ad<span>lytic</span></div>
-      <div class="logo-sub">لوحة المالك · إدارة المنصة</div>
-    </div>
-    <nav class="nav">
-      <!-- Cross-surface destinations come from THE one information
-           architecture (adminSurfaceNav). This page used to carry its own
-           seven groups, which is how three different admin maps came to
-           exist and how the Brain Observatory ended up in none of them. -->
-      ${adminSurfaceNav('classic')}
-      <!-- Views that belong to THIS page only, nested under the shared map. -->
-      <div class="nav-label">أقسام هذه الصفحة</div>
-      <a class="nav-item active" href="#overview" data-tab="overview">لوحة الحالة</a>
-      <a class="nav-item" href="#workspaces" data-tab="workspaces">مساحات العمل</a>
-      <a class="nav-item" href="#customers" data-tab="customers">الزبائن</a>
-      <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
-      <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
-      <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
-      <a class="nav-item" href="#probe" data-tab="probe">مرقاب قدرات Meta</a>
-      <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
-    </nav>
-    <div class="nav-foot">
-      <div class="muted" id="admin-email">—</div>
-      <button class="btn btn-secondary btn-sm" id="btn-logout" style="margin-top:8px;width:100%;">تسجيل الخروج</button>
-    </div>
-  </aside>
+.toast.show { display: block; }
+.toast.ok { border-color: var(--success); }
+.toast.err { border-color: var(--error); color: var(--error); }
+.actions { display: flex; gap: 6px; flex-wrap: wrap; }`;
 
-  <div class="main">
-    <header class="topbar">
-      <h1 id="page-heading">النظرة العامة</h1>
-      <div class="topbar-actions">
-        <button class="btn btn-secondary btn-sm" id="btn-refresh">تحديث</button>
-        <button class="btn btn-primary btn-sm" id="btn-open-create">+ زبون جديد</button>
-      </div>
-    </header>
+const HEADER = `
+  <div class="phead">
+    <div>
+      <div class="phead-t">الإدارة التفصيلية</div>
+      <div class="phead-s">أدراج تحرير الزبون والاشتراك والإعدادات بتفاصيلها الكاملة — التفاصيل التي تكمّل «الزبائن ومساحات العمل».</div>
+    </div>
+    <div class="phead-actions">
+      <button class="btn" id="btn-refresh">تحديث</button>
+      <button class="btn btn-primary" id="btn-open-create">+ زبون جديد</button>
+      <a class="btn" href="/admin/customers">الزبائن ومساحات العمل</a>
+    </div>
+  </div>
+`;
 
-    <main class="content">
+const BODY = `
       <div id="gate-error" class="error-box" style="display:none;"></div>
 
       <!-- Overview -->
-      <section class="panel view" id="view-overview">
+      <section class="panel view" id="v-overview">
         <div class="panel-head">
           <div>
             <div class="panel-title">النظرة العامة</div>
@@ -423,7 +347,7 @@ export function adminConsolePage(): string {
            Answers "which workspace has a problem, and why" without opening
            a single drawer: connection axis and data axis stay SEPARATE
            because a dead token and stale data are different incidents. -->
-      <section class="panel view" id="view-workspaces" style="display:none;">
+      <section class="panel view" id="v-workspaces">
         <div class="panel-head">
           <div>
             <div class="panel-title">مساحات العمل — الحالة التشغيلية</div>
@@ -459,7 +383,7 @@ export function adminConsolePage(): string {
       </section>
 
       <!-- Customers -->
-      <section class="panel view" id="view-customers">
+      <section class="panel view" id="v-customers">
         <div class="panel-head">
           <div>
             <div class="panel-title">الزبائن</div>
@@ -477,7 +401,7 @@ export function adminConsolePage(): string {
               <option value="PREMIUM">Premium</option>
               <option value="FREE">مجاني</option>
             </select>
-            <button class="btn btn-secondary btn-sm" id="btn-search">بحث</button>
+            <button class="btn btn-secondary btn-sm" id="btn-customer-search">بحث</button>
           </div>
         </div>
         <div class="panel-body" style="padding:0;">
@@ -499,7 +423,7 @@ export function adminConsolePage(): string {
       </section>
 
       <!-- Create -->
-      <section class="panel view" id="view-create" style="display:none;">
+      <section class="panel view" id="v-create">
         <div class="panel-head">
           <div>
             <div class="panel-title">إنشاء حساب زبون</div>
@@ -553,7 +477,7 @@ export function adminConsolePage(): string {
       </section>
 
       <!-- Subscriptions -->
-      <section class="panel view" id="view-subscriptions" style="display:none;">
+      <section class="panel view" id="v-subscriptions">
         <div class="panel-head">
           <div>
             <div class="panel-title">الاشتراكات</div>
@@ -594,7 +518,7 @@ export function adminConsolePage(): string {
       </section>
 
       <!-- Ledger -->
-      <section class="panel view" id="view-ledger" style="display:none;">
+      <section class="panel view" id="v-ledger">
         <div class="panel-head">
           <div>
             <div class="panel-title">سجل المدفوعات</div>
@@ -619,7 +543,7 @@ export function adminConsolePage(): string {
       </section>
 
       <!-- Meta capability probe -->
-      <section class="panel view" id="view-probe" style="display:none;">
+      <section class="panel view" id="v-probe">
         <div class="panel-head">
           <div>
             <div class="panel-title">مرقاب قدرات Meta</div>
@@ -661,7 +585,7 @@ export function adminConsolePage(): string {
         </div>
       </section>
 
-      <section class="panel view" id="view-settings" style="display:none;">
+      <section class="panel view" id="v-settings">
         <div class="panel-head">
           <div>
             <div class="panel-title">إعدادات المنصة</div>
@@ -690,26 +614,30 @@ export function adminConsolePage(): string {
           </table>
         </div>
       </section>
-    </main>
-  </div>
-</div>
 
-<div class="drawer-backdrop" id="drawer">
-  <div class="drawer">
-    <div class="drawer-head">
-      <div>
-        <div class="drawer-title" id="drawer-title">تفاصيل الزبون</div>
-        <div class="muted" id="drawer-sub"></div>
+      <!--
+        The customer drawer and the toast sat outside .main in the pre-shell
+        markup, which is why the first wrap pass lost them. They are page
+        function, not chrome: the drawer IS the "detailed administration" this
+        surface exists for, and the toast is how every write here reports back.
+      -->
+      <div class="drawer-backdrop" id="drawer">
+        <div class="drawer">
+          <div class="drawer-head">
+            <div>
+              <div class="drawer-title" id="drawer-title">تفاصيل الزبون</div>
+              <div class="muted" id="drawer-sub"></div>
+            </div>
+            <button class="btn btn-secondary btn-sm" id="drawer-close">إغلاق</button>
+          </div>
+          <div id="drawer-body"></div>
+        </div>
       </div>
-      <button class="btn btn-secondary btn-sm" id="drawer-close">إغلاق</button>
-    </div>
-    <div id="drawer-body"></div>
-  </div>
-</div>
 
-<div class="toast" id="toast"></div>
+      <div class="toast" id="toast"></div>
+    `;
 
-<script>
+const SCRIPT = `
 (function () {
   var state = { customers: [], subscriptions: [], events: [], settings: [], overview: null, detail: null };
 
@@ -994,43 +922,33 @@ export function adminConsolePage(): string {
     return data;
   }
 
+  var VIEWS = ['overview', 'workspaces', 'customers', 'create', 'subscriptions',
+               'ledger', 'probe', 'settings'];
+
+  // The tab strip, the active tab, showing/hiding and the hash all belong to
+  // the shell — it renders the strip and owns .view/#v-<id>. This page's own
+  // switcher used to do all four against a sidebar that no longer exists,
+  // which left seven of the eight views unreachable. What remains here is the
+  // only part that was ever this page's: which view loads what.
   function showView(name) {
-    document.querySelectorAll('.view').forEach(function (el) { el.style.display = 'none'; });
-    document.querySelectorAll('.nav-item[data-tab]').forEach(function (el) {
-      el.classList.toggle('active', el.getAttribute('data-tab') === name);
-    });
-    var map = {
-      overview: ['view-overview', 'النظرة العامة'],
-      workspaces: ['view-workspaces', 'مساحات العمل'],
-      customers: ['view-customers', 'إدارة الزبائن'],
-      create: ['view-create', 'إنشاء حساب زبون'],
-      subscriptions: ['view-subscriptions', 'الاشتراكات'],
-      ledger: ['view-ledger', 'سجل المدفوعات'],
-      probe: ['view-probe', 'مرقاب قدرات Meta'],
-      settings: ['view-settings', 'إعدادات المنصة'],
-    };
-    var conf = map[name] || map.overview;
-    if (!map[name]) name = 'overview';
+    if (VIEWS.indexOf(name) === -1) name = 'overview';
+    if (window.adminShowView) window.adminShowView(name);
+    load(name);
+  }
+
+  function load(name) {
     if (name === 'overview') { loadOverviewData(); loadPlatformStats(); loadOps(); }
     // The workspaces table reads the SAME snapshot the overview does; fetch
     // only when we have none, so switching tabs is not a network round trip.
     if (name === 'workspaces') { if (opsState.snapshot) renderWorkspaces(); else loadOps(); }
     if (name === 'probe') loadProbeWorkspaces();
-    document.getElementById(conf[0]).style.display = '';
-    document.getElementById('page-heading').textContent = conf[1];
-    // Deep links and refresh land on the same tab instead of resetting to
-    // overview. replaceState (not location.hash=) so this never re-triggers
-    // the hashchange listener and loops.
-    if (('#' + name) !== location.hash) {
-      try { history.replaceState(null, '', '#' + name); } catch (e) {}
-    }
   }
 
   function tabFromHash() {
     var h = (location.hash || '').replace('#', '');
     return h || 'overview';
   }
-  window.addEventListener('hashchange', function () { showView(tabFromHash()); });
+  document.addEventListener('view:show', function (e) { load(e.detail); });
 
   function statusBadge(active) {
     return active
@@ -1483,32 +1401,14 @@ export function adminConsolePage(): string {
     }
   }
 
-  // Reveal the admin shell only after ensureAdmin() has confirmed the viewer
-  // is a platform admin. The shell ships display:none behind a full-screen
-  // access gate, so a customer never sees any admin structure before the
-  // /api/auth/me check redirects them.
-  async function ensureAdmin() {
-    try {
-      var me = await api('/api/auth/me');
-      if (!me || !me.isPlatformAdmin) { window.location.replace('/dashboard'); return false; }
-      var accessGate = document.getElementById('access-gate');
-      if (accessGate) accessGate.classList.add('hidden');
-      document.querySelector('.app').style.display = 'flex';
-      document.getElementById('admin-email').textContent = me.email || (me.user && me.user.email) || '';
-      // Re-arm the cookie-sync loop guard: a future cookie/bearer desync may
-      // heal again now that this load proved the session sound.
-      try { sessionStorage.removeItem('adm_sync'); } catch (e) {}
-      return true;
-    } catch (e) {
-      // 401 already redirected inside api(). For any other failure we cannot
-      // confirm admin status — show a retry on the gate rather than reveal
-      // admin chrome to an unverified viewer.
-      if (e && e.message === 'Unauthorized') return false;
-      var g = document.getElementById('access-gate');
-      if (g) g.innerHTML = '<div style="max-width:320px;text-align:center;line-height:1.8;">تعذّر التحقق من الصلاحية. تحقق من اتصالك ثم <a href="javascript:location.reload()" style="color:var(--accent);text-decoration:underline;">أعد المحاولة</a>.</div>';
-      return false;
-    }
-  }
+  // The client-side access gate is gone, and deliberately so. It revealed a
+  // chrome (.app, #access-gate, #admin-email) that this page no longer owns —
+  // the Control Plane shell does — so every call threw inside its own try and
+  // returned false, which silently aborted the whole page load. Authorisation
+  // was never this gate's job anyway: GET /admin/classic resolves the session
+  // server-side and redirects a non-admin to /dashboard, so the HTML below is
+  // only ever sent to a platform admin. A second, weaker copy of that check in
+  // the browser bought nothing and cost the page.
 
   async function loadAll() {
     var gate = document.getElementById('gate-error');
@@ -1743,7 +1643,6 @@ export function adminConsolePage(): string {
     await loadAll();
   }
 
-  document.getElementById('btn-logout').addEventListener('click', logout);
   document.getElementById('btn-refresh').addEventListener('click', function () {
     loadAll();
     loadSettings();
@@ -1754,7 +1653,7 @@ export function adminConsolePage(): string {
     probeLoaded = false;
     if (location.hash === '#probe') loadProbeWorkspaces();
   });
-  document.getElementById('btn-search').addEventListener('click', function () { loadAll(); });
+  document.getElementById('btn-customer-search').addEventListener('click', function () { loadAll(); });
   document.getElementById('search-q').addEventListener('keydown', function (e) {
     if (e.key === 'Enter') loadAll();
   });
@@ -1769,12 +1668,6 @@ export function adminConsolePage(): string {
     if (e.target.id === 'drawer') document.getElementById('drawer').classList.remove('open');
   });
 
-  document.querySelectorAll('.nav-item[data-tab]').forEach(function (el) {
-    el.addEventListener('click', function (e) {
-      e.preventDefault();
-      showView(el.getAttribute('data-tab'));
-    });
-  });
 
   // KPI cards on the overview are doors, not just numbers: the count of
   // pending activations IS the customers tab filtered mentally — take the
@@ -1882,14 +1775,35 @@ export function adminConsolePage(): string {
   document.getElementById('btn-add-setting').addEventListener('click', function () { addSetting(); });
 
   if (!token()) { window.location.replace('/login'); return; }
-  ensureAdmin().then(function (ok) {
-    if (!ok) return;
-    showView(tabFromHash());
-    loadAll();
-    loadSettings();
-  });
+  // The shell has already shown the tab the hash names by the time this runs;
+  // ask it for the current one rather than re-deciding.
+  load(tabFromHash());
+  loadAll();
+  loadSettings();
 })();
-</script>
-</body>
-</html>`;
+`;
+
+export function adminConsolePage(): string {
+  return adminShell({
+    active: 'classic',
+    title: 'الإدارة التفصيلية',
+    subtitle: 'أدراج تحرير الزبون والاشتراك والإعدادات بتفاصيلها الكاملة — التفاصيل التي تكمّل «الزبائن ومساحات العمل».',
+    css: CSS,
+    header: HEADER,
+    body: BODY,
+    script: SCRIPT,
+    views: [
+      { id: 'overview',      label: 'النظرة العامة',   hint: 'حالة المنصة والمؤشرات' },
+      { id: 'workspaces',    label: 'مساحات العمل',    hint: 'من المتأثر ولماذا' },
+      { id: 'customers',     label: 'إدارة الزبائن',   hint: 'البحث والدرج التفصيلي' },
+      { id: 'create',        label: 'إنشاء حساب زبون' },
+      { id: 'subscriptions', label: 'الاشتراكات' },
+      { id: 'ledger',        label: 'سجل المدفوعات' },
+      { id: 'probe',         label: 'مرقاب قدرات Meta' },
+      { id: 'settings',      label: 'إعدادات المنصة' },
+    ],
+    commands: [
+      { label: 'الزبائن ومساحات العمل', href: '/admin/customers', hint: 'الزبائن' },
+    ],
+  });
 }

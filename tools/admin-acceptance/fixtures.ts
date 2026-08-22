@@ -23,6 +23,7 @@
 // ════════════════════════════════════════════════════════════════════════
 import type { MetaUsageStats } from '../../src/services/metaUsageTracker';
 import type { AdminOpsSnapshot, OpsStatus, SubsystemHealth } from '../../src/services/adminOpsHealth';
+import type { PlatformStats } from '../../src/services/getPlatformStats';
 
 const build = { commit: 'a113858ffed1', environment: 'production', source: 'RAILWAY_GIT_COMMIT_SHA' };
 
@@ -108,10 +109,37 @@ const ops = (over: Record<string, any> = {}): AdminOpsSnapshot => ({
   build: over.build ?? build,
 });
 
-const stats = (over: Record<string, any> = {}): any => ({
-  reach: { workspaces: 1, accounts: 1, activeAccounts: 1, campaigns: 12, ...(over.reach ?? {}) },
-  money: { byCurrency: [{ currency: 'IQD', activeCampaigns: 7, totalDailyBudgetMajor: '1,250,000', impliedMonthlyMajor: '37,500,000' }] },
-  brain: over.brain ?? { snapshotsLastNDays: 34, narrationsLastNDays: 31, narrationCoveragePct: 91 },
+/**
+ * Platform stats, typed against the real service.
+ *
+ * This function was `any` and every field in it was invented: `reach` used
+ * four names the service does not have, the budgets were pre-formatted
+ * STRINGS where the service returns numbers, and `computedAt`, `fromCache`
+ * and `lookbackDays` were simply missing. The rendered page said what you
+ * would expect from that — four em-dashes under «الوصول», «ليس رقمًا IQD» in
+ * the money table, «آخر undefined أيام» and «محسوبة منذ NaN ساعة».
+ *
+ * None of it was a page defect. All of it was this object, written from
+ * memory, in a file whose entire argument is that fixtures must not be. The
+ * return type is the fix: the invented names no longer compile.
+ */
+const stats = (over: Partial<PlatformStats> = {}): PlatformStats => ({
+  computedAt: Date.parse('2026-08-22T09:12:00.000Z'),
+  fromCache: false,
+  reach: {
+    totalWorkspaces: 1, totalAdAccounts: 1, activeAdAccounts: 1, activeCampaigns: 12,
+    ...(over.reach ?? {}),
+  },
+  money: over.money ?? {
+    byCurrency: [{
+      currency: 'IQD', activeCampaigns: 7,
+      totalDailyBudgetMajor: 1_250_000, impliedMonthlyMajor: 37_500_000,
+    }],
+  },
+  brain: over.brain ?? {
+    snapshotsLastNDays: 34, narrationsLastNDays: 31,
+    narrationCoveragePct: 91, lookbackDays: 30,
+  },
 });
 
 const customers = [
@@ -119,11 +147,35 @@ const customers = [
   { id: 'u_2', name: 'سارة عبد الله', email: 'sara@example.com', tier: 'FREE', workspaceCount: 1 },
 ];
 
+/**
+ * Support tickets in the shape `adminListTickets` actually returns: the user
+ * and workspace RELATIONS are included objects, not flattened `userEmail` and
+ * `workspaceName` strings, and each row carries `_count.messages`.
+ *
+ * The flattened version was another fixture written from memory. It made the
+ * inbox render "—" for every requester and, because the harness also returned
+ * a bare array where the service returns `{ tickets, total, take, skip }`, an
+ * empty list beside a filter strip that said two tickets needed a reply.
+ */
 const tickets = [
   { id: 't_1', subject: 'الأرقام لا تطابق مدير الإعلانات', status: 'OPEN', priority: 'URGENT',
-    userEmail: 'ali@example.com', workspaceName: 'متجر النخبة', unreadForAdmin: true },
-  { id: 't_2', subject: 'كيف أربط حساباً ثانياً؟', status: 'PENDING', priority: 'NORMAL',
-    userEmail: 'sara@example.com', workspaceName: 'سارة ستور', unreadForAdmin: false },
+    category: 'BUG', isPinned: false, isStarred: false, unreadForAdmin: true,
+    createdAt: '2026-08-22T08:00:00.000Z', updatedAt: '2026-08-22T08:20:00.000Z',
+    user: { id: 'u_1', name: 'علي ناصر', email: 'ali@example.com' },
+    workspace: { id: 'ws_1', name: 'متجر النخبة', tier: 'PREMIUM', subscriptionStatus: 'ACTIVE' },
+    _count: { messages: 2 } },
+  { id: 't_2', subject: 'كيف أربط حساباً ثانياً؟', status: 'AWAITING_CUSTOMER', priority: 'NORMAL',
+    category: 'QUESTION', isPinned: false, isStarred: true, unreadForAdmin: false,
+    createdAt: '2026-08-20T11:00:00.000Z', updatedAt: '2026-08-21T09:30:00.000Z',
+    user: { id: 'u_2', name: 'سارة عبد الله', email: 'sara@example.com' },
+    workspace: { id: 'ws_2', name: 'سارة ستور', tier: 'FREE', subscriptionStatus: 'TRIAL' },
+    _count: { messages: 1 } },
+  { id: 't_3', subject: 'الفاتورة الأخيرة لم تصل', status: 'OPEN', priority: 'HIGH',
+    category: 'PAYMENT', isPinned: true, isStarred: false, unreadForAdmin: true,
+    createdAt: '2026-08-19T15:40:00.000Z', updatedAt: '2026-08-22T07:05:00.000Z',
+    user: { id: 'u_1', name: 'علي ناصر', email: 'ali@example.com' },
+    workspace: { id: 'ws_1', name: 'متجر النخبة', tier: 'PREMIUM', subscriptionStatus: 'ACTIVE' },
+    _count: { messages: 4 } },
 ];
 
 /**
@@ -308,8 +360,11 @@ export const SCENARIOS: Record<string, { label: string; api: Record<string, unkn
           meta: 'NOT_TESTED', metaSummary: 'لا حساب إعلاني مرتبط في المنصة' }),
         workspaces: [], activity: [],
       }),
-      stats: stats({ reach: { workspaces: 0, accounts: 0, activeAccounts: 0, campaigns: 0 },
-        brain: { snapshotsLastNDays: 0, narrationsLastNDays: 0, narrationCoveragePct: null } }),
+      stats: stats({
+        reach: { totalWorkspaces: 0, totalAdAccounts: 0, activeAdAccounts: 0, activeCampaigns: 0 },
+        money: { byCurrency: [] },
+        brain: { snapshotsLastNDays: 0, narrationsLastNDays: 0, narrationCoveragePct: null, lookbackDays: 30 },
+      }),
       metaUsage: USAGE.zeroCalls,
       customers: [], tickets: [],
     },
@@ -364,7 +419,7 @@ export const SCENARIOS: Record<string, { label: string; api: Record<string, unkn
             lastSyncedAt: null, lastSyncStatus: null, headline: 'لم تُشغَّل مزامنة بعد' }),
         ],
       }),
-      stats: stats({ reach: { workspaces: 3, accounts: 3, activeAccounts: 2, campaigns: 31 } }),
+      stats: stats({ reach: { totalWorkspaces: 3, totalAdAccounts: 3, activeAdAccounts: 2, activeCampaigns: 31 } }),
     },
   },
 
@@ -381,7 +436,7 @@ export const SCENARIOS: Record<string, { label: string; api: Record<string, unkn
             resolvedBy: 'فحص دوري يقارن خلاصة معروفة' },
         ],
       }),
-      stats: stats({ brain: { snapshotsLastNDays: 0, narrationsLastNDays: 0, narrationCoveragePct: null } }),
+      stats: stats({ brain: { snapshotsLastNDays: 0, narrationsLastNDays: 0, narrationCoveragePct: null, lookbackDays: 30 } }),
       campaigns: [],
     },
   },

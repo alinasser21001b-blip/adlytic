@@ -277,6 +277,27 @@ const SCRIPT = `
   function loadSubs() {
     var host = document.getElementById('subs');
     host.innerHTML = '<tr><td colspan="4" class="empty">جارٍ التحميل…</td></tr>';
+  /**
+   * An expiry date, read as a date.
+   *
+   * window.adminTime phrases everything in the past ("قبل ٣ أيام") because
+   * that is what it exists for — timestamps of things that happened. An
+   * expiry is in the future, so it gets its own formatter here rather than a
+   * misleading one, and never the raw ISO string the API sends.
+   */
+  function expiry(iso) {
+    if (!iso) return '—';
+    var t = Date.parse(iso);
+    if (!isFinite(t)) return String(iso);
+    var d = new Date(t);
+    var pad = function (x) { return x < 10 ? '0' + x : String(x); };
+    var day = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+    var days = Math.round((t - Date.now()) / 86400000);
+    var rel = days < 0 ? 'انتهى' : days === 0 ? 'ينتهي اليوم'
+      : days < 31 ? ('خلال ' + days + ' يوم') : ('خلال ' + Math.round(days / 30) + ' شهر');
+    return '<span class="mono">' + esc(day) + '</span> <span class="muted">' + esc(rel) + '</span>';
+  }
+
     window.adminFetch('/api/admin/subscriptions').then(function (r) {
       var list = (r && (r.subscriptions || r.items || r)) || [];
       if (!Array.isArray(list)) list = [];
@@ -285,14 +306,14 @@ const SCRIPT = `
         brief.innerHTML = list.length ? list.slice(0, 6).map(function (s) {
           return '<tr><td>' + esc(s.workspaceName || (s.workspace && s.workspace.name) || '—') + '</td>'
             + '<td>' + esc(s.tier || s.plan || '—') + '</td>'
-            + '<td class="mono">' + esc(s.expiresAt || s.currentPeriodEnd || '—') + '</td></tr>';
+            + '<td>' + expiry(s.expiresAt || s.currentPeriodEnd) + '</td></tr>';
         }).join('') : '<tr><td colspan="3" class="empty">لا اشتراكات.</td></tr>';
       }
       host.innerHTML = list.length ? list.map(function (s) {
         var id = s.workspaceId || (s.workspace && s.workspace.id) || '';
         return '<tr><td>' + esc(s.workspaceName || (s.workspace && s.workspace.name) || id) + '</td>'
           + '<td>' + esc(s.tier || s.plan || '—') + '</td>'
-          + '<td class="mono">' + esc(s.expiresAt || s.currentPeriodEnd || '—') + '</td>'
+          + '<td>' + expiry(s.expiresAt || s.currentPeriodEnd) + '</td>'
           + '<td><button class="btn" data-sub="activate" data-ws="' + esc(id) + '">فعّل</button> '
           + '<button class="btn" data-sub="extend" data-ws="' + esc(id) + '">مدّد</button> '
           + '<button class="btn danger" data-sub="cancel" data-ws="' + esc(id) + '">ألغِ</button></td></tr>';
