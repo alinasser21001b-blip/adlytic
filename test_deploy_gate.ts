@@ -264,13 +264,40 @@ function main() {
       // are stripped before scanning. Same reasoning as the test-gate leak
       // check: what matters is what the workflow does, not what it explains.
       const body = vf.split('\n').map((l) => l.replace(/(^|\s)#.*$/, '')).join('\n');
-      const forbidden = ['backboard.railway.app', SCRIPT, 'migrate deploy', 'serviceInstanceDeploy'];
-      const found = forbidden.filter((f) => body.includes(f));
-      if (found.length === 0) ok('verify-live.yml deploys nothing, migrates nothing and calls no Railway API');
+      // It now DOES call Railway, to read deployment logs. So "calls no Railway
+      // API" is no longer the guard — every call being a READ is. A mutation
+      // is what would make this file dangerous, not the hostname.
+      const mutations = ['mutation', 'serviceInstanceDeploy', 'serviceInstanceUpdate',
+        'variableUpsert', 'variableDelete', 'deploymentRestart', 'deploymentRedeploy',
+        'deploymentRemove', 'environmentCreate', 'migrate deploy', SCRIPT];
+      const found = mutations.filter((f) => body.includes(f));
+      if (found.length === 0) ok('verify-live.yml issues reads only — no mutation, no deploy, no migration');
       else bad(`verify-live.yml must not reference: ${found.join(', ')}`);
 
-      if (/secrets\./.test(body)) bad('verify-live.yml reads a secret — /api/health needs none');
-      else ok('verify-live.yml requires no secret');
+      // RAILWAY_TOKEN is the ONE secret it may see. Anything else appearing
+      // here is scope creep into a file whose output is a public Actions log.
+      const secretsUsed = [...body.matchAll(/secrets\.([A-Z_]+)/g)].map((m) => m[1]!);
+      const extra = [...new Set(secretsUsed)].filter((n) => n !== 'RAILWAY_TOKEN');
+      if (extra.length === 0) ok(`verify-live.yml reads only ${secretsUsed.length ? 'RAILWAY_TOKEN' : 'no secret'}`);
+      else bad(`verify-live.yml reads secrets it has no business with: ${extra.join(', ')}`);
+
+      // The token must reach curl through a @-file, never argv — argv is
+      // readable by every process on the runner. Same reason railway-deploy.sh
+      // does it, and the reason is not weaker just because this one only reads.
+      if (secretsUsed.includes('RAILWAY_TOKEN')) {
+        if (/-H @"?\$/.test(body)) ok('the Railway token reaches curl via a @-file, not argv');
+        else bad('the Railway token is passed to curl outside a @-file — it would be visible in argv');
+        if (/echo[^\n]*\$RAILWAY_TOKEN|echo[^\n]*\$\{RAILWAY_TOKEN/.test(body)) {
+          bad('verify-live.yml echoes RAILWAY_TOKEN');
+        } else ok('verify-live.yml never echoes the token');
+      }
+
+      // Raw log dumping is the other way a secret escapes. The evidence step
+      // must filter to an allowlist before printing anything.
+      if (body.includes('deploymentLogs')) {
+        if (/grep -aE '[^']*period facts:/.test(body)) ok('runtime log lines are allowlisted before printing');
+        else bad('deploymentLogs is read without an allowlist filter — raw log could reach a public log');
+      }
 
       if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
       else bad('verify-live.yml is not dispatch-only — an observation job must not self-trigger');

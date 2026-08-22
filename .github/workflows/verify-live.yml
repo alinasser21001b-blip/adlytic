@@ -10,12 +10,19 @@ name: Verify live services
 #  and the Actions log becomes the evidence record.
 #
 #  WHAT IT MUST NEVER DO, and what guards that:
-#    • no deploy, no migration, no Railway API call — asserted by
-#      test_deploy_gate.ts, which greps this file for backboard.railway.app
-#      and for the deploy script
-#    • no secret — GET /api/health is unauthenticated (see the middleware in
-#      src/api/server.ts), so this workflow declares no `secrets` and needs
-#      none. Nothing here can print a credential because nothing here has one.
+#    • no deploy, no migration, no mutation of any kind. It now DOES call the
+#      Railway API, so "calls no Railway API" is no longer the guard — the
+#      guard is that every call is a READ. test_deploy_gate.ts asserts this
+#      file contains no `mutation`, no serviceInstanceDeploy/Update, no
+#      variableUpsert, no deploymentRestart/Redeploy, and not the deploy script.
+#    • never PRINT a secret. It reads RAILWAY_TOKEN — that is the only secret
+#      it may reference, also asserted — and passes it to curl through a
+#      @-file so it cannot appear in argv either, the same pattern
+#      .deploy/railway-deploy.sh uses and for the same reason.
+#    • never dump raw logs. Runtime lines are matched against an ALLOWLIST of
+#      the specific evidence patterns and redacted before printing. An
+#      allowlist is the only sanitisation that holds when you do not control
+#      what the application logs.
 #
 #  A NON-200 IS EVIDENCE, NOT A BROKEN WORKFLOW. Every request uses
 #  `|| true` and the job does not fail on an unhealthy service. A red X here
@@ -34,6 +41,10 @@ on:
         description: 'Base URL of the brain-validation service (leave blank to skip)'
         required: false
         default: 'https://adlytic-brain-validation-production.up.railway.app'
+      log_lines:
+        description: 'How many recent runtime log lines to scan for Gate-B evidence'
+        required: false
+        default: '2000'
 
 # Never run two observations at once — interleaved output in a shared log is
 # worse than no output, because it reads as one coherent record.
@@ -58,16 +69,24 @@ jobs:
           jq . body.json 2>/dev/null || cat body.json || true
           echo ""
           echo "── the fields the close gates actually ask for"
-          jq -r '
-            "status              = \(.status // "ABSENT")",
-            "db                  = \(.db // "ABSENT")",
-            "role                = \(.role // "ABSENT")",
-            "runsBackgroundSync  = \(.runsBackgroundSync // "ABSENT")",
-            "bullmq              = \(.bullmq // "ABSENT")",
-            "build.resolved      = \(.build.resolved // "ABSENT")",
-            "build.commit        = \(.build.commit // "ABSENT")",
-            "build.shortCommit   = \(.build.shortCommit // "ABSENT")",
-            "build.branch        = \(.build.branch // "ABSENT")"
+          # `// "ABSENT"` must NOT be used here. jq's alternative operator
+          # treats `false` as empty, so a genuine `false` would print as
+          # ABSENT — and the two values that matter most on this page,
+          # runsBackgroundSync and build.resolved, are booleans. Reporting
+          # `resolved: false` as "ABSENT" would hide the exact wrong-source
+          # case the note below tells the reader to escalate. `has()`
+          # distinguishes a missing key from a present-and-false one.
+          jq -r 'def f(k): if has(k) then (.[k]|tostring) else "ABSENT" end;
+            def b(k): (.build // {}) | if has(k) then (.[k]|tostring) else "ABSENT" end;
+            "status              = \(f("status"))",
+            "db                  = \(f("db"))",
+            "role                = \(f("role"))",
+            "runsBackgroundSync  = \(f("runsBackgroundSync"))",
+            "bullmq              = \(f("bullmq"))",
+            "build.resolved      = \(b("resolved"))",
+            "build.commit        = \(b("commit"))",
+            "build.shortCommit   = \(b("shortCommit"))",
+            "build.branch        = \(b("branch"))"
           ' body.json 2>/dev/null || echo "  (no JSON body to read fields from)"
           echo ""
           echo "NOTE: an ABSENT build object means the running artifact was not"
@@ -87,12 +106,129 @@ jobs:
           jq . vbody.json 2>/dev/null || cat vbody.json || true
           echo ""
           echo "── the validation service must stay a READER"
-          jq -r '
-            "role                = \(.role // "ABSENT")        (must be: api)",
-            "runsBackgroundSync  = \(.runsBackgroundSync // "ABSENT")        (must be: false)",
-            "bullmq              = \(.bullmq // "ABSENT")        (must be: disabled)",
-            "build.shortCommit   = \(.build.shortCommit // "ABSENT")"
+          # has(), not `//` — see the note on the production step. This block
+          # asserts runsBackgroundSync is FALSE, so a reader that cannot tell
+          # false from absent is useless exactly where it is needed.
+          jq -r 'def f(k): if has(k) then (.[k]|tostring) else "ABSENT" end;
+            def b(k): (.build // {}) | if has(k) then (.[k]|tostring) else "ABSENT" end;
+            "role                = \(f("role"))        (must be: api)",
+            "runsBackgroundSync  = \(f("runsBackgroundSync"))        (must be: false)",
+            "bullmq              = \(f("bullmq"))        (must be: disabled)",
+            "build.shortCommit   = \(b("shortCommit"))"
           ' vbody.json 2>/dev/null || echo "  (no JSON body to read fields from)"
+
+      - name: Gate-B evidence from the production runtime log (READ-ONLY)
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          LIMIT: ${{ inputs.log_lines }}
+        run: |
+          set -uo pipefail
+
+          # The deployment id comes from the APPLICATION's own /api/health
+          # (build.deploymentId = Railway's RAILWAY_DEPLOYMENT_ID). Using it
+          # avoids a second Railway query whose schema would also have to be
+          # proven, and it guarantees we read the log of the exact deployment
+          # whose build identity this job already printed.
+          DEPLOY_ID=$(jq -r '.build.deploymentId // empty' body.json 2>/dev/null || true)
+          echo "PRODUCTION_BUILD=$(jq -r '.build.shortCommit // "ABSENT"' body.json 2>/dev/null || echo ABSENT)"
+          echo "PRODUCTION_DEPLOYMENT_ID=${DEPLOY_ID:-ABSENT}"
+
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "RAILWAY_LOG_READ_AUTH=NO_TOKEN — secret not available to this run"; exit 0
+          fi
+          if [ -z "$DEPLOY_ID" ]; then
+            echo "RAILWAY_LOG_READ_AUTH=SKIPPED — /api/health reported no build.deploymentId"; exit 0
+          fi
+
+          HDR="$(mktemp)"; BODY="$(mktemp)"
+          printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          trap 'rm -f "$HDR" "$BODY"' EXIT
+
+          # READ-ONLY. deploymentLogs is a QUERY; there is no mutation here.
+          # Field names are not invented: deploymentLogs(deploymentId: String!,
+          # limit: Int) { timestamp message severity } is Railway's documented
+          # point-in-time log query. Only `message` is requested — timestamp and
+          # severity are not needed and every field left unasked is one that
+          # cannot end up in a public Actions log.
+          # Written on ONE line on purpose: a heredoc terminator must sit at
+          # column 0, which would close this YAML block scalar early.
+          Q='query deploymentLogs($deploymentId: String!, $limit: Int) { deploymentLogs(deploymentId: $deploymentId, limit: $limit) { message } }'
+          PAYLOAD=$(jq -n --arg q "$Q" --arg d "$DEPLOY_ID" --argjson l "${LIMIT:-2000}" \
+            '{query:$q, variables:{deploymentId:$d, limit:$l}}')
+
+          STATUS=$(curl -sS --max-time 60 -o "$BODY" -w '%{http_code}' \
+            -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" -d "$PAYLOAD" || echo "000")
+
+          if [ "${STATUS:0:1}" != "2" ]; then
+            echo "RAILWAY_LOG_READ_AUTH=HTTP_${STATUS}"; exit 0
+          fi
+          if jq -e '.errors' "$BODY" >/dev/null 2>&1; then
+            # Print the error MESSAGE only — never the body, which echoes our
+            # variables back. A GraphQL error inside a 200 is not success.
+            echo "RAILWAY_LOG_READ_AUTH=REJECTED — $(jq -r '[.errors[].message]|join("; ")' "$BODY" | head -c 200)"
+            exit 0
+          fi
+          echo "RAILWAY_LOG_READ_AUTH=OK"
+
+          # ALLOWLIST + REDACT. Only lines matching the Gate-B patterns are
+          # ever considered, and even those are scrubbed of anything
+          # token-shaped and of the external account id before printing.
+          jq -r '.data.deploymentLogs[]?.message // empty' "$BODY" \
+            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing' \
+            | sed -E -e 's/(Bearer|token|secret|key)[[:space:]=:]+[A-Za-z0-9._\-]{8,}/\1 [redacted]/gI' \
+                     -e 's/\[adlytic:auto-sync:[^]]*\]/[adlytic:auto-sync:<redacted>]/g' \
+                     -e 's/act_[0-9]+/act_<redacted>/g' \
+            > matched.txt || true
+
+          echo ""
+          echo "── matched evidence lines (allowlisted + redacted)"
+          if [ -s matched.txt ]; then sed -n '1,40p' matched.txt; else echo "  (none matched)"; fi
+          echo ""
+
+          PF=$(grep -c 'period facts:' matched.txt 2>/dev/null || true); PF=${PF:-0}
+          if [ "$PF" -gt 0 ]; then echo "PERIOD_FACT_LOG_PRESENT=YES"; else echo "PERIOD_FACT_LOG_PRESENT=NO"; fi
+          # A pass counts as observed if EITHER the period-facts line appeared or
+          # the "Syncing N account(s)" line did. Chained && || is not used here:
+          # `a && b || c` silently yields c when b fails, which would report NO
+          # for a pass that did happen.
+          if [ "$PF" -gt 0 ] || grep -q 'Syncing [0-9]* account' matched.txt 2>/dev/null; then
+            echo "SYNC_PASS_OBSERVED=YES"
+          else
+            echo "SYNC_PASS_OBSERVED=NO"
+          fi
+
+          if [ "$PF" -gt 0 ]; then
+            # Sum across accounts: one "period facts:" line per account.
+            read REQ STO UNV <<<"$(grep 'period facts:' matched.txt \
+              | sed -nE 's/.*period facts: ([0-9]+)\/([0-9]+) stored(, ([0-9]+) unavailable)?.*/\1 \2 \4/p' \
+              | awk '{s+=$1; r+=$2; u+=$3} END {print r+0, s+0, u+0}')"
+            echo "PERIOD_FACT_REQUESTED=${REQ:-0}"
+            echo "PERIOD_FACT_STORED=${STO:-0}"
+            echo "PERIOD_FACT_UNAVAILABLE_OR_FAILED=${UNV:-0}"
+            echo "PERIOD_INSIGHT_WRITE_PATH_EXECUTED=YES"
+            echo "WORKER_SYNC_COMPLETED=YES"
+            if [ "${STO:-0}" -gt 0 ]; then
+              echo "PERIOD_FACT_POPULATION=YES"
+            else
+              echo "PERIOD_FACT_POPULATION=NO"
+              echo "  NOTE: requested>0 with stored=0 is NOT automatically a writer failure."
+              echo "  Meta may have returned no trustworthy value; fetchAndStore returns false"
+              echo "  for an all-null row and that increments neither stored nor failed."
+            fi
+          else
+            echo "PERIOD_FACT_REQUESTED=UNOBSERVED"
+            echo "PERIOD_FACT_STORED=UNOBSERVED"
+            echo "PERIOD_FACT_UNAVAILABLE_OR_FAILED=UNOBSERVED"
+            echo "PERIOD_INSIGHT_WRITE_PATH_EXECUTED=UNPROVEN"
+            echo "WORKER_SYNC_COMPLETED=UNPROVEN"
+          fi
+
+          g() { grep -q "$1" matched.txt 2>/dev/null && echo YES || echo NO; }
+          echo "AUTO_SYNC_LOCK_SKIPPED=$(g 'Another instance holds the auto-sync lock')"
+          echo "ELIGIBLE_ACCOUNT_SYNC_OBSERVED=$(g 'Syncing [0-9]* account')"
+          echo "TOKEN_DECRYPT_FAILURE_OBSERVED=$(g 'token decrypt failed')"
+          echo "ACCOUNT_SYNC_ERROR_OBSERVED=$(g 'Error syncing')"
 
       - name: What this run did and did not prove
         run: |
