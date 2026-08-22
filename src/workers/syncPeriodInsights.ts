@@ -26,6 +26,7 @@ import { EntityType, type PrismaClient } from '@prisma/client';
 import type { MetaClient } from '../services/metaClient';
 import { resolveAnalysisWindows } from '../lib/analysisWindow';
 import { normalizePeriodRow, writePeriodFact, timeRangeFor } from '../services/periodInsights';
+import { CAMPAIGN_BACKFILL_DAYS } from './syncHorizon';
 
 export interface PeriodSyncResult {
   requested: number;
@@ -91,6 +92,21 @@ export async function syncPeriodInsightsForAccount(
         level: 'campaign' as const,
       })),
   ];
+
+  // BOUNDED RETENTION. The analysis window advances a day at a time, so each
+  // pass writes a new (entity, span) key and yesterday's keys can never be read
+  // again — the reader matches spans exactly. Left alone the table would grow
+  // without limit for facts nothing can reach. Prune anything older than the
+  // sync's own re-request horizon: inside it a span could still be re-analysed,
+  // outside it the row is unreachable by construction.
+  //
+  // Scoped to period_insights only, and non-fatal: failing to prune must never
+  // stop a sync, and a missing table simply means there is nothing to prune.
+  try {
+    const cutoff = new Date(Date.now() - CAMPAIGN_BACKFILL_DAYS * 864e5);
+    const pruned = await prisma.periodInsight.deleteMany({ where: { until: { lt: cutoff } } });
+    if (pruned.count > 0) console.log(`[period-insights] pruned ${pruned.count} unreachable row(s)`);
+  } catch { /* nothing to prune, or the table is not there yet */ }
 
   let requested = 0, stored = 0, failed = 0;
   for (const t of targets) {

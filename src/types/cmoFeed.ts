@@ -63,6 +63,17 @@ export interface CmoFeedItemDTO {
    * item actually present here already has `permitted !== false`.
    */
   permitted?: boolean;
+  /**
+   * Whether permitAction() has JURISDICTION over this item's action code.
+   *
+   * `permitAction` is a veto whose domain is exactly PERMIT_ACTION_DOMAIN
+   * (hierarchy.ts). Outside it the guard returns allowed:true for ANY string —
+   * it would say allowed:true for "BANANA" — so `permitted: true` on such a
+   * code asserts a check that structurally could not have happened. The feed's
+   * BEHAVIOUR was always right (nothing that should drop was kept); only the
+   * label overclaimed. This field separates the two.
+   */
+  authorityRelation?: 'GOVERNED' | 'NOT_GOVERNED';
   /** Why `permitted` is false — human-readable, from permitAction()'s own reason. Null when permitted or unresolved. */
   permittedReason?: string | null;
 }

@@ -102,7 +102,7 @@ import {
   resolveEntityIntelligenceForGuard,
   type EntityFunnelResult,
 } from "./entityIntelligence";
-import { permitAction } from "../analytics/intelligence/hierarchy";
+import { permitAction, PERMIT_ACTION_DOMAIN } from "../analytics/intelligence/hierarchy";
 import { accountDeliveryHold, type AccountDeliveryHold } from "../lib/campaignLifecycle";
 import { classificationConfidenceFromReason } from "../analytics/confidence";
 import { resolveAccountResultKey } from "../analytics/accountResultKey";
@@ -2603,10 +2603,19 @@ export async function applyCmoFeedAuthorityGuard(
     // (`campaignIntelligence ? permitAction(...) : { allowed: true }`).
     const permit = intel ? permitAction(actionCode, intel) : { allowed: true as const };
     if (!permit.allowed) continue; // forbidden — do not surface, do not back-fill.
+    // BEHAVIOUR unchanged: whatever survives the veto is surfaced. What changes
+    // is the honesty of the label. `insightType` is the DecisionEngine
+    // vocabulary (KEEP_COLLECTING, HOLD_AND_MONITOR, …), and permitAction has
+    // no jurisdiction over those — it returns allowed:true for any string
+    // outside PERMIT_ACTION_DOMAIN. Stamping `permitted: true` there claimed a
+    // check that could not have run. The relation is now stated alongside it,
+    // so "not blocked" and "cleared by the guard" stop being the same word.
+    const governed = intel !== null && PERMIT_ACTION_DOMAIN.includes(actionCode);
     guarded.push({
       ...item,
       actionCode,
       permitted: true,
+      authorityRelation: governed ? 'GOVERNED' : 'NOT_GOVERNED',
       permittedReason: null,
     });
   }
