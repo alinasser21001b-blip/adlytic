@@ -54,10 +54,10 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 43 | Admin console page merge | `adminConsolePage` / `adminOsPage` | — | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 44 | Security & Audit admin section | — | `test_admin_os` §1 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 45 | `recommend.ts` ungoverned actions | `recommend.ts::templateFor` | matrix, doc 03 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
-| 46 | **Gate A — build-secret exposure** | `Dockerfile`, railway configs | `test_deploy_gate` §8 | **CLOSED_PROVEN** (repo) · live build pending | YES | YES |
+| 46 | **Gate A — build-secret exposure** | `Dockerfile`, railway configs | `test_deploy_gate` §8 | **CLOSED_PROVEN** (repo) · live build blocked with Gate D | YES | YES |
 | 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **LIVE_VALIDATED** | YES | YES |
 | 48 | **Gate C — CI runs the suite, over every path a suite reads** | `.github/workflows/test.yml` | `test_deploy_gate` §5 | **CLOSED_PROVEN** | YES | YES |
-| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN** — awaits this candidate on main | NO | YES |
+| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN** — blocked on a stalled Railway build queue, not on this repo | NO | YES |
 | 50 | **Meta lifecycle not substituted** | `getCampaignDetails.ts`, `campaignFreeze.ts` | `test_final_audit_remediation` | **CLOSED_PROVEN** | YES | YES |
 | 51 | **Observatory provenance copy matches its producer** | `brainObservatory.ts` | `test_brain_observatory` §9 | **CLOSED_PROVEN** | YES | YES |
 

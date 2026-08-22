@@ -94,6 +94,58 @@ turned it into a second deployer, and every merge began queueing two builds of
 the same commit. The deploy job is now dispatch-only — Railway owns the push
 path — while `verify` still runs on push so main keeps its typecheck.
 
+## Where Gates A and D actually stand
+
+Both need ONE observation, and it is the same one: a deployment of this
+candidate reporting
+
+```
+SECRETS_USED_IN_ARG_OR_ENV_WARNINGS = 0
+BUILDER_OBSERVED                    = Dockerfile
+status=ok  db=ok  build.commit=<final>  role=worker  runsBackgroundSync=true
+```
+
+That observation is blocked, and the blocker is named rather than described as
+"pending". Railway's build queue for the production service stopped moving:
+
+```
+DEPLOYMENTS_QUEUED   = 4     (across three commits)
+DEPLOY_QUEUE_STATE   = BACKLOG
+oldest QUEUED        = 18:42Z, still QUEUED at 20:05Z — 83 minutes
+BUILDING             = none, at any point in that window
+```
+
+One deployment was observed going `BUILDING` and then back to `QUEUED`.
+
+**Triggering again does not help, and that is measured rather than assumed.** A
+deploy was dispatched through `.deploy/railway-deploy.sh`; Railway ACCEPTED it
+— the script's guard fails unless the mutation is accepted, so this is not a
+silent no-op — and it produced a fifth queued deployment rather than
+superseding the four ahead of it.
+
+Nothing in this repository can make Railway build. Every repository-side
+condition for both gates is met and mechanically guarded:
+
+| Gate A condition | State |
+|---|---|
+| build declares no secret ARG/ENV | `test_deploy_gate.ts` §8, negative-tested |
+| all seven configs on the DOCKERFILE builder | asserted, both spellings |
+| NODE_ENV set so prod-fatal checks stay armed | asserted |
+| `.env` excluded from the build context | asserted |
+| build needs no credential | run with all 8 unset + 4 more, exit 0 |
+
+| Gate D condition | State |
+|---|---|
+| start command portable to the builder | `.deploy/start.js`, guarded across all configs |
+| migrations observable | `NO_PENDING_MIGRATIONS=YES` on the running build |
+| deployment status observable | queue depth now reported |
+| final SHA serving | **blocked on the queue** |
+
+**Production is healthy throughout.** It serves `094a37b`; the one Dockerfile
+deployment that reached a healthcheck failed it and Railway refused to promote
+it. A failed build cannot replace a healthy deployment, which is why an
+hour of failed and stalled deployments cost the product nothing.
+
 ## Verification of this candidate
 
 ```
