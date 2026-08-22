@@ -431,7 +431,7 @@ jobs:
           echo "DEPLOYMENT_STATUS_READ=OK"
           echo "── recent deployments (id, status, createdAt, commit — no other field printed)"
           jq -r '.data.deployments.edges[]?.node
-                 | [.id[0:8], .status, .createdAt, ((.meta.commitHash // "")[0:7])] | @tsv' "$OUT" 2>/dev/null \
+                 | [.id, .status, .createdAt, ((.meta.commitHash // "")[0:7])] | @tsv' "$OUT" 2>/dev/null \
             | head -5 || echo "  (none)"
 
       - name: Classify a failed build (READ-ONLY, diagnostic)
