@@ -175,7 +175,7 @@ jobs:
           # ever considered, and even those are scrubbed of anything
           # token-shaped and of the external account id before printing.
           jq -r '.data.deploymentLogs[]?.message // empty' "$BODY" \
-            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: |holds this account|sync already in progress|full sync done|Auto-sync: ' \
+            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: |holds this account|sync already in progress|full sync done|Auto-sync: |No pending migrations|migrations? found in prisma/migrations|Applying migration|Database schema is up to date|migrate found failed migration|P3009|advisory-lock. unlock of' \
             | sed -E -e 's/(Bearer|token|secret|key)[[:space:]=:]+[A-Za-z0-9._\-]{8,}/\1 [redacted]/gI' \
                      -e 's/\[adlytic:auto-sync:[^]]*\]/[adlytic:auto-sync:<redacted>]/g' \
                      -e 's/act_[0-9]+/act_<redacted>/g' \
@@ -244,6 +244,29 @@ jobs:
               echo "PERIOD_PHASE_CLASSIFICATION=PASS_STILL_BEFORE_PHASE_2B — account sync in progress, not a failure"
             fi
           fi
+          # ── MIGRATION STATE (Gate D) ────────────────────────────────────
+          # The start command is `npx prisma migrate deploy && node …`, so the
+          # migrator's own output is in this same stream. Reading it is the
+          # difference between "the service booted" and "the schema is current"
+          # — a service can boot with a dashboard-overridden start command that
+          # never migrates at all, so booting proves nothing about the schema.
+          if grep -qa 'No pending migrations\|Database schema is up to date' matched.txt 2>/dev/null; then
+            echo "NO_PENDING_MIGRATIONS=YES"
+          elif grep -qa 'Applying migration' matched.txt 2>/dev/null; then
+            echo "NO_PENDING_MIGRATIONS=APPLIED_THIS_BOOT"
+            echo "MIGRATIONS_APPLIED_COUNT=$(grep -ca 'Applying migration' matched.txt)"
+          else
+            echo "NO_PENDING_MIGRATIONS=UNOBSERVED"
+            echo "  Neither the up-to-date line nor an Applying line appeared. That is"
+            echo "  NOT the same as 'no migrations pending' — it means this log window"
+            echo "  does not contain the migrator's output. Raise log_lines, or treat"
+            echo "  the start command as overridden and check it."
+          fi
+          echo "MIGRATION_FAILURE_OBSERVED=$(g 'migrate found failed migration\|P3009')"
+          # The lock helper warns when an unlock lands on a session that does not
+          # hold the key. Harmless in isolation, and the signal that the residual
+          # debt in doc 13 (D5) has started to bite.
+          echo "ADVISORY_UNLOCK_WRONG_SESSION_OBSERVED=$(g 'advisory-lock. unlock of')"
           echo "AUTO_SYNC_LOCK_SKIPPED=$(g 'Another instance holds the auto-sync lock')"
           echo "ELIGIBLE_ACCOUNT_SYNC_OBSERVED=$(g 'Syncing [0-9]* account')"
           echo "TOKEN_DECRYPT_FAILURE_OBSERVED=$(g 'token decrypt failed')"
