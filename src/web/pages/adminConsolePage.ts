@@ -7,6 +7,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { TOKENS_CSS_PATH } from '../layout';
+import { adminSurfaceNav } from './adminSurfaceNav';
 
 export function adminConsolePage(): string {
   return `<!DOCTYPE html>
@@ -285,25 +286,21 @@ export function adminConsolePage(): string {
       <div class="logo-sub">لوحة المالك · إدارة المنصة</div>
     </div>
     <nav class="nav">
-      <div class="nav-label">📊 الرئيسية</div>
+      <!-- Cross-surface destinations come from THE one information
+           architecture (adminSurfaceNav). This page used to carry its own
+           seven groups, which is how three different admin maps came to
+           exist and how the Brain Observatory ended up in none of them. -->
+      ${adminSurfaceNav('classic')}
+      <!-- Views that belong to THIS page only, nested under the shared map. -->
+      <div class="nav-label">أقسام هذه الصفحة</div>
       <a class="nav-item active" href="#overview" data-tab="overview">لوحة الحالة</a>
       <a class="nav-item" href="#workspaces" data-tab="workspaces">مساحات العمل</a>
-      <div class="nav-label">👥 الزبائن</div>
       <a class="nav-item" href="#customers" data-tab="customers">الزبائن</a>
       <a class="nav-item" href="#create" data-tab="create">إنشاء حساب</a>
-      <a class="nav-item" href="/admin/add-client">إضافة عميل (المعالج)</a>
-      <div class="nav-label">💳 الإيرادات</div>
       <a class="nav-item" href="#subscriptions" data-tab="subscriptions">الاشتراكات</a>
       <a class="nav-item" href="#ledger" data-tab="ledger">سجل المدفوعات</a>
-      <div class="nav-label">🛟 الدعم</div>
-      <a class="nav-item" href="/admin/inbox">صندوق الدعم</a>
-      <div class="nav-label">🔧 البنية التحتية</div>
-      <a class="nav-item" href="/admin/observability">مراقبة المنصة</a>
-      <a class="nav-item" href="/admin/meta-readiness">جاهزية Meta</a>
       <a class="nav-item" href="#probe" data-tab="probe">مرقاب قدرات Meta</a>
-      <div class="nav-label">🎛️ الإعدادات</div>
       <a class="nav-item" href="#settings" data-tab="settings">إعدادات المنصة</a>
-      <a class="nav-item" href="/dashboard">⌂ العودة للتطبيق</a>
     </nav>
     <div class="nav-foot">
       <div class="muted" id="admin-email">—</div>
