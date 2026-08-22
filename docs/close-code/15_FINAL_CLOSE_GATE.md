@@ -57,6 +57,43 @@ modules substituted `campaign.createdAt`: one handed it to the AI assistant as
 `startedAt`, the other persisted it into `campaign_history_snapshots`. Both now
 report UNKNOWN; neither needed a schema change.
 
+## What the first Dockerfile deployments proved
+
+Three things, none of which were visible before this cycle built the tools to
+see them.
+
+**The builder change worked; the start command did not survive it.** Deployment
+`2a063356` built correctly and then failed its healthcheck. Its complete
+runtime log is four lines — container start, `40 migrations found`, `No pending
+migrations to apply.`, container stop — with **no application output at all**,
+confirmed with `cat -A` over the whole stream rather than inferred from a tail.
+
+The start command was `npx prisma migrate deploy && node dist/src/api/serve.js`.
+Nixpacks ran that through a shell; the Dockerfile builder splits it into an
+argv array, so `npx` received `prisma migrate deploy && node …` as arguments,
+Prisma parsed `migrate deploy`, ignored the rest, exited 0, and the container's
+only process was finished. The invariant that came out of it is not "avoid
+`&&`" — it is that a start command must mean the same thing whether the
+platform execs it or shells it. Sequencing now lives in `.deploy/start.js` and
+the command is four tokens with no metacharacters.
+
+**Production was never at risk, and that is worth stating precisely.** Railway
+refused to promote a deployment whose healthcheck failed and kept serving
+`094a37b` throughout. A failed build cannot replace a healthy deployment.
+
+**`/api/health` cannot see a failed deployment.** It reports only what is
+RUNNING, so "production still shows the old commit" cannot distinguish *still
+building* from *the build broke*. That ambiguity is why the diagnosis needed a
+deployments-status read, and it is the same shape as every other finding in
+this programme: the absence of evidence was being read as evidence.
+
+**Two deployers, one push.** Railway's GitHub integration deploys every push to
+main, and `deploy-adlytic.yml` did too. While `RAILWAY_TOKEN` was unset that
+job failed and created nothing, so the overlap was invisible; a working token
+turned it into a second deployer, and every merge began queueing two builds of
+the same commit. The deploy job is now dispatch-only — Railway owns the push
+path — while `verify` still runs on push so main keeps its typecheck.
+
 ## Verification of this candidate
 
 ```

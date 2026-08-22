@@ -48,8 +48,22 @@ jobs:
   # The logic lives in .deploy/railway-deploy.sh so it can be executed by
   # test_deploy_gate.ts against a stubbed curl. Behaviour inside a `run:`
   # block is unreachable to any test, which is how the false green survived.
+  #
+  # DISPATCH ONLY, and that is a correction rather than a restriction.
+  # Railway's own GitHub integration already deploys every push to main — it
+  # has done so all along, independently of this workflow. While RAILWAY_TOKEN
+  # was unset this job failed and created nothing, so the overlap was
+  # invisible. Once the token worked, every merge to main queued TWO builds of
+  # the same commit: one from Railway, one from here. Under the Dockerfile
+  # builder, which is slower than Nixpacks was, that backlog is visible —
+  # three deployments sat QUEUED at once after two merges.
+  #
+  # So the push trigger keeps running `verify` (typecheck on main still has
+  # value) and no longer deploys. Dispatch remains the escape hatch a
+  # docs-or-CI-only release needs, which is the reason it was added.
   deploy-adlytic:
     needs: verify
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
