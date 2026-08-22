@@ -495,6 +495,16 @@ jobs:
             | tail -25 || echo "  (none)"
           echo "── last 12 lines of the build (same redaction)"
           sed -E 's/[A-Za-z0-9_+\/=-]{20,}/<redacted>/g' blog.txt | tail -12
+          # The BUILD succeeded if we got here with a healthcheck failure — the
+          # reason the container never answered is in its RUNTIME log, not the
+          # build log. Same redaction.
+          echo "── runtime log of the SAME deployment (redacted; diagnostic branch only)"
+          QR='query d($deploymentId: String!, $limit: Int) { deploymentLogs(deploymentId: $deploymentId, limit: $limit) { message } }'
+          curl -sS --max-time 60 -o "$OUT" -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$QR" --arg d "$DEP" '{query:$q, variables:{deploymentId:$d, limit:400}}')" || true
+          jq -r '.data.deploymentLogs[]?.message // empty' "$OUT" \
+            | sed -E 's/[A-Za-z0-9_+\/=-]{20,}/<redacted>/g' | tail -40 || echo "  (no runtime log)"
           echo "BUILD_FAILURE_CLASSIFY=DONE"
 
       - name: What this run did and did not prove
