@@ -20,6 +20,12 @@ GRAPH_DUPLICATE_ENGINES_CREATED = 0
 GRAPH_READ_ONLY = YES
 GRAPH_MUTATION_PATHS = 0
 GRAPH_REDERIVES_BRAIN_LOGIC = NO
+
+── acceptance pass ──────────────────────────────────────────────
+UI_AUDIT          = 7 surfaces x 11 scenarios x 2 viewports + LTR · 0 findings
+GRAPH_OPERATOR_UX = 19 questions answered by driving the real UI
+TEST_TOTAL        = 964 assertions across 50 suites · 0 failures
+INTEGRATION       = merged in a throwaway worktree; their deploy gate 37/37
 ```
 
 ## What was actually wrong
@@ -66,6 +72,28 @@ surface in the Control Plane — because it never had one in *either* previous
 console. It is listed in the registry so it cannot be forgotten, and the test
 asserts it is the **only** capability allowed to be unhosted. Building a UI for
 it was outside this scope; pretending it had one would have been worse.
+
+## What the acceptance pass changed
+
+The first pass was verified from source. That proved the structure and proved
+nothing about the experience. Booting the real pages and driving them found
+four classes of defect source review could not see:
+
+1. **The graph was decorative.** 39 routes truncated to indistinguishable
+   stubs, 275 edges as a hairball, no search or filters — and then labels
+   measured at 5.9px once the measurement itself was corrected. It now carries
+   search, per-class filters, a runtime status filter, isolation, preset
+   questions and an inspector drawer, at a legible 10px.
+2. **Skeletons that never resolved.** Seven panels across three surfaces kept
+   animating after their request had already failed.
+3. **Raw ISO timestamps** in columns an operator scans for "was that today".
+4. **Cards stretching** to their tallest sibling — the measured form of the
+   "sparse admin" complaint.
+
+The harness lied first, and that is part of the evidence: `?scenario=` never
+reached the page's own fetches, so eleven scenarios rendered identically and
+the audit passed while comparing a page against itself. A clean first run on an
+audit nobody has tried to break is not evidence.
 
 ## What was deliberately not built
 

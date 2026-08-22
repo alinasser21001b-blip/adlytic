@@ -102,6 +102,20 @@ in the component.
 - **Per-queue depth, separate-worker liveness and the admin allowlist** are not
   observable. They are recorded as node `unknowns` and rendered, not hidden.
 
+## Acceptance pass addendum
+
+Everything above was verified from source. The acceptance pass verified it
+from the rendered product, and changed two of the answers.
+
+`GRAPHIFY_OPERATOR_STATUS` was **WEAK** on first render and is now **STRONG** —
+see doc 17 for what changed and why the first measurement of it was wrong.
+
+The other conditions held. What the rendered audit added rather than
+contradicted: failure states on every ops-driven region, one timestamp
+formatter, cards that size to their content, and a permanent acceptance suite
+(`test_admin_acceptance.ts`) that pins the defects a browser run would
+otherwise have to re-find.
+
 ## Verdict
 
 The Control Plane is one product. The graph is one engine with three modes,
