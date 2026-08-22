@@ -37,7 +37,13 @@ export type ClassificationConfidence =
 /** How sure we are the numbers are complete. */
 export type DataConfidence =
   | 'COMPLETE'      // full days, synced, source column populated
-  | 'PARTIAL'       // includes today, or an attribution window still open
+  // NOT VERIFIABLY COMPLETE. Three distinct situations share this value
+  // because they share one consequence — the window cannot be vouched for, so
+  // it must never carry full confidence: the span includes today, an
+  // attribution window is still open, or the span's day coverage cannot be
+  // confirmed (rows exist for some days and absence is undecidable between
+  // no-delivery, never-synced and not-yet-running).
+  | 'PARTIAL'
   | 'BACKFILLING'   // column exists but rows predate it (e.g. link_clicks)
   | 'MISSING';      // never synced
 

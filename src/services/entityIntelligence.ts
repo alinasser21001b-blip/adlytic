@@ -169,6 +169,28 @@ export async function buildEntityFunnel(
 
   const funnel = diagnoseFunnel(family, cur, pri, signals);
 
+  // ── DATA VALIDITY, measured rather than asserted ──────────────────────
+  // This was `dataConfidence: 'COMPLETE'` — a literal constant. It meant the
+  // DATA_VALIDITY layer could never observe anything but COMPLETE, so
+  // reconcileIntelligence()'s weakest-link cap never fired for a data reason
+  // and a window holding one row out of fourteen days reached full
+  // confidence. Coverage is now derived from the rows actually read.
+  //
+  // COMPLETE only when every calendar day in the span carries a row — the one
+  // case with no absence left to explain. Otherwise PARTIAL, which caps
+  // confidence at MEDIUM without asserting the missing days SHOULD have held
+  // data: `time_increment=1` omits zero-delivery days and Campaign stores no
+  // Meta start/stop time, so absence is genuinely undecidable. The claim made
+  // here is only "this window cannot be vouched for", which is true in every
+  // one of those cases. The precise dates live in the Observatory's temporal
+  // block; this is the coarse gate that feeds the confidence cap.
+  const daysInSpan = new Set<string>();
+  for (let t = priorSince.getTime(); t <= currentUntil.getTime(); t += dayMs) {
+    daysInSpan.add(new Date(t).toISOString().slice(0, 10));
+  }
+  for (const r of rows) daysInSpan.delete(r.date.toISOString().slice(0, 10));
+  const dataConfidence: DataConfidence = daysInSpan.size === 0 ? 'COMPLETE' : 'PARTIAL';
+
   const wavg = (a: typeof rate.cur, key: 'ctr' | 'cpm' | 'cpc') =>
     a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;
   const favg = (a: typeof rate.cur) =>
@@ -198,9 +220,10 @@ export async function buildEntityFunnel(
       roasCur: spendCur > 0 && revCur > 0 ? +(revCur / spendCur).toFixed(4) : null,
     },
     classificationConfidence: opts?.classificationConfidence ?? 'CONFIRMED',
-    // The window excludes the last 2 days for Meta attribution backfill, so
-    // the rows in it are settled.
-    dataConfidence: 'COMPLETE' as DataConfidence,
+    // Derived above from the span's real day coverage. The 2-day lag makes
+    // the rows SETTLED; it does not make the window COMPLETE, and conflating
+    // the two is what this replaced.
+    dataConfidence,
     resultApproximate: resultFor(family).approximate,
   };
 }

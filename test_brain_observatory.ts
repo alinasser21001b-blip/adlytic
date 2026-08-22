@@ -709,6 +709,10 @@ async function run() {
     assert.equal(t.lastStoredDate, expectedDates[expectedDates.length - 1]);
     assert.equal(t.dataPresence, 'AVAILABLE');
     assert.equal(t.boundarySemantics, 'INCLUSIVE_BOTH_ENDS');
+    // Non-vacuous counterpart to the sparse case: a fully covered span must
+    // still reach COMPLETE, or the fix would just be a blanket downgrade.
+    assert.equal(t.legacyDataStatus, 'COMPLETE',
+      'every day carries a row — this window IS verifiably complete');
     // 14 contiguous days across a 14-day span leaves nothing to explain.
     assert.deepEqual(t.datesWithoutRows, []);
     assert.equal(t.temporalCoverage, 'FULL');
@@ -803,19 +807,20 @@ async function run() {
       'a code the guard cannot rule on must carry NO verdict — NOT_VETOED would be a false clearance');
   });
 
-  await checkAsync('the legacy COMPLETE status is shown contradicting the real coverage', async () => {
+  await checkAsync('ambiguous day coverage can no longer report COMPLETE', async () => {
     const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0), brainAction: 'KEEP_COLLECTING' });
     const t = (await buildBrainObservatory(prisma, 'camp_obs_1'))!.temporal;
-    // 5 rows across a 14-day span, and the legacy field still says COMPLETE —
-    // because it is a hardcoded constant, not a measurement. Pinned here so
-    // nobody "reconciles" the two by trusting the constant.
+    // 5 rows across a 14-day span. This used to read COMPLETE, because
+    // buildEntityFunnel returned that as a literal constant — which is how a
+    // one-row-in-fourteen-days window reached full confidence. It is now
+    // derived from the real coverage.
     assert.equal(t.storedRowCount, 5);
     assert.equal(t.datesWithoutRows.length, 9);
     assert.equal(t.temporalCoverage, 'UNKNOWN');
-    assert.equal(t.legacyDataStatus, 'COMPLETE');
+    assert.equal(t.legacyDataStatus, 'PARTIAL',
+      'nine unexplained days cannot report COMPLETE — PARTIAL caps confidence at MEDIUM');
     assert.ok(/NOT A MEASUREMENT/.test(t.legacyDataStatusBasis),
-      'the legacy value must be labelled a constant, or a reader reconciles it the wrong way');
-    assert.ok(/hardcoded constant/.test(t.legacyDataStatusBasis));
+      'the legacy value must still be labelled non-authoritative — the temporal axes are');
   });
 
   await checkAsync('a window with no delivery yields no rate — null, never zero', async () => {
@@ -865,6 +870,45 @@ async function run() {
       'storedDates is the ONLY field that separates these two cases');
     // Neither may claim FULL: 12 of 14 days is still an unexplained absence.
     assert.equal(zeroRows.temporal.temporalCoverage, 'UNKNOWN');
+  });
+
+  await checkAsync('sparse coverage cannot reach HIGH confidence — the cap is real', async () => {
+    // THE BEHAVIOURAL POINT of deriving dataConfidence. Same funnel break,
+    // same verdict; the only difference is whether every day in the span
+    // carries a row. Full coverage may reach HIGH; a gap must cap at MEDIUM
+    // via reconcileIntelligence()'s PARTIAL rule. Before the fix both
+    // returned COMPLETE and both reached HIGH.
+    const runWith = async (rows: ReturnType<typeof dayRow>[]) => {
+      const { prisma } = makeFakePrisma({ rows });
+      const funnel = await buildEntityFunnel(prisma, EntityType.CAMPAIGN, 'camp_obs_1', 'messaging', {});
+      const intel = buildEntityIntelligence(
+        funnel!.funnel, funnel!.family, funnel!.windows,
+        funnel!.classificationConfidence, funnel!.dataConfidence, funnel!.resultApproximate,
+      );
+      return { dataConfidence: funnel!.dataConfidence, confidence: intel.confidence, problemClass: intel.problemClass };
+    };
+
+    const full = await runWith(buildRows());
+    // Drop ONE day from an otherwise identical window. The break is a ratio,
+    // so the diagnosis must survive — only the coverage claim changes.
+    const gapped = await runWith(buildRows().slice(1));
+
+    assert.equal(full.dataConfidence, 'COMPLETE', '14 of 14 days is verifiably complete');
+    assert.equal(gapped.dataConfidence, 'PARTIAL', '13 of 14 days cannot be vouched for');
+    assert.equal(full.problemClass, gapped.problemClass,
+      'the diagnosis must be unchanged — otherwise this compares two different situations');
+    assert.equal(full.confidence, 'HIGH', 'the complete case must actually reach HIGH, or the cap proves nothing');
+    assert.notEqual(gapped.confidence, 'HIGH', 'a gap in the span must prevent full confidence');
+    assert.equal(gapped.confidence, 'MEDIUM', 'PARTIAL caps at MEDIUM — no lower, no higher');
+  });
+
+  await checkAsync('DATA_VALIDITY reports the measured value, not a constant', async () => {
+    const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0), brainAction: 'KEEP_COLLECTING' });
+    const snap = await buildBrainObservatory(prisma, 'camp_obs_1');
+    const dv = snap!.trace.find((t) => t.stage === 'DATA_VALIDITY')!;
+    assert.equal(dv.status, 'REACHED');
+    assert.match(String(dv.conclusion), /partial/,
+      'the reconciler must SEE the real coverage — a hardcoded COMPLETE made this layer decorative');
   });
 
   console.log('\n── 10. Authority domains: the veto governs what it governs, and nothing else ──');
