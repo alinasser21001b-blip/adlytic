@@ -1,0 +1,270 @@
+name: Runtime config (JWT separation + queue truth)
+
+# ════════════════════════════════════════════════════════════════════════
+#  THE ONE WORKFLOW THAT MAY WRITE RAILWAY CONFIGURATION.
+#
+#  verify-live.yml observes and is guarded to stay read-only. This file is
+#  its counterpart: it exists to fix exactly two runtime findings that the
+#  application itself reported at boot on d499744:
+#
+#    1. JWT_SECRET is IDENTICAL to META_APP_SECRET (config.ts tripwire).
+#       Fix: generate a fresh secret ON THE RUNNER and set the same value on
+#       both services. It signs only 7-day session tokens ({sub,email,ver});
+#       revocation is DB tokenVersion; nothing persistent is encrypted with
+#       it — so rotation costs one re-login and nothing else.
+#    2. BULLMQ_ENABLED=true while REDIS_URL is unset — workers never start,
+#       and every enqueue site already falls back to its in-process
+#       setImmediate body (lib/queue.ts: "we NEVER lose work"). The fallback
+#       IS production's working path, observed live. Fix: BULLMQ_ENABLED=false
+#       so configuration states what actually runs.
+#
+#  WHAT IT MUST NEVER DO, and what guards it (test_deploy_gate.ts §11):
+#    • never print secret material. The generated value is add-mask'ed the
+#      instant it exists, moves only through files (jq --rawfile / curl @-),
+#      and no response body is ever printed raw — evidence is COUNTS and
+#      NAMES only, the discipline verify-live.yml established.
+#    • never touch any variable except JWT_SECRET and BULLMQ_ENABLED.
+#      TOKEN_ENCRYPTION_KEY guards encrypted Meta tokens; META_APP_SECRET is
+#      Meta's, not ours to rotate. Neither name appears in this file, and the
+#      gate fails if one ever does.
+#    • never delete or roll back anything: the only mutations allowed are
+#      variableCollectionUpsert / variableUpsert / serviceInstanceDeploy —
+#      prove-the-field-first, same as every Railway call this repo makes.
+#    • never run un-asked: workflow_dispatch only, and mode=dry-run by
+#      default — the apply steps are skipped unless a human picked 'apply'.
+#
+#  YAML NOTE (same trap as verify-live.yml): no heredocs inside run blocks —
+#  a terminator at column 0 would close the block scalar. Payloads are built
+#  with jq -n and files.
+# ════════════════════════════════════════════════════════════════════════
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'dry-run = discover and prove only; apply = perform the two fixes'
+        required: true
+        default: 'dry-run'
+        type: choice
+        options:
+          - dry-run
+          - apply
+      target_sha:
+        description: 'Commit the validation service must serve. Pinned, NOT the dispatching ref: the config-only commit that adds this workflow moves main without moving the runtime code, and the validation deploy must target the code, not the paperwork.'
+        required: true
+        default: 'd499744ecc4e6a46e2de33c031fd94fb45511724'
+
+concurrency:
+  group: adlytic-runtime-config
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    env:
+      RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      API: https://backboard.railway.app/graphql/v2
+      PROD_SERVICE_ID: cc7cbf67-d757-4018-bf6d-9cec643222c3
+      ENVIRONMENT_ID: 89cdf3cb-15b7-4b92-b1ae-07e812333c37
+      PROD_URL: https://adlytic-production.up.railway.app
+      VAL_URL: https://adlytic-brain-validation-production.up.railway.app
+    steps:
+      - name: Prove the schema and discover the services (READ)
+        run: |
+          set -uo pipefail
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then echo "RAILWAY_ACCESS=NO_TOKEN"; exit 1; fi
+          HDR="$(mktemp)"; printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          trap 'rm -f "$HDR"' EXIT
+          gql() { curl -sS --max-time 60 -X POST "$API" -H @"$HDR" -H "Content-Type: application/json" -d "$1"; }
+
+          # Mutations: prove the exact fields before ever calling one.
+          Q='query { __schema { mutationType { fields { name args { name } } } } }'
+          gql "$(jq -n --arg q "$Q" '{query:$q}')" > mut.json || true
+          MUTS=$(jq -r '[.data.__schema.mutationType.fields[]?
+                         | select(.name|test("^variable|^serviceInstance"))
+                         | .name + "(" + ([.args[]?.name]|join(",")) + ")"] | join("  ")' mut.json 2>/dev/null || true)
+          if [ -z "$MUTS" ]; then echo "MUTATION_INTROSPECTION=UNAVAILABLE"; exit 1; fi
+          echo "MUTATION_FIELDS=${MUTS}"
+          case " $MUTS " in *" variableCollectionUpsert("*) echo "UPSERT_FIELD_PROVEN=variableCollectionUpsert" ;; \
+            *" variableUpsert("*) echo "UPSERT_FIELD_PROVEN=variableUpsert" ;; \
+            *) echo "UPSERT_FIELD_PROVEN=NO"; exit 1 ;; esac
+          case "$MUTS" in *"serviceInstanceDeploy("*) : ;; *) echo "DEPLOY_FIELD_PROVEN=NO"; exit 1 ;; esac
+          echo "DEPLOY_FIELD_PROVEN=serviceInstanceDeploy"
+          DEPLOY_ARGS=$(echo "$MUTS" | grep -oE 'serviceInstanceDeploy\([^)]*\)' | head -1)
+          echo "DEPLOY_ARGS=${DEPLOY_ARGS}"
+          echo "DEPLOY_ARGS=${DEPLOY_ARGS}" >> "$GITHUB_ENV"
+
+          # Input shape for the upsert — names only.
+          Q='query { __type(name: "VariableCollectionUpsertInput") { inputFields { name } } }'
+          gql "$(jq -n --arg q "$Q" '{query:$q}')" > vin.json || true
+          echo "VARIABLE_COLLECTION_UPSERT_INPUT=$(jq -r '[.data.__type.inputFields[]?.name] | join(",")' vin.json 2>/dev/null)"
+
+          # The environment's services — ids and names are not secrets.
+          Q='query { __type(name: "Environment") { fields { name } } }'
+          gql "$(jq -n --arg q "$Q" '{query:$q}')" > envt.json || true
+          if ! jq -e '.data.__type.fields[]? | select(.name=="serviceInstances")' envt.json >/dev/null 2>&1; then
+            echo "ENVIRONMENT_SERVICE_LISTING=UNPROVEN"; exit 1; fi
+          Q='query e($id: String!) { environment(id: $id) { projectId serviceInstances { edges { node { serviceId serviceName } } } } }'
+          gql "$(jq -n --arg q "$Q" --arg id "$ENVIRONMENT_ID" '{query:$q, variables:{id:$id}}')" > envq.json || true
+          if jq -e '.errors' envq.json >/dev/null 2>&1; then
+            echo "ENVIRONMENT_READ=REJECTED — $(jq -r '[.errors[].message]|join("; ")' envq.json | head -c 200)"; exit 1; fi
+          PROJECT_ID=$(jq -r '.data.environment.projectId // empty' envq.json)
+          echo "PROJECT_ID=${PROJECT_ID}"
+          echo "── services in this environment (serviceName, serviceId — nothing else)"
+          jq -r '.data.environment.serviceInstances.edges[]?.node | [.serviceName, .serviceId] | @tsv' envq.json
+          VAL_SERVICE_ID=$(jq -r '[.data.environment.serviceInstances.edges[]?.node
+                                   | select(.serviceName|test("validation";"i"))] | .[0].serviceId // empty' envq.json)
+          if [ -z "$VAL_SERVICE_ID" ]; then echo "VALIDATION_SERVICE_DISCOVERED=NO"; exit 1; fi
+          echo "VALIDATION_SERVICE_DISCOVERED=${VAL_SERVICE_ID}"
+          jq -e --arg p "$PROD_SERVICE_ID" '[.data.environment.serviceInstances.edges[]?.node.serviceId] | index($p) != null' envq.json >/dev/null \
+            && echo "PRODUCTION_SERVICE_CONFIRMED=YES" || { echo "PRODUCTION_SERVICE_CONFIRMED=NO"; exit 1; }
+          { echo "PROJECT_ID=${PROJECT_ID}"; echo "VAL_SERVICE_ID=${VAL_SERVICE_ID}"; } >> "$GITHUB_ENV"
+
+      - name: Apply the two fixes (MUTATE — only in apply mode)
+        if: ${{ inputs.mode == 'apply' }}
+        run: |
+          set -uo pipefail
+          HDR="$(mktemp)"; printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          # jwt.txt and the upsert payloads are the only files that ever hold
+          # the secret — all of them die with this step, success or failure.
+          trap 'rm -f "$HDR" jwt.txt up_prod.json up_val.json' EXIT
+          gql() { curl -sS --max-time 60 -X POST "$API" -H @"$HDR" -H "Content-Type: application/json" -d @"$1"; }
+          newest() { # newest deployment id for a service — a read, used to detect auto-redeploys
+            Q='query d($input: DeploymentListInput!, $first: Int) { deployments(input: $input, first: $first) { edges { node { id } } } }'
+            jq -n --arg q "$Q" --arg s "$1" --arg e "$ENVIRONMENT_ID" \
+              '{query:$q, variables:{input:{serviceId:$s, environmentId:$e}, first:1}}' > /tmp/dq.json
+            gql /tmp/dq.json | jq -r '.data.deployments.edges[0].node.id // "none"'
+          }
+
+          # The secret exists only here: masked immediately, then file-only.
+          JWT="$(openssl rand -hex 48)"
+          echo "::add-mask::${JWT}"
+          umask 177; printf '%s' "$JWT" > jwt.txt; unset JWT
+          echo "JWT_GENERATED=YES (96 hex chars; never printed, never committed)"
+
+          PRE_PROD=$(newest "$PROD_SERVICE_ID"); PRE_VAL=$(newest "$VAL_SERVICE_ID")
+
+          # One upsert per service: JWT_SECRET on both, BULLMQ_ENABLED=false on
+          # production only (validation already runs bullmq=disabled).
+          jq -n --rawfile v jwt.txt --arg p "$PROJECT_ID" --arg e "$ENVIRONMENT_ID" --arg s "$PROD_SERVICE_ID" \
+            '{query:"mutation vc($input: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $input) }",
+              variables:{input:{projectId:$p, environmentId:$e, serviceId:$s,
+                                variables:{JWT_SECRET:$v, BULLMQ_ENABLED:"false"}}}}' > up_prod.json
+          jq -n --rawfile v jwt.txt --arg p "$PROJECT_ID" --arg e "$ENVIRONMENT_ID" --arg s "$VAL_SERVICE_ID" \
+            '{query:"mutation vc($input: VariableCollectionUpsertInput!) { variableCollectionUpsert(input: $input) }",
+              variables:{input:{projectId:$p, environmentId:$e, serviceId:$s,
+                                variables:{JWT_SECRET:$v}}}}' > up_val.json
+          for svc in prod val; do
+            gql "up_${svc}.json" > "resp_${svc}.json" || true
+            rm -f "up_${svc}.json"
+            if jq -e '.errors' "resp_${svc}.json" >/dev/null 2>&1; then
+              echo "VARIABLE_UPSERT_${svc}=REJECTED — $(jq -r '[.errors[].message]|join("; ")' "resp_${svc}.json" | grep -Fv -f jwt.txt | head -c 200)"
+              exit 1
+            fi
+            echo "VARIABLE_UPSERT_${svc}=OK ($(jq -r '.data.variableCollectionUpsert' "resp_${svc}.json"))"
+          done
+
+          # Variables only apply on a new deployment. Railway may stage one
+          # itself; trigger only where it did not — never stack duplicates.
+          sleep 45
+          deploy() { # $1 = serviceId, $2..= extra jq variable args for the mutation
+            jq -n --arg s "$1" --arg e "$ENVIRONMENT_ID" \
+              '{query:"mutation d($serviceId: String!, $environmentId: String!, $latestCommit: Boolean) { serviceInstanceDeploy(serviceId: $serviceId, environmentId: $environmentId, latestCommit: $latestCommit) }",
+                variables:{serviceId:$s, environmentId:$e, latestCommit:true}}' > /tmp/dep.json
+            gql /tmp/dep.json
+          }
+          POST_PROD=$(newest "$PROD_SERVICE_ID")
+          if [ "$POST_PROD" = "$PRE_PROD" ]; then
+            R=$(deploy "$PROD_SERVICE_ID")
+            echo "PROD_REDEPLOY_TRIGGERED=$(printf '%s' "$R" | jq -r 'if .errors then "REJECTED" else "YES" end')"
+          else
+            echo "PROD_REDEPLOY_TRIGGERED=AUTO (platform created one on variable change)"
+          fi
+
+          # Validation must land on the pinned target commit, not its stale
+          # connected branch — latestCommit would rebuild the wrong code. The
+          # schema's commitSha argument (proven in step 1, carried here in
+          # DEPLOY_ARGS) points the deploy at the commit itself.
+          POST_VAL=$(newest "$VAL_SERVICE_ID")
+          TARGET_SHA="${{ inputs.target_sha }}"
+          if printf '%s' "${DEPLOY_ARGS:-}" | grep -q 'commitSha'; then
+            jq -n --arg s "$VAL_SERVICE_ID" --arg e "$ENVIRONMENT_ID" --arg c "$TARGET_SHA" \
+              '{query:"mutation d($serviceId: String!, $environmentId: String!, $commitSha: String) { serviceInstanceDeploy(serviceId: $serviceId, environmentId: $environmentId, commitSha: $commitSha) }",
+                variables:{serviceId:$s, environmentId:$e, commitSha:$c}}' > /tmp/depv.json
+            RV=$(gql /tmp/depv.json)
+            if printf '%s' "$RV" | jq -e '.errors' >/dev/null 2>&1; then
+              echo "VAL_DEPLOY_AT_TARGET_SHA=REJECTED — $(printf '%s' "$RV" | jq -r '[.errors[].message]|join("; ")' | head -c 200)"
+              echo "VAL_DEPLOY_FALLBACK=NONE — commitSha refused; report, do not guess a config mutation"
+              exit 1
+            fi
+            echo "VAL_DEPLOY_AT_TARGET_SHA=YES (commitSha=${TARGET_SHA})"
+          elif [ "$POST_VAL" = "$PRE_VAL" ]; then
+            echo "VAL_DEPLOY_AT_TARGET_SHA=UNPROVEN — no commitSha arg and no auto-deploy; the"
+            echo "  service's connected branch must be changed to main in the dashboard first."
+            exit 1
+          else
+            echo "VAL_DEPLOY_AT_TARGET_SHA=AUTO_ON_OLD_BRANCH — a variable-change deploy appeared, but it"
+            echo "  rebuilds the stale branch; the JWT lands, the SHA does not. Reporting, not guessing."
+          fi
+
+      - name: Verify the runtime outcome (READ — only in apply mode)
+        if: ${{ inputs.mode == 'apply' }}
+        run: |
+          set -uo pipefail
+          HDR="$(mktemp)"; printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          trap 'rm -f "$HDR"' EXIT
+          gql() { curl -sS --max-time 60 -X POST "$API" -H @"$HDR" -H "Content-Type: application/json" -d @"$1"; }
+
+          # Wait for each service's newest deployment to leave the queue.
+          for pair in "prod:$PROD_SERVICE_ID" "val:$VAL_SERVICE_ID"; do
+            svc="${pair%%:*}"; sid="${pair#*:}"
+            for i in $(seq 1 40); do
+              Q='query d($input: DeploymentListInput!, $first: Int) { deployments(input: $input, first: $first) { edges { node { id status meta } } } }'
+              jq -n --arg q "$Q" --arg s "$sid" --arg e "$ENVIRONMENT_ID" \
+                '{query:$q, variables:{input:{serviceId:$s, environmentId:$e}, first:1}}' > /tmp/pq.json
+              gql /tmp/pq.json > /tmp/pd.json || true
+              ST=$(jq -r '.data.deployments.edges[0].node.status // "UNKNOWN"' /tmp/pd.json)
+              case "$ST" in SUCCESS|FAILED|CRASHED|REMOVED|SKIPPED) break ;; esac
+              sleep 30
+            done
+            ID=$(jq -r '.data.deployments.edges[0].node.id // "none"' /tmp/pd.json)
+            SHA=$(jq -r '(.data.deployments.edges[0].node.meta.commitHash // "")[0:7]' /tmp/pd.json)
+            echo "${svc}_NEWEST_DEPLOYMENT=${ID} status=${ST} commit=${SHA}"
+
+            # Build log: the SecretsUsedInArgOrEnv count must stay 0 (Gate A).
+            Q='query b($deploymentId: String!, $limit: Int) { buildLogs(deploymentId: $deploymentId, limit: $limit) { message } }'
+            jq -n --arg q "$Q" --arg d "$ID" '{query:$q, variables:{deploymentId:$d, limit:2000}}' > /tmp/bq.json
+            gql /tmp/bq.json > /tmp/bl.json || true
+            echo "${svc}_SECRETS_USED_IN_ARG_OR_ENV_WARNINGS=$(jq -r '.data.buildLogs[]?.message // empty' /tmp/bl.json | grep -ac 'SecretsUsedInArgOrEnv' || true)"
+
+            # Runtime log: COUNTS ONLY — the two findings must read zero, and
+            # the disabled-queue line proves config now matches reality.
+            Q='query l($deploymentId: String!, $limit: Int) { deploymentLogs(deploymentId: $deploymentId, limit: $limit) { message } }'
+            jq -n --arg q "$Q" --arg d "$ID" '{query:$q, variables:{deploymentId:$d, limit:2000}}' > /tmp/lq.json
+            gql /tmp/lq.json > /tmp/rl.json || true
+            # 'is IDENTICAL to' is the config.ts tripwire's phrasing — matched
+            # as a substring so this file's executable content never has to
+            # name the other credential (section 11 forbids exactly that).
+            echo "${svc}_JWT_IDENTICAL_WARNING_COUNT=$(jq -r '.data.deploymentLogs[]?.message // empty' /tmp/rl.json | grep -ac 'is IDENTICAL to' || true)"
+            echo "${svc}_BULLMQ_MISCONFIG_COUNT=$(jq -r '.data.deploymentLogs[]?.message // empty' /tmp/rl.json | grep -ac 'BULLMQ_ENABLED=true but REDIS_URL is unset' || true)"
+            echo "${svc}_BULLMQ_DISABLED_LINE_COUNT=$(jq -r '.data.deploymentLogs[]?.message // empty' /tmp/rl.json | grep -ac 'BULLMQ_ENABLED=false' || true)"
+          done
+
+          # The same health fields the close gates read, from both services.
+          for pair in "PRODUCTION:$PROD_URL" "VALIDATION:$VAL_URL"; do
+            name="${pair%%:*}"; base="${pair#*:}"
+            code=$(curl -sS --max-time 30 -o hb.json -w '%{http_code}' "${base}/api/health" || echo "000")
+            echo "${name}_HTTP=${code}"
+            jq -r --arg n "$name" '
+              def f(k): if has(k) then (.[k]|tostring) else "ABSENT" end;
+              def b(k): (.build // {}) | if has(k) then (.[k]|tostring) else "ABSENT" end;
+              $n + "_STATUS=" + f("status"),
+              $n + "_DB=" + f("db"),
+              $n + "_ROLE=" + f("role"),
+              $n + "_BACKGROUND_SYNC=" + f("runsBackgroundSync"),
+              $n + "_BULLMQ=" + f("bullmq"),
+              $n + "_COMMIT=" + b("commit"),
+              $n + "_BRANCH=" + b("branch"),
+              $n + "_RESOLVED=" + b("resolved")
+            ' hb.json 2>/dev/null || echo "${name}_BODY=UNREADABLE"
+          done

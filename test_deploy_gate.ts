@@ -236,6 +236,8 @@ function main() {
       'package-lock.json', 'tsconfig*.json', 'docs/**', 'README.md',
       'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF,
       WORKFLOW, '.github/workflows/verify-live.yml',
+      // Section 11 reads it: the one workflow allowed to write Railway config.
+      '.github/workflows/runtime-config.yml',
       // Section 8 below reads both: the Dockerfile IS the build's secret
       // boundary now, and .dockerignore decides what reaches the context.
       'Dockerfile', '.dockerignore',
@@ -615,6 +617,81 @@ function main() {
         bad('a start command names a file the image will not contain — the container dies on '
           + `MODULE_NOT_FOUND: ${missing.join(' | ')}`);
       }
+    }
+  }
+
+  console.log('\n── 11. the config workflow can fix two variables and nothing else ──');
+  {
+    // runtime-config.yml is deliberately the ONLY workflow permitted to write
+    // Railway configuration — it exists to separate JWT_SECRET from
+    // META_APP_SECRET and to make BULLMQ_ENABLED state the truth. The blast
+    // radius of "a workflow with a token that can mutate" is bounded here, by
+    // test, not by trust.
+    const RC = '.github/workflows/runtime-config.yml';
+    if (!existsSync(join(__dirname, RC))) {
+      bad(`${RC} is missing — the JWT/queue runtime fixes have no auditable path`);
+    } else {
+      const raw = readFileSync(join(__dirname, RC), 'utf8');
+      // Comments legitimately DISCUSS forbidden things (that is what makes the
+      // file reviewable); only executable content is held to the rules. Same
+      // comment-stripping lesson as sections 9 and 10.
+      const body = raw.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
+
+      if (/^on:\n\s+workflow_dispatch:/m.test(raw)) ok('runtime-config.yml runs only when a human asks');
+      else bad('runtime-config.yml is not dispatch-only — a config mutation must never self-trigger');
+
+      // Mutations: a small closed allowlist. Everything destructive that the
+      // Railway schema offers is named here so its appearance is a failure,
+      // not a review nit.
+      const forbidden = ['variableDelete', 'serviceDelete', 'serviceCreate', 'environmentDelete',
+        'projectDelete', 'deploymentRemove', 'deploymentRestart', 'deploymentRollback',
+        'deploymentCancel', 'serviceInstanceUpdate', 'volumeDelete', 'databaseDelete']
+        .filter((m) => body.includes(m));
+      if (forbidden.length === 0) {
+        ok('the only mutations are variable upserts and deploy triggers — nothing destructive');
+      } else {
+        bad(`runtime-config.yml must not reference: ${forbidden.join(', ')}`);
+      }
+      if (/variableCollectionUpsert|variableUpsert/.test(body)) ok('the variable write path is the upsert family');
+      else bad('no variable upsert found — the workflow cannot do the one job it exists for');
+
+      // The two variables it exists to write, and no other. Naming any other
+      // credential in executable content — even to read it — is scope creep
+      // into exactly the secrets this closure promised never to touch.
+      const otherSecrets = ['TOKEN_ENCRYPTION_KEY', 'META_APP_SECRET', 'META_SYSTEM_USER_TOKEN',
+        'META_VERIFY_TOKEN', 'STRIPE_SECRET_KEY', 'STRIPE_WEBHOOK_SECRET', 'ANTHROPIC_API_KEY',
+        'DATABASE_URL', 'OPENAI_API_KEY']
+        .filter((s) => body.includes(s));
+      if (otherSecrets.length === 0) {
+        ok('executable content names no credential beyond JWT_SECRET/BULLMQ_ENABLED');
+      } else {
+        bad(`runtime-config.yml touches variables it must not: ${otherSecrets.join(', ')}`);
+      }
+
+      // Secret hygiene: the generated value must be masked the moment it
+      // exists, must never ride argv into curl, and xtrace would print every
+      // assignment — all three are load-bearing, none is stylistic.
+      if (body.includes('::add-mask::')) ok('the generated secret is masked before first use');
+      else bad('runtime-config.yml never add-masks the generated secret');
+      if (!/set\s+-x|set\s+-[a-z]*x[a-z]*\s/.test(body)) ok('xtrace is never enabled');
+      else bad('runtime-config.yml enables xtrace — every assignment would be printed');
+      if (/--rawfile\s+\w+\s+jwt\.txt/.test(body) && !/\$\{?JWT\}?["']?\s*\|/.test(body)) {
+        ok('the secret moves through files (jq --rawfile), not argv or pipes');
+      } else {
+        bad('the secret must reach the payload via jq --rawfile from jwt.txt only');
+      }
+      if (/echo\s+[^\n]*\$\{?JWT\b/.test(body.replace(/::add-mask::\$\{JWT\}/g, ''))) {
+        bad('runtime-config.yml echoes the JWT value outside the add-mask line');
+      } else ok('no echo of the secret outside the masking line');
+
+      // Token discipline: RAILWAY_TOKEN is the only secret, passed by @-file.
+      const secretRefs = [...body.matchAll(/secrets\.([A-Z0-9_]+)/g)].map((m) => m[1]!);
+      const extra = [...new Set(secretRefs.filter((s) => s !== 'RAILWAY_TOKEN'))];
+      if (extra.length === 0) ok('the only Actions secret read is RAILWAY_TOKEN');
+      else bad(`runtime-config.yml reads secrets it has no business with: ${extra.join(', ')}`);
+      if (/-H @"/.test(body) && !/Authorization: Bearer \$\{\{/.test(body)) {
+        ok('the token reaches curl through an @-file, never argv');
+      } else bad('the Railway token must be passed via an @-file header');
     }
   }
 
