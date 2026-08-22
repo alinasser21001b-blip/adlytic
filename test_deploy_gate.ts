@@ -355,6 +355,24 @@ function main() {
         }
       }
 
+      // The deployments listing is what turned "production still shows the old
+      // commit" from ambiguous into decidable. It must stay a READ, and it must
+      // stay reduced: id, status, createdAt and a short commit — never a
+      // message or log field, which is where build text (and therefore a
+      // secret) could ride along.
+      if (body.includes('deployments(')) {
+        if (/\.id, \.status, \.createdAt/.test(body)) {
+          ok('the deployments listing prints only id, status, date and commit');
+        } else {
+          bad('the deployments listing prints fields beyond id/status/date/commit');
+        }
+        if (/DEPLOYMENTS_QUEUED=/.test(body)) {
+          ok('a stalled build queue is counted, not left to look like a slow build');
+        } else {
+          bad('nothing counts queued deployments — a backlog reads identically to a slow build');
+        }
+      }
+
       if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
       else bad('verify-live.yml is not dispatch-only — an observation job must not self-trigger');
     }
