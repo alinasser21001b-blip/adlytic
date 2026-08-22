@@ -32,6 +32,8 @@ import { classificationConfidenceFromReason, type ClassificationConfidence, type
 import type { ObjectiveKpiFamily, ResultMetricKey } from '../lib/objectiveKpis';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { resolveAccountResultKey } from '../analytics/accountResultKey';
+import { resolveAnalysisWindows } from '../lib/analysisWindow';
+import { readPeriodFact } from './periodInsights';
 
 /**
  * Window context shared by the P4 KPI cards and the P5 intelligence layer.
@@ -61,7 +63,22 @@ export interface FunnelWindowContext {
   linkCtrCur: number | null; linkCtrPri: number | null;
   cpmCur: number | null; cpmPri: number | null;
   cpcCur: number | null; cpcPri: number | null;
+  /**
+   * Meta's own period frequency, or null when Meta did not supply one for
+   * this exact entity and span. NEVER the mean of daily frequencies: a
+   * person reached on five days counts once in period reach but washes out
+   * of a daily mean, so that mean sits below the truth and is fed straight
+   * into ABSOLUTE fatigue thresholds. Null means UNKNOWN — fatigue withholds.
+   */
   freqCur: number | null; freqPri: number | null;
+  /**
+   * Meta's own period reach, or null when unavailable. Not derivable from
+   * daily rows at all — Meta de-duplicates people inside a span and does not
+   * publish the overlap, so max(daily) is only a lower bound.
+   */
+  reachCur: number | null; reachPri: number | null;
+  /** Where reach/frequency came from, so a null is explainable. */
+  periodFactSource: 'META_PERIOD_FACT' | 'UNAVAILABLE';
   costPerResultCur: number | null; costPerResultPri: number | null;
   resultCur: number | null; resultPri: number | null;
   revenueMinorCur: number; revenueMinorPri: number;
@@ -99,14 +116,11 @@ export async function buildEntityFunnel(
   },
 ): Promise<EntityFunnelResult | null> {
   const resultKey = opts?.resultKey ?? resultFor(family).resultKey;
-  const lagDays = 2, windowDays = 7;
-  const now = new Date();
   const dayMs = 86_400_000;
-  const floor = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const currentUntil = floor(new Date(now.getTime() - lagDays * dayMs));
-  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * dayMs);
-  const priorUntil = new Date(currentSince.getTime() - dayMs);
-  const priorSince = new Date(priorUntil.getTime() - (windowDays - 1) * dayMs);
+  // ONE window resolver, shared with the sync that writes period facts. A
+  // one-day drift between writer and reader would turn every period lookup
+  // into a miss, silently reporting UNKNOWN as though Meta had gone quiet.
+  const { currentSince, currentUntil, priorSince, priorUntil } = resolveAnalysisWindows();
 
   const rows = await prisma.dailyStat.findMany({
     where: {
@@ -131,8 +145,8 @@ export async function buildEntityFunnel(
   let revCur = 0, revPri = 0;
   // Impression-weighted rate accumulators — ratios are never averaged flat.
   const rate = {
-    cur: { imp: 0, ctr: 0, cpm: 0, cpc: 0, freq: [] as number[] },
-    pri: { imp: 0, ctr: 0, cpm: 0, cpc: 0, freq: [] as number[] },
+    cur: { imp: 0, ctr: 0, cpm: 0, cpc: 0 },
+    pri: { imp: 0, ctr: 0, cpm: 0, cpc: 0 },
   };
   for (const r of rows) {
     const inCurrent = r.date.getTime() >= currentSince.getTime();
@@ -143,9 +157,18 @@ export async function buildEntityFunnel(
     if (r.ctr != null && imp > 0) acc.ctr += r.ctr * imp;
     if (r.cpm != null && imp > 0) acc.cpm += r.cpm * imp;
     if (r.cpc != null && imp > 0) acc.cpc += r.cpc * imp;
-    if (r.frequency != null) acc.freq.push(r.frequency);
     t.impressions += Number(r.impressions);
-    // Reach maxes — not additive (same person on two days is one person).
+    // ── TWO DIFFERENT QUANTITIES, deliberately not merged ────────────────
+    // This is `max(daily reach)`: a LOWER BOUND, used ONLY as the funnel's
+    // internal denominator for CHANGE detection. Both windows use the same
+    // estimator, so the bias largely cancels when comparing current vs prior
+    // — which is all diagnoseFunnel asks of it, and why the stage already
+    // declares confidenceLevel 'estimated'.
+    //
+    // It is NOT the period reach. The claimed period value is `reachCur` /
+    // `reachPri` below, which comes from META_PERIOD_FACT or is UNKNOWN.
+    // Feeding a lower bound to an ABSOLUTE threshold is the thing that must
+    // never happen — see the frequency note there.
     t.reach = Math.max(t.reach, Number(r.reach));
     t.linkClicks += Number(r.linkClicks);
     t.landingPageViews += Number(r.landingPageViews);
@@ -191,10 +214,28 @@ export async function buildEntityFunnel(
   for (const r of rows) daysInSpan.delete(r.date.toISOString().slice(0, 10));
   const dataConfidence: DataConfidence = daysInSpan.size === 0 ? 'COMPLETE' : 'PARTIAL';
 
+  // ── META PERIOD FACTS — reach and frequency, or UNKNOWN ───────────────
+  // Read from storage on an EXACT (entity, span) match; the sync is the only
+  // writer. A miss means Meta never answered for this exact window, and the
+  // answer is UNKNOWN — never max(daily reach), never sum(daily reach), never
+  // average(daily frequency), never impressions ÷ max(daily reach).
+  //
+  // Frequency is the reason this matters. It feeds ABSOLUTE thresholds
+  // (FREQUENCY_WATCH 3.0 / FREQUENCY_SATURATED 4.0), so there is no
+  // current-vs-prior comparison to cancel an estimator's bias. The previous
+  // flat mean of daily frequencies sat well below the true period figure — a
+  // person reached on five days counts once in period reach but washes out of
+  // a daily mean — so fatigue was under-detected by construction. An UNKNOWN
+  // that withholds is correct; a plausible number that under-fires is not.
+  const [periodCur, periodPri] = await Promise.all([
+    readPeriodFact(prisma, entityType, entityId, currentSince, currentUntil),
+    readPeriodFact(prisma, entityType, entityId, priorSince, priorUntil),
+  ]);
+  const periodFactSource: 'META_PERIOD_FACT' | 'UNAVAILABLE' =
+    periodCur || periodPri ? 'META_PERIOD_FACT' : 'UNAVAILABLE';
+
   const wavg = (a: typeof rate.cur, key: 'ctr' | 'cpm' | 'cpc') =>
     a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;
-  const favg = (a: typeof rate.cur) =>
-    a.freq.length ? +(a.freq.reduce((x, y) => x + y, 0) / a.freq.length).toFixed(4) : null;
   // Total link clicks ÷ total impressions. Equal to the impression-weighted
   // average of the daily link CTRs, so it is built the same way `wavg` builds
   // ctr — and ×100 to match the percent units insightMapper stores `ctr` in.
@@ -210,7 +251,9 @@ export async function buildEntityFunnel(
       linkCtrCur: linkCtr(cur), linkCtrPri: linkCtr(pri),
       cpmCur: wavg(rate.cur, 'cpm'), cpmPri: wavg(rate.pri, 'cpm'),
       cpcCur: wavg(rate.cur, 'cpc'), cpcPri: wavg(rate.pri, 'cpc'),
-      freqCur: favg(rate.cur), freqPri: favg(rate.pri),
+      freqCur: periodCur?.frequency ?? null, freqPri: periodPri?.frequency ?? null,
+      reachCur: periodCur?.reach ?? null, reachPri: periodPri?.reach ?? null,
+      periodFactSource,
       costPerResultCur: signals.costPerResultCurrentMinor,
       costPerResultPri: signals.costPerResultPriorMinor,
       resultCur: resultCur, resultPri: resultPri,
@@ -369,13 +412,7 @@ export async function resolveEntityIntelligenceForGuard(
   entityType: EntityType,
   entityId: string,
 ): Promise<ReturnType<typeof buildEntityIntelligence> | null> {
-  const lagDays = 2, windowDays = 7;
-  const dayMs = 86_400_000;
-  const floor = (d: Date) => new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  const currentUntil = floor(new Date(Date.now() - lagDays * dayMs));
-  const currentSince = new Date(currentUntil.getTime() - (windowDays - 1) * dayMs);
-  const priorUntil = new Date(currentSince.getTime() - dayMs);
-  const priorSince = new Date(priorUntil.getTime() - (windowDays - 1) * dayMs);
+  const { currentSince, currentUntil, priorSince, priorUntil } = resolveAnalysisWindows();
 
   let family: ObjectiveKpiFamily | null;
   let classificationConfidence: ClassificationConfidence = 'CONFIRMED';
