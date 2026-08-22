@@ -1,63 +1,76 @@
 # 15 — Final close gate
 
 ```
-FINAL_APPLICATION_BEHAVIOR_COMMIT = 4fc27c2
-FINAL_REPOSITORY_CANDIDATE_SHA    = 0dbd60b  (last code-bearing commit)
+BASE_MAIN_AT_BRANCH        = 094a37b   (merge of PR #93)
+FINAL_CANDIDATE_BRANCH     = claude/adlytic-graphify-analysis-ai34bu
 
 APPLICATION_BEHAVIOR_CLOSE_COMPLETE = YES
-REPOSITORY_RELEASE_GATE_COMPLETE    = YES   (gate C closed)
-OPERATIONAL_CLOSE_COMPLETE          = NO
-
-CLOSE_CODE_STATUS   = NOT_CLOSED
-REMAINING_GATE_COUNT = 3   (A, B, D — all blocked on one missing credential)
+REPOSITORY_RELEASE_GATE_COMPLETE    = YES   (gate C closed, and widened)
+OPERATIONAL_CLOSE_COMPLETE          = pending this candidate's deployment
 ```
 
-**`4fc27c2` is now on `main`.** PR #88 merged this branch's
-application-behaviour candidate into `main` as `de26b25`. The branch has since
-merged `main` back (lineage only — the merge left the tree hash byte-identical),
-so it is neither ahead nor behind in content. The four commits `main` lacks are
-the gate-C governance and accounting commits.
+## What this cycle changed, and why each was not deferred
 
-**The PR #88 merge deployed nothing.** `RAILWAY_TOKEN` is unset, so
-`.deploy/railway-deploy.sh` fails by design rather than reporting a phantom
-success. No automated deploy has succeeded since 19 August (`751af4bf`). That
-one missing secret is the sole blocker for **all three** remaining gates — see
-doc 07.
+Five commits. Three of them fix defects that were classified as debt before
+the evidence was gathered, and the evidence is what moved them.
 
-`CODE_CLOSE_COMPLETE = YES` is **not** used, and the distinction is not
-cosmetic. The application and intelligence behaviour is complete at `4fc27c2`
-and the repository-level engineering gate is now satisfied at `0dbd60b` — but
-three **operational** gates remain, and none of them is inside the repository.
-Collapsing those into a single "code close complete" would claim readiness the
-evidence does not support.
+**Observatory `dataConfidence` copy — stale explanation of live code.** The
+Temporal Truth pane described the value as "NOT A MEASUREMENT … a hardcoded
+constant", and concluded the reconciler's DATA_VALIDITY layer "never sees
+MISSING or PARTIAL from this path". `entityIntelligence.ts` had long since
+stopped hardcoding it — it derives COMPLETE from stored calendar-day coverage
+— and a behavioural test in the same suite already proved DATA_VALIDITY *does*
+see PARTIAL. Both halves of the explanation were false, on the one surface
+built to prove provenance. Corrected, and guarded by a test that reads the
+producer, classifies it, and requires the shipped prose to agree in both
+directions.
 
-The final repository candidate is `0dbd60b`, not `4fc27c2`. Two commits sit
-between them, both governance-only:
-
-| Commit | Change | Application behaviour |
-|---|---|---|
-| `511883e` | `.github/workflows/test.yml` + a `test_deploy_gate.ts` path-drift guard | none |
-| `0dbd60b` | `test_admin_scenarios.mjs` portability; chromium install in CI | none |
-
-`git diff 4fc27c2 0dbd60b -- src/ prisma/ package.json package-lock.json
-tsconfig.json` is **empty**. That is the mechanical statement of
-`APPLICATION_BEHAVIOR_DIFF_FROM_4FC27C2 = NONE`.
-
-**On the SHA named here.** A document cannot name the SHA of the commit that
-contains it. `0dbd60b` is the last commit on this branch that changes any file
-the build or test graph reads — source, schema, tests, lockfile, workflow.
-Commits after it are documentation-only, and that is checkable rather than
-asserted:
+**Gate A — build-secret exposure, now measured rather than suspected.**
+`verify-live.yml` gained a read-only build-log step. Railway's build log for
+the running deployment answered:
 
 ```
-git diff 0dbd60b HEAD --stat -- ':!docs/'     # empty ⇒ docs-only
+BUILD_LOG_FIELD_PROVEN                  = buildLogs   (by __schema introspection)
+SECRETS_USED_IN_ARG_OR_ENV_WARNINGS     = 16
+SECRET_NAMES_FLAGGED_COUNT              = 8
+BUILDER_OBSERVED                        = Nixpacks
 ```
 
-If that command is empty, `0dbd60b` is still the CI-verified code candidate
-however many documentation commits have landed since. If it is **not** empty,
-this section is stale and the gate must be re-run. Documentation commits are
-themselves CI-covered — `docs/**` is in the workflow's push paths — so they get
-their own green run, but they do not move the code candidate.
+Eight credentials, one ARG and one ENV each. `ENV` persists into the image
+configuration, so the values stay readable from the image itself. Fixed by
+owning the Dockerfile: it declares **no `ARG`**, so no build argument can reach
+the build at all. See doc 07, Gate A.
+
+**Advisory locking — P1, not debt.** `pg_try_advisory_lock` excludes across
+sessions and is re-entrant *within* one. Prisma runs each raw query on whichever
+pooled connection is free and node-postgres reuses the most recently released
+one, so two of the four in-process producers racing for an account key would
+very likely be served by the same session and both be told yes. The suite said
+otherwise only because its fake modelled the lock as globally exclusive —
+stricter than Postgres. With a session-accurate fake the pre-fix helper fails
+the mutual-exclusion test. Fixed with a synchronous in-process reservation, and
+every producer moved onto one locking contract.
+
+**Meta lifecycle — the gap is debt; the two fabrications were not.**
+`Campaign` persists no `start_time`, and no migration is added for it. But two
+modules substituted `campaign.createdAt`: one handed it to the AI assistant as
+`startedAt`, the other persisted it into `campaign_history_snapshots`. Both now
+report UNKNOWN; neither needed a schema change.
+
+## Verification of this candidate
+
+```
+TYPECHECK                = PASS
+TEST_ALL                 = PASS   (exit 0, chain ran to its last link)
+STARTED_SUITES           = 49
+FAILED_SUITES            = 0
+ASSERTION_TOTAL_AT_LEAST = 985    (banner subtotal; suites using ok()/bad()
+                                   or a single OK line are not counted in it)
+```
+
+`ASSERTION_TOTAL_AT_LEAST` is a floor, not a total. `test_deploy_gate.ts`
+reports `ok()`/`bad()` and `test_route_authz.ts` prints one OK line; neither
+contributes to the `N passed` banners the subtotal sums.
 
 ## What is verified
 
