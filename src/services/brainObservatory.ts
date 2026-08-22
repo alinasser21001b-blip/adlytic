@@ -239,20 +239,29 @@ export interface BrainObservatorySnapshot {
     /** Was the span inside a horizon the sync actually re-requests? */
     spanInsideBackfillHorizon: boolean | null;
     /**
-     * The pre-Mission-A value of the old single `dataStatus` field.
-     * DEPRECATED and NON-AUTHORITATIVE: it conflated presence, coverage and
-     * settlement into one word, which is how a 1-row window came to read as
-     * "COMPLETE". Kept only so existing readers do not break.
+     * `buildEntityFunnel().dataConfidence` — the coarse coverage gate the
+     * reconciler's DATA_VALIDITY layer actually consumes. Derived from stored
+     * calendar-day coverage of the inspected span, not asserted. COMPLETE only
+     * when every day in the span carries a row; PARTIAL otherwise.
+     *
+     * It is one axis, not a summary: read `temporalCoverage`, `settlement` and
+     * `freshness` for the others. This one deliberately says nothing about
+     * whether the absent days SHOULD have held data — see the basis.
      */
-    legacyDataStatus: string;
-    /** Why that value cannot be read as a measurement of this window. */
-    legacyDataStatusBasis: string;
+    dataConfidence: string;
+    /** How that value was derived, and the limit of what it claims. */
+    dataConfidenceBasis: string;
   };
   /** 1. META TRUTH — canonical metrics + the windows they were measured over. */
   metaTruth: {
     currentWindow: { since: string; until: string };
     priorWindow: { since: string; until: string };
-    /** @deprecated conflated; read `temporal` instead. */
+    /**
+     * The same derived coverage gate as `temporal.dataConfidence`, repeated
+     * here so a reader of META TRUTH alone sees how much of the span was
+     * measured. Not a separate judgement, and no longer the old conflated
+     * constant — `temporal` carries the per-day detail and the basis text.
+     */
     dataStatus: string;
     dailyRowsInWindow: number;
     facts: ObservatoryFact[];
@@ -672,7 +681,13 @@ export async function buildBrainObservatory(
   // ── 1. META TRUTH — stored canonical values, copied, never recomputed. ──
   const metaFacts: ObservatoryFact[] = [
     { kind: 'OBSERVED_FACT', label: 'Impressions', value: w.cur.impressions, baseline: w.pri.impressions, source: 'daily_stats.impressions (via buildEntityFunnel)' },
-    { kind: 'OBSERVED_FACT', label: 'Reach', value: w.cur.reach, baseline: w.pri.reach, source: 'daily_stats.reach' },
+    // REACH IS NOT A DAILY VALUE. It is read from period_insights by
+    // readPeriodFact() on the exact (entityType, entityId, since, until) tuple
+    // — entityIntelligence.ts assigns `cur.reach = periodCur?.reach ?? null`
+    // and that is the only assignment. Meta de-duplicates people inside a
+    // time_range and never publishes the cross-day overlap, so no sum or max
+    // of daily rows can reconstruct it. A null here means UNKNOWN, never zero.
+    { kind: 'OBSERVED_FACT', label: 'Reach', value: w.cur.reach, baseline: w.pri.reach, source: 'period_insights.reach — Meta period fact for the exact window tuple, via readPeriodFact(). NOT daily_stats: reach is not additive. null ⇒ UNKNOWN, never 0.' },
     { kind: 'OBSERVED_FACT', label: 'Link clicks', value: w.cur.linkClicks, baseline: w.pri.linkClicks, source: 'daily_stats.link_clicks' },
     { kind: 'OBSERVED_FACT', label: 'Landing page views', value: w.cur.landingPageViews, baseline: w.pri.landingPageViews, source: 'daily_stats.landing_page_views' },
     { kind: 'OBSERVED_FACT', label: 'Messages', value: w.cur.messages, baseline: w.pri.messages, source: 'daily_stats.messages' },
@@ -694,7 +709,23 @@ export async function buildBrainObservatory(
     { kind: 'DERIVED_FACT', label: 'Link CTR (%)', value: w.linkCtrCur, baseline: w.linkCtrPri, source: 'entityIntelligence.ts::buildEntityFunnel \u2014 daily_stats.link_clicks over daily_stats.impressions, in the same percent units as the all-clicks CTR above. DERIVED: Meta\'s own inline_link_click_ctr is not requested (see DEFAULT_INSIGHT_FIELDS), so this is not a stored Meta field.' },
     { kind: 'OBSERVED_FACT', label: 'CPM (minor units)', value: w.cpmCur, baseline: w.cpmPri, source: "daily_stats.cpm — Meta's own reported value" },
     { kind: 'OBSERVED_FACT', label: 'CPC (minor units)', value: w.cpcCur, baseline: w.cpcPri, source: 'daily_stats.cpc' },
-    { kind: 'OBSERVED_FACT', label: 'Frequency', value: w.freqCur, baseline: w.freqPri, source: 'daily_stats.frequency' },
+    // Same provenance as Reach, and the same prohibition: frequency is Meta's
+    // own period value (`periodCur?.frequency ?? null`). It is never computed
+    // here from the two component metrics. Meta's own figure happens to equal
+    // that ratio over the same span, which is why the numbers agree — but
+    // deriving it locally would invent a value precisely in the case where
+    // Meta declined to supply one.
+    //
+    // (Deliberately not spelling that ratio out: a line wrapping onto `//`
+    //  followed by a metric name reads as division to the arithmetic-
+    //  containment guard in test_brain_observatory.ts, which scans the raw
+    //  file. The guard is right to be blunt; the comment can be clearer.)
+    { kind: 'OBSERVED_FACT', label: 'Frequency', value: w.freqCur, baseline: w.freqPri, source: 'period_insights.frequency — Meta period fact for the exact window tuple. NEVER derived from impressions ÷ reach. null ⇒ UNKNOWN and is a legitimate outcome.' },
+    // The provenance itself, stated rather than inferred. Without this a
+    // reviewer can only deduce "the period fact resolved" from Reach being
+    // non-null, which silently conflates "Meta said nothing" with "we never
+    // looked". UNAVAILABLE means neither window resolved a row.
+    { kind: 'OBSERVED_FACT', label: 'Period fact provenance', value: w.periodFactSource, baseline: null, source: 'entityIntelligence.ts — META_PERIOD_FACT when readPeriodFact() resolved a row for either window, UNAVAILABLE when neither did. Governs Reach and Frequency above.' },
     { kind: 'DERIVED_FACT', label: 'Primary result count', value: w.resultCur, baseline: w.resultPri, source: 'analytics/resultSemantics.ts (unit-safe)' },
     { kind: 'DERIVED_FACT', label: 'Cost per result (minor units)', value: w.costPerResultCur, baseline: w.costPerResultPri, source: 'buildEntityFunnel window context' },
   ];
@@ -861,15 +892,25 @@ export async function buildBrainObservatory(
       latestStoredDateAgeDays,
       backfillHorizonDays: CAMPAIGN_BACKFILL_DAYS,
       spanInsideBackfillHorizon,
-      legacyDataStatus: entityFunnel.dataConfidence,
-      legacyDataStatusBasis:
-        'NOT A MEASUREMENT. buildEntityFunnel returns this value as a hardcoded constant '
-        + '(entityIntelligence.ts: `dataConfidence: \'COMPLETE\' as DataConfidence`), justified '
-        + 'only by the window ending before Meta\'s attribution backfill. It is therefore '
-        + 'COMPLETE for every campaign with at least one row in the span \u2014 including a span '
-        + 'holding one row out of fourteen days. It says nothing about how many days were '
-        + 'measured. Read the axes above instead. Consequence worth knowing: the reconciler\'s '
-        + 'DATA_VALIDITY layer never sees MISSING or PARTIAL from this path.',
+      dataConfidence: entityFunnel.dataConfidence,
+      dataConfidenceBasis:
+        'MEASURED, not asserted. buildEntityFunnel derives this from the stored rows it '
+        + 'actually read (entityIntelligence.ts: it builds the set of calendar days in the '
+        + 'span, deletes each day a row exists for, and returns COMPLETE only when that set '
+        + 'empties \u2014 PARTIAL otherwise). So COMPLETE means every calendar day in the '
+        + 'inspected span carries a row, and PARTIAL means one or more days do not. It once '
+        + 'returned a fixed COMPLETE for every campaign holding any row at all; that is no '
+        + 'longer how it is produced, and the reconciler\'s DATA_VALIDITY layer does now see '
+        + 'PARTIAL from this path and caps confidence at MEDIUM when it does. '
+        + 'LIMIT OF THE CLAIM: PARTIAL does NOT assert those absent days should have '
+        + 'contained delivery. Meta\'s `time_increment=1` omits zero-delivery days entirely, '
+        + 'and Campaign persists no Meta start/stop time, so expected eligibility cannot '
+        + 'always be computed \u2014 see the expected-eligible basis above. PARTIAL says only '
+        + '"this window cannot be vouched for", which is true in every one of those cases. '
+        + 'This is one axis: completeness. SETTLEMENT is a separate axis and is reported '
+        + 'separately \u2014 a span can be fully settled and still PARTIAL, or COMPLETE and '
+        + 'unsettled. Read the per-day dates above for the detail this coarse gate '
+        + 'deliberately does not carry.',
     },
     metaTruth: {
       currentWindow: { since: iso(currentSince), until: iso(currentUntil) },

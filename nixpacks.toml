@@ -1,3 +1,17 @@
+# ════════════════════════════════════════════════════════════════════════
+#  NOT THE ACTIVE BUILDER. Every railway*.json / railway*.toml in this repo
+#  now declares builder = "DOCKERFILE", and ./Dockerfile is what builds the
+#  image — because Nixpacks generates `ARG X` + `ENV X=$X` for every service
+#  variable, which put 8 credentials into the image configuration (16
+#  SecretsUsedInArgOrEnv warnings in the build log of 094a37b).
+#
+#  Kept, not deleted, for one reason: if a service's builder is ever set back
+#  to Nixpacks — from the dashboard, or by a config this file cannot see —
+#  the build must still produce a working image rather than an accidental
+#  default. It is a fallback, and a fallback that reopens the secret exposure,
+#  so treat any deploy that actually uses it as a Gate-A regression.
+# ════════════════════════════════════════════════════════════════════════
+
 [phases.setup]
 nixPkgs = ["nodejs_22", "openssl"]
 

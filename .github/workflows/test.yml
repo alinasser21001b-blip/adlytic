@@ -45,13 +45,17 @@ on:
       - 'railway*.toml'       #   ""
       - 'railway.setup.txt'   #   ""
       - 'nixpacks.toml'       #   ""
+      - 'Dockerfile'          # test_deploy_gate reads it — it is the build's secret boundary
+      - '.dockerignore'       #   "" (what reaches the build context)
       - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
       - '.github/workflows/test.yml'
       - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
       - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
+      - 'tools/**'                              # test_admin_acceptance imports its SCENARIOS from here
   push:
     branches:
       - claude/brain-admin-v2-integration
+      - claude/adlytic-graphify-analysis-ai34bu
     paths:
       - 'src/**'
       - 'prisma/**'
@@ -70,10 +74,13 @@ on:
       - 'railway*.toml'       #   ""
       - 'railway.setup.txt'   #   ""
       - 'nixpacks.toml'       #   ""
+      - 'Dockerfile'          # test_deploy_gate reads it — it is the build's secret boundary
+      - '.dockerignore'       #   "" (what reaches the build context)
       - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
       - '.github/workflows/test.yml'
       - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
       - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
+      - 'tools/**'                              # test_admin_acceptance imports its SCENARIOS from here
 
 # A newer push supersedes an in-flight run for the same ref.
 concurrency:

@@ -1,6 +1,6 @@
 # lively-insight — narration cron (skip GitHub autodeploy)
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
 watchPatterns = ["__railway_skip_autodeploy__/**"]
 
 [deploy]

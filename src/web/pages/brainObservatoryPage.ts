@@ -255,8 +255,8 @@ const SCRIPT = `
       + '<div class="basis"><strong>Expected-eligible days.</strong> ' + esc(tp.expectedEligibleDatesBasis) + '</div>'
       + '<div class="basis"><strong>Settlement basis.</strong> ' + esc(tp.settlementBasis) + '</div>'
       + '<div class="basis"><strong>Freshness basis.</strong> ' + esc(tp.freshnessBasis) + '</div>'
-      + '<div class="basis"><strong>Deprecated legacy status: "'
-      + esc(tp.legacyDataStatus) + '".</strong> ' + esc(tp.legacyDataStatusBasis) + '</div>');
+      + '<div class="basis"><strong>Coverage gate (DATA_VALIDITY input): "'
+      + esc(tp.dataConfidence) + '".</strong> ' + esc(tp.dataConfidenceBasis) + '</div>');
 
     // 1b META TRUTH — the numbers themselves.
     html += stage(3, 'META TRUTH', 'stored canonical values, copied verbatim',

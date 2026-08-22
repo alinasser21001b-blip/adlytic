@@ -34,7 +34,7 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 23 | V5 / legacy-active | `services/aiContextBuilderV5.ts` | `test_v5_legacy_disposition` | PARTIAL (bounded) | YES | YES |
 | 24 | DailyStat persistence ownership | `repositories/dailyStatsRepo.ts` | `test_meta_cordon_sync_purge` | CLOSED_PROVEN | YES | YES |
 | 25 | Sync ownership | `workers/syncAccount.ts` | `test_worker` | CLOSED_PROVEN | YES | YES |
-| 26 | Advisory locking | `lib/advisoryLock.ts` | `test_orchestrator` | CLOSED_PROVEN | YES | YES |
+| 26 | **Advisory locking** | `lib/advisoryLock.ts` | `test_meta_cordon_sync_purge` §6B | **CLOSED_PROVEN** | YES | YES |
 | 27 | Idempotent upsert | `dailyStatsRepo`, `periodInsights` | `test_period_insight_rollout` | CLOSED_PROVEN | YES | YES |
 | 28 | Account purge ownership | `services/accountDataPurge.ts` | `test_meta_cordon_sync_purge` | CLOSED_PROVEN | YES | YES |
 | 29 | Capability probe | `services/metaCapabilityProbe.ts` | `test_probe_discovery` | CLOSED_PROVEN | YES | YES |
@@ -42,7 +42,7 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 31 | Change-radar persistence | `services/refresh/refreshEngine.ts` | `test_refresh_engine` | CLOSED_PROVEN | YES | YES |
 | 32 | Dependency drift | `intelligence/metaDependencyGraph.ts` | `test_dependency_drift` | CLOSED_PROVEN | YES | YES |
 | 33 | Release / CI gates | `.github/workflows` | `test_deploy_gate` | CLOSED_PROVEN | YES | YES |
-| 34 | Brain Observatory | `services/brainObservatory.ts` | `test_brain_observatory` (48) | CLOSED_PROVEN | YES | YES |
+| 34 | Brain Observatory | `services/brainObservatory.ts` | `test_brain_observatory` (49) | CLOSED_PROVEN | YES | YES |
 | 35 | Temporal truth | `brainObservatory.ts::temporal` | `test_brain_observatory` §8–9 | CLOSED_PROVEN | YES | YES |
 | 36 | Build identity | `lib/buildIdentity.ts` | `test_deploy_gate` | CLOSED_PROVEN | YES | YES |
 | 37 | Validation deployment config | `railway.validation.json` | `test_validation_deployment_safety` | CLOSED_PROVEN | YES | YES |
@@ -54,28 +54,30 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 43 | Admin console page merge | `adminConsolePage` / `adminOsPage` | — | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 44 | Security & Audit admin section | — | `test_admin_os` §1 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 45 | `recommend.ts` ungoverned actions | `recommend.ts::templateFor` | matrix, doc 03 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
-| 46 | **Gate A — Nixpacks build-secret exposure** | Railway config | doc 07 | **OPEN_CLOSE_BLOCKER** | NO | YES |
-| 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **OPEN_CLOSE_BLOCKER** | NO | YES |
-| 48 | **Gate C — CI workflow able to run the suite** | `.github/workflows/test.yml` | doc 15, CI run `32572081116` | **CLOSED_PROVEN** | YES | YES |
-| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | NO |
+| 46 | **Gate A — build-secret exposure** | `Dockerfile`, railway configs | `test_deploy_gate` §8 | **CLOSED_PROVEN** (repo) · live build pending | YES | YES |
+| 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **LIVE_VALIDATED** | YES | YES |
+| 48 | **Gate C — CI runs the suite, over every path a suite reads** | `.github/workflows/test.yml` | `test_deploy_gate` §5 | **CLOSED_PROVEN** | YES | YES |
+| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN** — awaits this candidate on main | NO | YES |
+| 50 | **Meta lifecycle not substituted** | `getCampaignDetails.ts`, `campaignFreeze.ts` | `test_final_audit_remediation` | **CLOSED_PROVEN** | YES | YES |
+| 51 | **Observatory provenance copy matches its producer** | `brainObservatory.ts` | `test_brain_observatory` §9 | **CLOSED_PROVEN** | YES | YES |
 
-**Remaining gates: 3** (items 46, 47, 49) — all operational, and all three
-blocked by the **same single cause**: `RAILWAY_TOKEN` is unset, so no deploy
-has succeeded since 19 August and no build or running service exists to
-observe. Item 48, the one repository-governance gate, is closed:
-`.github/workflows/test.yml` runs the full suite on `pull_request` and on
-pushes to the branch, and CI run `32572081116` is green on `0dbd60b`.
+**Remaining gate: 1** (item 49). Gate A's *repository* fix is landed and
+mechanically guarded; what remains for it is one fresh build to observe, which
+is the same deployment Gate D needs. Gate B is live-validated and will be
+re-checked against the final build rather than assumed to survive it. Gate C is
+closed and was widened this cycle.
 
-Within the three open gates, everything not requiring live access is done —
-A1/A2/A3, B1/B2 and D5 (doc 07, doc 15). `4fc27c2` itself is now on `main` via
-PR #88, which deployed nothing.
+The blocker named in the previous revision of this file — "`RAILWAY_TOKEN` is
+unset" — is resolved. The token authenticates; it is what read the build log
+that turned Gate A from a suspicion into a measurement.
 
-The gates surround **one completed application-behaviour candidate**
-(`4fc27c2`) and are not architectural defects. The final *repository*
-candidate is `0dbd60b`; the diff between the two over `src/`, `prisma/`,
-`package.json`, `package-lock.json` and `tsconfig.json` is empty. Everything
-else is closed or classified as non-blocking debt with a named reopening
-trigger in doc 13.
+Three items that this file previously carried as non-blocking were
+reclassified upward once evidence was gathered, and fixed: advisory-lock
+mutual exclusion, the `createdAt`-as-Meta-start substitutions, and the
+Observatory's stale `dataConfidence` explanation. See doc 13, Part 2.
+
+Everything else is closed or classified as non-blocking debt with a named
+reopening trigger in doc 13.
 
 `APPLICATION_BEHAVIOR_CLOSE_COMPLETE=YES` · `REPOSITORY_RELEASE_GATE_COMPLETE=YES`
-· `OPERATIONAL_CLOSE_COMPLETE=NO`
+· `OPERATIONAL_CLOSE_COMPLETE=pending the final deploy`

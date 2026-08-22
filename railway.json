@@ -1,12 +1,14 @@
 {
   "$schema": "https://railway.app/railway.schema.json",
   "build": {
-    "builder": "NIXPACKS",
+    "builder": "DOCKERFILE",
     "watchPatterns": [
       "src/**",
       "prisma/**",
       "package.json",
       "package-lock.json",
+      "Dockerfile",
+      ".dockerignore",
       "nixpacks.toml",
       "railway.json",
       ".npmrc",
@@ -16,7 +18,7 @@
     ]
   },
   "deploy": {
-    "startCommand": "npx prisma migrate deploy && node dist/src/api/serve.js",
+    "startCommand": "node .deploy/start.js",
     "healthcheckPath": "/api/health",
     "healthcheckTimeout": 60,
     "overlapSeconds": 30,

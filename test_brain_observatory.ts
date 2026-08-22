@@ -452,7 +452,7 @@ async function run() {
       ['the days with no row', 'tp.datesWithoutRows'],
       ['the coverage basis', 'tp.coverageBasis'],
       ['the withheld-freshness basis', 'tp.freshnessBasis'],
-      ['why the legacy status is not a measurement', 'tp.legacyDataStatusBasis'],
+      ['how the coverage gate was derived', 'tp.dataConfidenceBasis'],
       ['counter-evidence', 'd.diagnosis.counterEvidence'],
       ['the action state', 'a.state'],
       ['trace provenance', 't.canonicalSource'],
@@ -711,7 +711,7 @@ async function run() {
     assert.equal(t.boundarySemantics, 'INCLUSIVE_BOTH_ENDS');
     // Non-vacuous counterpart to the sparse case: a fully covered span must
     // still reach COMPLETE, or the fix would just be a blanket downgrade.
-    assert.equal(t.legacyDataStatus, 'COMPLETE',
+    assert.equal(t.dataConfidence, 'COMPLETE',
       'every day carries a row — this window IS verifiably complete');
     // 14 contiguous days across a 14-day span leaves nothing to explain.
     assert.deepEqual(t.datesWithoutRows, []);
@@ -817,10 +817,14 @@ async function run() {
     assert.equal(t.storedRowCount, 5);
     assert.equal(t.datesWithoutRows.length, 9);
     assert.equal(t.temporalCoverage, 'UNKNOWN');
-    assert.equal(t.legacyDataStatus, 'PARTIAL',
+    assert.equal(t.dataConfidence, 'PARTIAL',
       'nine unexplained days cannot report COMPLETE — PARTIAL caps confidence at MEDIUM');
-    assert.ok(/NOT A MEASUREMENT/.test(t.legacyDataStatusBasis),
-      'the legacy value must still be labelled non-authoritative — the temporal axes are');
+    assert.ok(/MEASURED, not asserted/.test(t.dataConfidenceBasis),
+      'the basis must describe a derivation, not a constant');
+    assert.ok(/does NOT assert those absent days should have contained delivery/i
+      .test(t.dataConfidenceBasis),
+      'PARTIAL must not be read as "these days should have had delivery" — time_increment=1 '
+      + 'omits zero-delivery days and Meta lifecycle is not persisted');
   });
 
   await checkAsync('a window with no delivery yields no rate — null, never zero', async () => {
@@ -909,6 +913,74 @@ async function run() {
     assert.equal(dv.status, 'REACHED');
     assert.match(String(dv.conclusion), /partial/,
       'the reconciler must SEE the real coverage — a hardcoded COMPLETE made this layer decorative');
+  });
+
+  /**
+   * PRODUCER-vs-EXPLANATION DRIFT.
+   *
+   * The Observatory once described dataConfidence as "a hardcoded constant"
+   * for months after entityIntelligence.ts had stopped hardcoding it. Both
+   * halves were individually defensible — the producer was correct, the prose
+   * had simply been left behind — and nothing failed, because no test related
+   * the two. On the one surface built to prove provenance, that is the worst
+   * possible defect: a reader who trusts the explanation draws the opposite
+   * conclusion from the truth.
+   *
+   * So this reads the producer, CLASSIFIES it, and requires the explanation to
+   * agree with the classification. It is bidirectional on purpose: revert the
+   * producer to a literal and the "MEASURED" prose fails; leave the prose
+   * claiming a constant while the producer derives and that fails too. Neither
+   * side can move alone.
+   */
+  await checkAsync('the Observatory explanation of dataConfidence matches how it is produced', async () => {
+    const producer = readFileSync(join(__dirname, 'src/services/entityIntelligence.ts'), 'utf8');
+
+    // The single assignment that produces the value. Anchored on the typed
+    // declaration so a stray mention in a comment cannot satisfy it.
+    const decl = producer.match(/^\s*const dataConfidence:\s*DataConfidence\s*=\s*([^;]+);/m);
+    assert.ok(decl, 'entityIntelligence.ts must declare `const dataConfidence: DataConfidence = …`');
+    const rhs = decl![1]!.trim().replace(/\s+/g, ' ');
+
+    // A bare string literal (with or without an `as` cast) is a constant.
+    // Anything else — a ternary, a call, a variable — is derived.
+    const HARDCODED = /^'[A-Z_]+'(\s+as\s+DataConfidence)?$/.test(rhs);
+
+    // The explanation as a READER receives it: the assembled snapshot's own
+    // string, not a regex over the source. What ships is what is judged.
+    const { prisma } = makeFakePrisma({ rows: buildBaselineShapeRows(0), brainAction: 'KEEP_COLLECTING' });
+    const t = (await buildBrainObservatory(prisma, 'camp_obs_1'))!.temporal;
+    const basis = t.dataConfidenceBasis;
+
+    const saysConstant = /hardcoded constant|literal constant|NOT A MEASUREMENT/i.test(basis);
+    const saysDerived = /MEASURED, not asserted/i.test(basis);
+
+    assert.equal(saysConstant, HARDCODED,
+      `the basis ${saysConstant ? 'calls the value a constant' : 'does not call the value a constant'} `
+      + `but the producer ${HARDCODED ? 'IS' : 'is NOT'} a constant (rhs: ${rhs})`);
+    assert.equal(saysDerived, !HARDCODED,
+      `the basis ${saysDerived ? 'calls the value measured' : 'does not call the value measured'} `
+      + `but the producer ${HARDCODED ? 'IS' : 'is NOT'} a constant (rhs: ${rhs})`);
+
+    if (HARDCODED) return;   // nothing further to require of a constant
+
+    // A derived value has to have its derivation stated, both outcomes named,
+    // and — the part that is easy to lose — the LIMIT of what PARTIAL claims.
+    assert.ok(/every calendar day in the inspected span carries a row/i.test(basis),
+      'the basis must state the COMPLETE condition in terms of calendar-day coverage');
+    assert.ok(/PARTIAL means one or more days do not/i.test(basis),
+      'the basis must state the PARTIAL condition');
+    assert.ok(/PARTIAL does NOT assert those absent days should have contained delivery/i.test(basis),
+      'the basis must state that PARTIAL is not a claim about expected delivery');
+    assert.ok(/time_increment=1/.test(basis) && /no Meta start\/stop time/i.test(basis),
+      'the basis must name BOTH reasons absence is undecidable: zero-delivery days are omitted, '
+      + 'and Meta lifecycle is not persisted');
+    assert.ok(/SETTLEMENT is a separate axis/i.test(basis),
+      'settlement and completeness are different axes and the basis must not let them merge');
+
+    // The old prose asserted the reconciler could never see PARTIAL. It can,
+    // and the behavioural test above proves it does — so the claim must be gone.
+    assert.ok(!/never sees? (MISSING|PARTIAL)/i.test(basis),
+      'the basis must not claim DATA_VALIDITY never sees PARTIAL — it does');
   });
 
   console.log('\n── 10. Authority domains: the veto governs what it governs, and nothing else ──');

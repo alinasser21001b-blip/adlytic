@@ -35,7 +35,14 @@ interface CampaignDetailsResult {
     name: string;
     status: string;
     objective: string;
+    /**
+     * Meta's own campaign start. Always null today: metaClient requests
+     * start_time but Campaign has no column for it, and inferring one from
+     * createdAt would be a fabricated date. Null means UNKNOWN, never "today".
+     */
     startedAt: string | null;
+    /** When Adlytic first stored this campaign — an upper bound on its start, not its start. */
+    firstSeenInAdlyticAt: string;
     dailyBudget: number | null;
   };
   windowMetrics: {
@@ -286,8 +293,16 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
             name: campaign.name,
             status: campaign.status,
             objective: campaign.objective ?? '',
-            // Campaign model has no explicit start_time; use createdAt as a proxy.
-            startedAt: campaign.createdAt.toISOString(),
+            // NOT createdAt. Campaign persists no Meta start_time (metaClient
+            // requests it; no column retains it), and createdAt is when THIS
+            // row was first written in Adlytic — for a campaign that was
+            // already running when the account connected, that is months
+            // after it started. Presenting it as startedAt handed the
+            // assistant a manufactured historical fact to reason from, and a
+            // merchant a wrong campaign age. UNKNOWN is the honest answer;
+            // what Adlytic actually knows is carried below under its own name.
+            startedAt: null,
+            firstSeenInAdlyticAt: campaign.createdAt.toISOString(),
             dailyBudget,
           },
           windowMetrics,

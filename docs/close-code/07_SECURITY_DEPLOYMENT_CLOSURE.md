@@ -270,11 +270,17 @@ end to end is **reach populated for both windows carrying
 Until steps 1 and 2 complete, UNKNOWN is the **correct** live result across the
 board and must not be read as a defect.
 
-## GATE A — NIXPACKS_SECRET_GATE (DEPLOYMENT / SECURITY OPERATIONAL GATE)
+## GATE A — BUILD_SECRET_GATE (DEPLOYMENT / SECURITY OPERATIONAL GATE)
 
 ```
-NIXPACKS_SECRET_GATE = OPEN
+BUILD_SECRET_GATE = repository fix landed; awaiting one fresh build
 ```
+
+> **Read A5 first.** Everything from "Where it comes from" down to A4 was
+> written while the exposure could only be reasoned about, and it reached the
+> conclusion that "no repository change would fix it". A5 records the
+> measurement that became available afterwards, and the repository change that
+> does fix it. Where the two disagree, A5 is current.
 
 **This is a close gate, not debt.** Doc 15 previously declared
 `SECURITY_GAPS = 0` while this same document recorded that `JWT_SECRET` and
@@ -455,19 +461,115 @@ SAFE_ROTATION_PLAN =
     2. set it on all services at once, redeploy, accept one forced re-login
 ```
 
-### A4 — Gate state
+### A4 — Gate state *(superseded by A5)*
 
 ```
 NIXPACKS_SECRET_GATE = OPEN
 ```
 
-Exact blocker: **closing A4 requires a build and a running service, and this
-environment has neither.** Railway's control plane and the deployed services
-return 403 CONNECT at the egress proxy; there is no Railway CLI, no
-`RAILWAY_TOKEN`, and no service credentials. A4's closure conditions — a fresh
-build emitting no `SecretsUsedInArgOrEnv` for these two variables, runtime
-config still resolving them, `/api/health` still healthy — are all live
-observations.
+Exact blocker recorded at the time: **closing A4 requires a build and a running
+service, and this environment has neither.** Railway's control plane and the
+deployed services return 403 CONNECT at the egress proxy; there was no Railway
+CLI, no `RAILWAY_TOKEN`, and no service credentials.
 
-A1, A2 and A3 are complete and are the parts that were actually answerable.
-No secret value has been printed at any point in this investigation.
+A1, A2 and A3 were complete and were the parts answerable then. No secret value
+has been printed at any point in this investigation.
+
+---
+
+### A5 — Measured, then fixed
+
+**The blocker A4 named is gone.** `RAILWAY_TOKEN` is configured, and
+`verify-live.yml` now reads the build log of the running deployment. Two
+properties make that safe to do at all: the field is proven by `__schema`
+introspection before it is called — querying a guessed name returns an error
+whose empty result would read as "0 warnings", which is the false clean this
+whole programme exists to prevent — and the output is reduced to bare
+identifiers captured from inside the warning's own quotes, so no log line can
+reach a public Actions log.
+
+Measurement against the build of `094a37b`:
+
+```
+RAILWAY_SCHEMA_INTROSPECTION            = OK
+BUILD_LOG_FIELD_PROVEN                  = buildLogs
+BUILD_LOG_LINES_READ                    = 120
+SECRETS_USED_IN_ARG_OR_ENV_WARNINGS     = 16
+SECRET_NAMES_FLAGGED_COUNT              = 8
+BUILDER_OBSERVED                        = Nixpacks
+GATE_A_BUILD_WARNING_STATE              = SECRETS_IN_BUILD_ENV
+```
+
+The eight names, printed by the job and reproduced here because names are not
+secrets: `ANTHROPIC_API_KEY`, `JWT_SECRET`, `META_APP_SECRET`,
+`META_SYSTEM_USER_TOKEN`, `META_VERIFY_TOKEN`, `STRIPE_SECRET_KEY`,
+`STRIPE_WEBHOOK_SECRET`, `TOKEN_ENCRYPTION_KEY`. Sixteen warnings over eight
+names is one `ARG` and one `ENV` each. `ENV` persists into the image
+configuration, so the VALUES remain readable from the image by anyone who can
+pull it, long after the build ended. A successful deployment says nothing about
+that, and this is treated as exposure rather than as a lint nit.
+
+**The build needs none of them.** `npm run build` is `prisma generate && tsc`.
+Run with all eight unset, plus `DATABASE_URL`, `REDIS_URL`, `OPENAI_API_KEY`
+and `META_APP_ID`, it exits 0.
+
+**A4's conclusion that no repository change could fix this was wrong**, and the
+reason it was wrong is worth keeping: it assumed the builder was fixed. It is
+not — it is declared in `railway.json`.
+
+```
+BUILD_SECRET_FIX = repository-owned Dockerfile, DOCKERFILE builder on all
+                   seven railway configs
+```
+
+Why a Dockerfile rather than another builder: Railway's documentation is
+unreachable from here (403 at the egress proxy), so no claim about Railpack's
+variable handling could be proven, and switching to a builder whose behaviour
+cannot be verified is exactly the blind swap to avoid. Docker's own semantics
+need no external source — **a build argument reaches a build only if the
+Dockerfile declares `ARG` for it.** This one declares none, so the exposure is
+structurally impossible rather than merely unused, and that property is
+checkable in the repository.
+
+Verified without a Docker daemon by running the image's own sequence against a
+clean copy of the build context: `npm ci --omit=dev --ignore-scripts` (233
+packages) then `npm run build`, exit 0 with every credential stripped;
+`dist/src/api/serve.js` produced; the generated Prisma client, the `prisma` CLI
+and `tsx` all present in the prod-only tree; and the artefact boots far enough
+to run config validation and fail on exactly the four variables it should.
+
+`NODE_ENV=production` is set deliberately in the image. `config.ts` computes
+`IS_PRODUCTION = NODE_ENV !== 'development' && NODE_ENV !== 'test'` over a
+value that DEFAULTS to `'development'`. Nixpacks supplied `NODE_ENV`; a plain
+node base image does not — so omitting it would have quietly downgraded the
+prod-fatal `JWT_SECRET` / `TOKEN_ENCRYPTION_KEY` / `DATABASE_URL` /
+`ALLOWED_ORIGINS` checks to warnings. That is a fail-open this cycle
+introduced and closed in the same change; the smoke run shows them firing as
+errors.
+
+Mechanically guarded in `test_deploy_gate.ts` §8: no `ARG`, no
+credential-shaped `ENV`, `NODE_ENV` present, `.dockerignore` still excluding
+`.env`, and no railway config allowed to name `NIXPACKS` again — in both the
+JSON and TOML spellings. `nixpacks.toml` is kept as a fallback and now says so
+in its own header, because a deploy that actually uses it is a Gate-A
+regression rather than a neutral default.
+
+**What remains for A5** is one observation, not one decision:
+
+```
+closing condition:  SECRETS_USED_IN_ARG_OR_ENV_WARNINGS = 0
+                    BUILDER_OBSERVED                    = Dockerfile
+                    /api/health still ok, db ok, build.resolved true
+```
+
+Both come from the same deployment Gate D needs, read by the same read-only
+workflow that produced the measurement above.
+
+**On rotation.** The eight values were present in image configuration for the
+life of every Nixpacks build. Eliminating future exposure is done. Deciding
+which credentials must actually be rotated is A3, and the part of it that
+cannot be done from here is stated there rather than performed: Meta and Stripe
+credentials rotate in their own provider consoles, and `TOKEN_ENCRYPTION_KEY`
+must not be rotated without the two-key procedure in the audit conventions, or
+every stored Meta token becomes undecryptable. No secret value has been
+printed, logged, or committed at any point.

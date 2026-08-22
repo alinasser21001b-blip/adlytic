@@ -21,7 +21,7 @@
 //  "Accepted" is everything Railway can answer that is not an acceptance.
 // ════════════════════════════════════════════════════════════════════════
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -235,7 +235,17 @@ function main() {
     const uncovered = ['src/**', 'prisma/**', 'test_*.ts', 'test_*.mjs', 'package.json',
       'package-lock.json', 'tsconfig*.json', 'docs/**', 'README.md',
       'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF,
-      WORKFLOW, '.github/workflows/verify-live.yml']
+      WORKFLOW, '.github/workflows/verify-live.yml',
+      // Section 8 below reads both: the Dockerfile IS the build's secret
+      // boundary now, and .dockerignore decides what reaches the context.
+      'Dockerfile', '.dockerignore',
+      // test_admin_acceptance.ts imports SCENARIOS from
+      // ./tools/admin-acceptance/fixtures.mjs, so that directory decides what
+      // the acceptance suite asserts. It arrived with the Control Plane merge
+      // and this array predates it — the coverage list is hardcoded, so it
+      // passed while the gap was real. A guard whose blind spot matches the
+      // workflow's is not a guard.
+      'tools/**']
       .filter((r) => !covered.includes(r));
     if (uncovered.length === 0) ok('every path the suites read is covered by the test gate');
     else bad(`read by a suite but not covered by CI paths: ${uncovered.join(', ')}`);
@@ -251,6 +261,27 @@ function main() {
     const on = wf.slice(wf.indexOf('on:'), wf.indexOf('concurrency:'));
     if (/^\s*workflow_dispatch:/m.test(on)) ok('deploy-adlytic.yml exposes workflow_dispatch');
     else bad('deploy-adlytic.yml lost workflow_dispatch — a docs/CI-only release can no longer be shipped');
+
+    // ONE DEPLOYER PER PUSH. Railway's GitHub integration deploys every push
+    // to main on its own; it always has. While RAILWAY_TOKEN was unset this
+    // workflow's deploy job failed and created nothing, so the overlap was
+    // invisible. With a working token every merge queued TWO builds of the
+    // same commit — three sat QUEUED at once after two merges, which under the
+    // slower Dockerfile build is a real delay rather than a cosmetic one.
+    const deployJob = wf.slice(wf.indexOf('deploy-adlytic:'));
+    if (/if:\s*\$\{\{\s*github\.event_name\s*==\s*'workflow_dispatch'\s*\}\}/.test(deployJob)) {
+      ok('the deploy job runs only on dispatch — Railway owns the push path, so no duplicate builds');
+    } else {
+      bad('the deploy job is not dispatch-gated — it will double every push to main that Railway also deploys');
+    }
+    // The typecheck half must still run on push; gating the whole workflow
+    // would have removed CI from main to fix a deployment overlap.
+    const verifyJob = wf.slice(wf.indexOf('  verify:'), wf.indexOf('deploy-adlytic:'));
+    if (!/if:\s*\$\{\{\s*github\.event_name/.test(verifyJob)) {
+      ok('the verify job still runs on push — main keeps its typecheck');
+    } else {
+      bad('the verify job was gated too; main pushes would lose their typecheck');
+    }
   }
 
   // ── the live-verification workflow observes and nothing more ────────────
@@ -299,8 +330,178 @@ function main() {
         else bad('deploymentLogs is read without an allowlist filter — raw log could reach a public log');
       }
 
+      // A BUILD log is the other log this workflow can reach, and it is the
+      // more dangerous one: a build echoes its own environment. Two conditions,
+      // both structural.
+      const BUILD_LOG_FIELDS = ['buildLogs', 'deploymentBuildLogs'];
+      if (BUILD_LOG_FIELDS.some((f) => body.includes(f))) {
+        // 1. The field must be PROVEN by introspection before it is called.
+        //    Querying a guessed field returns an error, and an error path that
+        //    prints "0 warnings" would be a false clean — the exact false-green
+        //    shape this gate exists to stop.
+        if (body.includes('__schema')) {
+          ok('the build-log field is proven by introspection before it is queried');
+        } else {
+          bad('a build-log field is queried without introspecting for it — a guessed field '
+            + 'would answer with an error that could be misread as a clean build');
+        }
+        // 2. Build log output must be reduced to bare identifiers. An allowlist
+        //    is not enough here: allowlists sanitise lines, and a build line can
+        //    carry a value beside the name it matched on.
+        if (/grep -oaE '\(ARG\|ENV\) "\[A-Z\]/.test(body)) {
+          ok('build-log output is reduced to variable NAMES — no log line can be printed');
+        } else {
+          bad('build-log messages are printed without being reduced to bare identifiers');
+        }
+      }
+
+      // The deployments listing is what turned "production still shows the old
+      // commit" from ambiguous into decidable. It must stay a READ, and it must
+      // stay reduced: id, status, createdAt and a short commit — never a
+      // message or log field, which is where build text (and therefore a
+      // secret) could ride along.
+      if (body.includes('deployments(')) {
+        if (/\.id, \.status, \.createdAt/.test(body)) {
+          ok('the deployments listing prints only id, status, date and commit');
+        } else {
+          bad('the deployments listing prints fields beyond id/status/date/commit');
+        }
+        if (/DEPLOYMENTS_QUEUED=/.test(body)) {
+          ok('a stalled build queue is counted, not left to look like a slow build');
+        } else {
+          bad('nothing counts queued deployments — a backlog reads identically to a slow build');
+        }
+      }
+
       if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
       else bad('verify-live.yml is not dispatch-only — an observation job must not self-trigger');
+    }
+  }
+
+  console.log('\n── 8. the build cannot see a secret ──');
+  {
+    // Railway's build log for 094a37b carried 16 SecretsUsedInArgOrEnv
+    // warnings over 8 credentials, because Nixpacks generates `ARG X` +
+    // `ENV X=$X` for every service variable. ENV persists into the image
+    // configuration, so the VALUES ship inside the image. The repo now owns
+    // the Dockerfile, and the property that closes the hole is that it
+    // declares no ARG — Docker forwards a build argument only to a Dockerfile
+    // that asked for it. That property is what these assertions hold.
+    const DOCKERFILE = 'Dockerfile';
+    if (!existsSync(DOCKERFILE)) {
+      bad('Dockerfile is missing — the railway configs name the DOCKERFILE builder');
+    } else {
+      const raw = readFileSync(DOCKERFILE, 'utf8');
+      const lines = raw.split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('#'));
+
+      const args = lines.filter((l) => /^ARG\s/i.test(l));
+      if (args.length === 0) ok('the Dockerfile declares no ARG — no build argument can reach the build');
+      else bad(`the Dockerfile declares ARG (${args.join(' | ')}) — an undeclared build arg is `
+        + 'inert, a declared one is not. This is how the secrets got into the image.');
+
+      // ENV is legitimate for configuration and fatal for a credential, so it
+      // is judged by NAME rather than banned. The list is the eight Railway's
+      // own build log flagged, plus the shapes a new one would take.
+      const SECRET_SHAPES = /(SECRET|TOKEN|PASSWORD|PRIVATE_KEY|_KEY|CREDENTIAL|DATABASE_URL|REDIS_URL|DSN)/i;
+      const envNames = lines
+        .filter((l) => /^ENV\s/i.test(l))
+        .map((l) => l.replace(/^ENV\s+/i, '').split(/[\s=]/)[0] ?? '');
+      const secretEnv = envNames.filter((n) => SECRET_SHAPES.test(n));
+      if (secretEnv.length === 0) {
+        ok(`the Dockerfile bakes no credential into the image config (ENV: ${envNames.join(', ') || 'none'})`);
+      } else {
+        bad(`the Dockerfile writes credential-shaped ENV into the image config: ${secretEnv.join(', ')}`);
+      }
+
+      // NODE_ENV is not decoration. config.ts computes IS_PRODUCTION from a
+      // value that DEFAULTS to 'development', so an image that does not set it
+      // downgrades the prod-fatal TOKEN_ENCRYPTION_KEY check to a warning.
+      // Nixpacks used to supply it; a plain node base image does not.
+      if (envNames.includes('NODE_ENV')) ok('the image sets NODE_ENV — the prod-fatal config checks stay armed');
+      else bad('the Dockerfile does not set NODE_ENV; config.ts would default to development and fail open');
+
+      // .env must never enter the build context, whatever the builder.
+      const di = readFileSync('.dockerignore', 'utf8');
+      if (/^\.env$/m.test(di) && /^\.env\.\*$/m.test(di)) ok('.dockerignore keeps .env out of the build context');
+      else bad('.dockerignore no longer excludes .env — a local credential file would be copied into the image');
+    }
+
+    // A silent revert to Nixpacks would restore the exposure with no other
+    // visible change, so every service config is checked, not just the
+    // production one.
+    const railwayConfigs = readdirSync('.')
+      .filter((f) => /^railway.*\.(json|toml)$/.test(f));
+    // `builder"?` matters: JSON writes `"builder": "NIXPACKS"` and TOML writes
+    // `builder = "NIXPACKS"`. A pattern that only allowed the TOML form passed
+    // happily over a JSON revert — caught when the negative test for this very
+    // assertion planted one and nothing fired.
+    const stillNixpacks = railwayConfigs.filter((f) => /builder"?\s*[:=]\s*"NIXPACKS"/.test(readFileSync(f, 'utf8')));
+    if (stillNixpacks.length === 0) {
+      ok(`all ${railwayConfigs.length} railway configs build from the repo's own Dockerfile`);
+    } else {
+      bad(`these still name the NIXPACKS builder, which puts secrets in the image: ${stillNixpacks.join(', ')}`);
+    }
+  }
+
+  console.log('\n── 9. no start command may depend on getting a shell ──');
+  {
+    // Deployment 2a063356 built fine and then died at the healthcheck. Its
+    // runtime log is four lines long:
+    //
+    //   Starting Container / 40 migrations found / No pending migrations to
+    //   apply. / Stopping Container
+    //
+    // The server never printed a byte. The start command was
+    // `npx prisma migrate deploy && node dist/src/api/serve.js`, and under the
+    // Dockerfile builder that string is split into an argv array instead of
+    // being handed to a shell — so `&&` arrived as an argument to Prisma,
+    // which ignored it and exited 0. Under Nixpacks the same string worked,
+    // which is why this survived until the builder changed.
+    //
+    // The invariant is not "avoid &&". It is that a start command must mean
+    // the same thing whether it is exec'd or shelled, because the platform
+    // does not promise which. Sequencing belongs in a script.
+    const SHELL_METACHARS = /(&&|\|\||[;|&><]|\$\(|`)/;
+    const configs = readdirSync('.').filter((f) => /^railway.*\.(json|toml)$/.test(f));
+    const offenders: string[] = [];
+    for (const f of configs) {
+      const body = readFileSync(f, 'utf8');
+      const m = body.match(/startCommand\s*"?\s*[:=]\s*"([^"]*)"/);
+      if (m && SHELL_METACHARS.test(m[1]!)) offenders.push(`${f}: ${m[1]}`);
+    }
+    if (offenders.length === 0) {
+      ok(`all ${configs.length} start commands are shell-independent`);
+    } else {
+      bad(`a start command relies on shell interpretation the platform does not promise: ${offenders.join(' | ')}`);
+    }
+
+    // The sequencing that came out of the start command has to exist somewhere,
+    // and in the right order: migrate, check, then serve.
+    const START = '.deploy/start.js';
+    if (!existsSync(START)) {
+      bad(`${START} is missing — railway.json names it as the start command`);
+    } else {
+      // Comments in that file legitimately quote the very strings checked
+      // below — the first version of this guard passed off a comment that
+      // mentions stdio:'inherit' while the code said 'ignore'.
+      const s = readFileSync(START, 'utf8')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/(^|[^:])\/\/.*$/gm, '$1');
+      const migrateIdx = s.indexOf("'migrate', 'deploy'");
+      const guardIdx = s.search(/migrate\.status !== 0/);
+      const serveIdx = s.indexOf("'serve.js'");
+      if (migrateIdx >= 0 && guardIdx > migrateIdx && serveIdx > guardIdx) {
+        ok('the start script migrates, checks the exit status, then serves — in that order');
+      } else {
+        bad('the start script must run migrations, fail on a non-zero status, and only then start the server');
+      }
+      if (/stdio:\s*'inherit'/.test(s)) {
+        ok('the migrator\'s output still reaches the deployment log');
+      } else {
+        bad('the migrator output is swallowed — NO_PENDING_MIGRATIONS becomes unobservable');
+      }
     }
   }
 
