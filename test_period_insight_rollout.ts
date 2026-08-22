@@ -58,8 +58,31 @@ async function main() {
       for (const e of readdirSync(join(__dirname, dir), { withFileTypes: true })) {
         const rel = `${dir}/${e.name}`;
         if (e.isDirectory()) walk(rel);
-        else if (e.name.endsWith('.ts') && /periodInsight|period_insights/.test(readFileSync(join(__dirname, rel), 'utf8'))) {
-          hits.push(rel);
+        else if (e.name.endsWith('.ts')) {
+          // ACCESS, not mention. The invariant is "no pre-existing module
+          // READS OR WRITES the table" — a provenance label that names
+          // period_insights so a reviewer can trace where a value came from
+          // is neither. Matching bare mentions would force the Observatory to
+          // describe its own source vaguely in order to satisfy a test, which
+          // is the opposite of what the close instrument is for.
+          // Strip block comments, line comments and string literals first.
+          // A provenance label that says "via readPeriodFact()" is prose about
+          // an access, not an access; so is a comment explaining one. Scanning
+          // raw text conflates the two and would push the Observatory into
+          // describing its own source vaguely to satisfy a test.
+          const code = readFileSync(join(__dirname, rel), 'utf8')
+            .replace(/\/\*[\s\S]*?\*\//g, ' ')
+            .replace(/(^|[^:])\/\/[^\n]*/g, '$1')
+            .replace(/'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*"|`(?:\\.|[^`\\])*`/g, "''");
+          // Two independent questions, asked separately rather than welded
+          // into one regex: does it CALL the table or the helpers (checked on
+          // stripped code), and does it IMPORT the module (checked on the raw
+          // text, because the module path is itself a string literal and
+          // stripping would erase the very thing being looked for).
+          const raw = readFileSync(join(__dirname, rel), 'utf8');
+          const calls = /prisma\.periodInsight\b|\.periodInsight\.(?:findUnique|findFirst|findMany|upsert|create|update|delete|deleteMany|count)\b|\b(?:readPeriodFact|writePeriodFact)\s*\(/.test(code);
+          const imports = /^\s*import[^;]*from\s+['"][^'"]*\/periodInsights['"]/m.test(raw);
+          if (calls || imports) hits.push(rel);
         }
       }
     };

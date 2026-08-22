@@ -312,6 +312,73 @@ async function main() {
       'the read-only inspector must not acquire a Meta client through the period-fact work');
   });
 
+  // ── provenance labels must follow the value, not lag behind it ──────────
+  // Reach moved from daily_stats to period_insights and its LABEL did not,
+  // so the instrument built to prove provenance asserted the exact opposite
+  // of the truth for the one field Gate B exists to verify. Guarding the
+  // class rather than the instance: any field the funnel sources from a
+  // period fact must not be labelled daily_stats, whichever field it is next.
+  check('no period-sourced Observatory fact is labelled daily_stats', () => {
+    const obs = readFileSync(join(__dirname, 'src/services/brainObservatory.ts'), 'utf8');
+    const intel = readFileSync(join(__dirname, 'src/services/entityIntelligence.ts'), 'utf8');
+
+    // Derive the period-sourced window fields from the PRODUCER, so the guard
+    // cannot drift out of step with what entityIntelligence actually does.
+    // Normalise to BASE names. The producer writes both `reach` (via
+    // `cur.reach = periodCur?.reach`) and `freqCur` (via
+    // `freqCur: periodCur?.frequency`), so a captured name may already carry
+    // the window suffix. Keeping both forms would have the matcher looking
+    // for `w.freqCurCur` — which is how the stale Frequency label survived
+    // the first version of this guard.
+    const periodFields = new Set<string>();
+    const addBase = (n: string) => periodFields.add(n.replace(/(?:Cur|Pri)$/, ''));
+    for (const m of intel.matchAll(/(\w+)\s*[:=]\s*period(?:Cur|Pri)\?\.\w+/g)) addBase(m[1]!);
+    for (const m of intel.matchAll(/(?:cur|pri)\.(\w+)\s*=\s*period(?:Cur|Pri)\?\./g)) addBase(m[1]!);
+    assert.ok(periodFields.size > 0, 'expected to find period-sourced fields in entityIntelligence.ts');
+
+    // Every metaFacts entry, as (value expression, source label).
+    const offenders: string[] = [];
+    for (const m of obs.matchAll(/\{\s*kind:\s*'[A-Z_]+',\s*label:\s*'([^']+)',\s*value:\s*([^,]+),[^}]*?source:\s*(['"`])((?:\\.|(?!\3)[\s\S])*)\3/g)) {
+      const [, label, valueExpr, , source] = m;
+      const touchesPeriod = [...periodFields].some((f) =>
+        new RegExp(`\\b(?:cur|pri)\\.${f}\\b|\\bw\\.${f}(?:Cur|Pri)\\b|\\bw\\.(?:cur|pri)\\.${f}\\b`).test(valueExpr!));
+      // Check the DECLARED ORIGIN — the leading token before the em-dash —
+      // not whether the string mentions daily_stats anywhere. A correct label
+      // legitimately names daily_stats in order to say it is NOT that, and a
+      // guard that cannot tell a claim from its own disclaimer just moves the
+      // false reading from the page into the test.
+      const origin = source!.split('—')[0]!.trim();
+      if (touchesPeriod && /^daily_stats\b/.test(origin)) offenders.push(`${label} -> ${origin}`);
+    }
+    assert.deepEqual(offenders, [],
+      `period-sourced facts labelled daily_stats: ${offenders.join('; ')}`);
+  });
+
+  check('the Observatory states period provenance instead of implying it', () => {
+    const obs = readFileSync(join(__dirname, 'src/services/brainObservatory.ts'), 'utf8');
+    assert.ok(/periodFactSource/.test(obs),
+      'periodFactSource is computed by entityIntelligence but never surfaced — a reader '
+      + 'can then only infer provenance from a non-null number, which conflates '
+      + '"Meta said nothing" with "we never looked"');
+  });
+
+  check('impressions is never divided by reach anywhere in these modules', () => {
+    // Stated as the arithmetic, not as "frequency is not derived". Anchoring
+    // on the word `freq` missed the case that actually matters — a Frequency
+    // FACT whose value expression is the bare ratio, where the identifier
+    // never appears next to the division. The invariant is simpler and
+    // stronger: this division should not exist in either file, for any
+    // purpose. Meta's period frequency or UNKNOWN; there is no third source.
+    for (const rel of ['src/services/brainObservatory.ts', 'src/services/entityIntelligence.ts']) {
+      const src = readFileSync(join(__dirname, rel), 'utf8');
+      const code = src.split('\n').filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join('\n');
+      const hit = /[\w.]*impressions\s*\/\s*[\w.]*reach\b/i.exec(code);
+      assert.equal(hit, null,
+        `${rel} divides impressions by reach (${hit?.[0]}) — that reconstructs frequency locally, `
+        + 'which invents a figure precisely when Meta declined to supply one');
+    }
+  });
+
   console.log(`\n════ ${passed} passed, ${failures.length} failed ════`);
   if (failures.length > 0) process.exit(1);
 }
