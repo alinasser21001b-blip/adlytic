@@ -540,11 +540,21 @@ function main() {
     //     inside the image and copying it would be wrong.
     // Anything else is referenced-but-absent.
     const dockerBody = existsSync('Dockerfile') ? readFileSync('Dockerfile', 'utf8') : '';
-    const outDir = (() => {
-      const raw = readFileSync('tsconfig.json', 'utf8').replace(/\/\/.*$/gm, '');
-      const d = JSON.parse(raw).compilerOptions?.outDir ?? './dist';
-      return String(d).replace(/^\.\//, '').replace(/\/$/, '');
-    })();
+    // Only WHOLE-LINE // comments are stripped. Stripping every `//` would eat
+    // the second half of any URL in a value — a `"$schema": "https://…"` line
+    // is normal in a tsconfig — and JSON.parse would then throw, crashing this
+    // guard instead of failing it. A guard that dies on a benign edit is worse
+    // than no guard, because the crash reads as a broken suite, not a finding.
+    let outDir: string | null = null;
+    try {
+      const raw = readFileSync('tsconfig.json', 'utf8').replace(/^\s*\/\/.*$/gm, '');
+      const d = (JSON.parse(raw).compilerOptions ?? {}).outDir;
+      if (typeof d === 'string') outDir = d.replace(/^\.\//, '').replace(/\/$/, '');
+    } catch { /* reported just below — never silently assumed */ }
+    if (outDir === null) {
+      bad('could not read compilerOptions.outDir from tsconfig.json — without it this guard '
+        + 'cannot tell a build output from an entrypoint missing from the image');
+    }
 
     // COPY sources: every argument but the last (the destination), minus flags.
     const copySources: string[] = [];
@@ -592,7 +602,7 @@ function main() {
     } else {
       const missing: string[] = [];
       for (const [p, where] of entrypoints) {
-        if (p === outDir || p.startsWith(outDir + '/')) continue; // built by npm run build
+        if (outDir !== null && (p === outDir || p.startsWith(outDir + '/'))) continue; // built by npm run build
         if (!existsSync(p)) { missing.push(`${p} (${where.join(', ')}) — not in the repository`); continue; }
         if (!packagedBy(p)) {
           missing.push(`${p} (${where.join(', ')}) — in the repo but no COPY puts it in the image`);
