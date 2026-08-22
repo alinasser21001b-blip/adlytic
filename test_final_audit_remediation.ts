@@ -226,5 +226,48 @@ check('test_v5_legacy_disposition.ts also classifies AiSignal as dead schema', (
   assert.ok(t.includes("content.includes('AiSignal') || content.includes('ai_signals')"), 'must assert zero src/ references');
 });
 
+/**
+ * NO MODULE MAY PRESENT Campaign.createdAt AS A META LIFECYCLE DATE.
+ *
+ * metaClient requests start_time and stop_time; Campaign persists neither.
+ * Two modules filled the gap with `campaign.createdAt` — the moment Adlytic
+ * first stored the row, which for a campaign already running when the account
+ * connected is months after it began:
+ *
+ *   · getCampaignDetails.ts returned it to the AI assistant as `startedAt`,
+ *     so the model reasoned about campaign age from a manufactured date and
+ *     could tell a merchant their campaign is days old when it is months old.
+ *   · campaignFreeze.ts PERSISTED it into campaign_history_snapshots.startedAt,
+ *     where nothing downstream could distinguish it from a real Meta start.
+ *
+ * Both columns and both fields already admitted null, so the honest value
+ * cost no migration. Absence of Meta's lifecycle stays absence.
+ */
+check('no module substitutes Campaign.createdAt for a Meta start_time', () => {
+  const strip = (t: string) =>
+    t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+
+  const details = strip(src('src/services/agent/tools/getCampaignDetails.ts'));
+  assert.ok(/startedAt:\s*null/.test(details),
+    'getCampaignDetails must report an unknown Meta start as null, not as a proxy');
+  assert.ok(!/startedAt:\s*campaign\.createdAt/.test(details),
+    'getCampaignDetails must not present createdAt as the campaign start');
+  assert.ok(/firstSeenInAdlyticAt:\s*campaign\.createdAt/.test(details),
+    'what Adlytic does know must survive under a name that says what it is');
+
+  const freeze = strip(src('src/lib/campaignFreeze.ts'));
+  assert.ok(/start_time"\]\)\s*\?\?\s*null/.test(freeze),
+    'campaignFreeze must persist null when Meta supplied no start_time');
+  assert.ok(!/start_time"\]\)\s*\?\?\s*campaign\.createdAt/.test(freeze),
+    'campaignFreeze must not persist createdAt as a campaign start — it is a historical record');
+
+  // Non-vacuous: the schema really does allow the honest value, so the fix is
+  // not quietly relying on a column that would reject null.
+  const schema = src('prisma/schema.prisma');
+  const model = schema.slice(schema.indexOf('model CampaignHistorySnapshot'));
+  assert.ok(/startedAt\s+DateTime\?/.test(model.slice(0, model.indexOf('}'))),
+    'campaign_history_snapshots.started_at must be nullable for UNKNOWN to be recordable');
+});
+
 console.log(`\n════ ${passed} passed, ${failures.length} failed ════`);
 if (failures.length > 0) process.exit(1);

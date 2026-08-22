@@ -175,7 +175,7 @@ jobs:
           # ever considered, and even those are scrubbed of anything
           # token-shaped and of the external account id before printing.
           jq -r '.data.deploymentLogs[]?.message // empty' "$BODY" \
-            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: |holds this account|sync already in progress|full sync done|Auto-sync: ' \
+            | grep -aE 'period facts:|Another instance holds the auto-sync lock|Syncing [0-9]+ account|token decrypt failed|Error syncing|failed \(non-fatal\)|Skipping | ads: |holds this account|sync already in progress|full sync done|Auto-sync: |No pending migrations|migrations? found in prisma/migrations|Applying migration|Database schema is up to date|migrate found failed migration|P3009|advisory-lock. unlock of' \
             | sed -E -e 's/(Bearer|token|secret|key)[[:space:]=:]+[A-Za-z0-9._\-]{8,}/\1 [redacted]/gI' \
                      -e 's/\[adlytic:auto-sync:[^]]*\]/[adlytic:auto-sync:<redacted>]/g' \
                      -e 's/act_[0-9]+/act_<redacted>/g' \
@@ -244,10 +244,148 @@ jobs:
               echo "PERIOD_PHASE_CLASSIFICATION=PASS_STILL_BEFORE_PHASE_2B — account sync in progress, not a failure"
             fi
           fi
+          # ── MIGRATION STATE (Gate D) ────────────────────────────────────
+          # The start command is `npx prisma migrate deploy && node …`, so the
+          # migrator's own output is in this same stream. Reading it is the
+          # difference between "the service booted" and "the schema is current"
+          # — a service can boot with a dashboard-overridden start command that
+          # never migrates at all, so booting proves nothing about the schema.
+          if grep -qa 'No pending migrations\|Database schema is up to date' matched.txt 2>/dev/null; then
+            echo "NO_PENDING_MIGRATIONS=YES"
+          elif grep -qa 'Applying migration' matched.txt 2>/dev/null; then
+            echo "NO_PENDING_MIGRATIONS=APPLIED_THIS_BOOT"
+            echo "MIGRATIONS_APPLIED_COUNT=$(grep -ca 'Applying migration' matched.txt)"
+          else
+            echo "NO_PENDING_MIGRATIONS=UNOBSERVED"
+            echo "  Neither the up-to-date line nor an Applying line appeared. That is"
+            echo "  NOT the same as 'no migrations pending' — it means this log window"
+            echo "  does not contain the migrator's output. Raise log_lines, or treat"
+            echo "  the start command as overridden and check it."
+          fi
+          echo "MIGRATION_FAILURE_OBSERVED=$(g 'migrate found failed migration\|P3009')"
+          # The lock helper warns when an unlock lands on a session that does not
+          # hold the key. Harmless in isolation, and the signal that the residual
+          # debt in doc 13 (D5) has started to bite.
+          echo "ADVISORY_UNLOCK_WRONG_SESSION_OBSERVED=$(g 'advisory-lock. unlock of')"
           echo "AUTO_SYNC_LOCK_SKIPPED=$(g 'Another instance holds the auto-sync lock')"
           echo "ELIGIBLE_ACCOUNT_SYNC_OBSERVED=$(g 'Syncing [0-9]* account')"
           echo "TOKEN_DECRYPT_FAILURE_OBSERVED=$(g 'token decrypt failed')"
           echo "ACCOUNT_SYNC_ERROR_OBSERVED=$(g 'Error syncing')"
+
+      - name: Gate-A evidence from the production BUILD log (READ-ONLY)
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          LIMIT: ${{ inputs.log_lines }}
+        run: |
+          set -uo pipefail
+
+          # Gate A asks one question: does the build of the RUNNING deployment
+          # emit BuildKit's SecretsUsedInArgOrEnv for application secrets? That
+          # warning means the generated Dockerfile declared them as ARG/ENV, so
+          # their values sit in the image config and in build history — readable
+          # by anyone who can pull the image, long after the build ended.
+          #
+          # NOTHING HERE PRINTS A LOG LINE. The build log is parsed down to the
+          # VARIABLE NAMES the warning names, and only those are printed. That is
+          # stronger than an allowlist plus a redactor: a step that can only ever
+          # emit a capitalised identifier captured from inside `("ENV \"NAME\"")`
+          # has no path by which a value could reach a public Actions log at all.
+          DEPLOY_ID=$(jq -r '.build.deploymentId // empty' body.json 2>/dev/null || true)
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then
+            echo "RAILWAY_BUILD_LOG_READ=NO_TOKEN"; exit 0; fi
+          if [ -z "$DEPLOY_ID" ]; then
+            echo "RAILWAY_BUILD_LOG_READ=SKIPPED — /api/health reported no build.deploymentId"; exit 0; fi
+
+          HDR="$(mktemp)"; SCHEMA="$(mktemp)"; BLOG="$(mktemp)"
+          printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          trap 'rm -f "$HDR" "$SCHEMA" "$BLOG"' EXIT
+
+          # STEP 1 — PROVE THE FIELD, DO NOT GUESS IT. `deploymentLogs` was
+          # verified against Railway's docs; a build-log field was not, and
+          # inventing one would produce a confident "0 warnings" from a query
+          # that never ran. Introspection is a read and answers it definitively.
+          QI='query { __schema { queryType { fields { name args { name } } } } }'
+          curl -sS --max-time 60 -o "$SCHEMA" \
+            -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$QI" '{query:$q}')" >/dev/null 2>&1 || true
+
+          FIELDS=$(jq -r '[.data.__schema.queryType.fields[]?
+                           | select(.name|test("log";"i"))
+                           | .name + "(" + ([.args[]?.name]|join(",")) + ")"] | join("  ")' \
+                     "$SCHEMA" 2>/dev/null || true)
+          if [ -z "$FIELDS" ]; then
+            echo "RAILWAY_SCHEMA_INTROSPECTION=UNAVAILABLE"
+            echo "BUILD_LOG_FIELD_PROVEN=NO"
+            echo "SECRETS_USED_IN_ARG_OR_ENV_WARNINGS=UNPROVEN_FROM_PLATFORM"
+            echo "  The platform did not answer introspection, so no build-log field"
+            echo "  name is proven. Reporting UNPROVEN rather than querying a guessed"
+            echo "  field and reading its empty answer as a clean result."
+            exit 0
+          fi
+          echo "RAILWAY_SCHEMA_INTROSPECTION=OK"
+          echo "LOG_QUERY_FIELDS=${FIELDS}"
+
+          FIELD=""
+          for cand in buildLogs deploymentBuildLogs; do
+            case " $FIELDS " in *" $cand("*) FIELD="$cand"; break;; esac
+          done
+          if [ -z "$FIELD" ]; then
+            echo "BUILD_LOG_FIELD_PROVEN=NO — no build-log field in the list above"
+            echo "SECRETS_USED_IN_ARG_OR_ENV_WARNINGS=UNPROVEN_FROM_PLATFORM"
+            exit 0
+          fi
+          echo "BUILD_LOG_FIELD_PROVEN=${FIELD}"
+
+          # STEP 2 — read it. A query, never a mutation.
+          QB="query b(\$deploymentId: String!, \$limit: Int) { ${FIELD}(deploymentId: \$deploymentId, limit: \$limit) { message } }"
+          STATUS=$(curl -sS --max-time 60 -o "$BLOG" -w '%{http_code}' \
+            -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$QB" --arg d "$DEPLOY_ID" --argjson l "${LIMIT:-2000}" \
+                    '{query:$q, variables:{deploymentId:$d, limit:$l}}')" || echo "000")
+          if [ "${STATUS:0:1}" != "2" ] || jq -e '.errors' "$BLOG" >/dev/null 2>&1; then
+            echo "RAILWAY_BUILD_LOG_READ=HTTP_${STATUS}$(jq -r 'if .errors then " — " + ([.errors[].message]|join("; ")) else "" end' "$BLOG" 2>/dev/null | head -c 200)"
+            echo "SECRETS_USED_IN_ARG_OR_ENV_WARNINGS=UNPROVEN_FROM_PLATFORM"
+            exit 0
+          fi
+          echo "RAILWAY_BUILD_LOG_READ=OK"
+
+          LINES=$(jq -r ".data.${FIELD}[]?.message // empty" "$BLOG" | wc -l | tr -d ' ')
+          echo "BUILD_LOG_LINES_READ=${LINES}"
+
+          # NAME EXTRACTION, not line printing. Anything that is not a bare
+          # A-Z_0-9 identifier captured from inside the warning's own quotes is
+          # discarded, so no log text survives into the output.
+          jq -r ".data.${FIELD}[]?.message // empty" "$BLOG" \
+            | grep -a 'SecretsUsedInArgOrEnv' \
+            | grep -oaE '(ARG|ENV) "[A-Z][A-Z0-9_]*"' \
+            | grep -oaE '"[A-Z][A-Z0-9_]*"' | tr -d '"' \
+            | sort -u > names.txt || true
+
+          COUNT=$(jq -r ".data.${FIELD}[]?.message // empty" "$BLOG" \
+            | grep -ac 'SecretsUsedInArgOrEnv' || true); COUNT=${COUNT:-0}
+          echo "SECRETS_USED_IN_ARG_OR_ENV_WARNINGS=${COUNT}"
+          echo "SECRET_NAMES_FLAGGED_COUNT=$(wc -l < names.txt | tr -d ' ')"
+          echo "── variable NAMES the build flagged (names only; no values, no log lines)"
+          if [ -s names.txt ]; then sed -n '1,40p' names.txt; else echo "  (none)"; fi
+
+          # Which builder produced this image. Matched as fixed words so the
+          # answer is one of a closed set rather than copied text.
+          B="UNIDENTIFIED"
+          for probe in Nixpacks Railpack Dockerfile; do
+            if jq -r ".data.${FIELD}[]?.message // empty" "$BLOG" | grep -qa "$probe"; then B="$probe"; break; fi
+          done
+          echo "BUILDER_OBSERVED=${B}"
+          if [ "$COUNT" -eq 0 ]; then
+            echo "GATE_A_BUILD_WARNING_STATE=CLEAN"
+          else
+            echo "GATE_A_BUILD_WARNING_STATE=SECRETS_IN_BUILD_ENV"
+            echo "  Each name above was declared ARG/ENV in the generated Dockerfile."
+            echo "  ENV persists into the image config, so the VALUES are retrievable"
+            echo "  from the image by anyone who can pull it. Treat as exposure, not"
+            echo "  as a lint nit, regardless of the deployment having succeeded."
+          fi
 
       - name: What this run did and did not prove
         run: |

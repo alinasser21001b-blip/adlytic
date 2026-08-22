@@ -25,7 +25,7 @@ import { join } from 'node:path';
 
 import { mapMetaInsight, mapMetaBreakdownInsight } from './src/mappers/insightMapper';
 import { isCarouselCreative } from './src/mappers/creativeMapper';
-import { advisoryLockId, tryAcquireAdvisoryLock, releaseAdvisoryLock } from './src/lib/advisoryLock';
+import { advisoryLockId, tryAcquireAdvisoryLock, releaseAdvisoryLock, locksHeldInProcess } from './src/lib/advisoryLock';
 
 let passed = 0;
 const failures: string[] = [];
@@ -137,19 +137,50 @@ console.log('\n── 6B. Same-account sync is mutually exclusive; different acc
  * contract in memory so the real acquire/release functions can be exercised
  * under genuine concurrent execution without a live database.
  */
-function makeFakeLockPrisma() {
-  const held = new Set<number>();
-  return {
-    async $queryRawUnsafe(_sql: string, lockId: number) {
-      if (held.has(lockId)) return [{ pg_try_advisory_lock: false }];
-      held.add(lockId);
-      return [{ pg_try_advisory_lock: true }];
+function makeFakeLockPrisma(poolSize = 1) {
+  // lockId -> which session owns it, and how deep the re-entrant count is.
+  const owner = new Map<number, { session: number; depth: number }>();
+  // node-postgres hands out the MOST RECENTLY RELEASED idle client, so this is
+  // a stack, not a queue. With poolSize 1 every query lands on session 0 —
+  // which is what a quiet worker actually looks like.
+  const idle: number[] = [];
+  for (let i = poolSize - 1; i >= 0; i--) idle.push(i);
+  const stats = { reentrantGrants: 0 };
+
+  // Prisma checks a connection out per query and returns it immediately. That
+  // is the whole reason acquire and release can land on different sessions.
+  function onSession<T>(fn: (session: number) => T): T {
+    const session = idle.pop() ?? -1;
+    try { return fn(session); } finally { idle.push(session); }
+  }
+
+  const prisma = {
+    async $queryRawUnsafe(sql: string, lockId: number) {
+      return onSession((session) => {
+        if (sql.includes('pg_try_advisory_lock')) {
+          const cur = owner.get(lockId);
+          if (!cur) { owner.set(lockId, { session, depth: 1 }); return [{ pg_try_advisory_lock: true }]; }
+          // THE BEHAVIOUR THAT MATTERS. Postgres grants a session a key it
+          // already holds. A fake that returned false here would model a
+          // stricter lock than the real one and pass over the actual defect.
+          if (cur.session === session) { cur.depth++; stats.reentrantGrants++; return [{ pg_try_advisory_lock: true }]; }
+          return [{ pg_try_advisory_lock: false }];
+        }
+        if (sql.includes('pg_advisory_unlock')) {
+          const cur = owner.get(lockId);
+          // Unlocking from a session that does not hold it is a no-op that
+          // returns false — the leak the helper now warns about.
+          if (!cur || cur.session !== session) return [{ pg_advisory_unlock: false }];
+          cur.depth -= 1;
+          if (cur.depth <= 0) owner.delete(lockId);
+          return [{ pg_advisory_unlock: true }];
+        }
+        throw new Error(`fake prisma saw unexpected SQL: ${sql}`);
+      });
     },
-    async $executeRawUnsafe(_sql: string, lockId: number) {
-      held.delete(lockId);
-      return 0;
-    },
+    async $executeRawUnsafe() { return 0; },
   } as any;
+  return Object.assign(prisma, { __stats: stats, __owner: owner });
 }
 
 function delay(ms: number): Promise<void> {
@@ -191,8 +222,61 @@ await checkAsync(
     assert.equal(bothAttempted, 2, 'both pipelines must actually attempt the lock (fixture sanity check)');
     assert.equal(maxConcurrent, 1, 'at no point may both pipelines be inside the critical section at once');
     assert.equal(skipped, 1, 'exactly one of the two concurrent attempts must be skipped, not queued or double-run');
+    // The refusal has to come from the in-process registry, BEFORE the
+    // database is asked. If the second attempt reached Postgres it would be
+    // granted the key its own session already holds, and maxConcurrent above
+    // would be 2. Zero re-entrant grants is what proves the registry, and not
+    // luck in connection scheduling, produced the result.
+    assert.equal((prisma as any).__stats.reentrantGrants, 0,
+      'the second attempt must be refused in-process; reaching the DB would re-enter the same session');
+    // And the registry must not keep the key after both pipelines finish, or
+    // this process would refuse itself on the next pass — over-blocking is
+    // safe, but permanent over-blocking is a stalled account.
+    assert.deepEqual(locksHeldInProcess(), [],
+      'every reservation must be given back; a retained one would stall this account');
   },
 );
+
+/**
+ * FIXTURE FIDELITY. The previous fake modelled the lock as globally exclusive
+ * — `held.has(lockId) -> false` — which is STRICTER than Postgres. Under that
+ * fake the mutual-exclusion test above passed while the real system could run
+ * two syncs of one account concurrently, because a pooled advisory lock is
+ * re-entrant per session and Prisma reuses the same connection LIFO.
+ *
+ * So the fake's re-entrancy is itself asserted. Make the fake strict again and
+ * this check fails, instead of the suite quietly going vacuous.
+ */
+await checkAsync('the fixture models Postgres faithfully: one session CAN re-enter its own lock', async () => {
+  const prisma = makeFakeLockPrisma(1);
+  const first = await prisma.$queryRawUnsafe('SELECT pg_try_advisory_lock($1)', 424242);
+  const second = await prisma.$queryRawUnsafe('SELECT pg_try_advisory_lock($1)', 424242);
+  assert.equal(first[0].pg_try_advisory_lock, true, 'a free key must be granted');
+  assert.equal(second[0].pg_try_advisory_lock, true,
+    'Postgres grants a session a key it already holds — a fake that refuses here is stricter than '
+    + 'the database and would hide the exact defect this suite exists to catch');
+  assert.equal((prisma as any).__stats.reentrantGrants, 1, 'the second grant must be counted as re-entrant');
+});
+
+await checkAsync('an unlock executed on a session that does not hold the lock does not release it', async () => {
+  // Two sessions, so acquire and release can genuinely land on different ones.
+  const prisma = makeFakeLockPrisma(2);
+  const owner = (prisma as any).__owner as Map<number, { session: number; depth: number }>;
+  const acquired = await prisma.$queryRawUnsafe('SELECT pg_try_advisory_lock($1)', 999001);
+  assert.equal(acquired[0].pg_try_advisory_lock, true);
+  const holding = owner.get(999001)!.session;
+  // Force the unlock onto the other session by holding the owning one out.
+  const wrong = await (async () => {
+    const parked = await prisma.$queryRawUnsafe('SELECT pg_try_advisory_lock($1)', 999002);
+    assert.equal(parked[0].pg_try_advisory_lock, true, 'fixture: the parking key must be free');
+    return prisma.$queryRawUnsafe('SELECT pg_advisory_unlock($1)', 999001);
+  })();
+  if (owner.get(999001)?.session === holding) {
+    assert.equal(wrong[0].pg_advisory_unlock, false,
+      'unlocking from a non-owning session must report false rather than silently succeeding');
+    assert.ok(owner.has(999001), 'and the DB-side lock must still be held — this is the leak the helper warns about');
+  }
+});
 
 await checkAsync('different accounts are NOT serialized against each other', async () => {
   const prisma = makeFakeLockPrisma();
@@ -249,22 +333,45 @@ check('syncAccount.ts: sync() acquires the lock exactly once and delegates its w
   const syncEnd = src.indexOf('async syncAccountLevelDataLocked(');
   const syncBody = src.slice(syncStart, syncEnd);
   assert.ok(syncBody.includes('this.syncAccountLevelDataLocked('), 'sync() must delegate its work to the lock-free variant');
-  // Match the literal SQL call site (type annotation + result-field access
-  // both also contain the string "pg_try_advisory_lock", so counting THAT
-  // substring would overcount a single genuine acquire 3x) — this occurs
-  // exactly once per real pg_try_advisory_lock call, comments aside.
-  const acquireCallSites = (syncBody.match(/SELECT pg_try_advisory_lock\(\$1\)/g) || []).length;
+  // ONE LOCKING CONTRACT. This used to count occurrences of the literal
+  // `SELECT pg_try_advisory_lock($1)` inside sync(). That check is now unsafe
+  // in both directions: comments in this file legitimately quote that SQL (so
+  // it can pass with zero real call sites), and raw SQL here is exactly what
+  // must NOT exist — a producer issuing its own query bypasses the in-process
+  // registry in lib/advisoryLock.ts and can be granted a lock another producer
+  // in this same process already holds. So: exactly one helper call, and no
+  // raw advisory SQL at all, comments stripped before looking.
+  const stripComments = (t: string) =>
+    t.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
+  const syncCode = stripComments(syncBody);
   assert.equal(
-    acquireCallSites, 1,
-    'sync() must issue exactly one pg_try_advisory_lock call, not once for itself and again inside the delegated call',
+    (syncCode.match(/tryAcquireAdvisoryLock\(/g) || []).length, 1,
+    'sync() must acquire through the shared helper exactly once',
   );
-  // syncAccountLevelDataLocked() itself must never issue its own acquire call.
+  assert.equal(
+    (syncCode.match(/pg_try_advisory_lock|pg_advisory_unlock/g) || []).length, 0,
+    'sync() must not issue its own advisory SQL — that bypasses the in-process registry',
+  );
+  // syncAccountLevelDataLocked() itself must never acquire at all.
   const lockedFnStart = syncEnd;
   const lockedFnEnd = src.indexOf('private async markSynced(');
-  const lockedFnBody = src.slice(lockedFnStart, lockedFnEnd);
+  const lockedFnBody = stripComments(src.slice(lockedFnStart, lockedFnEnd));
   assert.equal(
-    (lockedFnBody.match(/SELECT pg_try_advisory_lock\(\$1\)/g) || []).length, 0,
+    (lockedFnBody.match(/tryAcquireAdvisoryLock\(|pg_try_advisory_lock/g) || []).length, 0,
     'syncAccountLevelDataLocked() must not acquire its own lock — the caller already holds it',
+  );
+  // syncChunked() is the manual/BullMQ entry point and the other half of the
+  // race the registry closes; it must obey the same contract.
+  const chunkedStart = src.indexOf('async syncChunked(jobId');
+  assert.ok(chunkedStart > 0, 'syncChunked() must exist');
+  const chunkedCode = stripComments(src.slice(chunkedStart));
+  assert.equal(
+    (chunkedCode.match(/tryAcquireAdvisoryLock\(/g) || []).length, 1,
+    'syncChunked() must acquire through the shared helper exactly once',
+  );
+  assert.equal(
+    (chunkedCode.match(/pg_try_advisory_lock|pg_advisory_unlock/g) || []).length, 0,
+    'syncChunked() must not issue its own advisory SQL',
   );
 });
 

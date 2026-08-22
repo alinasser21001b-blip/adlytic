@@ -251,7 +251,16 @@ export async function freezeCampaign(
     const metaCamp = metaCampaignRows.find(
       (r) => String(r["id"]) === campaign.externalCampaignId,
     );
-    const startedAt = parseMetaDateTime(metaCamp?.["start_time"]) ?? campaign.createdAt;
+    // Meta's own lifecycle, or null. The fallback used to be
+    // `?? campaign.createdAt` — the date Adlytic first stored the row, which
+    // for a campaign already running at connect time is not its start at all.
+    // This value is PERSISTED into campaign_history_snapshots, so the fallback
+    // wrote a manufactured historical date that nothing downstream could tell
+    // from a real one. Both columns are nullable; UNKNOWN is recordable.
+    const startedAt = parseMetaDateTime(metaCamp?.["start_time"]) ?? null;
+    // endedAt keeps `?? now`: this runs AT the freeze, so "the campaign stopped
+    // being tracked now" is an observation this code is making, not an
+    // inference about Meta's schedule.
     const endedAt = parseMetaDateTime(metaCamp?.["stop_time"]) ?? now;
 
     const finalBrainJson = latestBrain

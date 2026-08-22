@@ -1,12 +1,14 @@
 # Canonical production config for service "adlytic".
 # Keep in sync with railway.json (Railway may use either file).
 [build]
-builder = "NIXPACKS"
+builder = "DOCKERFILE"
 watchPatterns = [
   "src/**",
   "prisma/**",
   "package.json",
   "package-lock.json",
+  "Dockerfile",
+  ".dockerignore",
   "nixpacks.toml",
   "railway.json",
   "railway.toml",

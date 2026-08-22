@@ -5,7 +5,7 @@ OBSERVATORY_READ_ONLY            = YES
 OBSERVATORY_REDERIVES_INTELLIGENCE = NO
 ```
 
-48 assertions in `test_brain_observatory.ts`.
+49 assertions in `test_brain_observatory.ts`.
 
 ## Read-only, structurally
 
@@ -31,7 +31,25 @@ account, parent campaign, insights query level, DailyStat ownership level.
 **Temporal truth** — requested span, current/prior windows, the actual stored
 dates (not a count), dates without rows, row count, coverage basis, temporal
 coverage, `lastSyncedAt`, sync age, freshness inputs, settlement, and the
-legacy data status labelled non-authoritative.
+coverage gate that DATA_VALIDITY actually consumes.
+
+That last field used to be called `legacyDataStatus` and was described as "NOT
+A MEASUREMENT … a hardcoded constant", with the added claim that DATA_VALIDITY
+"never sees MISSING or PARTIAL from this path". None of that was true any more:
+`entityIntelligence.ts` derives it from stored calendar-day coverage — COMPLETE
+only when every day in the inspected span carries a row — and a behavioural
+test in this same suite proves the reconciler sees PARTIAL and caps confidence
+at MEDIUM. The field is now `dataConfidence`, the page labels it "Coverage gate
+(DATA_VALIDITY input)", and the basis states the derivation *and* the limit of
+what it claims: PARTIAL does not assert the absent days should have contained
+delivery, because `time_increment=1` omits zero-delivery days and no Meta
+lifecycle is persisted. Settlement and completeness stay separate axes.
+
+A stale explanation on a provenance surface is worse than no explanation — a
+reader who trusts it concludes the opposite of the truth — so the correction is
+held by a test that reads `entityIntelligence.ts`, classifies the producer
+(bare string literal ⇒ constant, anything else ⇒ derived) and requires the
+shipped prose to agree. It fails in both directions.
 
 **Meta truth** — fact kind, metric identity, current/prior values, canonical
 source, observed vs derived vs `NOT_MEASURED`.
