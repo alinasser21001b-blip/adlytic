@@ -481,6 +481,20 @@ jobs:
             if [ "$n" -gt 0 ]; then echo "  ${name}=${n}"; hit=1; fi
           done <<< "$SIGS"
           [ "$hit" -eq 0 ] && echo "  (no known signature matched — the failure is outside this closed set)"
+
+          # BRANCH-ONLY. When the closed set misses, the alternative to printing
+          # something is guessing signatures forever. So: error-bearing lines
+          # only, and every token of 20+ characters replaced before printing.
+          # The eight credentials this programme is about are all far longer
+          # than that, and ordinary build text is split by spaces and slashes.
+          # This step must NOT reach main — it prints build text, which the
+          # Gate-A step deliberately never does.
+          echo "── error-bearing lines (long tokens redacted; diagnostic branch only)"
+          grep -aiE 'error|fail|denied|invalid|unable|cannot|not found|unsupported|exit code|refus' blog.txt \
+            | sed -E 's/[A-Za-z0-9_+\/=-]{20,}/<redacted>/g' \
+            | tail -25 || echo "  (none)"
+          echo "── last 12 lines of the build (same redaction)"
+          sed -E 's/[A-Za-z0-9_+\/=-]{20,}/<redacted>/g' blog.txt | tail -12
           echo "BUILD_FAILURE_CLASSIFY=DONE"
 
       - name: What this run did and did not prove
