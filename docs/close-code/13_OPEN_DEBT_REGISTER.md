@@ -26,9 +26,15 @@ closed by `.github/workflows/test.yml`, green on `0dbd60b` in CI run
 repository candidate SHA (`4fc27c2` → `0dbd60b`) without changing application
 behaviour.
 
-The three that remain are **all operational**. None can be closed by a
-repository change, and none is reachable from the build environment — so the
-repository has now done everything it can do on its own.
+The three that remain are **all operational**, and they share **one** blocker:
+`RAILWAY_TOKEN` is unset, so no deploy has succeeded since 19 August — the
+PR #88 merge of `4fc27c2` into main deployed nothing. None can be closed by a
+repository change, and none is reachable from the build environment.
+
+Every part of A, B and D that did not require live access has been completed:
+A1 exposure model, A2 runtime-only mechanism, A3 rotation plan, B1 migration
+safety, B2 deployment order, and D5 CI + local verification. What is left is
+observation of a running system.
 
 ---
 

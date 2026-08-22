@@ -2,15 +2,27 @@
 
 ```
 FINAL_APPLICATION_BEHAVIOR_COMMIT = 4fc27c2
-FINAL_REPOSITORY_CANDIDATE_SHA    = 0dbd60b
+FINAL_REPOSITORY_CANDIDATE_SHA    = 0dbd60b  (last code-bearing commit)
 
 APPLICATION_BEHAVIOR_CLOSE_COMPLETE = YES
-REPOSITORY_RELEASE_GATE_COMPLETE    = YES   (gate C closed — see below)
+REPOSITORY_RELEASE_GATE_COMPLETE    = YES   (gate C closed)
 OPERATIONAL_CLOSE_COMPLETE          = NO
 
 CLOSE_CODE_STATUS   = NOT_CLOSED
-REMAINING_GATE_COUNT = 3
+REMAINING_GATE_COUNT = 3   (A, B, D — all blocked on one missing credential)
 ```
+
+**`4fc27c2` is now on `main`.** PR #88 merged this branch's
+application-behaviour candidate into `main` as `de26b25`. The branch has since
+merged `main` back (lineage only — the merge left the tree hash byte-identical),
+so it is neither ahead nor behind in content. The four commits `main` lacks are
+the gate-C governance and accounting commits.
+
+**The PR #88 merge deployed nothing.** `RAILWAY_TOKEN` is unset, so
+`.deploy/railway-deploy.sh` fails by design rather than reporting a phantom
+success. No automated deploy has succeeded since 19 August (`751af4bf`). That
+one missing secret is the sole blocker for **all three** remaining gates — see
+doc 07.
 
 `CODE_CLOSE_COMPLETE = YES` is **not** used, and the distinction is not
 cosmetic. The application and intelligence behaviour is complete at `4fc27c2`
@@ -127,20 +139,48 @@ C. CI_GATE                   = CLOSED   (repository governance)
 D. FINAL_HEALTH_BUILD_GATE   = OPEN     (deployment / live verification)
 
 OPEN_OPERATIONAL_GATES = 3
+SHARED_BLOCKER         = RAILWAY_TOKEN unset ⇒ no deploy, no build, no live read
 ```
+
+The three are not three independent problems. Each needs a **deploy** or a
+**running service**, and neither exists: `RAILWAY_TOKEN` is absent so the
+pipeline cannot deploy, and Railway's control plane and services answer 403
+CONNECT at this environment's egress proxy. Resolve that one credential and all
+three become executable in a single ordered pass. Everything about them that
+did **not** require live access has been completed — see the per-gate sections
+and doc 07.
 
 ### A. NIXPACKS_SECRET_GATE — *deployment / security operational*
 
 ```
-NIXPACKS_SECRET_GATE = OPEN
+NIXPACKS_SECRET_GATE        = OPEN
+A1 exposure model           = ANSWERED (exposure itself: UNPROVEN either way)
+A2 runtime-only mechanism   = ANSWERED (none at variable scope; builder scope)
+A3 rotation decision        = ANSWERED (low-risk path already implemented)
+A4 verification build       = BLOCKED (needs a build + a running service)
 ```
 
-`JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` may be baked into generated image
-layers. Platform-generated, not repository behaviour — no repository change
-fixes it. Requirement, rotation condition and verification in doc 07. The
-remediation **mechanism is not proven**: Railway's configuration surface is
-unreachable from here, so the gate states the required outcome, not a setting
-someone assumes exists.
+A1–A3 are complete; full detail in doc 07. The three findings that matter:
+
+1. **Exposure is unproven, not proven.** Railway's own position is that
+   `SecretsUsedInArgOrEnv` is misleading and the warning has been disabled;
+   generic Docker behaviour says `ENV` persists in layers. Deciding between
+   them needs image inspection, which is unreachable. Recording "exposed"
+   would overstate it; recording "safe" on a forum answer would be worse.
+2. **Railway has no per-variable runtime-only flag.** This document previously
+   required "exclude these two from the build environment on every service" —
+   an outcome Railway does not offer at variable scope. Corrected. The remedy
+   is at *builder* scope (Railpack's BuildKit secret mounts, or a Dockerfile),
+   which is a build-system migration that cannot be validated from here and so
+   was deliberately **not** made.
+3. **Rotation is cheaper than assumed.** `TOKEN_ENCRYPTION_KEY` already has a
+   dual-key rotation window implemented (`..._PREVIOUS`, `..._VERSION`, a
+   per-row generation column, and a tested fallback read path), so rotating it
+   is low-risk. `JWT_SECRET` has no dual-secret path — rotating it drops every
+   session, which is bounded and non-destructive. One previously undocumented
+   caveat is now recorded: **there is no re-encryption sweep**, so
+   `..._PREVIOUS` can only be retired once no row remains on the old
+   generation.
 
 ### B. PERIOD_TRUTH_LIVE_GATE — *data migration / live behaviour operational*
 
@@ -153,6 +193,25 @@ reader deploy → Observatory read. Full evidence ladder in doc 07. A
 validation-API deploy alone **cannot** satisfy this: that service is
 structurally a reader. `PERIOD_FREQUENCY_PROVENANCE = UNKNOWN` may be
 legitimate; both windows absent after a confirmed worker pass is not.
+
+```
+B1 migration safety = VERIFIED (CREATE-only: 1 table, 2 indexes; no
+                      DROP/ALTER/DELETE/TRUNCATE/UPDATE/RENAME anywhere)
+B2 deployment order = PLANNED, and simplified by a re-verification finding
+B3–B9              = BLOCKED (need the database and a worker pass)
+```
+
+B1 was re-verified mechanically, not by reading: the migration contains exactly
+one `CREATE TABLE` and two `CREATE INDEX` and no destructive verb; the reader
+degrades to UNKNOWN through a catch-all (`readPeriodFact` → `null`); the writer
+upserts on the exact `(entityType, entityId, since, until)` tuple, so replays
+are idempotent. `test_period_insight_rollout.ts` 11/11 and
+`test_period_metric_semantics.ts` 15/15.
+
+B2 gained a finding that removes a manual step: `railway.json`'s start command
+is `npx prisma migrate deploy && node dist/src/api/serve.js`, so the migration
+**applies automatically** when the main service next boots a build containing
+it. The validation reader and both workers correctly do **not** migrate.
 
 ### C. CI_GATE — *repository governance* — **CLOSED**
 
@@ -257,6 +316,14 @@ Requires a Railway deploy of the final repository candidate and a
 `/api/health` read. Railway is unreachable from the build environment:
 `backboard.railway.app:443` returns a 403 CONNECT policy denial, there is no
 CLI and no credentials, and the service URL is blocked by the same policy.
+Re-verified, not carried over — both endpoints were retested and both still
+return 403, and `RAILWAY_TOKEN`, `DATABASE_URL`, `JWT_SECRET` and
+`TOKEN_ENCRYPTION_KEY` are all absent from this environment.
+
+```
+D5 CI + local verification = DONE (the one part of gate D not needing live access)
+D1–D4, D6                  = BLOCKED
+```
 
 Must confirm: `status=ok`, `db=ok`, `role=api`, `runsBackgroundSync=false`,
 `bullmq=disabled`, `build.resolved=true`, `build.shortCommit` = the final
@@ -276,5 +343,27 @@ narration-only LLM pane read correctly; temporal UNKNOWN semantics stay honest.
 
 Steps 1–3 are complete. Gate A is independent and may run in parallel. B
 cannot complete before its migration and worker steps. D is last by
-construction and must verify `build.shortCommit = 0dbd60b` — the final
-repository candidate, **not** `4fc27c2`.
+construction and must verify `build.shortCommit` against the final repository
+candidate, **not** `4fc27c2`.
+
+### Step 0, which precedes all of A, B and D
+
+```
+PREREQUISITE = a working deploy path
+```
+
+Nothing in A, B or D can start until one of these is true:
+
+1. the GitHub repository secret **`RAILWAY_TOKEN`** is set (Railway account
+   token, "No Team"), after which the deploy workflow can be re-run; **or**
+2. someone deploys by hand — Railway UI → service → **Deploy Latest Commit** —
+   and confirms `GET /api/health` reports the expected commit.
+
+This is a single credential in GitHub's secret store. It must not be pasted
+into a chat, a source file, or a document — including this one. Once a deploy
+succeeds, the remaining gates run in the order above, and every piece of
+evidence each one needs is already specified per-gate.
+
+Everything in A, B and D that did **not** require live access is finished:
+A1/A2/A3 (doc 07), B1/B2 (doc 07), and D5 (below). What remains is
+observation, not engineering.

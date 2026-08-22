@@ -59,10 +59,16 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 48 | **Gate C — CI workflow able to run the suite** | `.github/workflows/test.yml` | doc 15, CI run `32572081116` | **CLOSED_PROVEN** | YES | YES |
 | 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | NO |
 
-**Remaining gates: 3** (items 46, 47, 49) — all operational. Item 48, the one
-repository-governance gate, is closed: `.github/workflows/test.yml` runs the
-full suite on `pull_request` and on pushes to the branch, and CI run
-`32572081116` is green on `0dbd60b`.
+**Remaining gates: 3** (items 46, 47, 49) — all operational, and all three
+blocked by the **same single cause**: `RAILWAY_TOKEN` is unset, so no deploy
+has succeeded since 19 August and no build or running service exists to
+observe. Item 48, the one repository-governance gate, is closed:
+`.github/workflows/test.yml` runs the full suite on `pull_request` and on
+pushes to the branch, and CI run `32572081116` is green on `0dbd60b`.
+
+Within the three open gates, everything not requiring live access is done —
+A1/A2/A3, B1/B2 and D5 (doc 07, doc 15). `4fc27c2` itself is now on `main` via
+PR #88, which deployed nothing.
 
 The gates surround **one completed application-behaviour candidate**
 (`4fc27c2`) and are not architectural defects. The final *repository*
