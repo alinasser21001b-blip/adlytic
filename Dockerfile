@@ -78,6 +78,22 @@ RUN npm run build
 # .dockerignore already drops public/adspulse, which the server never serves.
 COPY public ./public
 
+# THE ENTRYPOINT CMD NAMES. Not optional, and not obvious: every other COPY
+# here feeds the build, so it was easy to finish the build correctly and ship
+# an image whose start command pointed at a file that had never been packaged.
+# The image built clean and every container died on
+# `Cannot find module '/app/.deploy/start.js'`.
+#
+# Copied as the single file rather than `COPY .deploy ./.deploy`, to keep the
+# allowlist discipline the .dockerignore header states: .deploy also holds
+# railway-deploy.sh (already excluded by **/*.sh) and a `trigger` file, and
+# neither has any runtime purpose. The runtime gets exactly the entrypoint it
+# executes.
+#
+# test_deploy_gate.ts fails the build if the CMD/startCommand entrypoint is
+# not COPYed here, so this cannot silently regress the way it silently broke.
+COPY .deploy/start.js ./.deploy/start.js
+
 EXPOSE 3000
 
 # The same single command railway.json's deploy.startCommand names, so the

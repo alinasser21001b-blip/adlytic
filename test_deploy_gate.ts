@@ -520,6 +520,104 @@ function main() {
     }
   }
 
+  console.log('\n── 10. every runtime entrypoint is actually packaged into the image ──');
+  {
+    // WHAT SECTION 9 PROVED, AND WHAT IT DID NOT. Section 9 checks that
+    // .deploy/start.js exists IN THE REPOSITORY and sequences correctly. Both
+    // were true while production was hard down:
+    //
+    //   Error: Cannot find module '/app/.deploy/start.js'  (MODULE_NOT_FOUND)
+    //
+    // The Dockerfile COPYed manifests, tsconfig, prisma, src and public — each
+    // one an input the BUILD needs — and then named an entrypoint nothing had
+    // ever put in the image. The build succeeded; every container died. "The
+    // file exists in the repo" and "the file exists in the image" are different
+    // claims, and only the second one starts a server.
+    //
+    // A path is satisfied one of two ways, which is the whole rule:
+    //   • a COPY covers it (the file itself, or a directory containing it), or
+    //   • it lives under tsconfig's outDir, so `RUN npm run build` creates it
+    //     inside the image and copying it would be wrong.
+    // Anything else is referenced-but-absent.
+    const dockerBody = existsSync('Dockerfile') ? readFileSync('Dockerfile', 'utf8') : '';
+    // Only WHOLE-LINE // comments are stripped. Stripping every `//` would eat
+    // the second half of any URL in a value — a `"$schema": "https://…"` line
+    // is normal in a tsconfig — and JSON.parse would then throw, crashing this
+    // guard instead of failing it. A guard that dies on a benign edit is worse
+    // than no guard, because the crash reads as a broken suite, not a finding.
+    let outDir: string | null = null;
+    try {
+      const raw = readFileSync('tsconfig.json', 'utf8').replace(/^\s*\/\/.*$/gm, '');
+      const d = (JSON.parse(raw).compilerOptions ?? {}).outDir;
+      if (typeof d === 'string') outDir = d.replace(/^\.\//, '').replace(/\/$/, '');
+    } catch { /* reported just below — never silently assumed */ }
+    if (outDir === null) {
+      bad('could not read compilerOptions.outDir from tsconfig.json — without it this guard '
+        + 'cannot tell a build output from an entrypoint missing from the image');
+    }
+
+    // COPY sources: every argument but the last (the destination), minus flags.
+    const copySources: string[] = [];
+    for (const line of dockerBody.split('\n')) {
+      const m = line.match(/^\s*COPY\s+(.+?)\s*$/);
+      if (!m) continue;
+      const parts = m[1]!.trim().split(/\s+/).filter((p) => !p.startsWith('--'));
+      if (parts.length >= 2) copySources.push(...parts.slice(0, -1));
+    }
+    const packagedBy = (p: string): string | null => {
+      for (const raw of copySources) {
+        const src = raw.replace(/^\.\//, '').replace(/\/$/, '');
+        if (src === p || p.startsWith(src + '/')) return raw;
+      }
+      return null;
+    };
+
+    // Entrypoints: the Dockerfile's CMD and every railway startCommand. A token
+    // is a path if it has an extension we execute — `node`, `npx` and `tsx` are
+    // not paths and must not be treated as missing files.
+    const isPath = (t: string) => /\.(js|cjs|mjs|ts)$/.test(t);
+    const entrypoints = new Map<string, string[]>();
+    const note = (p: string, where: string) => {
+      entrypoints.set(p, [...(entrypoints.get(p) ?? []), where]);
+    };
+    const cmdMatch = dockerBody.match(/^\s*CMD\s+(\[[^\]]*\])/m);
+    if (cmdMatch) {
+      try {
+        for (const tok of JSON.parse(cmdMatch[1]!) as string[]) {
+          if (isPath(tok)) note(tok.replace(/^\.\//, ''), 'Dockerfile CMD');
+        }
+      } catch { /* a non-JSON CMD is caught by section 9's shell-form rule */ }
+    }
+    for (const f of readdirSync('.').filter((x) => /^railway.*\.(json|toml)$/.test(x))) {
+      const m = readFileSync(f, 'utf8').match(/startCommand\s*"?\s*[:=]\s*"([^"]*)"/);
+      if (!m) continue;
+      for (const tok of m[1]!.trim().split(/\s+/)) {
+        if (isPath(tok)) note(tok.replace(/^\.\//, ''), `${f} startCommand`);
+      }
+    }
+
+    if (entrypoints.size === 0) {
+      bad('no runtime entrypoint could be read from the Dockerfile CMD or any railway '
+        + 'startCommand — this guard would pass vacuously, which is how the last one failed');
+    } else {
+      const missing: string[] = [];
+      for (const [p, where] of entrypoints) {
+        if (outDir !== null && (p === outDir || p.startsWith(outDir + '/'))) continue; // built by npm run build
+        if (!existsSync(p)) { missing.push(`${p} (${where.join(', ')}) — not in the repository`); continue; }
+        if (!packagedBy(p)) {
+          missing.push(`${p} (${where.join(', ')}) — in the repo but no COPY puts it in the image`);
+        }
+      }
+      if (missing.length === 0) {
+        ok(`all ${entrypoints.size} runtime entrypoints are packaged or built in-image `
+          + `(${[...entrypoints.keys()].join(', ')})`);
+      } else {
+        bad('a start command names a file the image will not contain — the container dies on '
+          + `MODULE_NOT_FOUND: ${missing.join(' | ')}`);
+      }
+    }
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES, ${passed} passed`} ════\n`);
   process.exit(failed ? 1 : 0);
 }
