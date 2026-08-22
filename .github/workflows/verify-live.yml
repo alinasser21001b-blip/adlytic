@@ -45,6 +45,10 @@ on:
         description: 'How many recent runtime log lines to scan for Gate-B evidence'
         required: false
         default: '2000'
+      diagnose_deployment_id:
+        description: 'Optional: classify the build failure of THIS deployment id (diagnostic only)'
+        required: false
+        default: ''
 
 # Never run two observations at once — interleaved output in a shared log is
 # worse than no output, because it reads as one coherent record.
@@ -429,6 +433,49 @@ jobs:
           jq -r '.data.deployments.edges[]?.node
                  | [.id[0:8], .status, .createdAt, ((.meta.commitHash // "")[0:7])] | @tsv' "$OUT" 2>/dev/null \
             | head -5 || echo "  (none)"
+
+      - name: Classify a failed build (READ-ONLY, diagnostic)
+        if: ${{ inputs.diagnose_deployment_id != '' }}
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          DEP: ${{ inputs.diagnose_deployment_id }}
+        run: |
+          set -uo pipefail
+          # Same rule as the Gate-A step: a build log is never printed. Here the
+          # reduction is to a CLOSED SET of failure signatures — the output can
+          # only ever be a name from the list below plus a count, so no build
+          # text, and therefore no value, can escape.
+          if [ -z "${RAILWAY_TOKEN:-}" ]; then echo "BUILD_FAILURE_CLASSIFY=NO_TOKEN"; exit 0; fi
+          HDR="$(mktemp)"; OUT="$(mktemp)"
+          printf 'Authorization: Bearer %s\n' "$RAILWAY_TOKEN" > "$HDR"
+          trap 'rm -f "$HDR" "$OUT"' EXIT
+          Q='query b($deploymentId: String!, $limit: Int) { buildLogs(deploymentId: $deploymentId, limit: $limit) { message } }'
+          curl -sS --max-time 60 -o "$OUT" -X POST "https://backboard.railway.app/graphql/v2" \
+            -H @"$HDR" -H "Content-Type: application/json" \
+            -d "$(jq -n --arg q "$Q" --arg d "$DEP" '{query:$q, variables:{deploymentId:$d, limit:3000}}')" || true
+          if jq -e '.errors' "$OUT" >/dev/null 2>&1; then
+            echo "BUILD_FAILURE_CLASSIFY=REJECTED — $(jq -r '[.errors[].message]|join("; ")' "$OUT" | head -c 200)"; exit 0; fi
+          jq -r '.data.buildLogs[]?.message // empty' "$OUT" > blog.txt || true
+          echo "BUILD_LOG_LINES=$(wc -l < blog.txt | tr -d ' ')"
+          echo "── matched failure signatures (names and counts only)"
+          hit=0
+          while IFS='|' read -r name pat; do
+            n=$(grep -acE "$pat" blog.txt 2>/dev/null || true); n=${n:-0}
+            if [ "$n" -gt 0 ]; then echo "  ${name}=${n}"; hit=1; fi
+          done <<'SIGS'
+          DOCKERFILE_PARSE|dockerfile parse error|unknown instruction|failed to read dockerfile
+          BUILDER_UNKNOWN|[Uu]nknown builder|builder not supported|invalid builder
+          BASE_IMAGE_PULL|manifest unknown|failed to resolve source metadata|pull access denied
+          APT_FAILED|E: Unable to locate package|apt-get.*Error|Could not resolve .deb.debian.org
+          NPM_FAILED|npm ERR!|npm error
+          TSC_FAILED|error TS[0-9]+
+          PRISMA_FAILED|Error: Prisma|prisma:error
+          OOM_OR_DISK|no space left on device|Killed|out of memory
+          EXECUTOR_FAILED|executor failed running|process .* did not complete successfully|failed to solve
+          TIMEOUT|context deadline exceeded|build timed out
+SIGS
+          [ "$hit" -eq 0 ] && echo "  (no known signature matched — the failure is outside this closed set)"
+          echo "BUILD_FAILURE_CLASSIFY=DONE"
 
       - name: What this run did and did not prove
         run: |
