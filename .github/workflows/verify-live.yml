@@ -1,0 +1,103 @@
+name: Verify live services
+
+# ════════════════════════════════════════════════════════════════════════
+#  READ-ONLY. This workflow observes; it never changes anything.
+#
+#  It exists because the close gates need live evidence — status, db, role,
+#  runsBackgroundSync, bullmq, build.commit — and the environment the release
+#  work happens in cannot reach Railway at all (403 CONNECT at the egress
+#  proxy). GitHub's runners can. So the runner reads /api/health and prints it,
+#  and the Actions log becomes the evidence record.
+#
+#  WHAT IT MUST NEVER DO, and what guards that:
+#    • no deploy, no migration, no Railway API call — asserted by
+#      test_deploy_gate.ts, which greps this file for backboard.railway.app
+#      and for the deploy script
+#    • no secret — GET /api/health is unauthenticated (see the middleware in
+#      src/api/server.ts), so this workflow declares no `secrets` and needs
+#      none. Nothing here can print a credential because nothing here has one.
+#
+#  A NON-200 IS EVIDENCE, NOT A BROKEN WORKFLOW. Every request uses
+#  `|| true` and the job does not fail on an unhealthy service. A red X here
+#  would say "the check is broken"; what we actually want recorded is
+#  "the service answered 503", which is a finding.
+# ════════════════════════════════════════════════════════════════════════
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Base URL of the production API service'
+        required: true
+        default: 'https://adlytic-production.up.railway.app'
+      validation_url:
+        description: 'Base URL of the brain-validation service (leave blank to skip)'
+        required: false
+        default: 'https://adlytic-brain-validation-production.up.railway.app'
+
+# Never run two observations at once — interleaved output in a shared log is
+# worse than no output, because it reads as one coherent record.
+concurrency:
+  group: adlytic-verify-live
+  cancel-in-progress: false
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Read /api/health on the production API
+        env:
+          BASE: ${{ inputs.api_url }}
+        run: |
+          echo "── GET ${BASE}/api/health"
+          code=$(curl -sS --max-time 30 -o body.json -w '%{http_code}' \
+            "${BASE}/api/health" || echo "000")
+          echo "HTTP ${code}"
+          # jq . is only a pretty-printer here; fall back to raw so a
+          # non-JSON error page is still shown rather than swallowed.
+          jq . body.json 2>/dev/null || cat body.json || true
+          echo ""
+          echo "── the fields the close gates actually ask for"
+          jq -r '
+            "status              = \(.status // "ABSENT")",
+            "db                  = \(.db // "ABSENT")",
+            "role                = \(.role // "ABSENT")",
+            "runsBackgroundSync  = \(.runsBackgroundSync // "ABSENT")",
+            "bullmq              = \(.bullmq // "ABSENT")",
+            "build.resolved      = \(.build.resolved // "ABSENT")",
+            "build.commit        = \(.build.commit // "ABSENT")",
+            "build.shortCommit   = \(.build.shortCommit // "ABSENT")",
+            "build.branch        = \(.build.branch // "ABSENT")"
+          ' body.json 2>/dev/null || echo "  (no JSON body to read fields from)"
+          echo ""
+          echo "NOTE: an ABSENT build object means the running artifact was not"
+          echo "built from a git source Railway injected a SHA for. Treat that"
+          echo "as WRONG SOURCE / OLD ARTIFACT until proven otherwise — never"
+          echo "as 'probably fine'."
+
+      - name: Read /api/health on the brain-validation service
+        if: ${{ inputs.validation_url != '' }}
+        env:
+          BASE: ${{ inputs.validation_url }}
+        run: |
+          echo "── GET ${BASE}/api/health"
+          code=$(curl -sS --max-time 30 -o vbody.json -w '%{http_code}' \
+            "${BASE}/api/health" || echo "000")
+          echo "HTTP ${code}"
+          jq . vbody.json 2>/dev/null || cat vbody.json || true
+          echo ""
+          echo "── the validation service must stay a READER"
+          jq -r '
+            "role                = \(.role // "ABSENT")        (must be: api)",
+            "runsBackgroundSync  = \(.runsBackgroundSync // "ABSENT")        (must be: false)",
+            "bullmq              = \(.bullmq // "ABSENT")        (must be: disabled)",
+            "build.shortCommit   = \(.build.shortCommit // "ABSENT")"
+          ' vbody.json 2>/dev/null || echo "  (no JSON body to read fields from)"
+
+      - name: What this run did and did not prove
+        run: |
+          echo "PROVEN : whatever each service reported above, at this moment."
+          echo "NOT PROVEN: that period facts exist. Those live behind"
+          echo "            /api/admin/brain-observatory/*, which is"
+          echo "            requirePlatformAdmin-gated and deliberately not"
+          echo "            reachable from an unauthenticated CI job."

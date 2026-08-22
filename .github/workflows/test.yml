@@ -47,6 +47,8 @@ on:
       - 'nixpacks.toml'       #   ""
       - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
       - '.github/workflows/test.yml'
+      - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
+      - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
   push:
     branches:
       - claude/brain-admin-v2-integration
@@ -70,6 +72,8 @@ on:
       - 'nixpacks.toml'       #   ""
       - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
       - '.github/workflows/test.yml'
+      - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
+      - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
 
 # A newer push supersedes an in-flight run for the same ref.
 concurrency:

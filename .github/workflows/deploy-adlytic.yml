@@ -1,6 +1,14 @@
 name: Deploy adlytic production
 
 on:
+  # Without this, there is no way to deploy at all except the Railway UI: the
+  # push trigger below only fires when a commit touches one of the watched
+  # paths, so a release whose diff is documentation, CI or tests — exactly the
+  # shape of the close-code governance commits — merges to main and ships
+  # nothing. Dispatch does not widen what gets deployed: railway-deploy.sh
+  # sends latestCommit=true, so Railway still builds the tip of the branch the
+  # service tracks. It only lets a human say "ship the current tip now".
+  workflow_dispatch:
   push:
     branches: [main]
     paths:
