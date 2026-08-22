@@ -51,6 +51,7 @@ on:
       - '.github/workflows/test.yml'
       - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
       - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
+      - '.github/workflows/runtime-config.yml'   # test_deploy_gate reads it
       - 'tools/**'                              # test_admin_acceptance imports its SCENARIOS from here
   push:
     branches:
@@ -80,6 +81,7 @@ on:
       - '.github/workflows/test.yml'
       - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
       - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
+      - '.github/workflows/runtime-config.yml'   # test_deploy_gate reads it
       - 'tools/**'                              # test_admin_acceptance imports its SCENARIOS from here
 
 # A newer push supersedes an in-flight run for the same ref.
