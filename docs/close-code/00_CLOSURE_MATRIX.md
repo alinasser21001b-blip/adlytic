@@ -56,13 +56,20 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 45 | `recommend.ts` ungoverned actions | `recommend.ts::templateFor` | matrix, doc 03 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 46 | **Gate A — Nixpacks build-secret exposure** | Railway config | doc 07 | **OPEN_CLOSE_BLOCKER** | NO | YES |
 | 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **OPEN_CLOSE_BLOCKER** | NO | YES |
-| 48 | **Gate C — CI workflow able to run the suite** | `.github/workflows` | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | YES |
+| 48 | **Gate C — CI workflow able to run the suite** | `.github/workflows/test.yml` | doc 15, CI run `32572081116` | **CLOSED_PROVEN** | YES | YES |
 | 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | NO |
 
-**Remaining gates: 4** (items 46–49) — three operational, one repository
-governance. They surround **one completed application-behaviour candidate**
-(`4fc27c2`) and are not architectural defects. Everything else is closed or
-classified as non-blocking debt with a named reopening trigger in doc 13.
+**Remaining gates: 3** (items 46, 47, 49) — all operational. Item 48, the one
+repository-governance gate, is closed: `.github/workflows/test.yml` runs the
+full suite on `pull_request` and on pushes to the branch, and CI run
+`32572081116` is green on `0dbd60b`.
 
-`APPLICATION_BEHAVIOR_CLOSE_COMPLETE=YES` · `REPOSITORY_RELEASE_GATE_COMPLETE=NO`
+The gates surround **one completed application-behaviour candidate**
+(`4fc27c2`) and are not architectural defects. The final *repository*
+candidate is `0dbd60b`; the diff between the two over `src/`, `prisma/`,
+`package.json`, `package-lock.json` and `tsconfig.json` is empty. Everything
+else is closed or classified as non-blocking debt with a named reopening
+trigger in doc 13.
+
+`APPLICATION_BEHAVIOR_CLOSE_COMPLETE=YES` · `REPOSITORY_RELEASE_GATE_COMPLETE=YES`
 · `OPERATIONAL_CLOSE_COMPLETE=NO`

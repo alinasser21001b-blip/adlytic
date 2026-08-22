@@ -9,21 +9,26 @@ secret-exposure risk while doc 15 declared `SECURITY_GAPS = 0`.
 
 # Part 1 — Open close gates (NOT debt)
 
-Four gates remain around one completed application-behaviour candidate. They
-are **not four architectural defects**; the code is done. Full detail in
-doc 15.
+Three gates remain around one completed application-behaviour candidate. They
+are **not architectural defects**; the code is done. Full detail in doc 15.
 
 | Gate | Class | State |
 |---|---|---|
 | **A. NIXPACKS_SECRET_GATE** | deployment / security operational | OPEN — doc 07 |
 | **B. PERIOD_TRUTH_LIVE_GATE** | data migration / live behaviour operational | OPEN — doc 07 |
-| **C. CI_GATE** | **repository governance** | BLOCKED_BY_ABSENCE — doc 15 |
+| **C. CI_GATE** | **repository governance** | **CLOSED** — doc 15 |
 | **D. FINAL_HEALTH_BUILD_GATE** | deployment / live verification | OPEN — doc 15 |
 
-Gate C is **inside the repository**, not an external operation: no workflow
-exists that can execute the test suite for `src/**` changes. Closing it
-requires one governance-only commit, which will change the final repository
-candidate SHA without changing application behaviour.
+Gate C was **inside the repository**, not an external operation: no workflow
+existed that could execute the test suite for `src/**` changes. It is now
+closed by `.github/workflows/test.yml`, green on `0dbd60b` in CI run
+`32572081116`. That took two governance-only commits, which changed the final
+repository candidate SHA (`4fc27c2` → `0dbd60b`) without changing application
+behaviour.
+
+The three that remain are **all operational**. None can be closed by a
+repository change, and none is reachable from the build environment — so the
+repository has now done everything it can do on its own.
 
 ---
 
