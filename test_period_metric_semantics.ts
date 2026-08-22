@@ -205,6 +205,80 @@ async function main() {
       'frequency 5.8 with a 2.0 baseline must register — otherwise the previous test proves nothing');
   });
 
+  console.log('\n── 4b. The daily-reach estimator is gone, and its removal is bounded ──');
+
+  check('differing cross-day overlap DOES distort the relative change — the estimator was unsafe', () => {
+    // This is the disproof of "the bias cancels across windows", and the
+    // reason max(daily reach) was removed rather than kept as a diagnostic.
+    // Both windows: 7 days x 10,000 impressions, and 10,000 reached per day.
+    // The ONLY difference is who those people are.
+    const IMP = 70_000, DAILY_REACH = 10_000;
+    const priorTrueReach = 70_000;   // a fresh audience daily — no overlap
+    const currentTrueReach = 10_000; // the same people daily — total overlap
+    const maxDaily = DAILY_REACH;    // identical in both windows
+
+    const trueChange = ((currentTrueReach / IMP) - (priorTrueReach / IMP)) / (priorTrueReach / IMP);
+    const estChange = ((maxDaily / IMP) - (maxDaily / IMP)) / (maxDaily / IMP);
+
+    assert.ok(trueChange < -0.85, 'the constructed case is a severe real collapse in reach ÷ impressions');
+    assert.equal(estChange, 0, 'max(daily reach) reports NO change for that same collapse');
+    // A break of that size reported as nothing at all: the estimator does not
+    // merely understate the change, it erases it.
+    assert.ok(Math.abs(estChange) < Math.abs(trueChange) / 100,
+      'the estimated change must be negligible against a real 85% collapse');
+    // And the mirror: overlap flipped the other way hides a large RISE too.
+    const mirrorTrue = ((70_000 / IMP) - (10_000 / IMP)) / (10_000 / IMP);
+    assert.ok(mirrorTrue > 5, 'the mirror case is a large real rise');
+    assert.equal(((maxDaily / IMP) - (maxDaily / IMP)) / (maxDaily / IMP), 0,
+      'which the estimator also reports as zero — it is blind in both directions');
+  });
+
+  await checkAsync('reach-dependent ratios go UNAVAILABLE, independent ones keep being judged', async () => {
+    // The smallest safe degradation. With period reach UNKNOWN:
+    //   reach ÷ impressions      → UNAVAILABLE (genuinely needs reach)
+    //   link clicks ÷ reach      → UNAVAILABLE (genuinely needs reach)
+    //   conversations ÷ clicks   → JUDGED (never needed reach)
+    const f = await run(makePrisma());
+    assert.equal(f!.windows.reachCur, null, 'the fixture must actually have UNKNOWN reach');
+    const stages = f!.funnel!.stages.current as any[];
+    const byKey = (k: string) => stages.find((x) => x.stageKey === k);
+    assert.equal(byKey('impressions').status, 'OK', 'the entry stage never depended on reach');
+    assert.equal(byKey('reach').status, 'UNAVAILABLE');
+    assert.equal(byKey('reach').reason, 'UNKNOWN', 'absent, not "too small a sample"');
+    assert.equal(byKey('link_clicks').status, 'UNAVAILABLE', 'its ratio divides by reach');
+    assert.equal(byKey('link_clicks').count, 6_300, 'but its own count is real and still travels');
+    assert.equal(byKey('conversations').status, 'OK',
+      'the conversion ratio never touched reach — disabling it would be collateral damage');
+    // And the diagnosis still forms from that independent signal.
+    assert.equal(f!.funnel!.problemClass, 'POST_CLICK');
+    assert.equal(f!.funnel!.status, 'BREAK_FOUND');
+  });
+
+  await checkAsync('UNKNOWN reach cannot invent a reach break', async () => {
+    // The failure mode the estimator had: manufacturing a reach-stage verdict.
+    const f = await run(makePrisma());
+    assert.notEqual(f!.funnel!.degradedStage, 'reach',
+      'a stage whose input is unknown must never be named as the break');
+    const reachRatio = (f!.funnel!.ratios as any[]).find((r) => r.stageKey === 'reach');
+    assert.equal(reachRatio.judgeable, false, 'an unknown reach ratio is not judgeable');
+    assert.equal(reachRatio.material, false, 'and therefore never material');
+  });
+
+  await checkAsync('with Meta period reach present, the reach stage IS judged again', async () => {
+    // Non-vacuous counterpart: the stages above are unavailable because reach
+    // is unknown, not because the reach stage is broken.
+    const f = await run(makePrisma({
+      [CUR]: { reach: 60_000, frequency: 5.8 },
+      [PRI]: { reach: 118_000, frequency: 2.0 },
+    }));
+    const stages = f!.funnel!.stages.current as any[];
+    const reach = stages.find((x) => x.stageKey === 'reach');
+    assert.equal(reach.status, 'OK', "Meta's period reach makes the stage judgeable");
+    assert.equal(reach.count, 60_000);
+    assert.ok(stages.find((x) => x.stageKey === 'link_clicks').status === 'OK',
+      'and the ratio that divides by reach comes back too');
+  });
+
   console.log('\n── 5. Source-level: no daily-derived period metric survives ──');
 
   check('entityIntelligence derives neither reach nor frequency from daily rows', () => {

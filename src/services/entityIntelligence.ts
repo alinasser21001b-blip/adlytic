@@ -137,7 +137,7 @@ export async function buildEntityFunnel(
   if (rows.length === 0) return null;
 
   const zero = (): FunnelWindowTotals => ({
-    impressions: 0, reach: 0, linkClicks: 0, landingPageViews: 0,
+    impressions: 0, reach: null, linkClicks: 0, landingPageViews: 0,
     messages: 0, leads: 0, purchases: 0, clicks: 0,
   });
   const cur = zero(), pri = zero();
@@ -158,18 +158,15 @@ export async function buildEntityFunnel(
     if (r.cpm != null && imp > 0) acc.cpm += r.cpm * imp;
     if (r.cpc != null && imp > 0) acc.cpc += r.cpc * imp;
     t.impressions += Number(r.impressions);
-    // ── TWO DIFFERENT QUANTITIES, deliberately not merged ────────────────
-    // This is `max(daily reach)`: a LOWER BOUND, used ONLY as the funnel's
-    // internal denominator for CHANGE detection. Both windows use the same
-    // estimator, so the bias largely cancels when comparing current vs prior
-    // — which is all diagnoseFunnel asks of it, and why the stage already
-    // declares confidenceLevel 'estimated'.
-    //
-    // It is NOT the period reach. The claimed period value is `reachCur` /
-    // `reachPri` below, which comes from META_PERIOD_FACT or is UNKNOWN.
-    // Feeding a lower bound to an ABSOLUTE threshold is the thing that must
-    // never happen — see the frequency note there.
-    t.reach = Math.max(t.reach, Number(r.reach));
+    // Reach is NOT accumulated from daily rows in any form. `max(daily)` was
+    // removed after an adversarial test disproved the claim that its bias
+    // cancels across windows: with identical impressions and identical daily
+    // reach, a current window of total audience overlap against a prior window
+    // of none makes TRUE reach ÷ impressions fall 85.7% while the estimator
+    // reports 0% change. Cross-day overlap differs between windows, so the
+    // estimator can mask a real break and invent an absent one — it is not
+    // decision-safe even for relative comparison. The funnel's reach comes
+    // from META_PERIOD_FACT below, or the reach-dependent ratios go UNKNOWN.
     t.linkClicks += Number(r.linkClicks);
     t.landingPageViews += Number(r.landingPageViews);
     t.messages += Number(r.messages);
@@ -180,6 +177,26 @@ export async function buildEntityFunnel(
     else { spendPri += Number(r.spend); revPri += Number(r.revenueMinor); }
   }
 
+  // ── META PERIOD FACTS — reach and frequency, or UNKNOWN ───────────────
+  // Read from storage on an EXACT (entity, span) match; the sync is the only
+  // writer. A miss means Meta never answered for this exact window, and the
+  // answer is UNKNOWN — never max(daily reach), never sum(daily reach), never
+  // average(daily frequency), never impressions ÷ max(daily reach).
+  //
+  // Frequency is the reason this matters. It feeds ABSOLUTE thresholds
+  // (FREQUENCY_WATCH 3.0 / FREQUENCY_SATURATED 4.0), so there is no
+  // current-vs-prior comparison to cancel an estimator's bias. The previous
+  // flat mean of daily frequencies sat well below the true period figure — a
+  // person reached on five days counts once in period reach but washes out of
+  // a daily mean — so fatigue was under-detected by construction. An UNKNOWN
+  // that withholds is correct; a plausible number that under-fires is not.
+  const [periodCur, periodPri] = await Promise.all([
+    readPeriodFact(prisma, entityType, entityId, currentSince, currentUntil),
+    readPeriodFact(prisma, entityType, entityId, priorSince, priorUntil),
+  ]);
+  const periodFactSource: 'META_PERIOD_FACT' | 'UNAVAILABLE' =
+    periodCur || periodPri ? 'META_PERIOD_FACT' : 'UNAVAILABLE';
+
   // Supporting signals (NOT funnel stages): spend and cost per result.
   const resultCur = cur[resultKey as keyof FunnelWindowTotals] as number;
   const resultPri = pri[resultKey as keyof FunnelWindowTotals] as number;
@@ -189,6 +206,12 @@ export async function buildEntityFunnel(
     costPerResultCurrentMinor: resultCur > 0 ? spendCur / resultCur : null,
     costPerResultPriorMinor: resultPri > 0 ? spendPri / resultPri : null,
   };
+
+  // The funnel's reach IS the Meta period value, or null. Null makes
+  // reach ÷ impressions and link clicks ÷ reach UNAVAILABLE while leaving the
+  // downstream conversion ratio — which never depended on reach — judgeable.
+  cur.reach = periodCur?.reach ?? null;
+  pri.reach = periodPri?.reach ?? null;
 
   const funnel = diagnoseFunnel(family, cur, pri, signals);
 
@@ -213,26 +236,6 @@ export async function buildEntityFunnel(
   }
   for (const r of rows) daysInSpan.delete(r.date.toISOString().slice(0, 10));
   const dataConfidence: DataConfidence = daysInSpan.size === 0 ? 'COMPLETE' : 'PARTIAL';
-
-  // ── META PERIOD FACTS — reach and frequency, or UNKNOWN ───────────────
-  // Read from storage on an EXACT (entity, span) match; the sync is the only
-  // writer. A miss means Meta never answered for this exact window, and the
-  // answer is UNKNOWN — never max(daily reach), never sum(daily reach), never
-  // average(daily frequency), never impressions ÷ max(daily reach).
-  //
-  // Frequency is the reason this matters. It feeds ABSOLUTE thresholds
-  // (FREQUENCY_WATCH 3.0 / FREQUENCY_SATURATED 4.0), so there is no
-  // current-vs-prior comparison to cancel an estimator's bias. The previous
-  // flat mean of daily frequencies sat well below the true period figure — a
-  // person reached on five days counts once in period reach but washes out of
-  // a daily mean — so fatigue was under-detected by construction. An UNKNOWN
-  // that withholds is correct; a plausible number that under-fires is not.
-  const [periodCur, periodPri] = await Promise.all([
-    readPeriodFact(prisma, entityType, entityId, currentSince, currentUntil),
-    readPeriodFact(prisma, entityType, entityId, priorSince, priorUntil),
-  ]);
-  const periodFactSource: 'META_PERIOD_FACT' | 'UNAVAILABLE' =
-    periodCur || periodPri ? 'META_PERIOD_FACT' : 'UNAVAILABLE';
 
   const wavg = (a: typeof rate.cur, key: 'ctr' | 'cpm' | 'cpc') =>
     a.imp > 0 ? +(a[key] / a.imp).toFixed(4) : null;

@@ -37,6 +37,7 @@ import {
   terminalFloor,
   type ComputedFunnel,
   type FunnelWindowTotals,
+  type FunnelStageValue,
 } from './compute';
 
 // ── Material-degradation policy ─────────────────────────────────────────
@@ -154,6 +155,28 @@ const pct = (x: number) => `${(Math.abs(x) * 100).toFixed(1)}%`;
  *
  * Returns null only for an unresolvable purpose (rule 3: no shape, no guess).
  */
+/**
+ * The count a previous stage contributes as THIS stage's denominator.
+ *
+ * An UNAVAILABLE stage still carries a real measured count — only its own
+ * RATIO was gated. Which gate matters:
+ *
+ *   UNKNOWN           the previous stage's count was unknown (Meta period
+ *                     reach missing), so this stage's ratio could not be
+ *                     formed. This stage's own count is a fully measured
+ *                     counter, so the stage AFTER it can legitimately divide
+ *                     by it. Returning 0 here would disable a conversion
+ *                     ratio that never depended on reach at all.
+ *
+ *   INSUFFICIENT_DATA the sample itself was too thin. That gap is meant to
+ *                     propagate downstream, so this keeps returning 0 and no
+ *                     existing diagnosis changes.
+ */
+function denominatorOf(stage: FunnelStageValue): number {
+  if (stage.status === 'OK') return stage.count;
+  return stage.reason === 'UNKNOWN' ? (stage.count ?? 0) : 0;
+}
+
 export function diagnoseFunnel(
   family: ObjectiveKpiFamily | null | undefined,
   currentTotals: FunnelWindowTotals,
@@ -208,8 +231,8 @@ export function diagnoseFunnel(
       : judgeMateriality({
           currentRatio: curRatio,
           priorRatio: priRatio,
-          currentDenominator: curPrev.status === 'OK' ? curPrev.count : 0,
-          priorDenominator: priPrev.status === 'OK' ? priPrev.count : 0,
+          currentDenominator: denominatorOf(curPrev),
+          priorDenominator: denominatorOf(priPrev),
           minDenominator: def.minDenominatorForRatio,
         });
 
