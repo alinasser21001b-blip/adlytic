@@ -21,7 +21,7 @@
 //  "Accepted" is everything Railway can answer that is not an acceptance.
 // ════════════════════════════════════════════════════════════════════════
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, chmodSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, writeFileSync, chmodSync, readFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -236,6 +236,9 @@ function main() {
       'package-lock.json', 'tsconfig*.json', 'docs/**', 'README.md',
       'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF,
       WORKFLOW, '.github/workflows/verify-live.yml',
+      // Section 8 below reads both: the Dockerfile IS the build's secret
+      // boundary now, and .dockerignore decides what reaches the context.
+      'Dockerfile', '.dockerignore',
       // test_admin_acceptance.ts imports SCENARIOS from
       // ./tools/admin-acceptance/fixtures.mjs, so that directory decides what
       // the acceptance suite asserts. It arrived with the Control Plane merge
@@ -333,6 +336,73 @@ function main() {
 
       if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
       else bad('verify-live.yml is not dispatch-only — an observation job must not self-trigger');
+    }
+  }
+
+  console.log('\n── 8. the build cannot see a secret ──');
+  {
+    // Railway's build log for 094a37b carried 16 SecretsUsedInArgOrEnv
+    // warnings over 8 credentials, because Nixpacks generates `ARG X` +
+    // `ENV X=$X` for every service variable. ENV persists into the image
+    // configuration, so the VALUES ship inside the image. The repo now owns
+    // the Dockerfile, and the property that closes the hole is that it
+    // declares no ARG — Docker forwards a build argument only to a Dockerfile
+    // that asked for it. That property is what these assertions hold.
+    const DOCKERFILE = 'Dockerfile';
+    if (!existsSync(DOCKERFILE)) {
+      bad('Dockerfile is missing — the railway configs name the DOCKERFILE builder');
+    } else {
+      const raw = readFileSync(DOCKERFILE, 'utf8');
+      const lines = raw.split('\n')
+        .map((l) => l.trim())
+        .filter((l) => l && !l.startsWith('#'));
+
+      const args = lines.filter((l) => /^ARG\s/i.test(l));
+      if (args.length === 0) ok('the Dockerfile declares no ARG — no build argument can reach the build');
+      else bad(`the Dockerfile declares ARG (${args.join(' | ')}) — an undeclared build arg is `
+        + 'inert, a declared one is not. This is how the secrets got into the image.');
+
+      // ENV is legitimate for configuration and fatal for a credential, so it
+      // is judged by NAME rather than banned. The list is the eight Railway's
+      // own build log flagged, plus the shapes a new one would take.
+      const SECRET_SHAPES = /(SECRET|TOKEN|PASSWORD|PRIVATE_KEY|_KEY|CREDENTIAL|DATABASE_URL|REDIS_URL|DSN)/i;
+      const envNames = lines
+        .filter((l) => /^ENV\s/i.test(l))
+        .map((l) => l.replace(/^ENV\s+/i, '').split(/[\s=]/)[0] ?? '');
+      const secretEnv = envNames.filter((n) => SECRET_SHAPES.test(n));
+      if (secretEnv.length === 0) {
+        ok(`the Dockerfile bakes no credential into the image config (ENV: ${envNames.join(', ') || 'none'})`);
+      } else {
+        bad(`the Dockerfile writes credential-shaped ENV into the image config: ${secretEnv.join(', ')}`);
+      }
+
+      // NODE_ENV is not decoration. config.ts computes IS_PRODUCTION from a
+      // value that DEFAULTS to 'development', so an image that does not set it
+      // downgrades the prod-fatal TOKEN_ENCRYPTION_KEY check to a warning.
+      // Nixpacks used to supply it; a plain node base image does not.
+      if (envNames.includes('NODE_ENV')) ok('the image sets NODE_ENV — the prod-fatal config checks stay armed');
+      else bad('the Dockerfile does not set NODE_ENV; config.ts would default to development and fail open');
+
+      // .env must never enter the build context, whatever the builder.
+      const di = readFileSync('.dockerignore', 'utf8');
+      if (/^\.env$/m.test(di) && /^\.env\.\*$/m.test(di)) ok('.dockerignore keeps .env out of the build context');
+      else bad('.dockerignore no longer excludes .env — a local credential file would be copied into the image');
+    }
+
+    // A silent revert to Nixpacks would restore the exposure with no other
+    // visible change, so every service config is checked, not just the
+    // production one.
+    const railwayConfigs = readdirSync('.')
+      .filter((f) => /^railway.*\.(json|toml)$/.test(f));
+    // `builder"?` matters: JSON writes `"builder": "NIXPACKS"` and TOML writes
+    // `builder = "NIXPACKS"`. A pattern that only allowed the TOML form passed
+    // happily over a JSON revert — caught when the negative test for this very
+    // assertion planted one and nothing fired.
+    const stillNixpacks = railwayConfigs.filter((f) => /builder"?\s*[:=]\s*"NIXPACKS"/.test(readFileSync(f, 'utf8')));
+    if (stillNixpacks.length === 0) {
+      ok(`all ${railwayConfigs.length} railway configs build from the repo's own Dockerfile`);
+    } else {
+      bad(`these still name the NIXPACKS builder, which puts secrets in the image: ${stillNixpacks.join(', ')}`);
     }
   }
 

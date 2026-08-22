@@ -45,6 +45,8 @@ on:
       - 'railway*.toml'       #   ""
       - 'railway.setup.txt'   #   ""
       - 'nixpacks.toml'       #   ""
+      - 'Dockerfile'          # test_deploy_gate reads it — it is the build's secret boundary
+      - '.dockerignore'       #   "" (what reaches the build context)
       - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
       - '.github/workflows/test.yml'
       - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
@@ -72,6 +74,8 @@ on:
       - 'railway*.toml'       #   ""
       - 'railway.setup.txt'   #   ""
       - 'nixpacks.toml'       #   ""
+      - 'Dockerfile'          # test_deploy_gate reads it — it is the build's secret boundary
+      - '.dockerignore'       #   "" (what reaches the build context)
       - '.deploy/**'          # test_deploy_gate reads railway-deploy.sh
       - '.github/workflows/test.yml'
       - '.github/workflows/deploy-adlytic.yml'   # test_deploy_gate reads it
