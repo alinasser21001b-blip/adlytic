@@ -6,8 +6,8 @@ TOKEN_URL_RISK           = CLOSED (one call site fixed — see doc 06)
 VALIDATION_MIGRATION_RISK = CLOSED
 BUILD_IDENTITY_SAFE      = YES
 SERVICE_ROLE_SAFE        = YES
-SECURITY_GAPS            = 0
-NIXPACKS_BUILD_SECRET_PROPAGATION_RISK = REQUIRES_DEPLOYMENT_CONFIG_CHANGE
+SECURITY_GAPS            = 0 in repository code; 1 operational gate OPEN
+NIXPACKS_SECRET_GATE     = OPEN   ← see gate A below
 ```
 
 ## Secrets at HEAD
@@ -105,32 +105,99 @@ permanently unreachable.
 3. Leave the table in place. Dropping it is unnecessary (nothing else
    references it) and a `DROP` is the one destructive step in this whole plan.
 
-## PERIOD_TRUTH_LIVE_VALIDATION_PREREQUISITES
+## GATE B — PERIOD_TRUTH_LIVE_GATE (DATA MIGRATION / LIVE BEHAVIOUR OPERATIONAL GATE)
 
-**A validation-service deploy alone cannot validate period metrics.** The
-validation service is `SERVICE_ROLE=api` with no migration and no background
-sync — it is structurally a reader. To validate period truth live you need:
+```
+PERIOD_TRUTH_LIVE_GATE = OPEN
+```
 
-1. the migration applied to the shared database;
-2. a **worker** (not the validation API) to have completed at least one sync
-   pass, populating the current and prior windows;
-3. only then a read through the Observatory, whose reach and frequency will
-   otherwise correctly show UNKNOWN.
+**A validation-service deploy alone cannot validate period metrics.** That
+service is `SERVICE_ROLE=api` with no migration and no background sync — it is
+structurally a reader. Period truth needs the migration applied **and a worker
+pass**.
 
-Until (1) and (2), UNKNOWN is the **correct** live result and must not be read
-as a defect.
+### Evidence ladder — what must be true at each step
 
-## NIXPACKS_BUILD_SECRET_PROPAGATION_RISK
+| Step | Required evidence |
+|---|---|
+| 1. Migration | `MIGRATION_APPLIED=`, `PERIOD_INSIGHT_TABLE_PRESENT=` |
+| 2. Worker deployed | `WORKER_BUILD=` (the final repository candidate), `WORKER_ROLE=` ∈ {`worker`, `combined`} |
+| 3. Worker pass | `WORKER_SYNC_COMPLETED=`, plus the `[period-insights] n/m stored` log line |
+| 4. Population | `CURRENT_WINDOW_PERIOD_FACT_PRESENT=`, `PRIOR_WINDOW_PERIOD_FACT_PRESENT=`, `PERIOD_REACH_PROVENANCE=META_PERIOD_FACT` |
+| 5. Reader deployed | `API_BUILD=`, `VALIDATION_BUILD=` |
+| 6. Read | `OBSERVATORY_PERIOD_TRUTH_READABLE=` |
+
+```
+PERIOD_FREQUENCY_PROVENANCE = META_PERIOD_FACT | UNKNOWN
+```
+
+### How to read the result honestly
+
+**UNKNOWN frequency may be entirely legitimate.** Meta omitting a frequency
+for a span is a valid outcome, and the code deliberately does not derive one
+from period impressions ÷ reach (see doc 02). A null frequency is therefore
+**not** evidence of failure.
+
+**But absence everywhere is.** If both period windows remain entirely absent
+after a confirmed successful worker pass, the write/read path did **not** work
+and the gate is NOT validated. The minimum proof that the new path functions
+end to end is **reach populated for both windows carrying
+`META_PERIOD_FACT` provenance**.
+
+Until steps 1 and 2 complete, UNKNOWN is the **correct** live result across the
+board and must not be read as a defect.
+
+## GATE A — NIXPACKS_SECRET_GATE (DEPLOYMENT / SECURITY OPERATIONAL GATE)
+
+```
+NIXPACKS_SECRET_GATE = OPEN
+```
+
+**This is a close gate, not debt.** Doc 15 previously declared
+`SECURITY_GAPS = 0` while this same document recorded that `JWT_SECRET` and
+`TOKEN_ENCRYPTION_KEY` may be baked into generated image layers. Both cannot
+be true. Debt is what ships unfixed; a gate is what must pass first. This is a
+gate.
+
+### Where it comes from
 
 **Generated Railway/Nixpacks behaviour, not repository behaviour.** No
 `Dockerfile`, no `ARG`/`ENV` in `nixpacks.toml`, no build env in any railway
-config; `JWT_SECRET` and `TOKEN_ENCRYPTION_KEY` are read at runtime only via
-`env()` in `src/config.ts`. Railway injects all service variables into the
-build environment by default and Nixpacks' generated Dockerfile emits `ENV`
-lines that BuildKit then lints as `SecretsUsedInArgOrEnv`.
+config; both values are read at runtime only via `env()` in `src/config.ts`.
+Railway injects all service variables into the build environment by default,
+and Nixpacks' generated Dockerfile emits `ENV` lines that BuildKit lints as
+`SecretsUsedInArgOrEnv`. No repository change would fix it, and none was made.
 
-Exposure: the values are baked into image layers readable by anyone with image
-access. Classification: `REQUIRES_DEPLOYMENT_CONFIG_CHANGE` — remediation is a
-Railway-side setting excluding those variables from the build environment. No
-repository change would fix it, and none was made. No secret value has been
-printed at any point in this investigation.
+### Exposure
+
+The values are baked into image layers readable by anyone with image access.
+
+```
+REQUIRED_RAILWAY_CHANGE =
+  prevent JWT_SECRET and TOKEN_ENCRYPTION_KEY from being embedded into the
+  generated build image / build ARG / ENV path, while preserving them at
+  runtime
+
+SECRET_ROTATION_REQUIRED_IF =
+  the affected image layers, registry, or build output were accessible outside
+  the trusted team, OR the secret values were surfaced outside the intended
+  runtime boundary
+
+VERIFICATION_AFTER_CHANGE =
+  a fresh build emits no SecretsUsedInArgOrEnv warnings for these two
+  variables; runtime config still reports them present without printing their
+  values; and /api/health remains healthy
+```
+
+**The remediation mechanism is not proven.** Whether Railway exposes a setting
+to scope a variable to runtime only — and what it is called — has not been
+confirmed against Railway's own configuration surface, which is unreachable
+from this environment. The requirement above states the OUTCOME that must
+hold. If no such setting exists, the alternative is moving off Nixpacks'
+generated Dockerfile to one that never places these values in a layer. Do not
+record this gate as closed on the strength of a mechanism nobody has verified.
+
+Rotation is the containment; the config change only stops recurrence. If the
+`SECRET_ROTATION_REQUIRED_IF` condition holds, rotate first.
+
+No secret value has been printed at any point in this investigation.

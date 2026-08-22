@@ -54,7 +54,15 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 43 | Admin console page merge | `adminConsolePage` / `adminOsPage` | — | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 44 | Security & Audit admin section | — | `test_admin_os` §1 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 45 | `recommend.ts` ungoverned actions | `recommend.ts::templateFor` | matrix, doc 03 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
-| 46 | **Live validation** | Railway | — | **OPEN_CLOSE_BLOCKER** | NO | NO |
+| 46 | **Gate A — Nixpacks build-secret exposure** | Railway config | doc 07 | **OPEN_CLOSE_BLOCKER** | NO | YES |
+| 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **OPEN_CLOSE_BLOCKER** | NO | YES |
+| 48 | **Gate C — CI workflow able to run the suite** | `.github/workflows` | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | YES |
+| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN_CLOSE_BLOCKER** | NO | NO |
 
-**Close blockers: 1** (item 46). Everything else is closed or classified as
-non-blocking debt with a named reopening trigger in doc 13.
+**Remaining gates: 4** (items 46–49) — three operational, one repository
+governance. They surround **one completed application-behaviour candidate**
+(`4fc27c2`) and are not architectural defects. Everything else is closed or
+classified as non-blocking debt with a named reopening trigger in doc 13.
+
+`APPLICATION_BEHAVIOR_CLOSE_COMPLETE=YES` · `REPOSITORY_RELEASE_GATE_COMPLETE=NO`
+· `OPERATIONAL_CLOSE_COMPLETE=NO`
