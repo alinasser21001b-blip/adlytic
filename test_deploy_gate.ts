@@ -234,10 +234,47 @@ function main() {
     const covered = blocks[0] ?? [];
     const uncovered = ['src/**', 'prisma/**', 'test_*.ts', 'test_*.mjs', 'package.json',
       'package-lock.json', 'tsconfig*.json', 'docs/**', 'README.md',
-      'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF]
+      'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF,
+      WORKFLOW, '.github/workflows/verify-live.yml']
       .filter((r) => !covered.includes(r));
     if (uncovered.length === 0) ok('every path the suites read is covered by the test gate');
     else bad(`read by a suite but not covered by CI paths: ${uncovered.join(', ')}`);
+  }
+
+  // ── the deploy workflow must remain dispatchable ────────────────────────
+  // The push trigger only fires on the watched paths, so a release whose diff
+  // is docs/CI/tests merges to main and ships nothing — which is exactly what
+  // happened to the close-code governance commits. workflow_dispatch is the
+  // only thing that makes such a release deployable without the Railway UI.
+  console.log('\n── 6. the deploy workflow can still be dispatched ──');
+  {
+    const on = wf.slice(wf.indexOf('on:'), wf.indexOf('concurrency:'));
+    if (/^\s*workflow_dispatch:/m.test(on)) ok('deploy-adlytic.yml exposes workflow_dispatch');
+    else bad('deploy-adlytic.yml lost workflow_dispatch — a docs/CI-only release can no longer be shipped');
+  }
+
+  // ── the live-verification workflow observes and nothing more ────────────
+  console.log('\n── 7. verify-live.yml is read-only ──');
+  {
+    const VERIFY_WF = '.github/workflows/verify-live.yml';
+    if (!existsSync(VERIFY_WF)) bad(`${VERIFY_WF} is missing — the gates have no live evidence path`);
+    else {
+      const vf = readFileSync(VERIFY_WF, 'utf8');
+      // Comments legitimately NAME the things this file must not DO, so they
+      // are stripped before scanning. Same reasoning as the test-gate leak
+      // check: what matters is what the workflow does, not what it explains.
+      const body = vf.split('\n').map((l) => l.replace(/(^|\s)#.*$/, '')).join('\n');
+      const forbidden = ['backboard.railway.app', SCRIPT, 'migrate deploy', 'serviceInstanceDeploy'];
+      const found = forbidden.filter((f) => body.includes(f));
+      if (found.length === 0) ok('verify-live.yml deploys nothing, migrates nothing and calls no Railway API');
+      else bad(`verify-live.yml must not reference: ${found.join(', ')}`);
+
+      if (/secrets\./.test(body)) bad('verify-live.yml reads a secret — /api/health needs none');
+      else ok('verify-live.yml requires no secret');
+
+      if (/^on:\n\s+workflow_dispatch:/m.test(body)) ok('verify-live.yml runs only when a human asks');
+      else bad('verify-live.yml is not dispatch-only — an observation job must not self-trigger');
+    }
   }
 
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES, ${passed} passed`} ════\n`);
