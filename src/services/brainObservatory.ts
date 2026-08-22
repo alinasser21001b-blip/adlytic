@@ -239,20 +239,29 @@ export interface BrainObservatorySnapshot {
     /** Was the span inside a horizon the sync actually re-requests? */
     spanInsideBackfillHorizon: boolean | null;
     /**
-     * The pre-Mission-A value of the old single `dataStatus` field.
-     * DEPRECATED and NON-AUTHORITATIVE: it conflated presence, coverage and
-     * settlement into one word, which is how a 1-row window came to read as
-     * "COMPLETE". Kept only so existing readers do not break.
+     * `buildEntityFunnel().dataConfidence` — the coarse coverage gate the
+     * reconciler's DATA_VALIDITY layer actually consumes. Derived from stored
+     * calendar-day coverage of the inspected span, not asserted. COMPLETE only
+     * when every day in the span carries a row; PARTIAL otherwise.
+     *
+     * It is one axis, not a summary: read `temporalCoverage`, `settlement` and
+     * `freshness` for the others. This one deliberately says nothing about
+     * whether the absent days SHOULD have held data — see the basis.
      */
-    legacyDataStatus: string;
-    /** Why that value cannot be read as a measurement of this window. */
-    legacyDataStatusBasis: string;
+    dataConfidence: string;
+    /** How that value was derived, and the limit of what it claims. */
+    dataConfidenceBasis: string;
   };
   /** 1. META TRUTH — canonical metrics + the windows they were measured over. */
   metaTruth: {
     currentWindow: { since: string; until: string };
     priorWindow: { since: string; until: string };
-    /** @deprecated conflated; read `temporal` instead. */
+    /**
+     * The same derived coverage gate as `temporal.dataConfidence`, repeated
+     * here so a reader of META TRUTH alone sees how much of the span was
+     * measured. Not a separate judgement, and no longer the old conflated
+     * constant — `temporal` carries the per-day detail and the basis text.
+     */
     dataStatus: string;
     dailyRowsInWindow: number;
     facts: ObservatoryFact[];
@@ -883,15 +892,25 @@ export async function buildBrainObservatory(
       latestStoredDateAgeDays,
       backfillHorizonDays: CAMPAIGN_BACKFILL_DAYS,
       spanInsideBackfillHorizon,
-      legacyDataStatus: entityFunnel.dataConfidence,
-      legacyDataStatusBasis:
-        'NOT A MEASUREMENT. buildEntityFunnel returns this value as a hardcoded constant '
-        + '(entityIntelligence.ts: `dataConfidence: \'COMPLETE\' as DataConfidence`), justified '
-        + 'only by the window ending before Meta\'s attribution backfill. It is therefore '
-        + 'COMPLETE for every campaign with at least one row in the span \u2014 including a span '
-        + 'holding one row out of fourteen days. It says nothing about how many days were '
-        + 'measured. Read the axes above instead. Consequence worth knowing: the reconciler\'s '
-        + 'DATA_VALIDITY layer never sees MISSING or PARTIAL from this path.',
+      dataConfidence: entityFunnel.dataConfidence,
+      dataConfidenceBasis:
+        'MEASURED, not asserted. buildEntityFunnel derives this from the stored rows it '
+        + 'actually read (entityIntelligence.ts: it builds the set of calendar days in the '
+        + 'span, deletes each day a row exists for, and returns COMPLETE only when that set '
+        + 'empties \u2014 PARTIAL otherwise). So COMPLETE means every calendar day in the '
+        + 'inspected span carries a row, and PARTIAL means one or more days do not. It once '
+        + 'returned a fixed COMPLETE for every campaign holding any row at all; that is no '
+        + 'longer how it is produced, and the reconciler\'s DATA_VALIDITY layer does now see '
+        + 'PARTIAL from this path and caps confidence at MEDIUM when it does. '
+        + 'LIMIT OF THE CLAIM: PARTIAL does NOT assert those absent days should have '
+        + 'contained delivery. Meta\'s `time_increment=1` omits zero-delivery days entirely, '
+        + 'and Campaign persists no Meta start/stop time, so expected eligibility cannot '
+        + 'always be computed \u2014 see the expected-eligible basis above. PARTIAL says only '
+        + '"this window cannot be vouched for", which is true in every one of those cases. '
+        + 'This is one axis: completeness. SETTLEMENT is a separate axis and is reported '
+        + 'separately \u2014 a span can be fully settled and still PARTIAL, or COMPLETE and '
+        + 'unsettled. Read the per-day dates above for the detail this coarse gate '
+        + 'deliberately does not carry.',
     },
     metaTruth: {
       currentWindow: { since: iso(currentSince), until: iso(currentUntil) },
