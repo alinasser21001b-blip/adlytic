@@ -188,6 +188,58 @@ function main() {
     }
   }
 
+  // ── The pre-merge test gate ────────────────────────────────────────────
+  // Added because NO workflow ran the suite: deploy-adlytic.yml covers src/**
+  // but runs typecheck only, on push-to-main, and then deploys production —
+  // so CI evidence was fused to deployment and a PR triggered nothing.
+  {
+    const TEST_WF = '.github/workflows/test.yml';
+    const wf = readFileSync(join(__dirname, TEST_WF), 'utf8');
+
+    const missingStep = ['npm ci', 'npx prisma generate', 'npm run typecheck', 'npm run test:all']
+      .filter((step) => !wf.includes(step));
+    if (missingStep.length === 0) ok('the test gate runs install, generate, typecheck and the full suite');
+    else bad(`the test gate is missing: ${missingStep.join(', ')}`);
+
+    if (/pull_request:/.test(wf)) ok('the test gate runs on pull_request — before merge, not after');
+    else bad('the test gate does not run on pull_request');
+
+    if (/branches:\s*\n\s*- claude\/brain-admin-v2-integration/.test(wf)) {
+      ok('the test gate runs on pushes to the integration branch');
+    } else bad('the test gate does not run on integration-branch pushes');
+
+    // It is a test gate, not a deploy path, and it needs no secrets.
+    // Comments are stripped first: the path list is annotated with WHY each
+    // entry exists, and those annotations legitimately name the deploy script
+    // this very suite reads. What matters is what the workflow DOES.
+    const wfCode = wf.split('\n').map((l) => l.replace(/#.*$/, '')).join('\n');
+    const leaks = ['railway-deploy', 'RAILWAY_TOKEN', 'prisma migrate', 'secrets.']
+      .filter((f) => wfCode.includes(f));
+    if (leaks.length === 0) ok('the test gate deploys nothing, migrates nothing and needs no secret');
+    else bad(`the test gate must not reference: ${leaks.join(', ')}`);
+
+    // The two path lists are duplicated rather than shared through a YAML
+    // anchor, because GitHub Actions does not reliably expand anchors.
+    // Duplication is only safe if drift is caught, so it is caught here.
+    const blocks = [...wf.matchAll(/paths:\n((?:\s+- '[^']+'.*\n)+)/g)]
+      .map((m) => m[1]!.split('\n')
+        .map((l) => (/- '([^']+)'/.exec(l) ?? [])[1])
+        .filter(Boolean) as string[]);
+    if (blocks.length === 2 && JSON.stringify(blocks[0]) === JSON.stringify(blocks[1])) {
+      ok('the pull_request and push path lists are identical');
+    } else bad(`the trigger path lists have drifted (${blocks.length} list(s) found)`);
+
+    // Every path a suite actually reads must be covered, or a change to it
+    // merges with a green tick it never earned.
+    const covered = blocks[0] ?? [];
+    const uncovered = ['src/**', 'prisma/**', 'test_*.ts', 'test_*.mjs', 'package.json',
+      'package-lock.json', 'tsconfig*.json', 'docs/**', 'README.md',
+      'deploy_production.command', '.deploy/**', 'nixpacks.toml', TEST_WF]
+      .filter((r) => !covered.includes(r));
+    if (uncovered.length === 0) ok('every path the suites read is covered by the test gate');
+    else bad(`read by a suite but not covered by CI paths: ${uncovered.join(', ')}`);
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES, ${passed} passed`} ════\n`);
   process.exit(failed ? 1 : 0);
 }
