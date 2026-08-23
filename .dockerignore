@@ -65,6 +65,12 @@ review
 docs
 public/adspulse
 
+# The iOS client (Project Alpha). A separate Expo/React Native package with
+# its own package.json and lockfile; the server image builds none of it, so
+# letting it into the build context would only slow every production build.
+# Its release pipeline is mobile/eas.json, not this Dockerfile.
+mobile
+
 # ── Rendered/audit artefacts (regenerated on demand, never shipped) ─────
 .mobile-pages
 .desktop-shots
