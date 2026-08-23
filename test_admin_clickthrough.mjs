@@ -2,6 +2,7 @@
 // Renders each admin page, walks every tab, records pageerrors + dead views.
 import { chromium } from 'playwright';
 import { register } from 'node:module';
+import { existsSync } from 'node:fs';
 
 const { execSync } = await import('node:child_process');
 
@@ -28,7 +29,12 @@ const html = JSON.parse(execSync(
     };
     process.stdout.write(JSON.stringify(out));
   "`,
-  { cwd: '/home/user/adlytic', maxBuffer: 64 * 1024 * 1024 },
+  // Run from wherever the repository actually is. This was pinned to an
+  // absolute authoring path, so the suite could only pass on one machine:
+  // elsewhere the cwd does not exist and execSync fails before /bin/sh can
+  // start, which surfaces as "spawnSync /bin/sh ENOENT" and reads like a
+  // broken shell rather than a bad directory.
+  { cwd: process.cwd(), maxBuffer: 64 * 1024 * 1024 },
 ).toString());
 
 const STUBS = {
@@ -67,7 +73,17 @@ const STUBS = {
   },
 };
 
-const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+/**
+ * Let Playwright resolve its own browser, and use a preinstalled one only
+ * where that path genuinely exists. CI installs Chromium via
+ * `npx playwright install --with-deps chromium` and does not create
+ * /opt/pw-browsers/chromium, so an unconditional executablePath fails there.
+ */
+const launchOptions = existsSync('/opt/pw-browsers/chromium')
+  ? { executablePath: '/opt/pw-browsers/chromium' }
+  : {};
+
+const browser = await chromium.launch(launchOptions);
 let failures = 0;
 const report = [];
 const ok = (m) => report.push(['ok', m]);
