@@ -213,6 +213,15 @@ import {
 } from '../services/entityIntelligence';
 import { permitAction } from '../analytics/intelligence/hierarchy';
 import { buildBrainObservatory } from '../services/brainObservatory';
+import { getCampaignWhy } from '../services/campaignWhy';
+import {
+  channelFromStatePayload,
+  mobileOAuthErrorUrl,
+  mobileOAuthReturnUrl,
+  parseClientChannel,
+  type MobileClientChannel,
+  type OAuthStatePayload,
+} from '../lib/mobileClient';
 import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
@@ -965,14 +974,29 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     workspaceId: string;
     userId:      string;
     kind:        'legacy' | 'system_user';
+    /**
+     * Which CLIENT started this handshake. Recorded so the callback can hand
+     * control back the way the caller can actually receive it — a browser
+     * follows an https redirect, an iOS app does not.
+     *
+     * Stored in `oauth_states.payload`, the column the schema already
+     * declares "reserved for future per-flow data". Deliberately NOT folded
+     * into `kind`: kind names the Meta FLOW (legacy vs system_user) and these
+     * two axes vary independently. Two meanings in one column is how a
+     * migration gets needed later.
+     */
+    client?:     MobileClientChannel | null;
   }): Promise<string> {
     const state = (await import('node:crypto')).randomBytes(32).toString('hex');
+    const payload: OAuthStatePayload | undefined =
+      params.client ? { client: params.client } : undefined;
     await prisma.oAuthState.create({
       data: {
         state,
         workspaceId: params.workspaceId,
         userId:      params.userId,
         kind:        params.kind,
+        ...(payload ? { payload } : {}),
         expiresAt:   new Date(Date.now() + OAUTH_STATE_TTL_MS),
       },
     });
@@ -986,14 +1010,38 @@ export function buildRoutes(prisma: PrismaClient): Hono {
    * Look up a state row and delete it (one-time use). Returns the stored
    * workspace/user/kind, or null when the state is unknown or expired.
    */
-  async function consumeOAuthState(state: string): Promise<{ workspaceId: string; userId: string; kind: string } | null> {
+  async function consumeOAuthState(state: string): Promise<
+    { workspaceId: string; userId: string; kind: string; client: MobileClientChannel | null } | null
+  > {
     const row = await prisma.oAuthState.findUnique({ where: { state } });
     if (!row) return null;
     // One-time use: delete regardless of expiry so a replay can't reuse it.
     await prisma.oAuthState.delete({ where: { state } })
       .catch((err: unknown) => console.warn('[adlytic:meta-oauth] oauth_state delete failed:', err));
     if (row.expiresAt < new Date()) return null;
-    return { workspaceId: row.workspaceId, userId: row.userId, kind: row.kind };
+    return {
+      workspaceId: row.workspaceId,
+      userId:      row.userId,
+      kind:        row.kind,
+      client:      channelFromStatePayload(row.payload),
+    };
+  }
+
+  /**
+   * Where a FINISHED Meta handshake sends the caller.
+   *
+   * One function so the web path and the iOS path can never drift: both
+   * carry the same one-time session id, they differ only in how the caller
+   * is able to receive it. The iOS destinations are compiled-in constants
+   * (src/lib/mobileClient.ts) — the caller never names one.
+   */
+  function oauthReturnUrl(client: MobileClientChannel | null, sessionId: string): string {
+    return client === 'ios' ? mobileOAuthReturnUrl(sessionId) : `/meta/connect?session=${sessionId}`;
+  }
+
+  /** Where a FAILED Meta handshake sends the caller. Same rule as above. */
+  function oauthFailureUrl(client: MobileClientChannel | null, reason: string): string {
+    return client === 'ios' ? mobileOAuthErrorUrl(reason) : `/welcome?oauth_error=${encodeURIComponent(reason)}`;
   }
 
   // ════════════════════════════════════════════════════════════════════════
@@ -3575,6 +3623,57 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   /**
+   * GET /api/workspaces/:workspaceId/campaigns/:campaignId/why
+   *
+   * "Why does Adlytic say this?" — for the CUSTOMER.
+   *
+   * The same canonical snapshot /api/admin/graph/trace reads, projected down
+   * to what a merchant is entitled to see and localized from canonical codes
+   * (src/services/campaignWhy.ts). It decides nothing: no metric, no problem
+   * class, no confidence, no action. A layer the Brain never reached comes
+   * back NOT_REACHED, never back-filled.
+   *
+   * Customer-scoped, not admin-gated — so the tenancy proof is done TWICE and
+   * both are load-bearing:
+   *   1. checkMember() — the caller belongs to this workspace;
+   *   2. the campaign is re-read scoped to THIS workspace's ad account.
+   * The second is not belt-and-braces. buildBrainObservatory() resolves a
+   * campaign by id alone, so without it any member of any workspace could
+   * read any campaign's intelligence by guessing an id.
+   */
+  app.get('/api/workspaces/:workspaceId/campaigns/:campaignId/why', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
+    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+
+    const { account } = await getAccount(workspaceId);
+    if (!account) return c.json({ error: 'No ad account linked' }, 404);
+
+    const campaignId = req.params['campaignId'] ?? '';
+    // Tenancy proof #2 — see the header. Scoped to this workspace's account.
+    const owned = await prisma.campaign.findFirst({
+      where: { id: campaignId, adAccountId: account.id },
+      select: { id: true },
+    });
+    if (!owned) return c.json({ error: 'Not found' }, 404);
+
+    const why = await getCampaignWhy(prisma, campaignId);
+    if (!why) {
+      // Same honesty rule as the admin trace route: no measurable window means
+      // no chain, and a partial chain would read as a complete one.
+      return c.json({
+        error: 'NO_MEASURABLE_WINDOW',
+        reasonAr: 'لا توجد فترة قابلة للقياس لهذه الحملة بعد.',
+      }, 404);
+    }
+    return c.json(safeJson(why));
+  });
+
+  /**
    * GET /api/workspaces/:workspaceId/campaigns/:campaignId/inspector
    *
    * Deep-dive payload for the campaign inspector drawer. Returns three blocks:
@@ -5171,6 +5270,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
 
+    // Which client is asking. The caller names a CHANNEL, never a redirect
+    // target — see src/lib/mobileClient.ts for why that distinction is the
+    // whole security argument. Unknown values parse to null (= web), so a
+    // junk query string cannot change the flow.
+    const client = parseClientChannel(c.req.query('client'));
+
     // ── Mock-auth escape hatch ──────────────────────────────────────────
     // When META_MOCK_AUTH=true, bypass Facebook entirely: hand the UI a URL
     // that points back at our own mock-callback endpoint, which will
@@ -5179,7 +5284,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (isMockAuthEnabled()) {
       console.warn('[adlytic:meta-oauth] MOCK MODE — bypassing Facebook OAuth dialog');
       await pruneOAuthSessions();
-      const state = await createOAuthState({ workspaceId, userId, kind: 'legacy' });
+      const state = await createOAuthState({ workspaceId, userId, kind: 'legacy', client });
       return c.json({
         url: `/api/meta/oauth/mock-callback?state=${state}`,
         configured: true,
@@ -5236,6 +5341,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           });
           return c.json({
             url: `/meta/connect?session=${sessionId}`,
+            // Additive, and ignored by the web client: this path never opens
+            // a Meta dialog, so a native caller has nothing to open. Handing
+            // it the session id lets it go straight to account selection
+            // instead of parsing a web URL it cannot navigate to.
+            sessionId,
             configured: true,
             directToken: true,
           });
@@ -5328,7 +5438,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
               kind:        'system_user',
               connectionId,
             });
-            return c.json({ url: `/meta/connect?session=${sessionId}`, configured: true, systemUser: true });
+            // `sessionId` is additive — see the direct-token path above.
+            return c.json({ url: `/meta/connect?session=${sessionId}`, sessionId, configured: true, systemUser: true });
           }
         } catch (err: unknown) {
           // Never log token values. Keep only sanitized upstream error text.
@@ -5359,7 +5470,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       await pruneOAuthSessions();
       // `state` is persisted in the DB (oauth_states) with a short TTL so the
       // handshake survives redeploys / multi-instance deploys.
-      const state = await createOAuthState({ workspaceId, userId, kind: 'system_user' });
+      const state = await createOAuthState({ workspaceId, userId, kind: 'system_user', client });
       return c.json({ url: sysOauth.getBusinessLoginUrl(state, configId), configured: true, systemUser: true });
     }
 
@@ -5377,7 +5488,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
 
     await pruneOAuthSessions();
-    const state = await createOAuthState({ workspaceId, userId, kind: 'legacy' });
+    const state = await createOAuthState({ workspaceId, userId, kind: 'legacy', client });
 
     return c.json({ url: oauth.getAuthorizationUrl(state), configured: true });
   });
@@ -5399,6 +5510,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     await pruneOAuthSessions();
     const stored = await consumeOAuthState(state);
     if (!stored) {
+      // An unknown/expired state carries no channel, so none can be honoured.
       return c.redirect('/welcome?oauth_error=expired_state');
     }
 
@@ -5415,7 +5527,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     });
 
     console.warn('[adlytic:meta-oauth] MOCK MODE — synthesized session', sessionId);
-    return c.redirect(`/meta/connect?session=${sessionId}`);
+    // Honour the caller's channel here too, so the mock path exercises the
+    // SAME return mechanism the real one uses. A mock that returns differently
+    // from production is a mock that cannot prove the production path works.
+    return c.redirect(oauthReturnUrl(stored.client, sessionId));
   });
 
   /**
@@ -5430,18 +5545,25 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
     if (error) {
       const desc = c.req.query('error_description') ?? error;
-      return c.redirect(`/welcome?oauth_error=${encodeURIComponent(desc)}`);
+      // The user denied, or Meta refused. The handshake is over either way, so
+      // spend the one-time state token to learn which client is waiting —
+      // otherwise an iOS caller's auth session has nothing to close it.
+      const denied = state ? await consumeOAuthState(state) : null;
+      return c.redirect(oauthFailureUrl(denied?.client ?? null, desc));
     }
+    // No state means no channel is knowable. Web destination, and an iOS auth
+    // session ends on the user's own cancel — better than guessing a scheme.
     if (!code || !state) return c.redirect('/welcome?oauth_error=missing_params');
 
     await pruneOAuthSessions();
     const stored = await consumeOAuthState(state); // one-time use
     if (!stored) {
+      // An unknown/expired state carries no channel, so none can be honoured.
       return c.redirect('/welcome?oauth_error=expired_state');
     }
 
     const oauth = buildMetaOAuth();
-    if (!oauth) return c.redirect('/welcome?oauth_error=not_configured');
+    if (!oauth) return c.redirect(oauthFailureUrl(stored.client, 'not_configured'));
 
     // ── Phase 2: System User / FB Login for Business callback (flag-gated) ──
     // Active ONLY when META_SYSTEM_USER_ENABLED is true. Creates/updates the
@@ -5466,7 +5588,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         const grantedAccounts = resolved.accounts;
         if (grantedAccounts.length === 0) {
           console.error('[META_AUTH_FAILURE] system-user callback resolved 0 ad accounts');
-          return c.redirect('/welcome?oauth_error=no_ad_accounts_granted');
+          return c.redirect(oauthFailureUrl(stored.client, 'no_ad_accounts_granted'));
         }
         const connectionId = await upsertMetaConnection(prisma, {
           workspaceId:     stored.workspaceId,
@@ -5489,12 +5611,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
           kind:        'system_user',
           connectionId,
         });
-        return c.redirect(`/meta/connect?session=${sessionId}`);
+        return c.redirect(oauthReturnUrl(stored.client, sessionId));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error('[META_AUTH_FAILURE] system-user callback exception object:', e);
         console.error('[META_AUTH_FAILURE] system-user callback message:', msg);
-        return c.redirect(`/welcome?oauth_error=${encodeURIComponent(msg)}`);
+        return c.redirect(oauthFailureUrl(stored.client, msg));
       }
     }
 
@@ -5518,7 +5640,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         createdAt:    Date.now(),
       });
 
-      return c.redirect(`/meta/connect?session=${sessionId}`);
+      return c.redirect(oauthReturnUrl(stored.client, sessionId));
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       // Aggressive logging: full error object first (stack + cause), then a
@@ -5527,7 +5649,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       console.error('[META_AUTH_FAILURE] callback exception object:', e);
       console.error('[META_AUTH_FAILURE] callback message:', msg);
       console.error('[adlytic:meta-oauth]', msg);
-      return c.redirect(`/welcome?oauth_error=${encodeURIComponent(msg)}`);
+      return c.redirect(oauthFailureUrl(stored.client, msg));
     }
   });
 

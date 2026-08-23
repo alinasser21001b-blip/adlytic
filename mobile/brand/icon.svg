@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!--
+    Adlytic app icon — redrawn from public/icons/icon-192.svg's ascending-peak
+    mark in the CURRENT Adlytic Daylight palette (src/ui/tokens.ts). The old
+    SVG used the dark/gold system that tokens.ts's own header says Daylight
+    "replaces... rather than joining" — reusing it would be reusing an
+    abandoned identity, not the established one. Same glyph, current colors:
+    brand.base (#0E4034) ground, white mark, one signal-lime accent dot per
+    the design system's own "at most one per screen" allowance.
+    No alpha channel (App Store icon requirement) — fully opaque throughout.
+  -->
+  <rect width="1024" height="1024" fill="#0E4034"/>
+  <path d="M288 752 L512 240 L736 752 Z" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linejoin="round"/>
+  <path d="M410 582 L614 582" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" opacity="0.92"/>
+  <circle cx="512" cy="440" r="30" fill="#C8F26B"/>
+</svg>
