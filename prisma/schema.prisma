@@ -1516,3 +1516,57 @@ enum OnboardingEventKind {
   ERROR
   NOTE
 }
+
+// ════════════════════════════════════════════════════════════════════════
+//  Meta usage durability — replaces Redis-only tier-upgrade tracking with a
+//  store that answers correctly in any environment where REDIS_URL is unset
+//  (true in production today: Redis is optional there, and Meta usage
+//  tracking was the one consumer whose "fallback" was hard zeros forever,
+//  not a functioning degraded path). See src/services/metaUsageTracker.ts.
+// ════════════════════════════════════════════════════════════════════════
+
+/// One row per UTC calendar day, incremented atomically on every Meta API
+/// response. Summed over a date range to answer "how many calls/errors in
+/// the last N days" — one row per day, ever, so this never grows unbounded.
+model MetaUsageDailyCounter {
+  date                  DateTime @id @db.Date
+  callCount             Int      @default(0) @map("call_count")
+  errTokenCount         Int      @default(0) @map("err_token_count")
+  errRateLimitCount     Int      @default(0) @map("err_rate_limit_count")
+  errPermissionCount    Int      @default(0) @map("err_permission_count")
+  errInvalidParamsCount Int      @default(0) @map("err_invalid_params_count")
+  errServerCount        Int      @default(0) @map("err_server_count")
+  errOtherCount         Int      @default(0) @map("err_other_count")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("meta_usage_daily_counters")
+}
+
+/// The outcome of each of the most recent Meta API calls, newest first,
+/// capped at 500 rows by the writer (oldest trimmed past that on insert —
+/// see recordMetaResponseHeaders). Exists only to answer "error rate over
+/// the last 500 calls", the exact metric Meta gates the higher access tier
+/// on; the daily counter above cannot answer that, because Meta's window is
+/// call-count-bounded, not day-bounded.
+model MetaUsageRecentCall {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  success   Boolean
+
+  @@index([createdAt])
+  @@map("meta_usage_recent_calls")
+}
+
+/// Singleton row — id is always the literal "singleton" — holding the latest
+/// x-app-usage / x-ad-account-usage / x-business-use-case-usage headers Meta
+/// returned. Upserted whenever a response carries one of these headers.
+model MetaUsageLatestSnapshot {
+  id              String   @id @default("singleton")
+  appUsage        Json?    @map("app_usage")
+  adAccountUsage  Json?    @map("ad_account_usage")
+  businessUseCase Json?    @map("business_use_case")
+  lastTier        String?  @map("last_tier")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("meta_usage_latest_snapshot")
+}

@@ -41,7 +41,7 @@ import { getBuildIdentity } from '../lib/buildIdentity';
 import { ADMIN_CAPABILITIES } from '../web/pages/adminCapabilities';
 import {
   GRAPH_SCHEMA_VERSION, freezeSnapshot,
-  type EdgeKind, type GraphEdge, type GraphNode, type GraphSnapshot,
+  type DependencyStrength, type EdgeKind, type GraphEdge, type GraphNode, type GraphSnapshot,
   type NodeClass, type Provenance,
 } from './model';
 
@@ -95,14 +95,17 @@ function addNode(b: Builder, n: GraphNode): string {
   return n.id;
 }
 
-function addEdge(b: Builder, from: string, to: string, kind: EdgeKind, provenance: Provenance): void {
+function addEdge(
+  b: Builder, from: string, to: string, kind: EdgeKind, provenance: Provenance,
+  strength?: DependencyStrength,
+): void {
   const id = `${kind}:${from}->${to}`;
   if (b.edges.has(id)) return;
   // Refuse to record an edge whose endpoints are not in the graph. The
   // adapter would reject it later anyway; failing here names the builder
   // that produced it instead of the file that loaded it.
   if (!b.nodes.has(from) || !b.nodes.has(to)) return;
-  b.edges.set(id, { id, from, to, kind, provenance });
+  b.edges.set(id, { id, from, to, kind, provenance, ...(strength ? { strength } : {}) });
 }
 
 function ensureModule(b: Builder, path: string, what: string): string {
@@ -225,7 +228,7 @@ export function buildArchitectureGraph(): GraphSnapshot {
       unknowns: ['عمق الطابور وعدد المهام المتعثّرة غير مرصودَين — لا فحص حي لكل طابور'],
     });
     addEdge(b, queueNodeId(name), deployNodeId('redis'), 'DEPENDS_ON',
-      REPO('src/lib/queue.ts', 'getQueueRedis'));
+      REPO('src/lib/queue.ts', 'getQueueRedis'), 'OPTIONAL_FALLBACK');
   }
   ensureModule(b, 'src/lib/queue.ts', 'نظام الطوابير: يقبل المهام الخلفية أو يعمل داخل العملية');
   for (const name of Object.values(QUEUE_NAMES)) {
@@ -236,7 +239,7 @@ export function buildArchitectureGraph(): GraphSnapshot {
   // ── 4. Services the Control Plane depends on ─────────────────────────
   for (const s of CONTROL_PLANE_SERVICES) ensureModule(b, s.path, s.what);
   addEdge(b, moduleNodeId('src/lib/queue.ts'), deployNodeId('redis'), 'DEPENDS_ON',
-    REPO('src/lib/queue.ts', 'getQueueRedis'));
+    REPO('src/lib/queue.ts', 'getQueueRedis'), 'OPTIONAL_FALLBACK');
 
   // ── 5. Persistence: models, their canonical writer, their readers ────
   for (const p of PERSISTENCE) {
@@ -368,7 +371,7 @@ export function buildArchitectureGraph(): GraphSnapshot {
     if (i === 0) return;
     addEdge(b, layerNodeId(layer), layerNodeId(LAYER_ORDER[i - 1]!), 'DEPENDS_ON',
       REPO('src/analytics/intelligence/hierarchy.ts',
-        'reconcileIntelligence short-circuits on an upstream failure'));
+        'reconcileIntelligence short-circuits on an upstream failure'), 'REQUIRED');
   });
   addEdge(b, moduleNodeId('src/analytics/intelligence/hierarchy.ts'), layerNodeId(LAYER_ORDER[0]!),
     'OWNED_BY', REPO('src/analytics/intelligence/hierarchy.ts', 'LAYER_ORDER'));

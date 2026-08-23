@@ -33,9 +33,9 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import {
-  EDGE_KINDS, GRAPH_SCHEMA_VERSION, NODE_CLASSES, PROVENANCE_METHODS,
+  DEPENDENCY_STRENGTHS, EDGE_KINDS, GRAPH_SCHEMA_VERSION, NODE_CLASSES, PROVENANCE_METHODS,
   freezeSnapshot,
-  type EdgeKind, type GraphEdge, type GraphNode, type GraphSnapshot,
+  type DependencyStrength, type EdgeKind, type GraphEdge, type GraphNode, type GraphSnapshot,
   type NodeClass, type Provenance, type ProvenanceMethod,
 } from './model';
 
@@ -180,7 +180,15 @@ export function parseGraphSnapshot(raw: unknown): GraphParseResult {
     if (!provenance) return reject('MISSING_PROVENANCE', `edge ${id} carries no usable provenance`);
 
     seenEdges.add(id);
-    edges.push({ id, from, to, kind: kind as EdgeKind, provenance });
+    const edge: GraphEdge = { id, from, to, kind: kind as EdgeKind, provenance };
+    // Decorative and optional, like `href`/`unknowns` on a node: a bad or
+    // absent value degrades to "not stated" rather than refusing the edge —
+    // only the fields with no safe default (kind, endpoints, provenance)
+    // are worth rejecting a whole edge over.
+    if (typeof re['strength'] === 'string' && DEPENDENCY_STRENGTHS.includes(re['strength'] as DependencyStrength)) {
+      edge.strength = re['strength'] as DependencyStrength;
+    }
+    edges.push(edge);
   }
 
   const generatedAt = typeof raw['generatedAt'] === 'string' ? raw['generatedAt'] : new Date(0).toISOString();

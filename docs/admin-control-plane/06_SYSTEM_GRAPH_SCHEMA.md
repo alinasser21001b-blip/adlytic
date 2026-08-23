@@ -34,6 +34,28 @@ precisely. It stays in the type for external snapshots that draw the
 distinction; emitting it here to fill the table would have meant duplicating
 edges we already have.
 
+### `DEPENDS_ON` carries a strength
+
+`GraphEdge.strength` is an optional `'REQUIRED' | 'OPTIONAL_FALLBACK'`, only
+meaningful on `DEPENDS_ON`. It exists because "QUEUE `DEPENDS_ON` redis" was
+true and misleading at once: the literal is real (`getQueueRedis` reads
+`REDIS_URL`), but a reader who stopped at the edge kind would reasonably
+conclude Redis absence breaks the queue. It does not — `enqueueOrFallback()`
+is proven at every call site to run the same work in-process instead.
+
+```
+DEPENDS_ON = 10:  5 OPTIONAL_FALLBACK (queue → redis, ×4 queues + the queue
+                    module itself) · 5 REQUIRED (the intelligence-layer chain,
+                    which genuinely short-circuits on an upstream failure)
+```
+
+Unset (`undefined`) is itself a legitimate value, not a gap to fill in later —
+it means "this edge kind never claimed a dependency-strength distinction",
+which is true of every non-`DEPENDS_ON` kind. The adapter treats a present but
+unrecognised `strength` the same way it treats a bad `unknowns` entry: dropped,
+not a reason to refuse the whole edge (`MISSING_PROVENANCE` and friends are
+for fields with no safe default; this one has one — "not stated").
+
 ## Provenance is mandatory
 
 Every node and every edge carries `{ method, source, note? }` with no default.

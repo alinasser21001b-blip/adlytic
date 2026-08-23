@@ -71,6 +71,25 @@ export const EDGE_KINDS = [
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
 /**
+ * How much a DEPENDS_ON edge actually costs if the target goes away.
+ *
+ * Added because "Queue DEPENDS_ON Redis" was true and misleading at the same
+ * time: the literal is real (getQueueRedis reads REDIS_URL), but reading the
+ * edge alone, an operator would reasonably conclude Redis absence breaks the
+ * queue. It does not — enqueueOrFallback() is proven at every call site to
+ * run the same work in-process instead. REQUIRED and OPTIONAL_FALLBACK are
+ * both real facts about the SAME edge kind; neither is a health state (that
+ * is still the runtime overlay's job), and neither is a new edge kind, so a
+ * reader who does not care about the distinction can keep ignoring it.
+ *
+ * Optional, and only meaningful on DEPENDS_ON: a CALLS or READS edge is not a
+ * dependency-strength claim, so it stays unset there rather than forcing a
+ * vacuous REQUIRED onto every edge kind that never needed the question asked.
+ */
+export const DEPENDENCY_STRENGTHS = ['REQUIRED', 'OPTIONAL_FALLBACK'] as const;
+export type DependencyStrength = (typeof DEPENDENCY_STRENGTHS)[number];
+
+/**
  * How a fact in this graph is known.
  *
  * The distinction that matters is REGISTRY_ENTRY vs REPOSITORY_DECLARATION:
@@ -128,6 +147,8 @@ export interface GraphEdge {
   to: string;
   kind: EdgeKind;
   provenance: Provenance;
+  /** Only meaningful when kind === 'DEPENDS_ON'. See DependencyStrength. */
+  strength?: DependencyStrength;
 }
 
 /**

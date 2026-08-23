@@ -1,7 +1,7 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/services/metaUsageTracker.ts
 //
-//  Phase A2 — raw Meta API call counter + usage-header snapshot in Redis.
+//  Raw Meta API call counter + usage-header snapshot, durably persisted.
 //
 //  Tracks cumulative 2xx responses toward the Meta Marketing API Access Tier
 //  threshold: ≥500 successful Marketing API calls over a rolling 15-day window
@@ -10,25 +10,60 @@
 //  persists the latest x-app-usage / x-ad-account-usage / x-business-use-case-
 //  usage headers for ops visibility, plus a per-category error breakdown.
 //
-//  All Redis writes go through withRedis(); when Redis is unavailable every
-//  function degrades to a no-op (record) or zeroed stats (read).
+//  ── Why Postgres, not Redis ────────────────────────────────────────────
+//
+//  Every other Redis consumer in this codebase (queue.ts, redis.ts, the
+//  webhook debounce, the session store) degrades to a FUNCTIONALLY EQUIVALENT
+//  in-process fallback when Redis is absent — slower or non-cross-instance,
+//  never wrong. This module was the one exception: `emptyStats(false)`
+//  returns hard zeros, not a fallback. In any environment where REDIS_URL is
+//  unset — which has always been true in production; Redis is documented
+//  everywhere else as optional — every readiness number reads permanently
+//  0/500 forever, not "temporarily degraded". That is not a fallback, it is
+//  silent data loss wearing a fallback's clothes. Postgres is not optional
+//  in this app the way Redis is, so it is the correct durable home for a
+//  counter this module's own callers depend on for a real go/no-go decision.
+//
+//  Own connection pool, deliberately small (see getStandalonePrisma below):
+//  these are tiny, frequent upserts from a fire-and-forget hook deep inside
+//  MetaClient's response handling, not a place worth threading the server's
+//  main PrismaClient through every call site for.
 // ════════════════════════════════════════════════════════════════════════
 
-import { withRedis } from '../lib/redis';
-import type { Redis } from 'ioredis';
+import { Prisma, PrismaClient } from '@prisma/client';
+import { PrismaPg } from '@prisma/adapter-pg';
+import pg from 'pg';
 
-const COUNT_KEY_PREFIX = 'meta:usage:count:';
-const ERROR_KEY_PREFIX = 'meta:usage:error:';
-// Per-category daily error counters (breakdown by Meta failure type). Key shape:
-// `${ERROR_CAT_KEY_PREFIX}${category}:${YYYY-MM-DD}`.
-const ERROR_CAT_KEY_PREFIX = 'meta:usage:errcat:';
-// Capped rolling log of the outcome ('ok' | 'err') of the most recent Meta
-// calls, newest first. Used to compute the error rate over the LAST 500 calls
-// exactly the way Meta measures it.
-const RECENT_KEY = 'meta:usage:recent';
-const RECENT_WINDOW = 500;
-const LATEST_KEY = 'meta:usage:latest';
-const COUNT_TTL_SECONDS = 30 * 86400;
+import { pgSslFor } from '../lib/pgSsl';
+
+// ── Lazy-initialized standalone Prisma client, mirroring getDashboard.ts's
+// _standalonePrisma pattern: MetaClient's fire-and-forget hooks have no
+// caller-supplied PrismaClient to reuse, and lazy-init keeps this module
+// importable in tests/scripts that never call it and have no DATABASE_URL.
+let _standalonePrisma: PrismaClient | null = null;
+
+function getStandalonePrisma(): PrismaClient {
+  if (_standalonePrisma) return _standalonePrisma;
+  const dbUrl = process.env['DATABASE_URL'];
+  if (!dbUrl) throw new Error('metaUsageTracker: DATABASE_URL is not set.');
+  const parsed = new URL(dbUrl);
+  const pool = new pg.Pool({
+    host: parsed.hostname,
+    port: Number(parsed.port) || 5432,
+    user: decodeURIComponent(parsed.username),
+    password: decodeURIComponent(parsed.password),
+    database: parsed.pathname.replace(/^\//, ''),
+    ssl: pgSslFor(parsed.hostname),
+    // Small on purpose: fire-and-forget counter upserts, not query fan-out —
+    // this pool never needs to compete with the server's main one for slots.
+    max: 3,
+    idleTimeoutMillis: 30_000,
+    connectionTimeoutMillis: 5_000,
+  });
+  _standalonePrisma = new PrismaClient({ adapter: new PrismaPg(pool) });
+  return _standalonePrisma;
+}
+
 // Meta Marketing API Access Tier: ≥500 successful calls over the rolling
 // 15-day window.
 const UPGRADE_THRESHOLD = 500;
@@ -36,6 +71,11 @@ const UPGRADE_THRESHOLD = 500;
 // keep the higher Marketing API access tier. Errors are HTTP status ≥400
 // (client + server errors, incl. 429 rate-limits); successes are 2xx.
 const ERROR_RATE_GATE_PCT = 15;
+// Capped rolling window of the outcome of the most recent Meta calls. Used to
+// compute the error rate over the LAST 500 calls exactly the way Meta
+// measures it. MetaUsageRecentCall is trimmed to this many rows on insert.
+const RECENT_WINDOW = 500;
+const SNAPSHOT_ID = 'singleton';
 
 /** The Meta error categories we bucket failures into for the breakdown. */
 export type MetaErrorCategory =
@@ -46,20 +86,13 @@ export type MetaErrorCategory =
   | 'server'         // 5xx — Meta-side failure
   | 'other';         // anything else
 
-type StatsData = {
-  today: string | null;
-  yesterday: string | null;
-  last7Days: number;
-  last15Days: number;
-  errorsLast15Days: number;
-  recent: string[];
-  breakdown: Record<MetaErrorCategory, number>;
-  hash: Record<string, string>;
-};
-
-type LastTier = 'standard_access' | 'development' | 'unknown';
-
 export interface MetaUsageStats {
+  /** Legacy name (kept for wire-compatibility with metaReadinessPage.ts and
+   *  metaDataWorkspacePage.ts, which read this field as untyped client JS
+   *  with no compiler to catch a rename). Means "was the durable counter
+   *  store reachable for this read" — true in virtually every real request,
+   *  since Postgres answering is already implied by the route that calls
+   *  this having reached this far at all. */
   redisAvailable: boolean;
   callThreshold: number;
   errorRateGatePct: number;
@@ -86,25 +119,6 @@ export interface MetaUsageStats {
     businessUseCase: Record<string, unknown> | null;
     lastUpdated: string | null;
   };
-}
-
-function countKey(date: Date): string {
-  return `${COUNT_KEY_PREFIX}${date.toISOString().slice(0, 10)}`;
-}
-
-function errorCountKey(date: Date): string {
-  return `${ERROR_KEY_PREFIX}${date.toISOString().slice(0, 10)}`;
-}
-
-function dateDaysAgo(days: number): Date {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() - days);
-  return d;
-}
-
-function parseLastTier(tier: unknown): LastTier {
-  if (tier === 'standard_access' || tier === 'development') return tier;
-  return 'unknown';
 }
 
 function emptyErrorBreakdown(): Record<MetaErrorCategory, number> {
@@ -139,6 +153,17 @@ function emptyStats(redisAvailable: boolean): MetaUsageStats {
   };
 }
 
+/** Midnight UTC of the given date's calendar day — matches the @db.Date column. */
+function utcDateOnly(d: Date): Date {
+  return new Date(`${d.toISOString().slice(0, 10)}T00:00:00.000Z`);
+}
+
+function dateDaysAgo(days: number): Date {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() - days);
+  return utcDateOnly(d);
+}
+
 /**
  * Bucket a failed Meta response into one of the MetaErrorCategory values, using
  * the HTTP status plus (when available) the Meta error code from the JSON body.
@@ -160,117 +185,105 @@ export function categorizeMetaError(status: number, metaErrorCode?: number): Met
   return 'other';
 }
 
-function errorCatKey(category: MetaErrorCategory, date: Date): string {
-  return `${ERROR_CAT_KEY_PREFIX}${category}:${date.toISOString().slice(0, 10)}`;
+/**
+ * Atomically increment ONE category column on today's daily-counter row.
+ * An explicit switch rather than a computed property: Prisma's generated
+ * input types are exact-shape, and a `[field]: 1` computed key does not
+ * type-check cleanly against them — six cases is cheap insurance against a
+ * silently-wrong field name.
+ */
+async function incrementDailyErrorCategory(
+  prisma: PrismaClient, date: Date, category: MetaErrorCategory,
+): Promise<void> {
+  switch (category) {
+    case 'token':
+      await prisma.metaUsageDailyCounter.upsert({
+        where: { date }, create: { date, errTokenCount: 1 },
+        update: { errTokenCount: { increment: 1 } },
+      });
+      return;
+    case 'rate_limit':
+      await prisma.metaUsageDailyCounter.upsert({
+        where: { date }, create: { date, errRateLimitCount: 1 },
+        update: { errRateLimitCount: { increment: 1 } },
+      });
+      return;
+    case 'permission':
+      await prisma.metaUsageDailyCounter.upsert({
+        where: { date }, create: { date, errPermissionCount: 1 },
+        update: { errPermissionCount: { increment: 1 } },
+      });
+      return;
+    case 'invalid_params':
+      await prisma.metaUsageDailyCounter.upsert({
+        where: { date }, create: { date, errInvalidParamsCount: 1 },
+        update: { errInvalidParamsCount: { increment: 1 } },
+      });
+      return;
+    case 'server':
+      await prisma.metaUsageDailyCounter.upsert({
+        where: { date }, create: { date, errServerCount: 1 },
+        update: { errServerCount: { increment: 1 } },
+      });
+      return;
+    case 'other':
+      await prisma.metaUsageDailyCounter.upsert({
+        where: { date }, create: { date, errOtherCount: 1 },
+        update: { errOtherCount: { increment: 1 } },
+      });
+      return;
+  }
 }
 
 /**
  * Record a categorized Meta error (in addition to the aggregate error counter
  * incremented by recordMetaResponseHeaders). Fire-and-forget; never throws.
  * Called by MetaClient's error path where the Meta error code is available.
+ * This is the SOLE writer of the per-category daily columns — the total
+ * error count is derived by summing them, so there is exactly one place a
+ * "how many errors today" answer can come from.
  */
-export async function recordMetaErrorCategory(status: number, metaErrorCode?: number): Promise<void> {
+export async function recordMetaErrorCategory(
+  status: number, metaErrorCode?: number, prisma?: PrismaClient,
+): Promise<void> {
   try {
     const category = categorizeMetaError(status, metaErrorCode);
-    const key = errorCatKey(category, new Date());
-    await withRedis(async (r) => {
-      const multi = r.multi();
-      multi.incr(key);
-      multi.expire(key, COUNT_TTL_SECONDS);
-      await multi.exec();
-    }, null);
+    await incrementDailyErrorCategory(prisma ?? getStandalonePrisma(), utcDateOnly(new Date()), category);
   } catch {
     // never throw — caller is fire-and-forget
   }
 }
 
-function parseLatestAppUsage(
-  raw: string | undefined,
-): MetaUsageStats['latest']['appUsage'] {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    return {
-      callCount: Number(obj.call_count ?? 0),
-      totalCpuTime: Number(obj.total_cputime ?? 0),
-      totalTime: Number(obj.total_time ?? 0),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseLatestAdAccountUsage(
-  raw: string | undefined,
-): MetaUsageStats['latest']['adAccountUsage'] {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw) as Record<string, unknown>;
-    return {
-      utilizationPct: Number(obj.acc_id_util_pct ?? 0),
-      tier: String(obj.ads_api_access_tier ?? 'unknown'),
-    };
-  } catch {
-    return null;
-  }
-}
-
-function parseLatestBusinessUseCase(
-  raw: string | undefined,
-): MetaUsageStats['latest']['businessUseCase'] {
-  if (!raw) return null;
-  try {
-    const obj = JSON.parse(raw);
-    if (typeof obj === 'object' && obj !== null && !Array.isArray(obj)) {
-      return obj as Record<string, unknown>;
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
-
-async function sumDayCounts(
-  r: Redis,
-  days: number,
-  keyFn: (d: Date) => string = countKey,
-): Promise<number> {
-  const keys = Array.from({ length: days }, (_, i) => keyFn(dateDaysAgo(i)));
-  const values = await r.mget(...keys);
-  return values.reduce((sum, v) => sum + (v ? parseInt(v, 10) : 0), 0);
-}
-
 /**
  * Fire-and-forget hook from MetaClient after every fetch response. Per Meta's
- * tier-upgrade requirements: INCRs the daily success counter on 2xx responses
- * (toward the 500-call threshold) and the daily error counter on status >= 400
- * (client errors 4xx + server errors 5xx, including 429 rate-limits, used to
- * calculate the <15% error-rate gate). It also appends the outcome to a capped
- * rolling window so the error rate over the LAST 500 calls can be computed the
- * way Meta measures it. 3xx redirects are not counted as either (only successful
- * terminal responses are 2xx; only actual errors are ≥400). Always persists
- * usage-header snapshots when present. Each HTTP attempt/retry is a distinct
- * event, matching Meta's own 15-day measurement. Never throws — failures are
- * swallowed via withRedis fallback.
+ * tier-upgrade requirements: upserts today's success counter on 2xx responses
+ * (toward the 500-call threshold). It also appends the outcome to a capped
+ * rolling window (trimmed to RECENT_WINDOW rows) so the error rate over the
+ * LAST 500 calls can be computed the way Meta measures it. 3xx redirects are
+ * not counted as either (only successful terminal responses are 2xx; only
+ * actual errors are ≥400). Always persists usage-header snapshots when
+ * present. Each HTTP attempt/retry is a distinct event, matching Meta's own
+ * 15-day measurement. Never throws — failures are swallowed.
  */
 export async function recordMetaResponseHeaders(
   headers: Headers,
   status?: number,
+  injectedPrisma?: PrismaClient,
 ): Promise<void> {
   try {
     const appUsageRaw = headers.get('x-app-usage');
     const adAccountRaw = headers.get('x-ad-account-usage');
     const businessUseCaseRaw = headers.get('x-business-use-case-usage');
 
-    let appUsage: string | undefined;
-    let adAccountUsage: string | undefined;
-    let businessUseCase: string | undefined;
-    let lastTier: LastTier = 'unknown';
+    let appUsage: Record<string, unknown> | undefined;
+    let adAccountUsage: Record<string, unknown> | undefined;
+    let businessUseCase: Record<string, unknown> | undefined;
+    let lastTier: string | undefined;
 
     if (appUsageRaw) {
       try {
-        JSON.parse(appUsageRaw);
-        appUsage = appUsageRaw;
+        const parsed = JSON.parse(appUsageRaw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) appUsage = parsed;
       } catch {
         // ignore malformed header
       }
@@ -278,9 +291,12 @@ export async function recordMetaResponseHeaders(
 
     if (adAccountRaw) {
       try {
-        const parsed = JSON.parse(adAccountRaw) as Record<string, unknown>;
-        adAccountUsage = adAccountRaw;
-        lastTier = parseLastTier(parsed.ads_api_access_tier);
+        const parsed = JSON.parse(adAccountRaw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+          adAccountUsage = parsed;
+          const tier = (parsed as Record<string, unknown>)['ads_api_access_tier'];
+          lastTier = tier === 'standard_access' || tier === 'development' ? tier : 'unknown';
+        }
       } catch {
         // ignore malformed header
       }
@@ -288,8 +304,8 @@ export async function recordMetaResponseHeaders(
 
     if (businessUseCaseRaw) {
       try {
-        JSON.parse(businessUseCaseRaw);
-        businessUseCase = businessUseCaseRaw;
+        const parsed = JSON.parse(businessUseCaseRaw);
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) businessUseCase = parsed;
       } catch {
         // ignore malformed header
       }
@@ -297,112 +313,152 @@ export async function recordMetaResponseHeaders(
 
     const is2xx = status !== undefined && status >= 200 && status < 300;
     const isError = status !== undefined && status >= 400;
-    const now = new Date();
-    const todayKey = countKey(now);
-    const todayErrorKey = errorCountKey(now);
-    const hasSnapshot = appUsage !== undefined
-      || adAccountUsage !== undefined
-      || businessUseCase !== undefined;
+    const prisma = injectedPrisma ?? getStandalonePrisma();
+    const today = utcDateOnly(new Date());
+    const ops: Promise<unknown>[] = [];
 
-    await withRedis(async (r) => {
-      const multi = r.multi();
+    if (is2xx) {
+      ops.push(prisma.metaUsageDailyCounter.upsert({
+        where: { date: today }, create: { date: today, callCount: 1 },
+        update: { callCount: { increment: 1 } },
+      }));
+    }
 
-      if (is2xx) {
-        multi.incr(todayKey);
-        multi.expire(todayKey, COUNT_TTL_SECONDS);
-      } else if (isError) {
-        multi.incr(todayErrorKey);
-        multi.expire(todayErrorKey, COUNT_TTL_SECONDS);
-      }
+    if (is2xx || isError) {
+      ops.push(
+        prisma.metaUsageRecentCall.create({ data: { success: is2xx } }).then(async () => {
+          // Trim to the most recent RECENT_WINDOW rows. A soft cap — under
+          // concurrent writes this may keep a row or two more/fewer than
+          // exactly RECENT_WINDOW, which is immaterial to a threshold gate
+          // that is already an approximation of Meta's own measurement.
+          const cutoff = await prisma.metaUsageRecentCall.findMany({
+            orderBy: { createdAt: 'desc' }, skip: RECENT_WINDOW - 1, take: 1,
+            select: { createdAt: true },
+          });
+          if (cutoff.length) {
+            await prisma.metaUsageRecentCall.deleteMany({
+              where: { createdAt: { lt: cutoff[0]!.createdAt } },
+            });
+          }
+        }),
+      );
+    }
 
-      // Maintain the capped rolling window of the last RECENT_WINDOW outcomes
-      // (newest first) so we can compute Meta's "error rate over the last 500
-      // calls" exactly. Only terminal outcomes (2xx or ≥400) are recorded.
-      if (is2xx || isError) {
-        multi.lpush(RECENT_KEY, is2xx ? 'ok' : 'err');
-        multi.ltrim(RECENT_KEY, 0, RECENT_WINDOW - 1);
-        multi.expire(RECENT_KEY, COUNT_TTL_SECONDS);
-      }
+    if (appUsage || adAccountUsage || businessUseCase) {
+      ops.push(prisma.metaUsageLatestSnapshot.upsert({
+        where: { id: SNAPSHOT_ID },
+        create: {
+          id: SNAPSHOT_ID,
+          ...(appUsage ? { appUsage: appUsage as Prisma.InputJsonValue } : {}),
+          ...(adAccountUsage ? { adAccountUsage: adAccountUsage as Prisma.InputJsonValue } : {}),
+          ...(businessUseCase ? { businessUseCase: businessUseCase as Prisma.InputJsonValue } : {}),
+          ...(lastTier ? { lastTier } : {}),
+        },
+        update: {
+          ...(appUsage ? { appUsage: appUsage as Prisma.InputJsonValue } : {}),
+          ...(adAccountUsage ? { adAccountUsage: adAccountUsage as Prisma.InputJsonValue } : {}),
+          ...(businessUseCase ? { businessUseCase: businessUseCase as Prisma.InputJsonValue } : {}),
+          ...(lastTier ? { lastTier } : {}),
+        },
+      }));
+    }
 
-      if (hasSnapshot) {
-        const hashFields: Record<string, string> = {
-          lastUpdated: now.toISOString(),
-          lastTier,
-        };
-        if (appUsage) hashFields.appUsage = appUsage;
-        if (adAccountUsage) hashFields.adAccountUsage = adAccountUsage;
-        if (businessUseCase) hashFields.businessUseCase = businessUseCase;
-        multi.hset(LATEST_KEY, hashFields);
-      }
-
-      await multi.exec();
-    }, null);
+    await Promise.all(ops);
   } catch {
     // never throw — caller is fire-and-forget
   }
 }
 
 /** Read cumulative call counts and the latest usage-header snapshot. */
-export async function getMetaUsageStats(): Promise<MetaUsageStats> {
-  const categories: MetaErrorCategory[] = ['token', 'rate_limit', 'permission', 'invalid_params', 'server', 'other'];
-  const data = await withRedis<StatsData | null>(async (r) => {
-    const [today, yesterday, last7Days, last15Days, errorsLast15Days, recent, hash, ...catSums] = await Promise.all([
-      r.get(countKey(new Date())),
-      r.get(countKey(dateDaysAgo(1))),
-      sumDayCounts(r, 7),
-      sumDayCounts(r, 15),
-      sumDayCounts(r, 15, errorCountKey),
-      r.lrange(RECENT_KEY, 0, RECENT_WINDOW - 1),
-      r.hgetall(LATEST_KEY),
-      ...categories.map((cat) => sumDayCounts(r, 15, (d) => errorCatKey(cat, d))),
+export async function getMetaUsageStats(injectedPrisma?: PrismaClient): Promise<MetaUsageStats> {
+  try {
+    const prisma = injectedPrisma ?? getStandalonePrisma();
+    const today = utcDateOnly(new Date());
+    const yesterday = dateDaysAgo(1);
+    const since7 = dateDaysAgo(6);
+    const since15 = dateDaysAgo(14);
+
+    const [dailyRows, recentCalls, snapshot] = await Promise.all([
+      prisma.metaUsageDailyCounter.findMany({ where: { date: { gte: since15 } } }),
+      prisma.metaUsageRecentCall.findMany({
+        orderBy: { createdAt: 'desc' }, take: RECENT_WINDOW, select: { success: true },
+      }),
+      prisma.metaUsageLatestSnapshot.findUnique({ where: { id: SNAPSHOT_ID } }),
     ]);
+
+    let todayCount = 0, yesterdayCount = 0, last7Days = 0, last15Days = 0;
     const breakdown = emptyErrorBreakdown();
-    categories.forEach((cat, i) => { breakdown[cat] = catSums[i] ?? 0; });
-    return { today, yesterday, last7Days, last15Days, errorsLast15Days, recent, breakdown, hash };
-  }, null);
+    for (const r of dailyRows) {
+      last15Days += r.callCount;
+      if (r.date.getTime() >= since7.getTime()) last7Days += r.callCount;
+      if (r.date.getTime() === today.getTime()) todayCount = r.callCount;
+      if (r.date.getTime() === yesterday.getTime()) yesterdayCount = r.callCount;
+      breakdown.token += r.errTokenCount;
+      breakdown.rate_limit += r.errRateLimitCount;
+      breakdown.permission += r.errPermissionCount;
+      breakdown.invalid_params += r.errInvalidParamsCount;
+      breakdown.server += r.errServerCount;
+      breakdown.other += r.errOtherCount;
+    }
+    const errorsLast15Days = Object.values(breakdown).reduce((a, b) => a + b, 0);
+    const totalLast15Days = last15Days + errorsLast15Days;
+    const errorRatePct15d = totalLast15Days > 0
+      ? Math.round((errorsLast15Days / totalLast15Days) * 1000) / 10
+      : 0;
 
-  if (!data) return emptyStats(false);
+    const recentWindowSize = recentCalls.length;
+    const recentErrors = recentCalls.reduce((n, c) => n + (c.success ? 0 : 1), 0);
+    const errorRateLast500 = recentWindowSize > 0
+      ? Math.round((recentErrors / recentWindowSize) * 1000) / 10
+      : 0;
+    // Only assert the error gate once we have a meaningful sample. Before the
+    // window fills, an early error would otherwise spike the rate artificially.
+    const meetsErrorGate = recentWindowSize >= RECENT_WINDOW && errorRateLast500 < ERROR_RATE_GATE_PCT;
 
-  const last15Days = data.last15Days;
-  const errorsLast15Days = data.errorsLast15Days;
-  const totalLast15Days = last15Days + errorsLast15Days;
-  const errorRatePct15d = totalLast15Days > 0
-    ? Math.round((errorsLast15Days / totalLast15Days) * 1000) / 10
-    : 0;
+    const appUsageJson = snapshot?.appUsage as Record<string, unknown> | null | undefined;
+    const adAccountUsageJson = snapshot?.adAccountUsage as Record<string, unknown> | null | undefined;
+    const businessUseCaseJson = snapshot?.businessUseCase as Record<string, unknown> | null | undefined;
 
-  const recent = data.recent ?? [];
-  const recentWindowSize = recent.length;
-  const recentErrors = recent.reduce((n, v) => n + (v === 'err' ? 1 : 0), 0);
-  const errorRateLast500 = recentWindowSize > 0
-    ? Math.round((recentErrors / recentWindowSize) * 1000) / 10
-    : 0;
-  // Only assert the error gate once we have a meaningful sample. Before the
-  // window fills, an early error would otherwise spike the rate artificially.
-  const meetsErrorGate = recentWindowSize >= RECENT_WINDOW && errorRateLast500 < ERROR_RATE_GATE_PCT;
-
-  return {
-    redisAvailable: true,
-    callThreshold: UPGRADE_THRESHOLD,
-    errorRateGatePct: ERROR_RATE_GATE_PCT,
-    counts: {
-      today: parseInt(data.today ?? '0', 10),
-      yesterday: parseInt(data.yesterday ?? '0', 10),
-      last7Days: data.last7Days,
-      last15Days,
-      progressToThresholdPct: Math.round((last15Days / UPGRADE_THRESHOLD) * 1000) / 10,
-      errorsLast15Days,
-      errorRatePct15d,
-      recentWindowSize,
-      errorRateLast500,
-      meetsCallThreshold: last15Days >= UPGRADE_THRESHOLD,
-      meetsErrorGate,
-    },
-    errorBreakdown15d: data.breakdown,
-    latest: {
-      appUsage: parseLatestAppUsage(data.hash.appUsage),
-      adAccountUsage: parseLatestAdAccountUsage(data.hash.adAccountUsage),
-      businessUseCase: parseLatestBusinessUseCase(data.hash.businessUseCase),
-      lastUpdated: data.hash.lastUpdated ?? null,
-    },
-  };
+    return {
+      redisAvailable: true,
+      callThreshold: UPGRADE_THRESHOLD,
+      errorRateGatePct: ERROR_RATE_GATE_PCT,
+      counts: {
+        today: todayCount,
+        yesterday: yesterdayCount,
+        last7Days,
+        last15Days,
+        progressToThresholdPct: Math.round((last15Days / UPGRADE_THRESHOLD) * 1000) / 10,
+        errorsLast15Days,
+        errorRatePct15d,
+        recentWindowSize,
+        errorRateLast500,
+        meetsCallThreshold: last15Days >= UPGRADE_THRESHOLD,
+        meetsErrorGate,
+      },
+      errorBreakdown15d: breakdown,
+      latest: {
+        appUsage: appUsageJson
+          ? {
+              callCount: Number(appUsageJson['call_count'] ?? 0),
+              totalCpuTime: Number(appUsageJson['total_cputime'] ?? 0),
+              totalTime: Number(appUsageJson['total_time'] ?? 0),
+            }
+          : null,
+        adAccountUsage: adAccountUsageJson
+          ? {
+              utilizationPct: Number(adAccountUsageJson['acc_id_util_pct'] ?? 0),
+              tier: String(adAccountUsageJson['ads_api_access_tier'] ?? 'unknown'),
+            }
+          : null,
+        businessUseCase: businessUseCaseJson ?? null,
+        lastUpdated: snapshot?.updatedAt ? snapshot.updatedAt.toISOString() : null,
+      },
+    };
+  } catch {
+    // The durable store itself is unreachable — extremely rare (this app's
+    // whole persistence layer would be failing, not just this reader), but
+    // stay honest rather than fabricate a healthy-looking zero.
+    return emptyStats(false);
+  }
 }
