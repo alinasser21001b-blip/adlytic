@@ -1,6 +1,7 @@
 import { chromium } from 'playwright';
 import { execSync } from 'node:child_process';
-const html = execSync(`npx tsx -e "import { adminOsPage } from './src/web/pages/adminOsPage'; process.stdout.write(adminOsPage());"`, { cwd: '/home/user/adlytic', maxBuffer: 64e6 }).toString();
+import { existsSync } from 'node:fs';
+const html = execSync(`npx tsx -e "import { adminOsPage } from './src/web/pages/adminOsPage'; process.stdout.write(adminOsPage());"`, { cwd: process.cwd(), maxBuffer: 64e6 }).toString();
 const O = 'http://a.test';
 const S = { '/api/auth/me': { isPlatformAdmin: true, email: 'a@t' },
   '/api/admin/ops': { computedAt: new Date().toISOString(), overall: 'WARNING', known: ['database'], unknown: ['intelligence'],
@@ -12,7 +13,13 @@ const S = { '/api/auth/me': { isPlatformAdmin: true, email: 'a@t' },
   '/api/admin/payment-events': { events: [] }, '/api/admin/settings': { settings: [] },
   '/api/admin/support/counts': { open: 0, awaiting: 0, urgent: 0, resolved: 0 },
   '/api/admin/platform-stats': { computedAt: Date.now(), fromCache: false, reach: {}, money: { byCurrency: [] }, brain: { lookbackDays: 7, narrationCoveragePct: null } } };
-const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+// Same portability rule as the other browser harnesses: an absolute authoring
+// cwd and an unconditional sandbox browser path both fail in CI.
+const launchOptions = existsSync('/opt/pw-browsers/chromium')
+  ? { executablePath: '/opt/pw-browsers/chromium' }
+  : {};
+
+const b = await chromium.launch(launchOptions);
 let fail = 0;
 // The Admin OS's views are the Control Plane shell's tab strip now
 // (.view-tab[data-view]); the legacy sidebar that held them is gone. The rail

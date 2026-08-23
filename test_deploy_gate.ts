@@ -695,6 +695,76 @@ function main() {
     }
   }
 
+  console.log('\n── 12. no browser harness may be pinned to the author\'s machine ──');
+  {
+    // WHY. test:all's browser harnesses hardcoded `cwd: '/home/user/adlytic'`
+    // and `executablePath: '/opt/pw-browsers/chromium'`. Both are true only in
+    // the sandbox they were written in. In CI the checkout lives at
+    // /home/runner/work/adlytic/adlytic, so execSync failed before /bin/sh
+    // could start and reported `spawnSync /bin/sh ENOENT` — which reads as a
+    // broken shell, not a bad directory, and cost a release cycle to diagnose.
+    //
+    // DISCOVERED, NOT LISTED. The harness set is derived from what test:all
+    // actually runs, so adding a new browser suite to the chain puts it under
+    // this guard automatically. A hardcoded filename list would go stale the
+    // moment someone adds the next one — which is precisely how the first two
+    // survived.
+    const pkg = JSON.parse(readFileSync(join(__dirname, 'package.json'), 'utf8')) as
+      { scripts: Record<string, string> };
+    const chain = pkg.scripts['test:all'] ?? '';
+    const scriptNames = [...chain.matchAll(/npm run ([\w:.-]+)/g)].map((m) => m[1]!);
+
+    const harnesses: Array<{ name: string; file: string; src: string }> = [];
+    for (const name of scriptNames) {
+      const cmd = pkg.scripts[name];
+      if (!cmd) continue;
+      const file = cmd.trim().split(/\s+/).pop()!;
+      if (!/\.(mjs|ts)$/.test(file)) continue;
+      const abs = join(__dirname, file);
+      if (!existsSync(abs)) continue;
+      // This gate is not a harness — it is the thing checking them, and its
+      // own assertions necessarily quote the very literals it forbids.
+      if (file.endsWith('test_deploy_gate.ts')) continue;
+      const src = readFileSync(abs, 'utf8');
+      // BEHAVIOURAL detection: a browser harness is one that actually LAUNCHES
+      // a browser. Merely mentioning playwright (a CI-coverage assertion, a
+      // comment) is not driving one, and matching on the word swept this very
+      // file into its own net.
+      if (/chromium\.launch\s*\(/.test(src)) harnesses.push({ name, file, src });
+    }
+
+    if (harnesses.length === 0) {
+      bad('no browser harness found in test:all — this guard would pass vacuously');
+    } else {
+      ok(`browser harnesses discovered from test:all: ${harnesses.map((h) => h.file).join(', ')}`);
+
+      // (a) no absolute authoring cwd, anywhere in executable content.
+      const pinned = harnesses.filter((h) =>
+        h.src.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n').includes('/home/user/'),
+      );
+      if (pinned.length === 0) {
+        ok('no harness pins an absolute authoring path');
+      } else {
+        bad(`harness pinned to the author's machine: ${pinned.map((h) => h.file).join(', ')} `
+          + '— use process.cwd() so the suite runs wherever the repo is checked out');
+      }
+
+      // (b) a preinstalled browser path may be USED, but only behind an
+      // existence check. Unconditional use is what breaks CI.
+      const unguarded = harnesses.filter((h) => {
+        const code = h.src.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+        if (!code.includes('/opt/pw-browsers')) return false;
+        return !/existsSync\(\s*['\`]\/opt\/pw-browsers/.test(code);
+      });
+      if (unguarded.length === 0) {
+        ok('any preinstalled browser path is guarded by an existence check with a fallback');
+      } else {
+        bad(`harness hardcodes a browser executable with no fallback: ${unguarded.map((h) => h.file).join(', ')} `
+          + '— CI installs Chromium via `playwright install` and has no /opt/pw-browsers');
+      }
+    }
+  }
+
   console.log(`\n════ ${failed === 0 ? `${passed} passed, 0 failed` : `${failed} FAILURES, ${passed} passed`} ════\n`);
   process.exit(failed ? 1 : 0);
 }
