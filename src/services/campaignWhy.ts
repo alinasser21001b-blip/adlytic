@@ -74,6 +74,22 @@ const CONFIDENCE_AR: Record<string, string> = {
   INSUFFICIENT_DATA: 'البيانات غير كافية للحكم',
 };
 
+/**
+ * `semantics.classificationConfidence` is NOT the same vocabulary as the
+ * table above — confirmed by tracing analytics/confidence.ts's
+ * `ClassificationConfidence` type (CONFIRMED/INFERRED/EVIDENCE/UNKNOWN),
+ * and by a live /why call during Alpha testing that returned
+ * `classificationConfidence: "CONFIRMED"` and silently fell through
+ * CONFIDENCE_AR to null. Kept as a separate table so the two enums can
+ * never again be conflated through a shared lookup.
+ */
+const CLASSIFICATION_CONFIDENCE_AR: Record<string, string> = {
+  CONFIRMED: 'محدَّد بدقة من إعدادات الحملة',
+  INFERRED:  'مُستنتَج من هدف الحملة',
+  EVIDENCE:  'مبني على النتائج الفعلية المرصودة',
+  UNKNOWN:   'غير محدَّد',
+};
+
 const DATA_CONFIDENCE_AR: Record<string, string> = {
   COMPLETE: 'كل أيام الفترة مغطاة',
   PARTIAL:  'بعض أيام الفترة بلا بيانات',
@@ -246,7 +262,7 @@ function findingFor(stage: string, s: BrainObservatorySnapshot): string | null {
     case 'DATA_VALIDITY':
       return ar(DATA_CONFIDENCE_AR, s.temporal.dataConfidence);
     case 'SEMANTIC_VALIDITY': {
-      const conf = ar(CONFIDENCE_AR, s.semantics.classificationConfidence);
+      const conf = ar(CLASSIFICATION_CONFIDENCE_AR, s.semantics.classificationConfidence);
       return conf ? `${s.semantics.primaryKpiLabelAr} — ${conf}` : s.semantics.primaryKpiLabelAr;
     }
     case 'FUNNEL_DIAGNOSIS':
@@ -324,7 +340,7 @@ export function projectCampaignWhy(s: BrainObservatorySnapshot): CampaignWhyDTO 
       family: s.semantics.purposeFamily,
       reasonAr: s.semantics.purposeReasonAr,
       classificationConfidence: s.semantics.classificationConfidence,
-      classificationConfidenceAr: ar(CONFIDENCE_AR, s.semantics.classificationConfidence),
+      classificationConfidenceAr: ar(CLASSIFICATION_CONFIDENCE_AR, s.semantics.classificationConfidence),
       primaryKpi: s.semantics.primaryKpi,
       primaryKpiLabelAr: s.semantics.primaryKpiLabelAr,
       resultUnit: s.semantics.resultUnit,

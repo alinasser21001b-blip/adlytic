@@ -1,13 +1,20 @@
 // ════════════════════════════════════════════════════════════════════════
 //  src/screens/CampaignsScreen.tsx
 //
-//  Renders dashboard.campaigns verbatim (getDashboard.ts's CampaignCard[] —
-//  "every active campaign with its window metrics, sorted by health desc").
-//  Deliberately reuses the SAME dashboard payload Home already fetches
-//  rather than integrating the separate, richer /campaigns list endpoint
-//  (per-objective KPI layout, delivery tiers): one API surface for Alpha's
-//  list view keeps the mobile boundary narrow. Recorded as POST_ALPHA — see
-//  docs/alpha/ALPHA_LAUNCH.md.
+//  Renders GET /api/workspaces/:id/campaigns — the SAME endpoint the web
+//  app's campaignsPage.ts already uses for its own campaign list, on
+//  purpose: dashboard.campaigns/bestCampaign/worstCampaign look like the
+//  natural source but depend on a CAMPAIGN-level `health_scores` row that
+//  nothing in the current sync pipeline ever writes (verified live against
+//  a locally booted server — see api/types.ts's CampaignListItemDTO header
+//  and docs/alpha/ALPHA_LAUNCH.md's POST_ALPHA list). This endpoint computes
+//  its per-objective KPI cards live from DailyStat on every request, so it
+//  has no such gap.
+//
+//  Renders the headline objective KPI card verbatim — no health score
+//  substitute is invented here. `deliveryTier` is a closed, 8-value enum
+//  (campaignLifecycle.ts), mapped to Arabic in this file exactly the way
+//  the web client already maps it inline — not a new merchant vocabulary.
 // ════════════════════════════════════════════════════════════════════════
 import React from 'react';
 import { View, Text, StyleSheet, Pressable, FlatList } from 'react-native';
@@ -18,35 +25,40 @@ import { LoadingState, ErrorState, EmptyState } from '../components/States';
 import { useApiData } from '../api/useApiData';
 import { api } from '../api/client';
 import { useWorkspace } from '../auth/WorkspaceContext';
-import type { DashboardDTO, CampaignCardDTO } from '../api/types';
+import type { CampaignListItemDTO, DeliveryTier } from '../api/types';
 import { ar } from '../i18n/ar';
 import { surface, text as textColor, semantic, fontSize, space, radius } from '../theme/tokens';
 import type { MainStackParamList } from '../navigation/types';
 
-const BAND_COLOR: Record<string, string> = {
-  excellent: semantic.good, good: semantic.good, attention: semantic.attention,
-  poor: semantic.bad, critical: semantic.bad,
+const TIER_LABEL_AR: Record<DeliveryTier, string> = {
+  DELIVERING_TODAY: 'تعمل الآن',
+  DELIVERING_WINDOW: 'تعمل',
+  ACCOUNT_HALTED: 'الحساب موقوف',
+  DORMANT_ACTIVE: 'نشطة بلا إنفاق',
+  NOT_DELIVERING: 'لا تعمل',
+  PAUSED: 'متوقفة مؤقتاً',
+  ARCHIVED: 'مؤرشفة',
+  DELETED: 'محذوفة',
 };
-
-function bandFor(health: number): string {
-  if (health >= 90) return 'excellent';
-  if (health >= 70) return 'good';
-  if (health >= 50) return 'attention';
-  return 'poor';
-}
+const TIER_COLOR: Record<DeliveryTier, string> = {
+  DELIVERING_TODAY: semantic.good, DELIVERING_WINDOW: semantic.good,
+  ACCOUNT_HALTED: semantic.bad, NOT_DELIVERING: semantic.attention,
+  DORMANT_ACTIVE: semantic.attention, PAUSED: textColor.faint,
+  ARCHIVED: textColor.faint, DELETED: textColor.faint,
+};
 
 export function CampaignsScreen(): React.ReactElement {
   const { workspaceId } = useWorkspace();
   const nav = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { state, reload } = useApiData<DashboardDTO>(
-    () => api.get<DashboardDTO>(`/api/dashboard/${workspaceId}`),
+  const { state, reload } = useApiData<CampaignListItemDTO[]>(
+    () => api.get<CampaignListItemDTO[]>(`/api/workspaces/${workspaceId}/campaigns`),
     [workspaceId],
   );
 
   if (state.phase === 'loading') return <Screen scroll={false}><LoadingState /></Screen>;
   if (state.phase === 'error') return <Screen scroll={false}><ErrorState kind={state.kind} onRetry={reload} /></Screen>;
 
-  const campaigns = state.data.campaigns ?? [];
+  const campaigns = state.data;
 
   return (
     <Screen scroll={false}>
@@ -66,18 +78,23 @@ export function CampaignsScreen(): React.ReactElement {
   );
 }
 
-function CampaignRow({ item, onPress }: { item: CampaignCardDTO; onPress: () => void }): React.ReactElement {
-  const band = bandFor(item.health);
-  const color = BAND_COLOR[band] ?? textColor.faint;
+function CampaignRow({ item, onPress }: { item: CampaignListItemDTO; onPress: () => void }): React.ReactElement {
+  const color = TIER_COLOR[item.deliveryTier] ?? textColor.faint;
+  const headline = item.objectiveKpis?.cards?.[0] ?? null;
   return (
     <Pressable style={styles.row} onPress={onPress} accessibilityRole="button">
       <View style={[styles.dot, { backgroundColor: color }]} />
       <View style={styles.rowBody}>
         <Text style={styles.rowName} numberOfLines={1}>{item.name}</Text>
-        <Text style={styles.rowSub}>
-          {ar.campaignHealth} {Math.round(item.health)}
-          {item.ctr != null ? `  ·  CTR ${item.ctr.toFixed(2)}%` : ''}
-        </Text>
+        <View style={styles.rowSubLine}>
+          <Text style={styles.rowSub}>{TIER_LABEL_AR[item.deliveryTier] ?? item.deliveryTier}</Text>
+          {headline && (
+            <Text style={styles.rowSub} numberOfLines={1}>
+              {'  ·  '}{headline.labelAr} {headline.value === null ? ar.notAvailable : headline.display}
+              {headline.approximate ? ' ≈' : ''}
+            </Text>
+          )}
+        </View>
       </View>
     </Pressable>
   );
@@ -94,5 +111,6 @@ const styles = StyleSheet.create({
   dot: { width: 10, height: 10, borderRadius: 5, marginStart: space[3] },
   rowBody: { flex: 1 },
   rowName: { fontSize: fontSize.body, fontWeight: '600', color: textColor.primary, textAlign: 'right' },
-  rowSub: { fontSize: fontSize.caption, color: textColor.muted, textAlign: 'right', marginTop: 2 },
+  rowSubLine: { flexDirection: 'row-reverse', flexWrap: 'wrap', marginTop: 2 },
+  rowSub: { fontSize: fontSize.caption, color: textColor.muted, textAlign: 'right' },
 });

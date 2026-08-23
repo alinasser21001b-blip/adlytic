@@ -81,6 +81,42 @@ export interface CampaignCardDTO {
   frequency: number | null;
 }
 
+// ── GET /api/workspaces/:id/campaigns — the list this app actually renders.
+//
+// NOT dashboard.campaigns/bestCampaign/worstCampaign (CampaignCardDTO above).
+// Those depend on a CAMPAIGN-level row in `health_scores`, and tracing
+// runEngines.ts confirmed nothing in the current pipeline ever writes one —
+// every HealthScoreEngine.run() call in the codebase is EntityType.ACCOUNT
+// only. Verified live: a freshly mock-connected account with 2 actively
+// delivering campaigns returned campaigns:[] here. The web app already
+// avoids this by using the endpoint below for its own campaigns list
+// (campaignsPage.ts) — this app does the same, not a new decision. Recorded
+// as POST_ALPHA debt in ALPHA_LAUNCH.md; not fixed here because Alpha's own
+// journey no longer depends on it once this app reads the working endpoint.
+export interface ObjectiveKpiCardDTO {
+  key: string;
+  labelAr: string;
+  value: number | null;
+  display: string;
+  /** True when the number is a proxy. The UI MUST label it — never render as exact. */
+  approximate: boolean;
+  priority: number;
+}
+
+export type DeliveryTier =
+  | 'DELIVERING_TODAY' | 'DELIVERING_WINDOW' | 'ACCOUNT_HALTED'
+  | 'DORMANT_ACTIVE' | 'NOT_DELIVERING' | 'PAUSED' | 'ARCHIVED' | 'DELETED';
+
+export interface CampaignListItemDTO {
+  id: string;
+  name: string;
+  status: string;
+  deliveryTier: DeliveryTier;
+  /** Ordered, objective-specific; index 0 is the headline. Null when the
+   *  purpose could not be resolved — render nothing, never a guessed layout. */
+  objectiveKpis: { family: string; cards: ObjectiveKpiCardDTO[] } | null;
+}
+
 export interface DashboardDTO {
   empty?: true;
   accountHold?: { reason: string; sinceDisplay?: string } & Record<string, unknown>;
