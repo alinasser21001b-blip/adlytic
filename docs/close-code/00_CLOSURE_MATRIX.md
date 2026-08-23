@@ -54,18 +54,22 @@ Legend: `CLOSED_PROVEN` · `LIVE_VALIDATED` · `PARTIAL` · `OBSERVABILITY_ONLY_
 | 43 | Admin console page merge | `adminConsolePage` / `adminOsPage` | — | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 44 | Security & Audit admin section | — | `test_admin_os` §1 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
 | 45 | `recommend.ts` ungoverned actions | `recommend.ts::templateFor` | matrix, doc 03 | OPEN_NON_BLOCKING_DEBT | n/a | YES |
-| 46 | **Gate A — build-secret exposure** | `Dockerfile`, railway configs | `test_deploy_gate` §8 | **CLOSED_PROVEN** (repo) · live build blocked with Gate D | YES | YES |
+| 46 | **Gate A — build-secret exposure** | `Dockerfile`, railway configs | `test_deploy_gate` §8 | **CLOSED** — repo proven, and measured live on the candidate's own build: 0 warnings, builder Dockerfile (doc 16 §2) | YES | YES |
 | 47 | **Gate B — period truth live validation** | migration + worker | doc 07 ladder | **LIVE_VALIDATED** | YES | YES |
 | 48 | **Gate C — CI runs the suite, over every path a suite reads** | `.github/workflows/test.yml` | `test_deploy_gate` §5 | **CLOSED_PROVEN** | YES | YES |
-| 49 | **Gate D — final health + build identity** | Railway | doc 15 | **OPEN** — blocked on a stalled Railway build queue, not on this repo | NO | YES |
+| 49 | **Gate D — final health + build identity** | Railway | doc 16 | **CLOSED** — queue drained; 4fcdad5 SUCCESS and serving, predecessor REMOVED, no pending migrations (doc 16 §3) | YES | YES |
 | 50 | **Meta lifecycle not substituted** | `getCampaignDetails.ts`, `campaignFreeze.ts` | `test_final_audit_remediation` | **CLOSED_PROVEN** | YES | YES |
 | 51 | **Observatory provenance copy matches its producer** | `brainObservatory.ts` | `test_brain_observatory` §9 | **CLOSED_PROVEN** | YES | YES |
 
-**Remaining gate: 1** (item 49). Gate A's *repository* fix is landed and
-mechanically guarded; what remains for it is one fresh build to observe, which
-is the same deployment Gate D needs. Gate B is live-validated and will be
-re-checked against the final build rather than assumed to survive it. Gate C is
-closed and was widened this cycle.
+**Remaining gates: 0.** All four are closed against the final candidate
+`4fcdad5`; the evidence for each is in doc 16.
+
+Doc 15 recorded one blocker holding Gates A and D — Railway's build queue had
+stopped moving, so the single observation both needed could not be taken. That
+queue drained. The candidate built on the Dockerfile builder with zero
+build-secret warnings, deployed SUCCESS, superseded its predecessor, and
+reported no pending migrations; Gate B was then re-checked against that build
+rather than assumed to survive it.
 
 The blocker named in the previous revision of this file — "`RAILWAY_TOKEN` is
 unset" — is resolved. The token authenticates; it is what read the build log

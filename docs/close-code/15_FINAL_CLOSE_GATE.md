@@ -1,5 +1,11 @@
 # 15 — Final close gate
 
+> **Superseded by doc 16.** Everything below was true when written; the two
+> gates it leaves open were closed against candidate `4fcdad5` once Railway's
+> build queue drained. Kept as the record of what was known then, including the
+> blocker, because "the queue is stalled" was itself a finding that took tools
+> to see.
+
 ```
 BASE_MAIN_AT_BRANCH        = 094a37b   (merge of PR #93)
 FINAL_CANDIDATE_BRANCH     = claude/adlytic-graphify-analysis-ai34bu
@@ -7,6 +13,7 @@ FINAL_CANDIDATE_BRANCH     = claude/adlytic-graphify-analysis-ai34bu
 APPLICATION_BEHAVIOR_CLOSE_COMPLETE = YES
 REPOSITORY_RELEASE_GATE_COMPLETE    = YES   (gate C closed, and widened)
 OPERATIONAL_CLOSE_COMPLETE          = pending this candidate's deployment
+                                      → now COMPLETE on 4fcdad5; see doc 16
 ```
 
 ## What this cycle changed, and why each was not deferred

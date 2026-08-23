@@ -6,10 +6,11 @@ TOKEN_URL_RISK           = CLOSED (one call site fixed — see doc 06)
 VALIDATION_MIGRATION_RISK = CLOSED
 BUILD_IDENTITY_SAFE      = YES
 SERVICE_ROLE_SAFE        = YES
-SECURITY_GAPS            = 0 in repository code; 1 operational gate OPEN
+SECURITY_GAPS            = 0 in repository code; 0 operational gates OPEN
 SECRET_EXPOSURE_PROVEN   = NO (unproven either way — A1)
 ROTATION_MECHANISM       = already implemented for TOKEN_ENCRYPTION_KEY (A3)
-NIXPACKS_SECRET_GATE     = OPEN   ← see gate A below
+NIXPACKS_SECRET_GATE     = CLOSED — measured on the candidate's own build:
+                           0 SecretsUsedInArgOrEnv, builder Dockerfile (doc 16 §2)
 ```
 
 ## Secrets at HEAD
@@ -110,8 +111,13 @@ permanently unreachable.
 ## GATE B — PERIOD_TRUTH_LIVE_GATE (DATA MIGRATION / LIVE BEHAVIOUR OPERATIONAL GATE)
 
 ```
-PERIOD_TRUTH_LIVE_GATE = OPEN
+PERIOD_TRUTH_LIVE_GATE = CLOSED
 ```
+
+Closed live, and then re-checked against the final candidate `4fcdad5` rather
+than assumed to survive it: `period facts: 14/200 stored`, `full sync done`,
+`PERIOD_INSIGHT_WRITE_PATH_EXECUTED=YES`, `UNAVAILABLE_OR_FAILED=0`. Evidence
+and the first (correctly UNOBSERVED) read are in doc 16 §8.
 
 **A validation-service deploy alone cannot validate period metrics.** That
 service is `SERVICE_ROLE=api` with no migration and no background sync — it is
@@ -461,10 +467,10 @@ SAFE_ROTATION_PLAN =
     2. set it on all services at once, redeploy, accept one forced re-login
 ```
 
-### A4 — Gate state *(superseded by A5)*
+### A4 — Gate state *(superseded by A5; the state below is historical)*
 
 ```
-NIXPACKS_SECRET_GATE = OPEN
+NIXPACKS_SECRET_GATE = OPEN      ← as it stood then. Now CLOSED — doc 16 §2.
 ```
 
 Exact blocker recorded at the time: **closing A4 requires a build and a running
