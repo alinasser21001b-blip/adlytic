@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <!-- Splash mark only — transparent background. app.json's splash.backgroundColor
+       (#0E4034, brand.base) shows through everywhere else, so this must NOT
+       repaint its own ground or a visible box will appear on real devices. -->
+  <path d="M288 752 L512 240 L736 752 Z" fill="none" stroke="#FFFFFF" stroke-width="34" stroke-linejoin="round"/>
+  <path d="M410 582 L614 582" stroke="#FFFFFF" stroke-width="30" stroke-linecap="round" opacity="0.92"/>
+  <circle cx="512" cy="440" r="30" fill="#C8F26B"/>
+</svg>
