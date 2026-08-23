@@ -19,10 +19,10 @@ Classes: `BLOCKING_SECURITY` · `BLOCKING_CORRECTNESS` · `BLOCKING_DATA_INTEGRI
 
 | Gate | Class | State |
 |---|---|---|
-| **A. BUILD_SECRET_GATE** | deployment / security operational | fix landed; awaits a fresh build — doc 07 |
-| **B. PERIOD_TRUTH_LIVE_GATE** | data / live behaviour operational | **CLOSED** live; re-checked after the final deploy |
+| **A. BUILD_SECRET_GATE** | deployment / security operational | **CLOSED** — measured on the candidate's own build: 0 warnings, builder Dockerfile (doc 16 §2) |
+| **B. PERIOD_TRUTH_LIVE_GATE** | data / live behaviour operational | **CLOSED** live, and re-checked against the final build (doc 16 §8) |
 | **C. CI_GATE** | repository governance | **CLOSED**, and widened this cycle |
-| **D. FINAL_HEALTH_BUILD_GATE** | deployment / live verification | awaits this candidate on main |
+| **D. FINAL_HEALTH_BUILD_GATE** | deployment / live verification | **CLOSED** — 4fcdad5 SUCCESS and serving, predecessor REMOVED, queue CLEAR (doc 16 §3) |
 
 Gate A was previously blocked on having no way to read a Railway build log.
 That is solved: `verify-live.yml` proves the field by `__schema` introspection
@@ -163,6 +163,16 @@ live database, and the suite deliberately requires none.
 
 **Reopen when** the unlock-returned-false warning appears in production, or the
 pool gains a path that keeps one connection hot indefinitely.
+
+**REOPENED — the trigger fired.** The warning appeared in the production
+runtime log twice on one pass (`ADVISORY_UNLOCK_WRONG_SESSION_OBSERVED=YES`,
+keys 787349506 and 254083077 — doc 16 §6). The analysis above still holds:
+that same pass completed, and the failure direction is over-blocking, so this
+is a liveness cost and not a correctness violation. What has changed is that
+the grounds for deferring it are gone — it is no longer a condition that has
+not occurred, it is one that occurs in normal operation. Reclassified from
+watched debt to scheduled work. The fix (pin one session across
+acquire → work → release) is a design change and was not started here.
 
 ## D6. `PRISMA_CONFIG_UNDECLARED_DOTENV` — `NON_BLOCKING_DEBT` *(new)*
 
