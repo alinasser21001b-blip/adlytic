@@ -17,6 +17,7 @@
 import type { PrismaClient } from '@prisma/client';
 
 import { config } from '../config';
+import { accountDeliveryHold } from '../lib/campaignLifecycle';
 import { getBuildIdentity, type BuildIdentity } from '../lib/buildIdentity';
 import { isQueueEnabled, lastQueueError } from '../lib/queue';
 import { isRedisHealthy, lastRedisError } from '../lib/redis';
@@ -100,6 +101,11 @@ export interface WorkspaceOpsRow {
   tokenExpiresAt: string | null;
   /** Meta's own account_status integer, when we have synced it. */
   metaAccountStatus: number | null;
+  /** Meta's disable_reason integer when the account is DISABLED; null
+   *  otherwise or when never synced. Raw code, not a label — there is no
+   *  canonical disable_reason → prose mapping in this repository yet (see
+   *  accountDeliveryHold for account_status, which IS labeled). */
+  metaDisableReason: number | null;
   lastSyncedAt: string | null;
   lastSyncStatus: string | null;
   lastSyncError: string | null;
@@ -230,6 +236,54 @@ function daysSince(d: Date | null | undefined): number | null {
 
 function iso(d: Date | null | undefined): string | null {
   return d ? d.toISOString() : null;
+}
+
+/**
+ * The token/account axis of a workspace row's ops status. Pure and exported
+ * so this decision is directly testable without a live database — the
+ * account_status branch is the one that previously treated every non-ACTIVE
+ * code alike, including IN_GRACE_PERIOD, which accountDeliveryHold() already
+ * knows is not a halt.
+ */
+export function deriveConnectionStatus(input: {
+  hasToken: boolean;
+  expired: boolean;
+  metaAccountStatus: number | null;
+  metaDisableReason: number | null;
+  localStatus: string;
+}): { connection: OpsStatus; connectionReason: OpsReasonCode; headline: string } {
+  if (!input.hasToken) {
+    return { connection: 'BLOCKED', connectionReason: 'META_NO_TOKEN', headline: 'بلا رمز Meta محفوظ — أعد الربط' };
+  }
+  if (input.expired) {
+    return { connection: 'BLOCKED', connectionReason: 'META_TOKEN_EXPIRED', headline: 'انتهت صلاحية رمز Meta' };
+  }
+  if (input.metaAccountStatus != null && input.metaAccountStatus !== 1) {
+    // Meta's own verdict on the ad account outranks ours: an unsettled or
+    // disabled account delivers nothing no matter how healthy our plumbing is.
+    // Reuses campaignLifecycle.ts's canonical account_status → hold mapping
+    // (the same one the merchant-facing delivery tier uses) rather than
+    // treating every non-ACTIVE code alike — IN_GRACE_PERIOD is a real,
+    // named, NON-halted state there (still delivering, will stop unless
+    // paid), and this console must not disagree with that answer by
+    // reporting a hard BLOCKED for an account that is still serving ads.
+    const hold = accountDeliveryHold(input.metaAccountStatus);
+    return {
+      connection: hold.halted ? 'BLOCKED' : 'WARNING',
+      connectionReason: hold.halted ? 'META_ACCOUNT_DISABLED_BY_META' : 'META_ACCOUNT_GRACE_PERIOD',
+      // metaDisableReason is Meta's supplementary code for WHY a DISABLED
+      // account was disabled — fetched from Prisma but previously never read
+      // at all. Appended as a raw code, not a label: see the field's own doc
+      // comment on WorkspaceOpsRow for why no label table exists yet.
+      headline: input.metaDisableReason != null
+        ? `${hold.labelAr} (سبب Meta: ${input.metaDisableReason})`
+        : hold.labelAr,
+    };
+  }
+  if (input.localStatus !== 'ACTIVE') {
+    return { connection: 'WARNING', connectionReason: 'META_ACCOUNT_INACTIVE_LOCALLY', headline: 'الحساب الإعلاني غير نشط عندنا' };
+  }
+  return { connection: 'HEALTHY', connectionReason: 'OK', headline: 'سليم' };
 }
 
 /**
@@ -377,6 +431,7 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
         workspaceId: w.id, workspaceName: w.name, ownerEmail,
         adAccountId: null, adAccountName: null, externalAccountId: null, currency: null,
         hasToken: false, tokenSource: null, tokenExpiresAt: null, metaAccountStatus: null,
+        metaDisableReason: null,
         lastSyncedAt: null, lastSyncStatus: null, lastSyncError: null,
         freshestDataDate: null, dataAgeDays: null,
         // No account is a SETUP state, not a failure: nothing is broken, the
@@ -398,24 +453,14 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     // different causes with four different fixes. The cause is now carried
     // as a machine-readable reason code alongside it, so a console can say
     // WHICH thing is wrong without an operator parsing an Arabic sentence.
-    let connection: OpsStatus = 'HEALTHY';
-    let connectionReason: OpsReasonCode = 'OK';
-    let headline = 'سليم';
-    if (!hasToken) {
-      connection = 'BLOCKED'; connectionReason = 'META_NO_TOKEN';
-      headline = 'بلا رمز Meta محفوظ — أعد الربط';
-    } else if (expired) {
-      connection = 'BLOCKED'; connectionReason = 'META_TOKEN_EXPIRED';
-      headline = 'انتهت صلاحية رمز Meta';
-    } else if (acct.metaAccountStatus != null && acct.metaAccountStatus !== 1) {
-      // Meta's own verdict on the ad account outranks ours: an unsettled or
-      // disabled account delivers nothing no matter how healthy our plumbing is.
-      connection = 'BLOCKED'; connectionReason = 'META_ACCOUNT_DISABLED_BY_META';
-      headline = `حساب Meta غير نشط (الحالة ${acct.metaAccountStatus})`;
-    } else if (acct.status !== 'ACTIVE') {
-      connection = 'WARNING'; connectionReason = 'META_ACCOUNT_INACTIVE_LOCALLY';
-      headline = 'الحساب الإعلاني غير نشط عندنا';
-    }
+    const connResult = deriveConnectionStatus({
+      hasToken, expired,
+      metaAccountStatus: acct.metaAccountStatus, metaDisableReason: acct.metaDisableReason,
+      localStatus: acct.status,
+    });
+    let connection = connResult.connection;
+    let connectionReason = connResult.connectionReason;
+    let headline = connResult.headline;
 
     // Data: the freshness axis only. Kept separate because a live token with
     // stale data and a dead token are different incidents with different fixes.
@@ -441,6 +486,7 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
       externalAccountId: acct.externalAccountId, currency: acct.currency,
       hasToken, tokenSource: acct.tokenSource, tokenExpiresAt: iso(acct.tokenExpiresAt),
       metaAccountStatus: acct.metaAccountStatus,
+      metaDisableReason: acct.metaDisableReason,
       lastSyncedAt: iso(acct.lastSyncedAt),
       lastSyncStatus: sync?.status ?? null,
       // SANITIZED. This string is a provider error verbatim from the sync

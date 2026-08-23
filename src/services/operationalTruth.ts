@@ -152,6 +152,11 @@ export const OPS_REASON_CODES = [
   'META_TOKEN_EXPIRED',
   // meta — account axis
   'META_ACCOUNT_DISABLED_BY_META',
+  /** Meta's IN_GRACE_PERIOD — still delivering, will stop unless the
+   *  outstanding balance is paid. A real, named, NON-halted state per
+   *  campaignLifecycle.ts's accountDeliveryHold(); distinct from an actual
+   *  block so a still-delivering account is not reported as one. */
+  'META_ACCOUNT_GRACE_PERIOD',
   'META_ACCOUNT_INACTIVE_LOCALLY',
   // meta — transport / data axis
   'META_SYNC_FAILED',

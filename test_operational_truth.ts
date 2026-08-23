@@ -35,6 +35,8 @@ import {
 } from './src/services/operationalTruth';
 import { assessReadiness, READINESS_POLICY, CALL_THRESHOLD } from './src/services/metaReadiness';
 import { unavailableTelemetry, type DurableUsageTelemetry } from './src/services/metaUsageStore';
+import { deriveConnectionStatus } from './src/services/adminOpsHealth';
+import { accountDeliveryHold, META_ACCOUNT_STATUS } from './src/lib/campaignLifecycle';
 
 let failed = 0; let passed = 0;
 const check = (name: string, fn: () => void): void => {
@@ -188,6 +190,110 @@ check('U8 the policy travels with its provenance and is NOT claimed as primary-v
   assert.ok(READINESS_POLICY.policyVerifiedAt, 'a policy without a verification date is folklore');
   assert.equal(READINESS_POLICY.policySource, 'SECONDARY_CORROBORATED',
     'Meta primary docs are unreachable from this environment; claiming PRIMARY would be a lie');
+});
+
+// ── M. Meta account connection status ───────────────────────────────────
+console.log('\n── M. Meta account status → connection (deriveConnectionStatus) ──');
+//
+// The one gap #107's otherwise-thorough rebuild of adminOpsHealth.ts still
+// had: metaDisableReason was selected from Prisma and never read, and every
+// non-ACTIVE metaAccountStatus was treated as a hard BLOCKED — including
+// IN_GRACE_PERIOD, which accountDeliveryHold() already classifies as NOT
+// halted (still delivering, will stop unless paid). Two consumers of the
+// same Meta code disagreeing about what it means is the bug class this
+// closes off, not a new one.
+
+check('M1 no token → BLOCKED, before any Meta status is even considered', () => {
+  const r = deriveConnectionStatus({
+    hasToken: false, expired: false, metaAccountStatus: META_ACCOUNT_STATUS.ACTIVE,
+    metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(r.connection, 'BLOCKED');
+  assert.equal(r.connectionReason, 'META_NO_TOKEN');
+});
+
+check('M2 expired token → BLOCKED', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: true, metaAccountStatus: null, metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(r.connection, 'BLOCKED');
+  assert.equal(r.connectionReason, 'META_TOKEN_EXPIRED');
+});
+
+check('M3 a healthy, active account is HEALTHY with no metaAccountStatus synced yet', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: null, metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(r.connection, 'HEALTHY');
+  assert.equal(r.connectionReason, 'OK');
+});
+
+check('M4 DISABLED surfaces metaDisableReason in the headline — this is the fix', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: META_ACCOUNT_STATUS.DISABLED,
+    metaDisableReason: 3, localStatus: 'ACTIVE',
+  });
+  assert.equal(r.connection, 'BLOCKED');
+  assert.equal(r.connectionReason, 'META_ACCOUNT_DISABLED_BY_META');
+  assert.ok(r.headline.includes('3'), `headline must name the disable_reason code: "${r.headline}"`);
+});
+
+check('M5 DISABLED with no synced disable_reason still gets a real label, no bare number', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: META_ACCOUNT_STATUS.DISABLED,
+    metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(r.connection, 'BLOCKED');
+  assert.ok(r.headline.length > 0 && !/^\d+$/.test(r.headline));
+});
+
+check('M6 UNSETTLED → BLOCKED, matching accountDeliveryHold()\'s own halted verdict', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: META_ACCOUNT_STATUS.UNSETTLED,
+    metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(accountDeliveryHold(META_ACCOUNT_STATUS.UNSETTLED).halted, true);
+  assert.equal(r.connection, 'BLOCKED');
+  assert.equal(r.connectionReason, 'META_ACCOUNT_DISABLED_BY_META');
+});
+
+check('M7 IN_GRACE_PERIOD → WARNING, NOT BLOCKED — the over-alarm this fix corrects', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: META_ACCOUNT_STATUS.IN_GRACE_PERIOD,
+    metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(accountDeliveryHold(META_ACCOUNT_STATUS.IN_GRACE_PERIOD).halted, false,
+    'the account is still delivering per campaignLifecycle.ts\'s own verdict');
+  assert.equal(r.connection, 'WARNING', 'the console must not disagree with that verdict by hard-blocking it');
+  assert.equal(r.connectionReason, 'META_ACCOUNT_GRACE_PERIOD');
+});
+
+check('M8 an unrecognised Meta code is treated as a hold, never silently healthy', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: 9999, metaDisableReason: null, localStatus: 'ACTIVE',
+  });
+  assert.equal(r.connection, 'BLOCKED');
+});
+
+check('M9 Meta ACTIVE but locally inactive → WARNING, not HEALTHY and not BLOCKED', () => {
+  const r = deriveConnectionStatus({
+    hasToken: true, expired: false, metaAccountStatus: META_ACCOUNT_STATUS.ACTIVE,
+    metaDisableReason: null, localStatus: 'PAUSED',
+  });
+  assert.equal(r.connection, 'WARNING');
+  assert.equal(r.connectionReason, 'META_ACCOUNT_INACTIVE_LOCALLY');
+});
+
+check('M10 metaDisableReason is selected from Prisma AND read by the connection derivation', () => {
+  const src = readFileSync(join(__dirname, 'src/services/adminOpsHealth.ts'), 'utf8');
+  assert.ok(/metaAccountStatus:\s*true,\s*metaDisableReason:\s*true/.test(src),
+    'the Prisma select must still fetch it');
+  assert.ok(/metaDisableReason:\s*acct\.metaDisableReason/.test(src),
+    'and the row must still expose it — regression guard for the original silently-fetched-never-read bug');
+  const fnIdx = src.indexOf('export function deriveConnectionStatus');
+  assert.ok(fnIdx > 0, 'deriveConnectionStatus must be exported for direct testing');
+  assert.ok(/input\.metaDisableReason/.test(src.slice(fnIdx, fnIdx + 2000)),
+    'the derivation itself must read metaDisableReason, not just carry it past unused');
 });
 
 // ── C / A. Context and intelligence ─────────────────────────────────────
