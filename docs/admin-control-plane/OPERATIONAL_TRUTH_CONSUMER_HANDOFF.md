@@ -96,7 +96,8 @@ Stable, `SCREAMING_SNAKE`, unique. Full list in
 | `BACKGROUND_RECENT_SUCCESS` | a sync succeeded within 48h | ok |
 | `META_NO_TOKEN` | no stored token | operator: reconnect |
 | `META_TOKEN_EXPIRED` | token past expiry | operator: reconnect |
-| `META_ACCOUNT_DISABLED_BY_META` | Meta's own `account_status` ≠ 1 | operator: Meta-side |
+| `META_ACCOUNT_DISABLED_BY_META` | Meta's own `account_status` ≠ 1, and `accountDeliveryHold()` says the account is halted (DISABLED, UNSETTLED, PENDING_*, CLOSED, or an unrecognised code) | operator: Meta-side |
+| `META_ACCOUNT_GRACE_PERIOD` | `account_status` = `IN_GRACE_PERIOD` — still delivering, will stop unless the balance is paid; `accountDeliveryHold()` reports `halted: false` | operator: eventually, not urgently |
 | `META_ACCOUNT_INACTIVE_LOCALLY` | our record is not ACTIVE | operator: platform-side |
 | `META_NO_ACCOUNT_CONNECTED` | nothing linked yet | context, not a fault |
 | `BRAIN_DETERMINISTIC_OK` | canonical chain needs no provider | ok |
@@ -108,6 +109,14 @@ Stable, `SCREAMING_SNAKE`, unique. Full list in
 vocabulary per row. `"1 of 1 blocked"` is now decomposable: the aggregate
 `assessments[key=meta].reasonCode` is the *dominant* cause, and `evidence`
 carries the breakdown (`META_TOKEN_EXPIRED×2, META_NO_TOKEN×1`).
+
+**`workspaces[].metaDisableReason`** is Meta's raw `disable_reason` integer
+(not a label — no canonical mapping exists for it yet, unlike `account_status`
+via `accountDeliveryHold()`), present only when the account is DISABLED. When
+set, it is appended to the row's `headline` as `"... (سبب Meta: N)"`. Do not
+invent a label table from memory; verify against Meta's live Marketing API
+docs first, the same rule `metaReadiness.ts`'s policy comment already follows
+for its own thresholds.
 
 ---
 
