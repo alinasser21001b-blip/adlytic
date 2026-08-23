@@ -26,6 +26,7 @@ import { config, reportConfig } from '../config';
 import { buildIdentityLine } from '../lib/buildIdentity';
 import { shutdownQueueWorkers } from '../workers/queue';
 import { startBackgroundWork, cleanupOrphanedSyncJobs } from '../workers/backgroundScheduler';
+import { registerMetaUsagePrisma } from '../services/metaUsageStore';
 
 const PORT = config.port;
 // Auto-sync tick (used only for the boot log; the loop itself lives in
@@ -83,14 +84,32 @@ async function main(): Promise<void> {
     console.warn('[adlytic] Warning: database connection failed — DB-backed routes will error.', err);
   }
 
+  // Meta usage telemetry writes to Postgres, and the transport that records
+  // it is constructed too deep to carry a client. Registered once, here.
+  registerMetaUsagePrisma(prisma);
+
   // Clean up zombie SyncJobs left by a prior crash/deploy so new sync
-  // requests aren't blocked by the "reuse active job" logic. Skipped only on
-  // a validation instance (SKIP_STARTUP_SYNC_CLEANUP=true) sharing the
-  // production DB — see config.ts's doc comment for why.
-  if (!config.features.skipStartupSyncCleanup) {
-    await cleanupOrphanedSyncJobs(prisma);
-  } else {
+  // requests aren't blocked by the "reuse active job" logic.
+  //
+  // ROLE-GATED, and that gate is load-bearing. This sweep is a WRITE —
+  // updateMany flipping every PENDING/PROCESSING job older than 15 minutes to
+  // FAILED. It used to run in every role, fifty lines above the role check
+  // below, so SERVICE_ROLE=api was NOT a read-only posture: a validation
+  // instance pointed at the production database rewrote production sync
+  // history on every boot. Worse, those rows are then the NEWEST per account,
+  // so the operations console read "all syncs failed" and reported the
+  // workers subsystem as broken — an outage manufactured by the reader.
+  //
+  // A reader must not need a second, independently-set variable to stop
+  // writing. SKIP_STARTUP_SYNC_CLEANUP is still honoured as an explicit
+  // override for the combined/worker roles, but the role alone now decides.
+  const sweepOwner = config.role !== 'api';
+  if (!sweepOwner) {
+    console.log('[adlytic] SERVICE_ROLE=api — startup orphaned-SyncJob sweep skipped (reader role writes nothing)');
+  } else if (config.features.skipStartupSyncCleanup) {
     console.log('[adlytic] SKIP_STARTUP_SYNC_CLEANUP=true — startup orphaned-SyncJob sweep skipped');
+  } else {
+    await cleanupOrphanedSyncJobs(prisma);
   }
 
   const app = buildRoutes(prisma);

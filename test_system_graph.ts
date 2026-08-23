@@ -528,6 +528,80 @@ function run() {
       'DailyStat has no adAccountId column; that blind spot must stay visible');
   });
 
+  // ── optional-dependency semantics (schema 1.1.0) ──────────────────────
+  //
+  // The map used to say "queue DEPENDS_ON redis" with no qualifier, and a
+  // reader tracing outward from a dead Redis concluded that background work
+  // had stopped. It had not: enqueueOrFallback runs the original in-process
+  // body. These guards keep the structural claim honest.
+
+  check('the queue → redis dependency is marked OPTIONAL, not a hard requirement', () => {
+    const g = buildArchitectureGraph();
+    const redisEdges = g.edges.filter((e) => e.to.includes('redis') && e.kind === 'DEPENDS_ON');
+    assert.ok(redisEdges.length > 0, 'the redis dependency must still be represented');
+    for (const e of redisEdges) {
+      assert.equal(e.requiredness, 'OPTIONAL',
+        `${e.from} → redis must be OPTIONAL: work continues in-process without it`);
+    }
+  });
+
+  check('the in-process fallback is a structural edge, not a comment', () => {
+    const g = buildArchitectureGraph();
+    const fb = g.edges.filter((e) => e.kind === 'FALLS_BACK_TO');
+    assert.ok(fb.length > 0,
+      'FALLS_BACK_TO must express the retreat path, or the graph cannot answer "what still works"');
+    for (const e of fb) {
+      assert.ok(g.nodes.some((n) => n.id === e.to), 'a fallback edge must land on a real node');
+      assert.ok(e.provenance && e.provenance.source, 'every edge needs provenance, including new kinds');
+    }
+  });
+
+  check('every edge — new kinds included — carries provenance', () => {
+    const g = buildArchitectureGraph();
+    for (const e of g.edges) {
+      assert.ok(e.provenance?.method, `edge ${e.id} has no provenance method`);
+      assert.ok(e.provenance?.source, `edge ${e.id} has no provenance source`);
+    }
+  });
+
+  check('runtime.ts observes nothing — enforced by IMPORT PATH, not a name list', () => {
+    const src = readFileSync(join(__dirname, 'src/graph/runtime.ts'), 'utf8');
+    const code = src.split('\n').map((l) => l.replace(/\/\/.*$/, '')).join('\n');
+
+    // Path-based on purpose. The first version of this guard listed function
+    // NAMES (getRedis, withRedis, …) and a negative test planted
+    // `isRedisHealthy` straight through it — a guard you can evade by
+    // choosing a different export from the same module is not a boundary.
+    // Every VALUE import is checked; `import type` is fine, since a type
+    // cannot probe anything.
+    const valueImports = [...code.matchAll(/import\s+(?!type\s)([\s\S]*?)from\s+'([^']+)'/g)]
+      .map((m) => m[2]!);
+    const forbiddenPaths = [
+      /lib\/redis/, /lib\/queue/, /services\/meta/, /@prisma\/client/,
+      /metaClient/, /Readiness/i, /usageTracker/i, /usageStore/i,
+    ];
+    for (const path of valueImports) {
+      for (const re of forbiddenPaths) {
+        assert.ok(!re.test(path),
+          `graph/runtime.ts value-imports ${path} — the overlay is a projection, not a prober`);
+      }
+    }
+    // Belt and braces for direct I/O that needs no import at all.
+    for (const forbidden of ['fetch(', 'prisma.', 'process.env']) {
+      assert.ok(!code.includes(forbidden),
+        `graph/runtime.ts must not use ${forbidden}`);
+    }
+  });
+
+  check('the overlay forwards canonical fields rather than recomputing them', () => {
+    const src = readFileSync(join(__dirname, 'src/graph/runtime.ts'), 'utf8');
+    assert.ok(src.includes('ops.assessments'),
+      'the overlay must read canonical assessments so the graph and console cannot disagree');
+    for (const field of ['reasonCode', 'observedAt', 'freshness', 'requiredness']) {
+      assert.ok(src.includes(field), `the overlay must carry ${field} through to the map`);
+    }
+  });
+
   console.log(`\n════ ${passed} passed, ${failures.length} failed ════\n`);
   if (failures.length) process.exit(1);
 }

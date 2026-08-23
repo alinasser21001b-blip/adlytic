@@ -31,11 +31,60 @@ function env(key: string): string | undefined {
   return trimmed === '' ? undefined : trimmed;
 }
 
-function envNumber(key: string, fallback: number): number {
+/**
+ * Read a numeric env var.
+ *
+ * REPORTS what it did, and validates a lower bound. The previous version
+ * accepted any finite number silently and recorded nothing — so
+ * RAW_INSIGHTS_RETAIN_DAYS=0 produced a retention cutoff of "now", and the
+ * daily maintenance job's deleteMany then emptied raw_insights with no
+ * warning at boot and only a post-hoc "Deleted N rows" line. A destructive
+ * value that never appears on the checklist is a data-loss trap.
+ *
+ * `min` is the smallest value that is operationally meaningful. Anything
+ * below it is a misconfiguration, not a preference, so it is refused and
+ * the documented default is used instead — loudly.
+ */
+function envNumber(key: string, fallback: number, min?: number): number {
   const raw = env(key);
   if (raw === undefined) return fallback;
   const n = Number(raw);
-  return Number.isFinite(n) ? n : fallback;
+  if (!Number.isFinite(n)) {
+    record({ key, status: 'warn', detail: `Invalid ${key} "${raw}" — not a number; using ${fallback}` });
+    return fallback;
+  }
+  if (min !== undefined && n < min) {
+    record({
+      key,
+      status: 'warn',
+      detail: `${key}=${n} is below the safe minimum ${min} — using ${fallback}. `
+        + 'A value this low is a misconfiguration, not a tuning choice.',
+    });
+    return fallback;
+  }
+  record({ key, status: 'ok', detail: `${n}` });
+  return n;
+}
+
+/**
+ * Read a boolean env var, and REPORT a value that was set but unrecognised.
+ *
+ * The previous version could not tell "unset" from "set to something I do
+ * not understand": SKIP_STARTUP_SYNC_CLEANUP=enabled silently became false
+ * and the checklist then claimed the operator had left it at the default.
+ */
+function envBooleanChecked(key: string, fallback: boolean): boolean {
+  const raw = env(key);
+  if (raw === undefined) return fallback;
+  if (/^(1|true|yes|on)$/i.test(raw)) return true;
+  if (/^(0|false|no|off)$/i.test(raw)) return false;
+  record({
+    key,
+    status: 'warn',
+    detail: `${key} is set to an unrecognised value — treated as ${fallback}. `
+      + 'Use one of: 1/true/yes/on or 0/false/no/off.',
+  });
+  return fallback;
 }
 
 /** Read a boolean env var. Accepts 1/true/yes/on (case-insensitive) as true. */
@@ -322,7 +371,7 @@ record({
  *  splits workers into their own dynos. When the flag is off, or when Redis
  *  is unhealthy, every enqueue site falls back to its original setImmediate
  *  body so behavior is identical to pre-Phase-3. */
-const bullmqEnabled = envBoolean('BULLMQ_ENABLED', false);
+const bullmqEnabled = envBooleanChecked('BULLMQ_ENABLED', false);
 record({
   key: 'BULLMQ_ENABLED',
   status: 'ok',
@@ -338,7 +387,7 @@ record({
  *  unnecessary write from a second, more-often-restarted instance — and could
  *  race a real in-flight sync job. Off by default — production is unchanged
  *  unless this is explicitly set on a non-primary instance. */
-const skipStartupSyncCleanup = envBoolean('SKIP_STARTUP_SYNC_CLEANUP', false);
+const skipStartupSyncCleanup = envBooleanChecked('SKIP_STARTUP_SYNC_CLEANUP', false);
 record({
   key: 'SKIP_STARTUP_SYNC_CLEANUP',
   status: 'ok',
@@ -357,8 +406,8 @@ const port = envNumber('PORT', 3001);
 // sync is a small handful of Graph API calls). Operators can override via
 // SYNC_INTERVAL_MS env when they need slower cadence (e.g. very large
 // account portfolios).
-const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 15 * 60 * 1000);
-const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90);
+const syncIntervalMs = envNumber('SYNC_INTERVAL_MS', 15 * 60 * 1000, 60_000);
+const rawInsightsRetainDays = envNumber('RAW_INSIGHTS_RETAIN_DAYS', 90, 1);
 
 // ── Service role (Phase A of the sync-layer split) ───────────────────────────
 // 'combined' (default) → one process serves HTTP AND runs background ETL —
@@ -430,6 +479,31 @@ if (openaiApiKey) {
   });
 }
 
+// ── Anthropic (narration / chat provider) ───────────────────────────────────
+//
+// The boot checklist used to watch OPENAI_API_KEY alone while the provider
+// manager PREFERS Anthropic — so a service whose narration was fully working
+// printed a warning, and a service missing the key the narration cron exits
+// without printed nothing at all. Both providers are now reported, and the
+// exported booleans let the operations console state narration availability
+// without reading process.env behind this module's back.
+const anthropicApiKey = env('ANTHROPIC_API_KEY');
+if (anthropicApiKey) {
+  record({ key: 'ANTHROPIC_API_KEY', status: 'ok', detail: 'present — narration provider available' });
+} else if (openaiApiKey) {
+  record({
+    key: 'ANTHROPIC_API_KEY',
+    status: 'warn',
+    detail: 'not set — narration falls back to the OpenAI provider',
+  });
+} else {
+  record({
+    key: 'ANTHROPIC_API_KEY',
+    status: 'warn',
+    detail: 'not set, and no OpenAI key either — narration unavailable; deterministic intelligence is unaffected',
+  });
+}
+
 // ── public, frozen config ────────────────────────────────────────────────────
 
 export interface AppConfig {
@@ -477,6 +551,13 @@ export interface AppConfig {
   openai: {
     apiKey: string | undefined;
     model: string;
+  };
+
+  /** Narration provider availability. Booleans only — never the values. */
+  llm: {
+    anthropicConfigured: boolean;
+    openaiConfigured: boolean;
+    anyConfigured: boolean;
   };
 
   sync: {
@@ -534,6 +615,11 @@ export const config: Readonly<AppConfig> = Object.freeze({
   openai: Object.freeze({
     apiKey: openaiApiKey,
     model: openaiModel,
+  }),
+  llm: Object.freeze({
+    anthropicConfigured: Boolean(anthropicApiKey),
+    openaiConfigured: Boolean(openaiApiKey),
+    anyConfigured: Boolean(anthropicApiKey || openaiApiKey),
   }),
   sync: Object.freeze({
     intervalMs: syncIntervalMs,

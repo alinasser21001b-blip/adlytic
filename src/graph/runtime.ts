@@ -101,8 +101,16 @@ export function buildRuntimeOverlay(
     if (known.has(nodeId)) states.push(s); else unmatched.push(nodeId);
   };
 
+  // Canonical assessments, keyed so each subsystem can forward its machine
+  // fields. This overlay OBSERVES NOTHING — it does not ping Redis, call
+  // Meta, read telemetry or compute readiness. It projects what the
+  // operational truth owner already decided onto graph nodes, which is the
+  // only way the map and the console can be guaranteed to agree.
+  const assessed = new Map((ops.assessments ?? []).map((a) => [a.key, a]));
+
   for (const sub of ops.subsystems) {
     const nodeId = SUBSYSTEM_NODE[sub.key];
+    const a = assessed.get(sub.key);
     place(nodeId, {
       nodeId,
       state: STATE_OF[sub.status],
@@ -110,6 +118,13 @@ export function buildRuntimeOverlay(
       // The original ops word travels with the state so the lossy steps
       // above stay recoverable by anyone reading the inspector.
       detail: sub.detail ? `${sub.detail} · ops=${sub.status}` : `ops=${sub.status}`,
+      ...(a ? {
+        reasonCode: a.reasonCode,
+        ...(a.mode !== undefined ? { mode: a.mode } : {}),
+        observedAt: a.observedAt,
+        freshness: a.freshness,
+        requiredness: a.requiredness,
+      } : {}),
       provenance: OBSERVED(`subsystems[${sub.key}]`),
     });
   }

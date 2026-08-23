@@ -101,3 +101,30 @@ and the territory is how a graph goes quietly out of date.
 narration coverage is measured in `platform-stats` and no live check exists.
 Painting six layers from an admittedly untested subsystem would manufacture
 exactly the certainty that module refuses to manufacture.
+
+---
+
+## The overlay consumes canonical operational truth
+
+`RuntimeNodeState` now also carries `reasonCode`, `mode`, `observedAt`,
+`freshness` and `requiredness`. These are **forwarded** from
+`AdminOpsSnapshot.assessments` — the overlay does not compute them. That is the
+only way the System Graph and the Operations Console are guaranteed to agree
+about a subsystem.
+
+These fields live on the overlay, never on `GraphNode`: architecture is what
+exists, runtime is what is currently true, and the map must not change shape
+because Redis went down.
+
+### The overlay observes nothing
+
+`src/graph/runtime.ts` may not ping Redis, call Meta, read telemetry, or
+compute readiness or Brain health. It is a projection.
+
+This is enforced **by import path**, not by a list of function names.
+The first version of the guard listed names (`getRedis`, `withRedis`, …) and a
+negative test planted `isRedisHealthy` straight through it. A guard you can
+evade by choosing a different export from the same module is not a boundary,
+so the check now rejects any *value* import from `lib/redis`, `lib/queue`,
+`services/meta*`, `@prisma/client`, plus direct `fetch(` / `prisma.` /
+`process.env` use. `import type` remains fine — a type cannot probe anything.

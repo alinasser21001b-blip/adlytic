@@ -95,14 +95,17 @@ function addNode(b: Builder, n: GraphNode): string {
   return n.id;
 }
 
-function addEdge(b: Builder, from: string, to: string, kind: EdgeKind, provenance: Provenance): void {
+function addEdge(
+  b: Builder, from: string, to: string, kind: EdgeKind, provenance: Provenance,
+  requiredness?: 'REQUIRED' | 'OPTIONAL',
+): void {
   const id = `${kind}:${from}->${to}`;
   if (b.edges.has(id)) return;
   // Refuse to record an edge whose endpoints are not in the graph. The
   // adapter would reject it later anyway; failing here names the builder
   // that produced it instead of the file that loaded it.
   if (!b.nodes.has(from) || !b.nodes.has(to)) return;
-  b.edges.set(id, { id, from, to, kind, provenance });
+  b.edges.set(id, { id, from, to, kind, ...(requiredness ? { requiredness } : {}), provenance });
 }
 
 function ensureModule(b: Builder, path: string, what: string): string {
@@ -224,8 +227,12 @@ export function buildArchitectureGraph(): GraphSnapshot {
       provenance: REPO('src/lib/queue.ts', `QUEUE_NAMES.${key}`),
       unknowns: ['عمق الطابور وعدد المهام المتعثّرة غير مرصودَين — لا فحص حي لكل طابور'],
     });
+    // OPTIONAL, and the qualifier is the whole point: a BullMQ queue needs a
+    // broker, but the queue RUNTIME does not need the queue. Marked so a
+    // blast-radius traversal from a dead Redis does not declare background
+    // work impossible when enqueueOrFallback keeps it running in-process.
     addEdge(b, queueNodeId(name), deployNodeId('redis'), 'DEPENDS_ON',
-      REPO('src/lib/queue.ts', 'getQueueRedis'));
+      REPO('src/lib/queue.ts', 'getQueueRedis'), 'OPTIONAL');
   }
   ensureModule(b, 'src/lib/queue.ts', 'نظام الطوابير: يقبل المهام الخلفية أو يعمل داخل العملية');
   for (const name of Object.values(QUEUE_NAMES)) {
@@ -236,7 +243,16 @@ export function buildArchitectureGraph(): GraphSnapshot {
   // ── 4. Services the Control Plane depends on ─────────────────────────
   for (const s of CONTROL_PLANE_SERVICES) ensureModule(b, s.path, s.what);
   addEdge(b, moduleNodeId('src/lib/queue.ts'), deployNodeId('redis'), 'DEPENDS_ON',
-    REPO('src/lib/queue.ts', 'getQueueRedis'));
+    REPO('src/lib/queue.ts', 'getQueueRedis'), 'OPTIONAL');
+  // The retreat path, stated structurally rather than left in a comment.
+  // enqueueOrFallback() calls the original in-process body whenever
+  // isQueueEnabled() is false — which is the production configuration.
+  const inProcessId = ensureModule(
+    b, 'src/lib/queue.ts#in-process',
+    'التنفيذ داخل العملية — المسار البديل الذي يعمل عندما يكون BullMQ معطّلاً',
+  );
+  addEdge(b, moduleNodeId('src/lib/queue.ts'), inProcessId, 'FALLS_BACK_TO',
+    REPO('src/lib/queue.ts', 'enqueueOrFallback'));
 
   // ── 5. Persistence: models, their canonical writer, their readers ────
   for (const p of PERSISTENCE) {

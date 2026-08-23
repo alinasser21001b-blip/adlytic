@@ -35,6 +35,7 @@ import { metaAdapter } from '../orchestrator/adapters/metaAdapter';
 // can read the real horizon without importing this module's worker graph.
 import { CAMPAIGN_BACKFILL_DAYS } from './syncHorizon';
 import { syncPeriodInsightsForAccount } from './syncPeriodInsights';
+import { pruneUsageOutcomes } from '../services/metaUsageStore';
 
 const SYNC_INTERVAL_MS = config.sync.intervalMs;
 /** Connection-onboarding poll cadence. The per-record adaptive backoff in
@@ -366,6 +367,14 @@ async function refreshHistoryRollups(prisma: PrismaClient): Promise<void> {
 
 async function runDailyMaintenance(prisma: PrismaClient): Promise<void> {
   await pruneRawInsights(prisma);
+  // Meta usage ledger retention. Here rather than on a read path: an Admin
+  // console refresh must never trigger a delete sweep.
+  try {
+    const trimmed = await pruneUsageOutcomes(prisma);
+    if (trimmed > 0) console.log(`[adlytic:retention] Trimmed ${trimmed} meta_usage_outcome rows`);
+  } catch (err) {
+    console.error('[adlytic:retention] Failed to prune meta_usage_outcomes:', err);
+  }
   await refreshHistoryRollups(prisma);
   await runIntegritySweep(prisma);
 }

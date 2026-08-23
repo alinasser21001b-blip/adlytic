@@ -20,6 +20,16 @@ import { config } from '../config';
 import { getBuildIdentity, type BuildIdentity } from '../lib/buildIdentity';
 import { isQueueEnabled, lastQueueError } from '../lib/queue';
 import { isRedisHealthy, lastRedisError } from '../lib/redis';
+import { scrubString } from '../lib/dataSanitizer';
+import {
+  contextNotSelected,
+  notConfiguredOptional,
+  notTested,
+  observed,
+  toLegacyOpsStatus,
+  type OperationalAssessment,
+  type OpsReasonCode,
+} from './operationalTruth';
 
 /**
  * The console's whole status vocabulary. Deliberately small: every extra
@@ -98,6 +108,8 @@ export interface WorkspaceOpsRow {
   /** Whole days between freshestDataDate and today; null when no data. */
   dataAgeDays: number | null;
   connection: OpsStatus;
+  /** Machine-readable cause behind `connection`. Render from THIS, not the headline. */
+  connectionReason: OpsReasonCode;
   data: OpsStatus;
   overall: OpsStatus;
   /** Short Arabic phrase naming the worst thing about this row. */
@@ -122,6 +134,16 @@ export interface AdminOpsSnapshot {
   /** Subsystem keys we could NOT determine — never counted as healthy. */
   unknown: string[];
   subsystems: SubsystemHealth[];
+  /**
+   * CANONICAL operational truth — health, measurement, configuration,
+   * requiredness, context, freshness and actionability as INDEPENDENT
+   * fields, plus a machine-readable reasonCode.
+   *
+   * `subsystems` above is the legacy scalar projection of exactly these,
+   * kept so the shipped console keeps rendering during migration. New
+   * consumers read this array; nobody should string-match `summary`.
+   */
+  assessments: OperationalAssessment[];
   attention: AttentionItem[];
   workspaces: WorkspaceOpsRow[];
   /** What changed recently — observed events, never inferred narrative. */
@@ -175,6 +197,30 @@ export function isUndetermined(s: OpsStatus): boolean {
 }
 
 const DAY_MS = 86_400_000;
+
+/**
+ * The dominant cause among blocked accounts.
+ *
+ * An aggregate still has to pick one reason code, but it picks the most
+ * common REAL cause rather than defaulting to a generic "blocked" — so the
+ * console can say "token expired" when that is what is actually wrong with
+ * most accounts, and the per-row codes remain available for the rest.
+ */
+function dominantMetaReason(blocked: Array<{ connectionReason: OpsReasonCode }>): OpsReasonCode {
+  const counts = new Map<OpsReasonCode, number>();
+  for (const r of blocked) counts.set(r.connectionReason, (counts.get(r.connectionReason) ?? 0) + 1);
+  let best: OpsReasonCode = 'META_NO_TOKEN';
+  let bestN = -1;
+  for (const [code, n] of counts) if (n > bestN) { best = code; bestN = n; }
+  return best;
+}
+
+/** "META_TOKEN_EXPIRED×2, META_NO_TOKEN×1" — counts only, no identifiers. */
+function metaReasonBreakdown(blocked: Array<{ connectionReason: OpsReasonCode }>): string {
+  const counts = new Map<OpsReasonCode, number>();
+  for (const r of blocked) counts.set(r.connectionReason, (counts.get(r.connectionReason) ?? 0) + 1);
+  return [...counts.entries()].map(([c, n]) => `${c}×${n}`).join(', ');
+}
 
 /** Whole days elapsed, floor. Negative clamps to 0 (clock skew, future rows). */
 function daysSince(d: Date | null | undefined): number | null {
@@ -233,6 +279,24 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     return {
       computedAt: new Date().toISOString(),
       overall: 'ERROR',
+      // Canonical form of the same short-circuit: the database FAILED, and
+      // every other subsystem is genuinely UNKNOWN because we could not ask.
+      // UNKNOWN here is knowledge about our ignorance, not a health claim.
+      assessments: [
+        observed({
+          key: 'database', health: 'FAILED', reasonCode: 'DB_UNREACHABLE',
+          summary: 'لا يستجيب — لا يمكن قراءة أي حالة أخرى بثقة',
+          ...(dbDetail ? { detail: dbDetail } : {}),
+          observedAt: new Date().toISOString(), source: 'adminOpsHealth:SELECT 1',
+        }),
+        ...(['redis', 'queue', 'workers', 'meta', 'intelligence'] as const).map((key) =>
+          notTested({
+            key,
+            summary: 'غير معروف — تعذّرت قراءة قاعدة البيانات',
+            source: 'adminOpsHealth:db-outage-shortcircuit',
+          }),
+        ),
+      ],
       known: ['database'],
       unknown: ['redis', 'queue', 'workers', 'meta', 'intelligence'],
       subsystems: blind,
@@ -317,7 +381,8 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
         freshestDataDate: null, dataAgeDays: null,
         // No account is a SETUP state, not a failure: nothing is broken, the
         // workspace simply has not been connected yet.
-        connection: 'NOT_TESTED', data: 'NOT_TESTED', overall: 'NOT_TESTED',
+        connection: 'NOT_TESTED', connectionReason: 'META_NO_ACCOUNT_CONNECTED',
+        data: 'NOT_TESTED', overall: 'NOT_TESTED',
         headline: 'بلا حساب إعلاني — لم يُربط بعد',
       };
     }
@@ -329,16 +394,28 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     const ageDays = daysSince(fresh);
 
     // Connection: the token/account axis only.
+    // The word BLOCKED was the whole diagnosis, and it covered four
+    // different causes with four different fixes. The cause is now carried
+    // as a machine-readable reason code alongside it, so a console can say
+    // WHICH thing is wrong without an operator parsing an Arabic sentence.
     let connection: OpsStatus = 'HEALTHY';
+    let connectionReason: OpsReasonCode = 'OK';
     let headline = 'سليم';
-    if (!hasToken) { connection = 'BLOCKED'; headline = 'بلا رمز Meta محفوظ — أعد الربط'; }
-    else if (expired) { connection = 'BLOCKED'; headline = 'انتهت صلاحية رمز Meta'; }
-    else if (acct.metaAccountStatus != null && acct.metaAccountStatus !== 1) {
+    if (!hasToken) {
+      connection = 'BLOCKED'; connectionReason = 'META_NO_TOKEN';
+      headline = 'بلا رمز Meta محفوظ — أعد الربط';
+    } else if (expired) {
+      connection = 'BLOCKED'; connectionReason = 'META_TOKEN_EXPIRED';
+      headline = 'انتهت صلاحية رمز Meta';
+    } else if (acct.metaAccountStatus != null && acct.metaAccountStatus !== 1) {
       // Meta's own verdict on the ad account outranks ours: an unsettled or
       // disabled account delivers nothing no matter how healthy our plumbing is.
-      connection = 'BLOCKED';
+      connection = 'BLOCKED'; connectionReason = 'META_ACCOUNT_DISABLED_BY_META';
       headline = `حساب Meta غير نشط (الحالة ${acct.metaAccountStatus})`;
-    } else if (acct.status !== 'ACTIVE') { connection = 'WARNING'; headline = 'الحساب الإعلاني غير نشط عندنا'; }
+    } else if (acct.status !== 'ACTIVE') {
+      connection = 'WARNING'; connectionReason = 'META_ACCOUNT_INACTIVE_LOCALLY';
+      headline = 'الحساب الإعلاني غير نشط عندنا';
+    }
 
     // Data: the freshness axis only. Kept separate because a live token with
     // stale data and a dead token are different incidents with different fixes.
@@ -366,7 +443,12 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
       metaAccountStatus: acct.metaAccountStatus,
       lastSyncedAt: iso(acct.lastSyncedAt),
       lastSyncStatus: sync?.status ?? null,
-      lastSyncError: sync?.error ? sync.error.slice(0, 300) : null,
+      // SANITIZED. This string is a provider error verbatim from the sync
+      // path — it has carried Meta payload fragments, ids and addresses — and
+      // it is returned over an admin API. scrubString already exists for
+      // exactly this and was simply never applied here.
+      lastSyncError: sync?.error ? scrubString(sync.error).slice(0, 300) : null,
+      connectionReason,
       freshestDataDate: fresh ? fresh.toISOString().slice(0, 10) : null,
       dataAgeDays: ageDays,
       connection, data, overall, headline,
@@ -385,78 +467,172 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
   const staleData = connected.filter((r) => r.data === 'WARNING');
   const failedSyncs = rows.filter((r) => r.lastSyncStatus === 'FAILED');
 
+  // ── 4a. Canonical operational truth ────────────────────────────────────
+  //
+  // Each subsystem is assessed on the INDEPENDENT dimensions of
+  // operationalTruth.ts, and the legacy scalar below is projected from that
+  // — one projection, in one place, so the console, the graph overlay and
+  // the API cannot drift apart.
+  const nowIso = new Date().toISOString();
+  const anyRecentSync = rows.some(
+    (r) => r.lastSyncedAt && Date.now() - Date.parse(r.lastSyncedAt) < 2 * DAY_MS,
+  );
+  const backgroundIsThisRole = config.role !== 'api';
+
+  const assessments: OperationalAssessment[] = [
+    dbStatus === 'HEALTHY'
+      ? observed({
+          key: 'database', health: 'HEALTHY', reasonCode: 'OK', summary: 'يستجيب',
+          observedAt: nowIso, source: 'adminOpsHealth:SELECT 1', evidence: 'SELECT 1 round-trip',
+        })
+      : observed({
+          key: 'database', health: 'FAILED', reasonCode: 'DB_UNREACHABLE', summary: 'لا يستجيب',
+          ...(dbDetail ? { detail: dbDetail } : {}),
+          observedAt: nowIso, source: 'adminOpsHealth:SELECT 1',
+        }),
+
+    // REDIS. Absent by design in this deployment: locks and counters run
+    // in-process, and Meta usage telemetry is now durable in Postgres, so
+    // nothing operationally depends on Redis being present. Reporting that
+    // as NOT_TESTED implied a probe we owed; it is simply off, and fine.
+    !redisConfigured
+      ? notConfiguredOptional({
+          key: 'redis', reasonCode: 'REDIS_ABSENT_BY_DESIGN', requiredness: 'NOT_REQUIRED',
+          summary: 'غير مضبوط عن قصد — الأقفال والعدّادات تعمل داخل العملية، وقياس Meta محفوظ في قاعدة البيانات',
+          source: 'adminOpsHealth:config.redis.url',
+        })
+      : redisOk
+        ? observed({
+            key: 'redis', health: 'HEALTHY', reasonCode: 'OK', summary: 'متصل',
+            requiredness: 'OPTIONAL', observedAt: nowIso, source: 'adminOpsHealth:isRedisHealthy',
+          })
+        : observed({
+            key: 'redis', health: 'DEGRADED', reasonCode: 'REDIS_CONFIGURED_BUT_UNREACHABLE',
+            summary: 'مضبوط لكنه غير متصل — المهام تعمل بالبدائل داخل العملية',
+            ...(redisErr ? { detail: redisErr.slice(0, 200) } : {}),
+            requiredness: 'OPTIONAL', observedAt: nowIso, source: 'adminOpsHealth:isRedisHealthy',
+          }),
+
+    // QUEUE. Two different questions, finally separated: CAN background work
+    // execute, and IS BullMQ the thing executing it. enqueueOrFallback runs
+    // every former setImmediate body in-process when BullMQ is off, so the
+    // answer to the first is yes and the mode is IN_PROCESS.
+    !config.features.bullmqEnabled
+      ? notConfiguredOptional({
+          key: 'queue', reasonCode: 'QUEUE_IN_PROCESS_FALLBACK', requiredness: 'NOT_REQUIRED',
+          mode: 'IN_PROCESS',
+          summary: 'ينفّذ داخل العملية — BullMQ معطّل بالإعداد ولا حاجة له في هذا النمط',
+          source: 'adminOpsHealth:config.features.bullmqEnabled',
+          evidence: 'enqueueOrFallback runs the original in-process body when BullMQ is disabled',
+        })
+      : queueOn
+        ? observed({
+            key: 'queue', health: 'HEALTHY', reasonCode: 'QUEUE_BULLMQ_ACTIVE', mode: 'BULLMQ',
+            summary: 'يقبل المهام عبر BullMQ', observedAt: nowIso,
+            source: 'adminOpsHealth:isQueueEnabled',
+          })
+        : observed({
+            // BullMQ was asked for and the broker is down. Work still runs
+            // in-process, so this is DEGRADED, not FAILED.
+            key: 'queue', health: 'DEGRADED', reasonCode: 'QUEUE_BULLMQ_ENABLED_BUT_BROKER_DOWN',
+            mode: 'IN_PROCESS',
+            summary: 'BullMQ مفعّل لكن الوسيط غير متاح — التنفيذ يعود داخل العملية',
+            ...(queueErr ? { detail: queueErr.slice(0, 200) } : {}),
+            observedAt: nowIso, source: 'adminOpsHealth:isQueueEnabled',
+          }),
+
+    // BACKGROUND EXECUTION. Role-aware, which it never was: a reader is not
+    // unhealthy for not running workers, it is doing exactly its job.
+    !backgroundIsThisRole
+      ? notConfiguredOptional({
+          key: 'workers', reasonCode: 'BACKGROUND_NOT_REQUIRED_FOR_ROLE', requiredness: 'NOT_REQUIRED',
+          summary: 'هذه الخدمة قارئة (SERVICE_ROLE=api) — لا عمل خلفي متوقع منها',
+          detail: `role=${config.role}`, source: 'adminOpsHealth:config.role',
+        })
+      : anyRecentSync
+        ? observed({
+            key: 'workers', health: 'HEALTHY', reasonCode: 'BACKGROUND_RECENT_SUCCESS',
+            summary: 'مزامنة ناجحة خلال 48 ساعة', detail: `role=${config.role}`,
+            // Freshness is explicit: this is evidence from up to 48h ago, so
+            // it is CURRENT only within that window and says so.
+            observedAt: nowIso, freshness: 'CURRENT',
+            source: 'adminOpsHealth:syncJob.lastSyncedAt',
+            evidence: 'at least one account synced within 48h',
+          })
+        : notTested({
+            key: 'workers', requiredness: 'REQUIRED',
+            summary: connected.length === 0
+              ? 'لا حساب مرتبط — لا عمل خلفي متوقع'
+              : 'لا مزامنة خلال 48 ساعة — لا يمكن تأكيد العمل الخلفي من هنا',
+            detail: `role=${config.role}`,
+            source: 'adminOpsHealth:syncJob.lastSyncedAt',
+          }),
+
+    // META. Selection context is no longer folded into subsystem health:
+    // "no account connected" is a statement about setup, not a fault.
+    connected.length === 0
+      ? contextNotSelected({
+          key: 'meta', summary: 'لا حساب إعلاني مرتبط في المنصة',
+          source: 'adminOpsHealth:workspaces',
+        })
+      : blockedConns.length === 0
+        ? observed({
+            key: 'meta', health: 'HEALTHY', reasonCode: 'OK',
+            summary: `${connected.length} حساب متصل`, observedAt: nowIso,
+            source: 'adminOpsHealth:accountRows',
+          })
+        : observed({
+            key: 'meta',
+            health: blockedConns.length === connected.length ? 'BLOCKED' : 'DEGRADED',
+            // The aggregate keeps the DOMINANT per-account cause rather than
+            // flattening every distinct failure into the word "blocked".
+            reasonCode: dominantMetaReason(blockedConns),
+            summary: `${blockedConns.length} من ${connected.length} حساب محجوب`,
+            observedAt: nowIso, source: 'adminOpsHealth:accountRows',
+            evidence: metaReasonBreakdown(blockedConns),
+          }),
+
+    // INTELLIGENCE. The deterministic Brain and the LLM narrator are
+    // different subsystems with different failure modes; one scalar could
+    // not say "the Brain is fine and the narrator is unconfigured".
+    observed({
+      key: 'intelligence', health: 'HEALTHY', reasonCode: 'BRAIN_DETERMINISTIC_OK',
+      summary: 'السلسلة الاستنتاجية حتمية ولا تعتمد على مزوّد خارجي',
+      observedAt: nowIso, source: 'adminOpsHealth:deterministic-chain',
+      evidence: 'canonical chain is deterministic; LLM is narration-only and non-authoritative',
+    }),
+    config.llm.anyConfigured
+      ? notTested({
+          key: 'llm_narration', requiredness: 'OPTIONAL',
+          summary: 'مزوّد السرد مضبوط — لا فحص حي (لا نطلق طلبًا مدفوعًا عند كل فتح للوحة)',
+          source: 'adminOpsHealth:config',
+        })
+      : notConfiguredOptional({
+          key: 'llm_narration', reasonCode: 'LLM_NOT_CONFIGURED', requiredness: 'OPTIONAL',
+          summary: 'مزوّد السرد غير مضبوط — السرد فقط يتأثر، والاستنتاج الحتمي لا يتأثر',
+          source: 'adminOpsHealth:config',
+        }),
+  ];
+
+  const byKey = new Map(assessments.map((a) => [a.key, a]));
+  const legacy = (key: string): OpsStatus =>
+    (byKey.has(key) ? toLegacyOpsStatus(byKey.get(key)!) : 'UNKNOWN') as OpsStatus;
+  const sum = (key: string): string => byKey.get(key)?.summary ?? '';
+  const det = (key: string): string | undefined => byKey.get(key)?.detail;
+
   const subsystems: SubsystemHealth[] = [
-    {
-      key: 'database',
-      status: dbStatus,
-      summary: dbStatus === 'HEALTHY' ? 'يستجيب' : 'لا يستجيب',
-      ...(dbDetail ? { detail: dbDetail } : {}),
-    },
-    {
-      key: 'redis',
-      status: !redisConfigured ? 'NOT_TESTED' : redisOk ? 'HEALTHY' : 'ERROR',
-      summary: !redisConfigured
-        ? 'غير مضبوط — العدّادات والأقفال تعمل بالبدائل داخل العملية'
-        : redisOk ? 'متصل' : 'غير متصل — العدّادات تقرأ صفراً',
-      ...(redisErr && !redisOk ? { detail: redisErr.slice(0, 200) } : {}),
-      // Points at the canonical Meta workspace, not the legacy readiness page:
-      // quota detail was ported there, and an attention item that lands the
-      // operator in a previous generation of Admin is the fragmentation this
-      // console exists to remove.
-      actionHref: '/admin/meta#quota',
-      actionLabel: 'أثر الانقطاع على عدّادات Meta',
-    },
-    {
-      key: 'queue',
-      status: !config.features.bullmqEnabled ? 'NOT_TESTED' : queueOn ? 'HEALTHY' : 'ERROR',
-      summary: !config.features.bullmqEnabled
-        ? 'الطابور معطّل بالإعداد — المزامنة تعمل داخل العملية'
-        : queueOn ? 'يقبل المهام' : 'لا يقبل المهام — المزامنة الخلفية متوقفة',
-      ...(queueErr && !queueOn ? { detail: queueErr.slice(0, 200) } : {}),
-    },
-    {
-      key: 'workers',
-      // We can observe whether THIS process runs background work, and whether
-      // any sync ran recently. We cannot observe a separate worker service's
-      // liveness from here — so when nothing ran we say UNKNOWN, not ERROR.
-      status: (() => {
-        if (failedSyncs.length && failedSyncs.length === connected.length && connected.length > 0) return 'ERROR';
-        const anyRecent = rows.some((r) => r.lastSyncedAt && Date.now() - Date.parse(r.lastSyncedAt) < 2 * DAY_MS);
-        if (anyRecent) return 'HEALTHY';
-        if (connected.length === 0) return 'NOT_TESTED';
-        return 'UNKNOWN';
-      })(),
-      summary: (() => {
-        const anyRecent = rows.some((r) => r.lastSyncedAt && Date.now() - Date.parse(r.lastSyncedAt) < 2 * DAY_MS);
-        if (connected.length === 0) return 'لا حساب مرتبط — لا عمل خلفي متوقع';
-        if (anyRecent) return 'مزامنة ناجحة خلال 48 ساعة';
-        return 'لا مزامنة خلال 48 ساعة — لا نستطيع تأكيد عمل العمّال من هنا';
-      })(),
-      detail: `role=${config.role}`,
-    },
-    {
-      key: 'meta',
-      status: connected.length === 0
-        ? 'NOT_TESTED'
-        : blockedConns.length === connected.length ? 'ERROR'
-        : blockedConns.length ? 'WARNING' : 'HEALTHY',
-      summary: connected.length === 0
-        ? 'لا حساب إعلاني مرتبط في المنصة'
-        : blockedConns.length
-          ? `${blockedConns.length} من ${connected.length} حساب محجوب`
-          : `${connected.length} حساب متصل`,
-      actionHref: '/admin#workspaces',
-      actionLabel: 'افحص مساحات العمل',
-    },
-    {
-      key: 'intelligence',
-      // Deliberately NOT_TESTED rather than a fabricated score: narration
-      // coverage lives in platform-stats and is shown there. Claiming an
-      // intelligence health number here without measuring it is the exact
-      // manufactured certainty this console exists to avoid.
-      status: 'NOT_TESTED',
-      summary: 'صحة الذكاء تُقاس بالتغطية السردية في لوحة الحالة — لا يوجد فحص حي بعد',
-    },
+    { key: 'database', status: legacy('database'), summary: sum('database'),
+      ...(det('database') ? { detail: det('database')! } : {}) },
+    { key: 'redis', status: legacy('redis'), summary: sum('redis'),
+      ...(det('redis') ? { detail: det('redis')! } : {}),
+      actionHref: '/admin/meta#quota', actionLabel: 'أثر الانقطاع على عدّادات Meta' },
+    { key: 'queue', status: legacy('queue'), summary: sum('queue'),
+      ...(det('queue') ? { detail: det('queue')! } : {}) },
+    { key: 'workers', status: legacy('workers'), summary: sum('workers'),
+      ...(det('workers') ? { detail: det('workers')! } : {}) },
+    { key: 'meta', status: legacy('meta'), summary: sum('meta'),
+      actionHref: '/admin#workspaces', actionLabel: 'افحص مساحات العمل' },
+    { key: 'intelligence', status: legacy('intelligence'), summary: sum('intelligence') },
   ];
 
   // ── 5. Attention queue — ONLY things a human must act on ───────────────
@@ -566,13 +742,14 @@ export async function getAdminOpsSnapshot(prisma: PrismaClient): Promise<AdminOp
     href: '/admin#experiments',
   });
 
-  const observed = subsystems.filter((s) => !isUndetermined(s.status));
+  const determinedSubsystems = subsystems.filter((s) => !isUndetermined(s.status));
   return {
     computedAt: new Date().toISOString(),
-    overall: worstOf(observed.map((s) => s.status)),
-    known: observed.map((s) => s.key),
+    overall: worstOf(determinedSubsystems.map((s) => s.status)),
+    known: determinedSubsystems.map((s) => s.key),
     unknown: subsystems.filter((s) => isUndetermined(s.status)).map((s) => s.key),
     subsystems,
+    assessments,
     attention,
     workspaces: rows,
     activity,

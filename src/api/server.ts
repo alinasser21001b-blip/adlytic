@@ -111,6 +111,7 @@ import { runBrainOrchestrator } from '../workers/runBrainOrchestrator';
 import { runRefresh } from '../services/refresh/refreshEngine';
 import { MetaClient, MetaApiError } from '../services/metaClient';
 import { getMetaUsageStats } from '../services/metaUsageTracker';
+import { getMetaReadiness } from '../services/metaReadiness';
 import { loginPage } from '../web/pages/loginPage';
 import { registerPage } from '../web/pages/registerPage';
 import { dashboardPage } from '../web/pages/dashboardPage';
@@ -420,6 +421,20 @@ function normalizeEnvAccessToken(rawToken: string | null | undefined): string {
   }
   token = token.replace(/^bearer\s+/i, '').trim();
   return token;
+}
+
+/**
+ * Operational reads describe state that changes by the second. A cached
+ * copy of one is not a stale convenience — it is a confident answer about a
+ * moment that has passed, which is indistinguishable from a wrong answer.
+ *
+ * Applied ONLY to the diagnostic routes. Caching is not disabled
+ * platform-wide: the merchant surfaces genuinely benefit from it.
+ */
+function noStore<T>(c: { header: (k: string, v: string) => void }, body: T): T {
+  c.header('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+  c.header('Pragma', 'no-cache');
+  return body;
 }
 
 /** Keep Meta auth diagnostics readable and single-line in logs. */
@@ -1562,7 +1577,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     try {
-      return c.json(safeJson(await getAdminOpsSnapshot(prisma)));
+      return c.json(noStore(c, safeJson(await getAdminOpsSnapshot(prisma))));
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'unknown';
       console.error('[admin-ops] snapshot failed:', msg);
@@ -1678,7 +1693,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     try {
       const snapshot = buildArchitectureGraph();
       const ops = await getAdminOpsSnapshot(prisma);
-      return c.json(safeJson({ ok: true, overlay: buildRuntimeOverlay(snapshot, ops) }));
+      return c.json(noStore(c, safeJson({ ok: true, overlay: buildRuntimeOverlay(snapshot, ops) })));
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'runtime overlay failed';
       console.error(`[graph] runtime overlay failed: ${msg}`);
@@ -2689,7 +2704,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const stats = await getMetaUsageStats();
-    return c.json(safeJson(stats));
+    // Canonical, durable readiness travels beside the legacy Redis-shaped
+    // stats. `readiness.telemetry` carries null — never 0 — for anything that
+    // was not measured, and `readiness.state` distinguishes NOT_MEASURABLE
+    // from a genuine measured shortfall. New consumers read `readiness`.
+    const readiness = await getMetaReadiness(prisma);
+    return c.json(noStore(c, safeJson({ ...stats, readiness })));
   });
 
   // Platform-admin: Meta account lifecycle audit trail (connected / disconnected

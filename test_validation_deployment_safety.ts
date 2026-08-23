@@ -50,19 +50,50 @@ check('the live config singleton has the flag OFF with no env var set', () => {
     'default must be false — an unset env var must never change existing production behavior');
 });
 
-check('config.ts declares the flag via envBoolean(..., false)', () => {
-  assert.match(configSrc, /envBoolean\('SKIP_STARTUP_SYNC_CLEANUP',\s*false\)/,
+check('config.ts declares the flag defaulting to false, via a reporting reader', () => {
+  // The invariant is the DEFAULT, not the function name. envBooleanChecked is
+  // the strengthened reader: it reports a value that was set but unrecognised
+  // instead of silently treating it as false — which is how
+  // SKIP_STARTUP_SYNC_CLEANUP=enabled once read as "left at the default"
+  // while the startup sweep ran against the production database.
+  assert.match(configSrc, /envBoolean(Checked)?\('SKIP_STARTUP_SYNC_CLEANUP',\s*false\)/,
     'the flag must default to false, matching the repo\'s existing feature-flag convention');
+  assert.match(configSrc, /envBooleanChecked\('SKIP_STARTUP_SYNC_CLEANUP'/,
+    'a safety-critical boolean must use the reader that reports typos, not the silent one');
 });
 
 console.log('\n── 2. serve.ts actually gates the startup write behind the flag ──');
 
-check('cleanupOrphanedSyncJobs() is called only inside an !skipStartupSyncCleanup guard', () => {
+check('cleanupOrphanedSyncJobs() is gated by BOTH the service role and the flag', () => {
   const idx = serveSrc.indexOf('await cleanupOrphanedSyncJobs(prisma)');
   assert.ok(idx >= 0, 'the call must still exist for the primary/production instance');
-  const before = serveSrc.slice(Math.max(0, idx - 300), idx);
-  assert.ok(before.includes('!config.features.skipStartupSyncCleanup'),
-    'the call must be gated behind the new flag, not unconditional');
+  const before = serveSrc.slice(Math.max(0, idx - 600), idx);
+
+  // The flag gate was the ORIGINAL requirement and still stands.
+  assert.ok(before.includes('skipStartupSyncCleanup'),
+    'the call must remain gated behind SKIP_STARTUP_SYNC_CLEANUP');
+
+  // STRENGTHENED. The flag alone was never sufficient: this sweep is an
+  // updateMany that flips every stale PENDING/PROCESSING job to FAILED, and
+  // it used to run in EVERY role, above the role gate. A validation reader
+  // pointed at the production database therefore rewrote production sync
+  // history on every boot — and because those rows became the newest per
+  // account, the operations console then reported the workers subsystem as
+  // broken. An outage manufactured by the reader.
+  //
+  // A read-only role must not depend on a second, independently-set variable
+  // to stop writing. The role itself now decides.
+  assert.ok(before.includes("config.role !== 'api'"),
+    'SERVICE_ROLE=api must skip the sweep on its own, without needing the flag');
+});
+
+check('the role gate physically precedes the sweep (ordering, not just presence)', () => {
+  const roleIdx = serveSrc.indexOf("const sweepOwner = config.role !== 'api'");
+  const sweepIdx = serveSrc.indexOf('await cleanupOrphanedSyncJobs(prisma)');
+  assert.ok(roleIdx >= 0, 'the sweep must resolve its role ownership explicitly');
+  assert.ok(sweepIdx > roleIdx,
+    'the role decision must be made BEFORE the write — the original defect was ordering, '
+    + 'not absence: the role check existed fifty lines below the sweep');
 });
 
 console.log('\n── 3. SERVICE_ROLE=api remains the single switch for all background writers ──');
