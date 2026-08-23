@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Adlytic",
+    "slug": "adlytic",
+    "scheme": "adlytic",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "primaryColor": "#0E4034",
+    "backgroundColor": "#F2F7F4",
+    "platforms": [
+      "ios"
+    ],
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0E4034"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "bundleIdentifier": "net.adlytic.app",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "requireFullScreen": false,
+      "config": {
+        "usesNonExemptEncryption": false
+      },
+      "infoPlist": {
+        "CFBundleDevelopmentRegion": "ar",
+        "UIViewControllerBasedStatusBarAppearance": false
+      }
+    },
+    "plugins": [
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
+      "expo-system-ui"
+    ],
+    "extra": {
+      "apiUrl": "https://adlytic-production.up.railway.app"
+    }
+  }
+}

@@ -53,6 +53,10 @@ on:
       - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
       - '.github/workflows/runtime-config.yml'   # test_deploy_gate reads it
       - 'tools/**'                              # test_admin_acceptance imports its SCENARIOS from here
+      - 'mobile/app.json'                       # test_mobile_contract reads scheme/bundle id/version
+      - 'mobile/src/**'                          # test_mobile_contract reads tokens.ts + greps for re-derivation
+      - 'src/lib/mobileClient.ts'                # test_mobile_contract asserts this against mobile/app.json
+      - 'src/ui/tokens.ts'                       # test_mobile_contract asserts mobile/src/theme/tokens.ts mirrors this
   push:
     branches:
       - claude/brain-admin-v2-integration
@@ -83,6 +87,10 @@ on:
       - '.github/workflows/verify-live.yml'      # test_deploy_gate reads it
       - '.github/workflows/runtime-config.yml'   # test_deploy_gate reads it
       - 'tools/**'                              # test_admin_acceptance imports its SCENARIOS from here
+      - 'mobile/app.json'                       # test_mobile_contract reads scheme/bundle id/version
+      - 'mobile/src/**'                          # test_mobile_contract reads tokens.ts + greps for re-derivation
+      - 'src/lib/mobileClient.ts'                # test_mobile_contract asserts this against mobile/app.json
+      - 'src/ui/tokens.ts'                       # test_mobile_contract asserts mobile/src/theme/tokens.ts mirrors this
 
 # A newer push supersedes an in-flight run for the same ref.
 concurrency:
