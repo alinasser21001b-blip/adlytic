@@ -9,20 +9,20 @@ datasource db {
 }
 
 model User {
-  id           String            @id @default(cuid())
-  email        String            @unique
-  passwordHash String            @map("password_hash")
+  id           String    @id @default(cuid())
+  email        String    @unique
+  passwordHash String    @map("password_hash")
   name         String
-  locale       Locale            @default(AR)
-  tokenVersion Int               @default(0) @map("token_version")
+  locale       Locale    @default(AR)
+  tokenVersion Int       @default(0) @map("token_version")
   /// Manual WhatsApp activation gate — new signups default inactive; existing
   /// users were backfilled to active at migration time.
-  isActive     Boolean           @default(false) @map("is_active")
-  activatedAt  DateTime?         @map("activated_at")
+  isActive     Boolean   @default(false) @map("is_active")
+  activatedAt  DateTime? @map("activated_at")
   /// User.id of the platform admin who activated this account (WHATSAPP_MANUAL).
-  activatedBy  String?           @map("activated_by")
-  createdAt    DateTime          @default(now()) @map("created_at")
-  updatedAt    DateTime          @updatedAt @map("updated_at")
+  activatedBy  String?   @map("activated_by")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
 
   // ── AI Assistant preferences (Phase 2 v3) ──────────────────────────────
   /// Preferred locale for the AI assistant. Falls back to `locale` when null.
@@ -38,11 +38,11 @@ model User {
   /// force IQD display when the ad account is USD-denominated).
   aiCurrencyPref String?       @map("ai_currency_pref")
 
-  memberships      WorkspaceMember[]
-  aiConversations  AiConversation[]
-  aiSignals        AiSignal[]
-  supportTickets   SupportTicket[]
-  supportMessages  SupportMessage[]
+  memberships     WorkspaceMember[]
+  aiConversations AiConversation[]
+  aiSignals       AiSignal[]
+  supportTickets  SupportTicket[]
+  supportMessages SupportMessage[]
 
   @@index([isActive])
   @@map("users")
@@ -70,15 +70,15 @@ model Workspace {
   /// Read by the (future) subscription-expiry cron to flip ACTIVE → PAST_DUE.
   subscriptionExpiresAt DateTime?          @map("subscription_expires_at")
 
-  adAccounts      AdAccount[]
-  members         WorkspaceMember[]
+  adAccounts            AdAccount[]
+  members               WorkspaceMember[]
   connectionOnboardings ConnectionOnboarding[]
-  industryProfile IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
-  executions      RecommendationExecution[]
-  paymentEvents   PaymentEvent[]
-  metaConnections MetaConnection[]
-  aiConversations AiConversation[]
-  supportTickets  SupportTicket[]
+  industryProfile       IndustryProfile?          @relation(fields: [industryProfileId], references: [id])
+  executions            RecommendationExecution[]
+  paymentEvents         PaymentEvent[]
+  metaConnections       MetaConnection[]
+  aiConversations       AiConversation[]
+  supportTickets        SupportTicket[]
 
   @@index([industryProfileId])
   @@index([subscriptionStatus])
@@ -101,48 +101,48 @@ model WorkspaceMember {
 }
 
 model AdAccount {
-  id                   String       @id @default(cuid())
-  workspaceId          String       @map("workspace_id")
-  platform             Platform     @default(META)
-  externalAccountId    String       @map("external_account_id")
-  name                 String
-  currency             String
-  currencyMinorFactor  Int          @default(100) @map("currency_minor_factor")
-  timezone             String       @default("UTC")
-  status               EntityStatus @default(ACTIVE)
-  countryCode          String?      @map("country_code") @db.VarChar(2)
+  id                    String          @id @default(cuid())
+  workspaceId           String          @map("workspace_id")
+  platform              Platform        @default(META)
+  externalAccountId     String          @map("external_account_id")
+  name                  String
+  currency              String
+  currencyMinorFactor   Int             @default(100) @map("currency_minor_factor")
+  timezone              String          @default("UTC")
+  status                EntityStatus    @default(ACTIVE)
+  countryCode           String?         @map("country_code") @db.VarChar(2)
   /// Meta account_status, refreshed on every sync (1=ACTIVE, 3=UNSETTLED …).
   /// The delivery classifier gates EVERY campaign on this: an unsettled
   /// account delivers nothing regardless of per-campaign status.
-  metaAccountStatus    Int?         @map("meta_account_status")
+  metaAccountStatus     Int?            @map("meta_account_status")
   /// Meta disable_reason when the account is disabled; null otherwise.
-  metaDisableReason    Int?         @map("meta_disable_reason")
-  accessTokenEncrypted String?      @map("access_token_encrypted")
+  metaDisableReason     Int?            @map("meta_disable_reason")
+  accessTokenEncrypted  String?         @map("access_token_encrypted")
   /// Which TOKEN_ENCRYPTION_KEY generation encrypted the value above.
   /// NULL = written before versioning existed, i.e. generation 1 by
   /// assumption. Without this, "which key opens this row" is unanswerable
   /// from the data and a key change is an unrecoverable, all-or-nothing
   /// event — see AUDIT-REPORT.md D-1.
-  accessTokenKeyVersion Int?        @map("access_token_key_version")
-  tokenExpiresAt       DateTime?    @map("token_expires_at")
-  lastSyncedAt         DateTime?    @map("last_synced_at")
-  lifetimeSpendMinor   BigInt       @default(0) @map("lifetime_spend_minor")
-  lifetimeSyncedAt     DateTime?    @map("lifetime_synced_at")
+  accessTokenKeyVersion Int?            @map("access_token_key_version")
+  tokenExpiresAt        DateTime?       @map("token_expires_at")
+  lastSyncedAt          DateTime?       @map("last_synced_at")
+  lifetimeSpendMinor    BigInt          @default(0) @map("lifetime_spend_minor")
+  lifetimeSyncedAt      DateTime?       @map("lifetime_synced_at")
   // ── Phase 1 (additive, non-destructive) — System User / FB Login groundwork ──
   // Nullable FK into the new MetaConnection. When set, the connection is the
   // authoritative token source; the legacy token columns above remain for
   // back-compat until the migration to connection-based auth completes.
-  connectionId         String?         @map("connection_id")
+  connectionId          String?         @map("connection_id")
   /// Where this account's token came from. Defaults to USER_OAUTH so existing
   /// rows and the current legacy OAuth flow behave exactly as before.
-  tokenSource          MetaTokenSource @default(USER_OAUTH) @map("token_source")
-  createdAt            DateTime     @default(now()) @map("created_at")
-  updatedAt            DateTime     @updatedAt @map("updated_at")
-  workspace            Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  connection           MetaConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
-  campaigns            Campaign[]
-  syncJobs             SyncJob[]
-  adCreatives          AdCreative[]
+  tokenSource           MetaTokenSource @default(USER_OAUTH) @map("token_source")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  workspace             Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection            MetaConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  campaigns             Campaign[]
+  syncJobs              SyncJob[]
+  adCreatives           AdCreative[]
 
   @@unique([platform, externalAccountId])
   @@index([workspaceId])
@@ -163,29 +163,29 @@ model AdAccount {
 //  the default, so production behavior is unchanged until the flag flips.
 // ════════════════════════════════════════════════════════════════════════
 model MetaConnection {
-  id                   String               @id @default(cuid())
-  workspaceId          String               @map("workspace_id")
+  id                    String               @id @default(cuid())
+  workspaceId           String               @map("workspace_id")
   /// Meta Business (BM) id this connection is scoped to.
-  businessId           String               @map("business_id")
-  businessName         String?              @map("business_name")
+  businessId            String               @map("business_id")
+  businessName          String?              @map("business_name")
   /// System User id when tokenType = SYSTEM_USER; null otherwise.
-  systemUserId         String?              @map("system_user_id")
+  systemUserId          String?              @map("system_user_id")
   /// Encrypted access token (same envelope as AdAccount.accessTokenEncrypted).
-  accessTokenEncrypted String?              @map("access_token_encrypted")
+  accessTokenEncrypted  String?              @map("access_token_encrypted")
   /// Key generation that encrypted the value above. See AdAccount.
-  accessTokenKeyVersion Int?                @map("access_token_key_version")
-  tokenType            MetaTokenType        @default(LONG_LIVED_USER) @map("token_type")
-  tokenExpiresAt       DateTime?            @map("token_expires_at")
+  accessTokenKeyVersion Int?                 @map("access_token_key_version")
+  tokenType             MetaTokenType        @default(LONG_LIVED_USER) @map("token_type")
+  tokenExpiresAt        DateTime?            @map("token_expires_at")
   /// Scopes Meta actually granted (may be a subset of what was requested).
-  grantedScopes        String[]             @map("granted_scopes")
+  grantedScopes         String[]             @map("granted_scopes")
   /// Asset ids (ad accounts, pages, etc.) the user granted access to.
-  grantedAssetIds      String[]             @map("granted_asset_ids")
+  grantedAssetIds       String[]             @map("granted_asset_ids")
   /// FB Login for Business configuration id used to obtain this connection.
-  configId             String?              @map("config_id")
-  status               MetaConnectionStatus @default(ACTIVE)
-  lastValidatedAt      DateTime?            @map("last_validated_at")
-  createdAt            DateTime             @default(now()) @map("created_at")
-  updatedAt            DateTime             @updatedAt @map("updated_at")
+  configId              String?              @map("config_id")
+  status                MetaConnectionStatus @default(ACTIVE)
+  lastValidatedAt       DateTime?            @map("last_validated_at")
+  createdAt             DateTime             @default(now()) @map("created_at")
+  updatedAt             DateTime             @updatedAt @map("updated_at")
 
   workspace  Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   adAccounts AdAccount[]
@@ -256,15 +256,15 @@ model MetaAuditLog {
 }
 
 model Campaign {
-  id                  String       @id @default(cuid())
-  adAccountId         String       @map("ad_account_id")
-  externalCampaignId  String       @map("external_campaign_id")
+  id                  String                   @id @default(cuid())
+  adAccountId         String                   @map("ad_account_id")
+  externalCampaignId  String                   @map("external_campaign_id")
   name                String
   objective           String?
-  status              EntityStatus @default(ACTIVE)
-  metaEffectiveStatus String?      @map("meta_effective_status")
-  dailyBudget         BigInt?      @map("daily_budget")
-  lifetimeBudget      BigInt?      @map("lifetime_budget")
+  status              EntityStatus             @default(ACTIVE)
+  metaEffectiveStatus String?                  @map("meta_effective_status")
+  dailyBudget         BigInt?                  @map("daily_budget")
+  lifetimeBudget      BigInt?                  @map("lifetime_budget")
   /// Count of this campaign's ads whose creative CTA button opens a chat
   /// (WHATSAPP_MESSAGE / MESSAGE_PAGE / SEND_MESSAGE / INSTAGRAM_MESSAGE).
   /// A SYNCED FACT counted at discovery time from AdCreative.callToActionType
@@ -272,11 +272,11 @@ model Campaign {
   /// UNSET on a click-to-message ad set, and when it is, the ad's own button
   /// is the only remaining piece of REAL metadata saying what the ad does.
   /// 0 means "none found or not yet discovered" and grants no signal.
-  messagingCtaAds     Int          @default(0) @map("messaging_cta_ads")
-  createdAt           DateTime     @default(now()) @map("created_at")
-  updatedAt           DateTime     @updatedAt @map("updated_at")
+  messagingCtaAds     Int                      @default(0) @map("messaging_cta_ads")
+  createdAt           DateTime                 @default(now()) @map("created_at")
+  updatedAt           DateTime                 @updatedAt @map("updated_at")
   adSets              AdSet[]
-  adAccount           AdAccount    @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
+  adAccount           AdAccount                @relation(fields: [adAccountId], references: [id], onDelete: Cascade)
   historySnapshot     CampaignHistorySnapshot?
 
   @@unique([adAccountId, externalCampaignId])
@@ -285,28 +285,28 @@ model Campaign {
 }
 
 model AdSet {
-  id               String       @id @default(cuid())
-  campaignId       String       @map("campaign_id")
-  externalAdSetId  String       @map("external_adset_id")
-  name             String
-  status           EntityStatus @default(ACTIVE)
-  dailyBudget      BigInt?      @map("daily_budget")
-  optimizationGoal String?      @map("optimization_goal")
+  id                  String       @id @default(cuid())
+  campaignId          String       @map("campaign_id")
+  externalAdSetId     String       @map("external_adset_id")
+  name                String
+  status              EntityStatus @default(ACTIVE)
+  dailyBudget         BigInt?      @map("daily_budget")
+  optimizationGoal    String?      @map("optimization_goal")
   /// Meta ad-set destination_type (MESSENGER / WHATSAPP / INSTAGRAM_DIRECT /
   /// WEBSITE / …). THE authoritative click-to-message signal: an ODAX
   /// engagement campaign whose ads land in WhatsApp is a MESSAGES campaign
   /// even when optimization_goal is LINK_CLICKS or POST_ENGAGEMENT.
-  destinationType  String?      @map("destination_type")
-  targetingJson    Json?        @map("targeting_json")
+  destinationType     String?      @map("destination_type")
+  targetingJson       Json?        @map("targeting_json")
   /// Meta's learning_stage_info.status, verbatim ("LEARNING",
   /// "LEARNING_LIMITED", "SUCCESS", ...). Null when Meta doesn't return the
   /// field at all (e.g. ad set never entered the learning phase, or the
   /// optimization goal doesn't support it).
-  learningPhaseStatus String?    @map("learning_phase_status")
-  createdAt        DateTime     @default(now()) @map("created_at")
-  updatedAt        DateTime     @updatedAt @map("updated_at")
-  campaign         Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  ads              Ad[]
+  learningPhaseStatus String?      @map("learning_phase_status")
+  createdAt           DateTime     @default(now()) @map("created_at")
+  updatedAt           DateTime     @updatedAt @map("updated_at")
+  campaign            Campaign     @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  ads                 Ad[]
 
   @@unique([campaignId, externalAdSetId])
   @@index([campaignId])
@@ -314,29 +314,29 @@ model AdSet {
 }
 
 model Ad {
-  id           String       @id @default(cuid())
-  adSetId      String       @map("ad_set_id")
-  externalAdId String       @map("external_ad_id")
-  name         String
-  status       EntityStatus @default(ACTIVE)
+  id                String       @id @default(cuid())
+  adSetId           String       @map("ad_set_id")
+  externalAdId      String       @map("external_ad_id")
+  name              String
+  status            EntityStatus @default(ACTIVE)
   /// Legacy denormalized blob — kept for back-compat with any prior sync runs.
   /// New code should read creative metadata from the related `AdCreative` row.
-  creativeJson Json?        @map("creative_json")
+  creativeJson      Json?        @map("creative_json")
   /// FK into normalized + deduped AdCreative table. Many ads can share one
   /// creative (Meta's `object_story_id`), so this is N:1, NOT 1:1.
-  creativeId   String?      @map("creative_id")
+  creativeId        String?      @map("creative_id")
   /// Meta's own relevance grades (latest synced value). Raw enum strings:
   /// above_average | average | below_average_35 | below_average_20.
   /// Nullable — Meta only grades ads with enough delivery. Translated into
   /// advice by knowledge/adRelevanceIntelligence.ts (never shown raw).
-  qualityRanking    String?   @map("quality_ranking")
-  engagementRanking String?   @map("engagement_ranking")
-  conversionRanking String?   @map("conversion_ranking")
-  rankingsSyncedAt  DateTime? @map("rankings_synced_at")
-  createdAt    DateTime     @default(now()) @map("created_at")
-  updatedAt    DateTime     @updatedAt @map("updated_at")
-  adSet        AdSet        @relation(fields: [adSetId], references: [id], onDelete: Cascade)
-  creative     AdCreative?  @relation(fields: [creativeId], references: [id], onDelete: SetNull)
+  qualityRanking    String?      @map("quality_ranking")
+  engagementRanking String?      @map("engagement_ranking")
+  conversionRanking String?      @map("conversion_ranking")
+  rankingsSyncedAt  DateTime?    @map("rankings_synced_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+  adSet             AdSet        @relation(fields: [adSetId], references: [id], onDelete: Cascade)
+  creative          AdCreative?  @relation(fields: [creativeId], references: [id], onDelete: SetNull)
 
   @@unique([adSetId, externalAdId])
   @@index([adSetId])
@@ -403,40 +403,40 @@ model RawInsight {
 }
 
 model DailyStat {
-  id             String     @id @default(cuid())
-  entityType     EntityType @map("entity_type")
-  entityId       String     @map("entity_id")
-  date           DateTime   @db.Date
-  spend          BigInt     @default(0)
-  impressions    BigInt     @default(0)
-  reach          BigInt     @default(0)
-  clicks         BigInt     @default(0)
+  id               String     @id @default(cuid())
+  entityType       EntityType @map("entity_type")
+  entityId         String     @map("entity_id")
+  date             DateTime   @db.Date
+  spend            BigInt     @default(0)
+  impressions      BigInt     @default(0)
+  reach            BigInt     @default(0)
+  clicks           BigInt     @default(0)
   /// Clicks that actually opened the destination (website, WhatsApp, Messenger).
   /// Distinct from `clicks`, which also counts reactions, comments, shares and
   /// photo expands — so `clicks` overstates traffic and understates cost per
   /// click against Ads Manager's default column. This is the honest denominator
   /// for cost-per-link-click and for the click → conversation rate.
-  linkClicks     BigInt     @default(0) @map("link_clicks")
+  linkClicks       BigInt     @default(0) @map("link_clicks")
   /// People who actually ARRIVED at the destination page (Meta's own
   /// `landing_page_view` action). The gap between link_clicks and this is the
   /// landing-page problem — a click that never loads the page. Never estimated
   /// from clicks; 0 on rows predating the column, so a zero denominator must
   /// read as INSUFFICIENT_DATA rather than a measured zero.
-  landingPageViews BigInt   @default(0) @map("landing_page_views")
-  uniqueClicks   BigInt     @default(0) @map("unique_clicks")
-  messages       BigInt     @default(0)
-  purchases      BigInt     @default(0)
-  leads          BigInt     @default(0)
-  conversions    BigInt     @default(0)
-  revenueMinor   BigInt     @default(0) @map("revenue_minor")
-  ctr            Float?
-  uniqueCtr      Float?     @map("unique_ctr")
-  cpc            Float?
-  cpm            Float?
-  costPerMessage Float?     @map("cost_per_message")
-  frequency      Float?
-  roas           Float?
-  createdAt      DateTime   @default(now()) @map("created_at")
+  landingPageViews BigInt     @default(0) @map("landing_page_views")
+  uniqueClicks     BigInt     @default(0) @map("unique_clicks")
+  messages         BigInt     @default(0)
+  purchases        BigInt     @default(0)
+  leads            BigInt     @default(0)
+  conversions      BigInt     @default(0)
+  revenueMinor     BigInt     @default(0) @map("revenue_minor")
+  ctr              Float?
+  uniqueCtr        Float?     @map("unique_ctr")
+  cpc              Float?
+  cpm              Float?
+  costPerMessage   Float?     @map("cost_per_message")
+  frequency        Float?
+  roas             Float?
+  createdAt        DateTime   @default(now()) @map("created_at")
 
   @@unique([entityType, entityId, date])
   @@index([entityId, date])
@@ -573,28 +573,28 @@ model KnowledgeRule {
 }
 
 model Recommendation {
-  id               String                   @id @default(cuid())
-  entityType       EntityType               @map("entity_type")
-  entityId         String                   @map("entity_id")
-  date             DateTime                 @db.Date
+  id               String                 @id @default(cuid())
+  entityType       EntityType             @map("entity_type")
+  entityId         String                 @map("entity_id")
+  date             DateTime               @db.Date
   priority         RecommendationPriority
-  actionCode       String                   @map("action_code")
-  sourceIssuesJson Json                     @map("source_issues_json")
-  detailsJson      Json?                    @map("details_json")
-  createdAt        DateTime                 @default(now()) @map("created_at")
+  actionCode       String                 @map("action_code")
+  sourceIssuesJson Json                   @map("source_issues_json")
+  detailsJson      Json?                  @map("details_json")
+  createdAt        DateTime               @default(now()) @map("created_at")
 
   // ── AI Assistant fields (Phase 2 v3) ────────────────────────────────────
   /// Provenance of this recommendation. Existing rows default to V1_RULES.
-  source              RecommendationSource @default(V1_RULES)
+  source             RecommendationSource @default(V1_RULES)
   /// Full reasoning chain when source = AI_AGENT: tool calls, key facts,
   /// alternatives considered, confidence. Enables the "لماذا اقترحت هذا؟" UX.
-  reasoningChainJson  Json?               @map("reasoning_chain_json")
+  reasoningChainJson Json?                @map("reasoning_chain_json")
   /// Link back to the conversation that produced this recommendation.
-  aiConversationId    String?             @map("ai_conversation_id")
+  aiConversationId   String?              @map("ai_conversation_id")
   /// Link to the specific assistant message that emitted this recommendation.
-  aiMessageId         String?             @map("ai_message_id")
+  aiMessageId        String?              @map("ai_message_id")
 
-  execution        RecommendationExecution?
+  execution RecommendationExecution?
 
   @@unique([entityType, entityId, date, actionCode])
   @@index([entityType, entityId, date])
@@ -1114,15 +1114,15 @@ enum SyncJobStatus {
 //  Exempt from raw_insights pruning — outlives the audit trail.
 // ════════════════════════════════════════════════════════════════════════
 model CampaignHistorySnapshot {
-  id                 String   @id @default(cuid())
-  workspaceId        String   @map("workspace_id")
-  campaignId         String   @unique @map("campaign_id")
-  externalCampaignId String   @map("external_campaign_id")
-  adAccountId        String   @map("ad_account_id")
+  id                 String @id @default(cuid())
+  workspaceId        String @map("workspace_id")
+  campaignId         String @unique @map("campaign_id")
+  externalCampaignId String @map("external_campaign_id")
+  adAccountId        String @map("ad_account_id")
 
   name        String
   objective   String?
-  finalStatus String  @map("final_status")
+  finalStatus String    @map("final_status")
   startedAt   DateTime? @map("started_at")
   endedAt     DateTime? @map("ended_at")
 
@@ -1165,24 +1165,24 @@ enum CampaignHistoryWindowKey {
 }
 
 model CampaignHistoryRollup {
-  id                  String                   @id @default(cuid())
-  workspaceId         String                   @map("workspace_id")
-  objective           String                   // real objective, or sentinel "__ALL__" (NOT NULL)
-  windowKey           CampaignHistoryWindowKey @map("window_key")
+  id          String                   @id @default(cuid())
+  workspaceId String                   @map("workspace_id")
+  objective   String // real objective, or sentinel "__ALL__" (NOT NULL)
+  windowKey   CampaignHistoryWindowKey @map("window_key")
 
-  campaignCount       Int                      @map("campaign_count")
-  avgRoas             Float?                   @map("avg_roas")
-  weightedRoas        Float?                   @map("weighted_roas")
-  avgCostPerMsgMinor  BigInt?                  @map("avg_cost_per_msg_minor")
-  totalSpendMinor     BigInt                   @map("total_spend_minor")
-  totalRevenueMinor   BigInt                   @map("total_revenue_minor")
-  totalMessages       BigInt                   @map("total_messages")
-  totalPurchases      BigInt                   @map("total_purchases")
+  campaignCount      Int     @map("campaign_count")
+  avgRoas            Float?  @map("avg_roas")
+  weightedRoas       Float?  @map("weighted_roas")
+  avgCostPerMsgMinor BigInt? @map("avg_cost_per_msg_minor")
+  totalSpendMinor    BigInt  @map("total_spend_minor")
+  totalRevenueMinor  BigInt  @map("total_revenue_minor")
+  totalMessages      BigInt  @map("total_messages")
+  totalPurchases     BigInt  @map("total_purchases")
 
   currency            String?
-  currencyMinorFactor Int?                     @map("currency_minor_factor")
+  currencyMinorFactor Int?    @map("currency_minor_factor")
 
-  computedAt          DateTime                 @default(now()) @map("computed_at")
+  computedAt DateTime @default(now()) @map("computed_at")
 
   @@unique([workspaceId, objective, windowKey])
   @@index([workspaceId, windowKey])
@@ -1205,27 +1205,27 @@ model CampaignHistoryRollup {
 /// (daily brief, anomaly alert). `isProactive` distinguishes the two so the
 /// UI can filter and the observability layer can measure engagement.
 model AiConversation {
-  id           String   @id @default(cuid())
-  workspaceId  String   @map("workspace_id")
-  userId       String   @map("user_id")
+  id          String   @id @default(cuid())
+  workspaceId String   @map("workspace_id")
+  userId      String   @map("user_id")
   /// Human-readable label — LLM-generated after the second turn.
-  title        String?
+  title       String?
   /// Conversation default locale. Per-message language can override this
   /// (§32 multi-language mid-thread).
-  locale       Locale   @default(AR)
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  locale      Locale   @default(AR)
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   /// True when the conversation was initiated by the agent (daily brief,
   /// anomaly alert), not by the merchant. Filters the chat sidebar.
-  isProactive  Boolean  @default(false) @map("is_proactive")
+  isProactive Boolean @default(false) @map("is_proactive")
   /// When isProactive=true: what triggered it. Free-form enum-like string.
   ///  'daily_brief' | 'anomaly_alert' | 'fraud_alert' | 'first_run'
-  triggerType  String?  @map("trigger_type")
+  triggerType String? @map("trigger_type")
 
-  workspace    Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user         User        @relation(fields: [userId],      references: [id], onDelete: Cascade)
-  messages     AiMessage[]
+  workspace Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  AiMessage[]
 
   @@index([workspaceId, updatedAt])
   @@index([userId, updatedAt])
@@ -1239,26 +1239,26 @@ model AiConversation {
 /// and (b) the audit modal ("لماذا اقترحت هذا؟") can quote them verbatim
 /// weeks later.
 model AiMessage {
-  id              String   @id @default(cuid())
-  conversationId  String   @map("conversation_id")
+  id              String        @id @default(cuid())
+  conversationId  String        @map("conversation_id")
   role            AiMessageRole
   /// Prose content for USER/ASSISTANT/SYSTEM. Empty string for TOOL rows
   /// (their payload lives in the JSON columns below).
-  content         String   @db.Text
+  content         String        @db.Text
   /// When role=ASSISTANT: array of tool_use blocks requested by the model.
   /// When role=USER/SYSTEM/TOOL: null.
-  toolCallsJson   Json?    @map("tool_calls_json")
+  toolCallsJson   Json?         @map("tool_calls_json")
   /// When role=TOOL: the ToolResult<T> envelope returned by the dispatcher.
-  toolResultsJson Json?    @map("tool_results_json")
+  toolResultsJson Json?         @map("tool_results_json")
   /// Per-turn token accounting for cost observability.
-  tokensIn        Int?     @map("tokens_in")
-  tokensOut       Int?     @map("tokens_out")
-  latencyMs       Int?     @map("latency_ms")
+  tokensIn        Int?          @map("tokens_in")
+  tokensOut       Int?          @map("tokens_out")
+  latencyMs       Int?          @map("latency_ms")
   /// Which Anthropic model produced this row.
   model           String?
-  createdAt       DateTime @default(now()) @map("created_at")
+  createdAt       DateTime      @default(now()) @map("created_at")
 
-  conversation    AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  conversation AiConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
 
   @@index([conversationId, createdAt])
   @@map("ai_messages")
@@ -1272,20 +1272,20 @@ model AiMessage {
 /// updates cached parameters. Never delete rows here — they're the audit
 /// trail for why a workspace's assistant behaves as it does.
 model AiSignal {
-  id            String       @id @default(cuid())
-  workspaceId   String       @map("workspace_id")
-  userId        String       @map("user_id")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  signalType    AiSignalType @map("signal_type")
+  id          String       @id @default(cuid())
+  workspaceId String       @map("workspace_id")
+  userId      String       @map("user_id")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  signalType  AiSignalType @map("signal_type")
   /// What the signal is ABOUT. E.g. 'recommendation' | 'alert' | 'brief' | 'message'.
-  targetType    String       @map("target_type")
+  targetType  String       @map("target_type")
   /// FK-like reference to the target row. Not a hard FK because target tables
   /// vary (Recommendation, AiMessage, etc.); the app layer resolves it.
-  targetId      String       @map("target_id")
+  targetId    String       @map("target_id")
   /// Signal-specific metadata: { dismissReason, dwellMs, citationRef, ... }.
-  metadata      Json?
+  metadata    Json?
 
-  user          User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([workspaceId, signalType, createdAt])
   @@index([userId, signalType, createdAt])
@@ -1297,27 +1297,27 @@ model AiSignal {
 /// Tracked because the same anomaly persisting for days should escalate
 /// the alert's tone (whisper → normal → concerned → escalation). See §25.
 model AiAnomalyState {
-  id                String     @id @default(cuid())
-  workspaceId       String     @map("workspace_id")
-  entityType        EntityType @map("entity_type")
-  entityId          String     @map("entity_id")
+  id               String     @id @default(cuid())
+  workspaceId      String     @map("workspace_id")
+  entityType       EntityType @map("entity_type")
+  entityId         String     @map("entity_id")
   /// Which metric is anomalous. E.g. 'cost_per_message', 'ctr', 'spend'.
-  metric            String
+  metric           String
   /// Signed direction: 'better' | 'worse'. Direction matters for tone —
   /// a persistent "better" anomaly is exciting; a persistent "worse"
   /// anomaly is alarming.
-  direction         String
-  firstDetectedAt   DateTime   @map("first_detected_at")
-  lastDetectedAt    DateTime   @map("last_detected_at")
+  direction        String
+  firstDetectedAt  DateTime   @map("first_detected_at")
+  lastDetectedAt   DateTime   @map("last_detected_at")
   /// Rungs of the escalation ladder — 1 = whisper, 2 = normal,
   /// 3-4 = concerned, 5+ = escalation.
-  daysAnomalous     Int        @default(1) @map("days_anomalous")
-  totalAlerts       Int        @default(0) @map("total_alerts")
+  daysAnomalous    Int        @default(1) @map("days_anomalous")
+  totalAlerts      Int        @default(0) @map("total_alerts")
   /// Latest merchant response for suppression logic:
   ///   'acknowledged' | 'dismissed' | 'silenced_until_YYYY-MM-DD' | null.
-  merchantResponse  String?    @map("merchant_response")
-  createdAt         DateTime   @default(now()) @map("created_at")
-  updatedAt         DateTime   @updatedAt @map("updated_at")
+  merchantResponse String?    @map("merchant_response")
+  createdAt        DateTime   @default(now()) @map("created_at")
+  updatedAt        DateTime   @updatedAt @map("updated_at")
 
   @@unique([workspaceId, entityType, entityId, metric, direction])
   @@index([workspaceId, lastDetectedAt])
@@ -1333,31 +1333,31 @@ model AiAnomalyState {
 // ════════════════════════════════════════════════════════════════════════
 
 model SupportTicket {
-  id               String           @id @default(cuid())
-  workspaceId      String           @map("workspace_id")
-  userId           String           @map("user_id")
+  id               String         @id @default(cuid())
+  workspaceId      String         @map("workspace_id")
+  userId           String         @map("user_id")
   category         TicketCategory
-  status           TicketStatus     @default(OPEN)
-  priority         TicketPriority   @default(NORMAL)
+  status           TicketStatus   @default(OPEN)
+  priority         TicketPriority @default(NORMAL)
   subject          String
-  isPinned         Boolean          @default(false) @map("is_pinned")
-  isStarred        Boolean          @default(false) @map("is_starred")
+  isPinned         Boolean        @default(false) @map("is_pinned")
+  isStarred        Boolean        @default(false) @map("is_starred")
   /// Auto-captured context snapshot: user agent, locale, Meta connection
   /// status, campaign count, last sync, last errors, recent actions.
-  contextJson      Json?            @map("context_json")
+  contextJson      Json?          @map("context_json")
   /// Optional link to a platform entity for cross-referencing.
-  linkedEntityType String?          @map("linked_entity_type")
-  linkedEntityId   String?          @map("linked_entity_id")
+  linkedEntityType String?        @map("linked_entity_type")
+  linkedEntityId   String?        @map("linked_entity_id")
   /// Admin who last handled this ticket.
-  assignedTo       String?          @map("assigned_to")
-  closedAt         DateTime?        @map("closed_at")
-  closedBy         String?          @map("closed_by")
-  createdAt        DateTime         @default(now()) @map("created_at")
-  updatedAt        DateTime         @updatedAt @map("updated_at")
+  assignedTo       String?        @map("assigned_to")
+  closedAt         DateTime?      @map("closed_at")
+  closedBy         String?        @map("closed_by")
+  createdAt        DateTime       @default(now()) @map("created_at")
+  updatedAt        DateTime       @updatedAt @map("updated_at")
 
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
-  messages         SupportMessage[]
+  workspace Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  SupportMessage[]
 
   @@index([workspaceId, status, createdAt])
   @@index([userId, createdAt])
@@ -1367,19 +1367,19 @@ model SupportTicket {
 }
 
 model SupportMessage {
-  id           String            @id @default(cuid())
-  ticketId     String            @map("ticket_id")
-  senderId     String            @map("sender_id")
-  senderType   MessageSenderType @map("sender_type")
-  content      String            @db.Text
+  id         String            @id @default(cuid())
+  ticketId   String            @map("ticket_id")
+  senderId   String            @map("sender_id")
+  senderType MessageSenderType @map("sender_type")
+  content    String            @db.Text
   /// Admin-only internal notes invisible to the customer.
-  isInternal   Boolean           @default(false) @map("is_internal")
+  isInternal Boolean           @default(false) @map("is_internal")
   /// Read receipt: timestamp when the other party first saw this message.
-  readAt       DateTime?         @map("read_at")
-  createdAt    DateTime          @default(now()) @map("created_at")
+  readAt     DateTime?         @map("read_at")
+  createdAt  DateTime          @default(now()) @map("created_at")
 
-  ticket       SupportTicket     @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  sender       User              @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  sender User          @relation(fields: [senderId], references: [id], onDelete: Cascade)
 
   @@index([ticketId, createdAt])
   @@index([senderId])
@@ -1426,43 +1426,43 @@ enum MessageSenderType {
 // ════════════════════════════════════════════════════════════════════════
 
 model ConnectionOnboarding {
-  id                String              @id @default(cuid())
-  workspaceId       String              @map("workspace_id")
-  provider          ConnectionProvider  @default(META)
+  id                String             @id @default(cuid())
+  workspaceId       String             @map("workspace_id")
+  provider          ConnectionProvider @default(META)
   /// Provider-scoped account identifier (Meta: "act_123456").
-  externalAccountId String              @map("external_account_id")
-  state             OnboardingState     @default(REQUEST_CREATED)
+  externalAccountId String             @map("external_account_id")
+  state             OnboardingState    @default(REQUEST_CREATED)
 
   /// Current PlannedStep[] — RE-EVALUATED on every transition, never
   /// computed once. A plan frozen at creation goes stale the moment a
   /// capability changes (e.g. App Review lands mid-flight).
-  planJson          Json?               @map("plan_json")
+  planJson         Json?   @map("plan_json")
   /// Last detected CapabilitySet (STATIC + PROBED tiers only —
   /// OPTIMISTIC capabilities are never pre-computed).
-  capabilitiesJson  Json?               @map("capabilities_json")
+  capabilitiesJson Json?   @map("capabilities_json")
   /// Step id the engine is currently working, from planJson.
-  currentStepId     String?             @map("current_step_id")
+  currentStepId    String? @map("current_step_id")
 
-  attempts          Int                 @default(0)
-  lastError         String?             @map("last_error")
+  attempts           Int     @default(0)
+  lastError          String? @map("last_error")
   /// Set when state = BLOCKED: the single missing requirement to surface.
-  blockedRequirement String?            @map("blocked_requirement")
+  blockedRequirement String? @map("blocked_requirement")
 
   /// Adaptive polling: when the poller should next look at this row.
-  nextCheckAt       DateTime?           @map("next_check_at")
+  nextCheckAt   DateTime? @map("next_check_at")
   /// When the current external wait began — drives the backoff curve.
-  waitingSince      DateTime?           @map("waiting_since")
-  lastCheckedAt     DateTime?           @map("last_checked_at")
+  waitingSince  DateTime? @map("waiting_since")
+  lastCheckedAt DateTime? @map("last_checked_at")
 
   /// Set once the AdAccount row exists (hand-off point to the sync worker).
-  linkedAdAccountId String?             @map("linked_ad_account_id")
+  linkedAdAccountId String? @map("linked_ad_account_id")
 
-  createdAt         DateTime            @default(now()) @map("created_at")
-  updatedAt         DateTime            @updatedAt @map("updated_at")
-  completedAt       DateTime?           @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
 
-  workspace         Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  events            OnboardingEvent[]
+  workspace Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  events    OnboardingEvent[]
 
   @@unique([workspaceId, provider, externalAccountId])
   @@index([state, nextCheckAt])
@@ -1473,18 +1473,18 @@ model ConnectionOnboarding {
 /// Append-only audit timeline. Doubles as the live-progress feed for the
 /// UI, so the same structure serves both operators and debugging.
 model OnboardingEvent {
-  id           String               @id @default(cuid())
-  onboardingId String               @map("onboarding_id")
-  at           DateTime             @default(now())
+  id           String              @id @default(cuid())
+  onboardingId String              @map("onboarding_id")
+  at           DateTime            @default(now())
   kind         OnboardingEventKind
-  fromState    OnboardingState?     @map("from_state")
-  toState      OnboardingState?     @map("to_state")
-  stepId       String?              @map("step_id")
+  fromState    OnboardingState?    @map("from_state")
+  toState      OnboardingState?    @map("to_state")
+  stepId       String?             @map("step_id")
   /// Human-readable line rendered in the timeline.
   message      String
-  dataJson     Json?                @map("data_json")
+  dataJson     Json?               @map("data_json")
 
-  onboarding   ConnectionOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
+  onboarding ConnectionOnboarding @relation(fields: [onboardingId], references: [id], onDelete: Cascade)
 
   @@index([onboardingId, at])
   @@map("onboarding_events")
@@ -1515,4 +1515,62 @@ enum OnboardingEventKind {
   CAPABILITY_CHANGE
   ERROR
   NOTE
+}
+
+// ════════════════════════════════════════════════════════════════════════
+//  META USAGE TELEMETRY — durable, because Redis is not part of this
+//  deployment and a measurement that evaporates is not a measurement.
+//
+//  The Marketing API Access Tier application is judged on calls made over a
+//  rolling 15-day window. That evidence previously lived only in Redis with
+//  a 30-day TTL, behind a variable production does not set — so the numbers
+//  the tier application depends on did not survive a deploy, and the reader
+//  returned a fully zeroed struct that was indistinguishable from a real
+//  measurement of zero.
+//
+//  Three tables, each answering one question, and nothing more:
+//    daily     — how many calls per day, by outcome and error category
+//    outcome   — the bounded recent ledger the "last 500" rate is computed on
+//    state     — when measurement began, and the latest usage headers
+//
+//  measurementStartedAt is the field that keeps history honest: days before
+//  it are UNKNOWN, not zero, and must never be backfilled.
+// ════════════════════════════════════════════════════════════════════════
+
+/// One row per UTC day. Counters only — no payloads, no URLs, no tokens.
+model MetaUsageDaily {
+  date            DateTime @id @db.Date
+  successCount    Int      @default(0)
+  errorCount      Int      @default(0)
+  /// { token, rate_limit, permission, invalid_params, server, other }
+  errorByCategory Json     @default("{}")
+  updatedAt       DateTime @updatedAt
+
+  @@map("meta_usage_daily")
+}
+
+/// Bounded ledger of TERMINAL call outcomes, newest-relevant. Pruned by the
+/// maintenance job to a small multiple of the 500-call policy window.
+model MetaUsageOutcome {
+  id       BigInt   @id @default(autoincrement())
+  at       DateTime @default(now())
+  ok       Boolean
+  /// Sanitized MetaErrorCategory. Null on success.
+  category String?
+
+  @@index([at])
+  @@map("meta_usage_outcomes")
+}
+
+/// Singleton. Holds the coverage origin and the latest sanitized usage
+/// headers — parsed numeric fields only, never a raw provider body.
+model MetaUsageState {
+  id                   String    @id @default("singleton")
+  measurementStartedAt DateTime  @default(now())
+  latestObservedAt     DateTime?
+  appUsage             Json?
+  adAccountUsage       Json?
+  businessUseCase      Json?
+
+  @@map("meta_usage_state")
 }

@@ -107,6 +107,10 @@ const ops = (over: Record<string, any> = {}): AdminOpsSnapshot => ({
       resolvedBy: 'فحص دوري يشغّل المعقلن على حملة معروفة ويقارن الخلاصة', href: '/admin/intelligence' },
   ],
   build: over.build ?? build,
+  // Canonical operational truth. Empty here on purpose: these fixtures
+  // exercise the LEGACY subsystems[] projection, and the overlay reads
+  // `ops.assessments ?? []`. Compile-only addition for the new contract.
+  assessments: [],
 });
 
 /**

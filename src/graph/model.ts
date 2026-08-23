@@ -34,7 +34,13 @@
  * silently drop, and silently dropping half a graph is exactly the failure
  * mode this version check exists to prevent.
  */
-export const GRAPH_SCHEMA_VERSION = '1.0.0';
+/**
+ * 1.1.0 — ADDITIVE. Adds the optional `requiredness` qualifier on GraphEdge
+ * and the FALLS_BACK_TO edge kind. A 1.0.0 snapshot remains valid: both
+ * additions are optional, and a reader that ignores them sees exactly the
+ * graph it saw before.
+ */
+export const GRAPH_SCHEMA_VERSION = '1.1.0';
 
 /** Node classes. Only concepts this repository actually contains. */
 export const NODE_CLASSES = [
@@ -67,6 +73,16 @@ export const EDGE_KINDS = [
   'DEPLOYED_AS',
   'AUTHORIZED_BY',
   'OWNED_BY',
+  /**
+   * A → B: when A's preferred path is unavailable, A continues via B.
+   *
+   * A genuinely different relationship from DEPENDS_ON, not a qualifier on
+   * one: the queue runtime does not depend on in-process execution, it
+   * RETREATS to it. Without this edge the map said "queue depends on Redis"
+   * and an operator reading it concluded that Redis being absent stopped
+   * background work — which is the opposite of what the code does.
+   */
+  'FALLS_BACK_TO',
 ] as const;
 export type EdgeKind = (typeof EDGE_KINDS)[number];
 
@@ -122,11 +138,26 @@ export interface GraphNode {
   unknowns?: string[];
 }
 
+/** How badly `from` needs `to`. Absent means the edge does not say. */
+export const EDGE_REQUIREDNESS = ['REQUIRED', 'OPTIONAL'] as const;
+export type EdgeRequiredness = (typeof EDGE_REQUIREDNESS)[number];
+
 export interface GraphEdge {
   id: string;
   from: string;
   to: string;
   kind: EdgeKind;
+  /**
+   * OPTIONAL qualifier, and the reason structural blast radius stopped
+   * lying. A bare DEPENDS_ON could not distinguish "BullMQ REQUIRES Redis"
+   * from "the queue runtime OPTIONALLY uses BullMQ" — so a reader tracing
+   * outward from a dead Redis marked the whole background subsystem
+   * unreachable, when in fact it keeps running in-process.
+   *
+   * Left undefined where the evidence does not support a claim either way.
+   * An unqualified edge is honest; a guessed one is not.
+   */
+  requiredness?: EdgeRequiredness;
   provenance: Provenance;
 }
 
@@ -175,6 +206,23 @@ export interface RuntimeNodeState {
   summary: string;
   /** Optional LTR technical line. Never a secret. */
   detail?: string;
+  /**
+   * Canonical operational fields, carried through from the operational
+   * truth owner. The overlay does NOT compute these — it forwards them, so
+   * the graph and the console cannot disagree about one subsystem.
+   *
+   * They live here rather than on GraphNode on purpose: architecture is what
+   * exists, runtime is what is currently true, and the map must not change
+   * shape because Redis went down.
+   */
+  reasonCode?: string;
+  /** Subsystem-specific mode, e.g. queue IN_PROCESS vs BULLMQ. */
+  mode?: string;
+  /** When the evidence was gathered. Absent ⇔ nothing was observed. */
+  observedAt?: string | null;
+  freshness?: 'CURRENT' | 'STALE' | 'UNKNOWN';
+  /** Whether the CURRENT topology needs this at all. */
+  requiredness?: 'REQUIRED' | 'OPTIONAL' | 'NOT_REQUIRED';
   provenance: Provenance;
 }
 

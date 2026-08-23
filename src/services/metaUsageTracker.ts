@@ -17,6 +17,17 @@
 import { withRedis } from '../lib/redis';
 import type { Redis } from 'ioredis';
 
+import { recordOutcome, recordHeaders } from './metaUsageStore';
+
+/**
+ * Parse a usage header we already validated as JSON, for durable storage.
+ * Returns the parsed object so only structured numeric fields are persisted
+ * — never the raw header string, and never anything else from the response.
+ */
+function safeJson(raw: string): unknown {
+  try { return JSON.parse(raw) as unknown; } catch { return null; }
+}
+
 const COUNT_KEY_PREFIX = 'meta:usage:count:';
 const ERROR_KEY_PREFIX = 'meta:usage:error:';
 // Per-category daily error counters (breakdown by Meta failure type). Key shape:
@@ -172,6 +183,10 @@ function errorCatKey(category: MetaErrorCategory, date: Date): string {
 export async function recordMetaErrorCategory(status: number, metaErrorCode?: number): Promise<void> {
   try {
     const category = categorizeMetaError(status, metaErrorCode);
+    // DURABLE FIRST. Redis below is a legacy fast path that this deployment
+    // does not configure; Postgres is what the readiness contract reads, and
+    // an error that only ever reached Redis was an error nobody could count.
+    recordOutcome(false, category);
     const key = errorCatKey(category, new Date());
     await withRedis(async (r) => {
       const multi = r.multi();
@@ -297,6 +312,21 @@ export async function recordMetaResponseHeaders(
 
     const is2xx = status !== undefined && status >= 200 && status < 300;
     const isError = status !== undefined && status >= 400;
+
+    // DURABLE SUCCESS COUNTER. Only 2xx is recorded here; the error side is
+    // recorded by recordMetaErrorCategory, which is the only place the Meta
+    // error CODE is available and so the only place a category can be
+    // assigned. Recording failures in both would double-count them.
+    if (is2xx) recordOutcome(true);
+
+    // Header snapshot is independent of outcome: a 429 carries the most
+    // interesting usage headers of all.
+    recordHeaders({
+      ...(appUsage !== undefined ? { appUsage: safeJson(appUsage) } : {}),
+      ...(adAccountUsage !== undefined ? { adAccountUsage: safeJson(adAccountUsage) } : {}),
+      ...(businessUseCase !== undefined ? { businessUseCase: safeJson(businessUseCase) } : {}),
+    });
+
     const now = new Date();
     const todayKey = countKey(now);
     const todayErrorKey = errorCountKey(now);

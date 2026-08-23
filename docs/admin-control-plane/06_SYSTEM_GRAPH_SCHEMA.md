@@ -94,3 +94,43 @@ rows are runtime — putting each customer in the architecture graph would make
 "what does the system look like" change every time somebody signed up. Observed
 per-workspace state reaches that node as an aggregate through the runtime
 overlay instead.
+
+---
+
+## Schema 1.1.0 — optional dependencies and fallback paths
+
+**Additive.** A 1.0.0 snapshot still validates: both additions are optional and
+a reader that ignores them sees exactly the graph it saw before.
+
+### `GraphEdge.requiredness?: 'REQUIRED' | 'OPTIONAL'`
+
+A bare `DEPENDS_ON` could not distinguish *"BullMQ requires Redis"* from *"the
+queue runtime optionally uses BullMQ"*. That mattered operationally: a reader
+tracing outward from a dead Redis concluded background work had stopped, when
+`enqueueOrFallback()` keeps it running in-process — which is the production
+configuration.
+
+Left **undefined** where the evidence supports no claim either way. An
+unqualified edge is honest; a guessed one is not.
+
+### `FALLS_BACK_TO` edge kind
+
+`A → B`: when A's preferred path is unavailable, A continues via B. Genuinely a
+different relationship from `DEPENDS_ON`, not a qualifier on one — the queue
+runtime does not *depend on* in-process execution, it *retreats to* it.
+
+Currently one instance:
+`src/lib/queue.ts --FALLS_BACK_TO--> src/lib/queue.ts#in-process`,
+provenance `REPOSITORY_DECLARATION :: enqueueOrFallback`.
+
+### Reading blast radius correctly
+
+Traverse **`REQUIRED`** edges only. An `OPTIONAL` edge means the dependant
+survives the target's loss. Structural blast radius is what *could* be
+affected; it is not observed state, and the graph must never mark a downstream
+node failed on the strength of a traversal.
+
+### Provenance is still mandatory
+
+Every node and every edge — new kinds included — carries provenance.
+`test_system_graph.ts` fails the build otherwise.
