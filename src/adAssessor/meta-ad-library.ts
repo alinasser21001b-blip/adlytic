@@ -7,7 +7,12 @@ import type { CampaignGoal } from "./types";
 
 import { config } from '../config';
 
-const AD_LIBRARY_URL = 'https://graph.facebook.com/v21.0/ads_archive';
+// Was hard-coded to v21.0, independent of config.meta.apiVersion — the one
+// other Meta version reference in this codebase (metaClient.ts) that isn't
+// driven by META_API_VERSION. Reading it here means one env var now controls
+// every Meta call, and this can no longer drift onto a retired version
+// unnoticed. Ad Library is a separately-registered capability from Marketing
+// API insights, but they share Meta's Graph API version lifecycle.
 const DEFAULT_COUNTRIES = ["SA", "AE", "EG"];
 
 export interface AdLibraryAd {
@@ -60,7 +65,7 @@ export async function searchAdLibrary(params: {
   if (!token) return [];
 
   const countries = params.countries ?? DEFAULT_COUNTRIES;
-  const url = new URL(AD_LIBRARY_URL);
+  const url = new URL(`https://graph.facebook.com/${config.meta.apiVersion}/ads_archive`);
   url.searchParams.set("access_token", token);
   url.searchParams.set("search_terms", params.searchTerms);
   url.searchParams.set("ad_reached_countries", JSON.stringify(countries));
