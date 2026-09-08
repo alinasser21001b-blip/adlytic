@@ -34,9 +34,19 @@ function check(name: string, fn: () => void | Promise<void>) {
 // nothing else is read by the handler under test.
 
 const DAY_MS = 86_400_000;
+// The handler under test computes its own scan window from a real
+// `new Date()` (detectAnomaly.ts) with no injectable clock, so the fixture's
+// "day 0" must track real time too. A fixed calendar date here previously
+// drifted out of the handler's actual lookback window as real time passed
+// it, failing every assertion downstream of the query returning zero rows —
+// not a capability regression, a stale anchor. Computed once so every
+// dateAt() call in a single run agrees on "today".
+const TODAY = (() => {
+  const n = new Date();
+  return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+})();
 function dateAt(daysAgo: number): Date {
-  const d = new Date(Date.UTC(2026, 7, 20));
-  return new Date(d.getTime() - daysAgo * DAY_MS);
+  return new Date(TODAY.getTime() - daysAgo * DAY_MS);
 }
 
 function makeDailyRow(daysAgo: number, entityType: EntityType, entityId: string, opts: {
