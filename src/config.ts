@@ -219,12 +219,50 @@ validateRequired('DATABASE_URL', rawDbUrl, (v) => {
 
 // ── Meta OAuth ───────────────────────────────────────────────────────────────
 
-const DEFAULT_META_API_VERSION = 'v20.0';
+export const DEFAULT_META_API_VERSION = 'v26.0';
 const rawApiVersion = env('META_API_VERSION') ?? DEFAULT_META_API_VERSION;
 const metaApiVersion = /^v\d+\.\d+$/.test(rawApiVersion) ? rawApiVersion : DEFAULT_META_API_VERSION;
 if (!/^v\d+\.\d+$/.test(rawApiVersion)) {
   record({ key: 'META_API_VERSION', status: 'warn', detail: `Invalid META_API_VERSION "${rawApiVersion}" — falling back to ${DEFAULT_META_API_VERSION}` });
 }
+
+/**
+ * Known Graph/Marketing API retirement dates, sourced from Meta's changelog
+ * as of the date noted. NOT exhaustive — only versions this codebase has
+ * configured. Add a row when bumping the default; an absent row means "no
+ * date on record", not "safe forever".
+ */
+export const META_API_VERSION_RETIREMENTS: Record<string, string> = {
+  'v20.0': '2026-09-24', // developers.facebook.com/docs/graph-api/changelog/ (checked 2026-08-19)
+};
+export const META_VERSION_WARNING_WINDOW_DAYS = 120;
+
+/**
+ * A version string with no clean local failure mode: Meta can alter or
+ * reject calls after retirement without the app ever seeing a crash, so the
+ * only defense is catching the date long before it arrives. Non-fatal by
+ * design — actual post-retirement behavior is degraded, not proven fatal,
+ * so exiting the process here would trade a real outage for a guessed one.
+ *
+ * Pure — returns the check rather than recording it, so it can be asserted
+ * on directly without going through reportConfig()'s console output.
+ */
+export function metaApiVersionFreshnessCheck(version: string, now = new Date()): ConfigCheck | null {
+  const retiresAt = META_API_VERSION_RETIREMENTS[version];
+  if (!retiresAt) return null;
+  const daysLeft = Math.floor((Date.parse(retiresAt) - now.getTime()) / 86_400_000);
+  if (daysLeft < 0) {
+    return { key: 'META_API_VERSION_FRESHNESS', status: 'warn',
+      detail: `${version} retired ${retiresAt} — Meta may reject or silently alter calls. Migrate META_API_VERSION off this version.` };
+  }
+  if (daysLeft <= META_VERSION_WARNING_WINDOW_DAYS) {
+    return { key: 'META_API_VERSION_FRESHNESS', status: 'warn',
+      detail: `${version} retires ${retiresAt} (${daysLeft}d) — migrate META_API_VERSION before then.` };
+  }
+  return null;
+}
+const metaVersionFreshness = metaApiVersionFreshnessCheck(metaApiVersion);
+if (metaVersionFreshness) record(metaVersionFreshness);
 
 const metaAppId = env('META_APP_ID');
 const metaAppSecret = env('META_APP_SECRET');

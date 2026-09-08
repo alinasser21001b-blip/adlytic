@@ -10,7 +10,7 @@ Four different things get conflated when people say "what Meta gives us":
 
 ```
 DOCUMENTED
-   ⊇ SUPPORTED BY OUR API VERSION (v20.0, src/config.ts:173)
+   ⊇ SUPPORTED BY OUR API VERSION (v26.0, src/config.ts DEFAULT_META_API_VERSION)
       ⊇ ALLOWED BY OUR APP'S PERMISSIONS
          ⊇ ACTUALLY READABLE WITH THIS TOKEN, ON THIS ACCOUNT   ← the only one that counts
 ```

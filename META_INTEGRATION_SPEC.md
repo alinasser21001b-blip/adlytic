@@ -132,8 +132,11 @@ class MetaApiError(status, body, msg)
 - **Default insight fields** already include `spend, impressions, reach, clicks,
   inline_link_clicks, unique_clicks, ctr, cpc, cpm, frequency, actions,
   action_values, cost_per_action_type, purchase_roas`.
-- **Versioning:** API version is the single point of change (`v20.0` today). A
-  Meta deprecation touches only this file.
+- **Versioning:** API version is the single point of change (`v26.0` today,
+  migrated from `v20.0` ahead of its 2026-09-24 retirement). A Meta
+  deprecation touches only `src/config.ts`'s `DEFAULT_META_API_VERSION`;
+  `meta-ad-library.ts` now reads `config.meta.apiVersion` too, so this is
+  genuinely the only place, not just the intended one.
 
 ### 3.2 `HARDEN` — rate limiting & error taxonomy
 
