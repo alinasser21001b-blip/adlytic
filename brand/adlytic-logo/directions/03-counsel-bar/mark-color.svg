@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Adlytic Direction 3  Counsel Bar">
+  <rect x="8" y="8" width="104" height="104" rx="26" fill="#0E4034"/>
+  <!-- Open A structure: converging legs = analysis; flat bar = advice (not growth) -->
+  <path d="M38 86 L60 30 L82 86" fill="none" stroke="#C8F26B" stroke-width="7" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Counsel bar  horizontal recommendation, never ascending -->
+  <path d="M46 66 L74 66" stroke="#C8F26B" stroke-width="6" stroke-linecap="round"/>
+  <!-- Decision point: a resting node, not a rocket tip -->
+  <circle cx="60" cy="48" r="4.5" fill="#0E4034"/>
+  <circle cx="60" cy="48" r="4.5" fill="none" stroke="#C8F26B" stroke-width="2"/>
+</svg>

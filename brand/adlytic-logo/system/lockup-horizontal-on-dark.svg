@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" fill="none" role="img" aria-label="Adlytic lockup on dark">
+  <rect x="8" y="8" width="104" height="104" rx="26" fill="#FFFFFF"/>
+  <path d="M53.5 26c2.2-2.4 10.8-2.4 13 0l5.2 62.5c.6 4.8-8.2 7.2-11.7 7.2s-12.3-2.4-11.7-7.2L53.5 26z" fill="#0B1F19"/>
+  <rect x="56.5" y="44" width="7" height="26" rx="3.5" fill="#FFFFFF" fill-opacity="0.75"/>
+  <g fill="#FFFFFF" font-family="IBM Plex Sans Arabic, IBM Plex Sans, system-ui, sans-serif" font-weight="650" font-size="52">
+    <text x="132" y="76" letter-spacing="-0.8">Adlytic</text>
+  </g>
+</svg>

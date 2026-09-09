@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120" role="img" aria-label="Adlytic Direction 1  The Aperture">
+  <!-- Plate -->
+  <rect x="8" y="8" width="104" height="104" rx="26" fill="#0E4034"/>
+  <!-- Outer calm ring -->
+  <rect x="3" y="3" width="114" height="114" rx="30" fill="none" stroke="#0E4034" stroke-width="2" opacity="0.35"/>
+  <!-- Counsel aperture: vertical slit  recommends, never acts -->
+  <path d="M54 28 C56 26 64 26 66 28 L70 88 C69 92 51 92 50 88 Z" fill="#C8F26B"/>
+  <!-- Inner quiet core (human decision space) -->
+  <rect x="57" y="42" width="6" height="28" rx="3" fill="#0E4034" opacity="0.55"/>
+</svg>

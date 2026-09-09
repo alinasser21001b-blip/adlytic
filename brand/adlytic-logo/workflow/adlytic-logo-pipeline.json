@@ -1,0 +1,161 @@
+{
+  "name": "adlytic-logo-identity",
+  "version": "1.0.0",
+  "description": "Production workflow for Adlytic logo mark + lockup + mini system. Hybrid: parallel concept fan-out → evaluator validity gates → sequential system build.",
+  "strategic_lock": {
+    "decision": "option_b_full_independence",
+    "forbid_adspulse_visual_kinship": true,
+    "shared_typography_only": ["IBM Plex Sans Arabic"]
+  },
+  "pattern": "orchestrator+evaluator",
+  "budget": {
+    "max_tokens_total": 180000,
+    "max_wall_seconds": 7200,
+    "per_specialist_tokens": 28000
+  },
+  "orchestrator": {
+    "agent": "brand_orchestrator",
+    "planning": "fixed_dag",
+    "completion_policy": "all_required_then_select"
+  },
+  "stages": [
+    {
+      "id": "brief_lock",
+      "agent": "strategist",
+      "type": "sequential",
+      "task": "Lock Option B decision, audience constraints, and cliche blacklist into handoff payload.",
+      "outputs": ["strategic_decision.md", "constraints.json"],
+      "timeout_seconds": 300,
+      "retry": { "max_attempts": 1 }
+    },
+    {
+      "id": "concept_fanout",
+      "type": "parallel",
+      "depends_on": ["brief_lock"],
+      "fan_out": [
+        {
+          "id": "direction_aperture",
+          "agent": "concept_designer_a",
+          "task": "Develop Direction 1 — The Aperture (counsel channel / slit of clarity).",
+          "constraints_ref": "constraints.json",
+          "timeout_seconds": 900,
+          "budget_tokens": 28000
+        },
+        {
+          "id": "direction_lattice",
+          "agent": "concept_designer_b",
+          "task": "Develop Direction 2 — Lattice Seal (pattern recognition as calm geometry).",
+          "constraints_ref": "constraints.json",
+          "timeout_seconds": 900,
+          "budget_tokens": 28000
+        },
+        {
+          "id": "direction_caret",
+          "agent": "concept_designer_c",
+          "task": "Develop Direction 3 — Counsel Bar (stable A-form with advisory crossbar, not growth).",
+          "constraints_ref": "constraints.json",
+          "timeout_seconds": 900,
+          "budget_tokens": 28000
+        }
+      ],
+      "fan_in": {
+        "agent": "brand_orchestrator",
+        "output": "three_directions_pack",
+        "timeout_seconds": 180
+      }
+    },
+    {
+      "id": "validity_gate",
+      "type": "evaluator",
+      "depends_on": ["concept_fanout"],
+      "generator": {
+        "agent": "concept_refiner",
+        "task": "Revise failing directions without collapsing them into one idea."
+      },
+      "evaluator": {
+        "agent": "brand_qa",
+        "criteria": [
+          { "id": "px16", "weight": 0.22, "desc": "Readable as favicon/app icon at 16px" },
+          { "id": "mono", "weight": 0.18, "desc": "Solid black and solid white on dark" },
+          { "id": "sketch10s", "weight": 0.15, "desc": "Hand-drawable in ~10 seconds" },
+          { "id": "whatsapp", "weight": 0.2, "desc": "Thumbnail alone clear without wordmark" },
+          { "id": "print_bw", "weight": 0.15, "desc": "Holds in small B/W print" },
+          { "id": "cliche_free", "weight": 0.1, "desc": "No banned sector cliches" }
+        ],
+        "pass_threshold": 0.85,
+        "hard_fail_any": ["cliche_free"]
+      },
+      "loop": {
+        "max_iterations": 3,
+        "on_fail": "revise_and_retry",
+        "on_exhaust": "escalate_to_orchestrator"
+      },
+      "timeout_seconds": 1200
+    },
+    {
+      "id": "select_winner",
+      "agent": "brand_orchestrator",
+      "type": "sequential",
+      "depends_on": ["validity_gate"],
+      "task": "Pick winning direction with rationale against advisor-not-autopilot brand soul.",
+      "outputs": ["selection.md"],
+      "timeout_seconds": 300
+    },
+    {
+      "id": "system_build",
+      "type": "sequential",
+      "depends_on": ["select_winner"],
+      "steps": [
+        {
+          "id": "mark_system",
+          "agent": "identity_designer",
+          "task": "Produce mark, horizontal lockup, monogram, favicon/app icon SVGs + mono variants.",
+          "timeout_seconds": 1200,
+          "budget_tokens": 32000
+        },
+        {
+          "id": "exports",
+          "agent": "production_artist",
+          "task": "Export PNG transparent at 16/32/64/128/256/512/1024 and SVG sources.",
+          "timeout_seconds": 600
+        },
+        {
+          "id": "usage_guide",
+          "agent": "brand_writer",
+          "task": "One-page usage guide: min size, clear space, colors, misuse.",
+          "timeout_seconds": 600,
+          "budget_tokens": 12000
+        }
+      ]
+    }
+  ],
+  "handoff_contract": {
+    "required_fields": [
+      "workflow_id",
+      "step_id",
+      "task",
+      "constraints",
+      "upstream_artifacts",
+      "budget_tokens",
+      "timeout_seconds",
+      "banned_motifs",
+      "strategic_decision"
+    ],
+    "artifact_policy": "pass_targeted_files_only_never_full_chat"
+  },
+  "banned_motifs": [
+    "rising_arrow",
+    "ascending_chart",
+    "rocket",
+    "magnifying_glass",
+    "circuit_brain_neurons",
+    "sales_funnel",
+    "generic_globe",
+    "adspulse_ecg"
+  ],
+  "failure_handling": {
+    "timeout": "retry_once_then_skip_with_flag",
+    "evaluator_hard_fail": "block_system_build",
+    "cost_overrun": "halt_and_report"
+  }
+}
