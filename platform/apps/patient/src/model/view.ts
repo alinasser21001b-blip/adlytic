@@ -34,11 +34,75 @@ export type Phase =
   | { readonly kind: "offline"; readonly ageMs: number | null }
   | { readonly kind: "permissionRefused" };
 
+/**
+ * A top-level destination the user can move to at any time.
+ *
+ * `title` is the ROOT SCREEN's own contract title — «اليوم», «ابحث» — never a
+ * second label written beside it, because two names for one destination is one
+ * name and one thing that can disagree with the header the tab opens.
+ */
+export type Tab = {
+  /** The root screen the tab opens. */
+  readonly id: string;
+  readonly title: string;
+  readonly destination: ScreenContract["location"]["destination"];
+};
+
+/**
+ * Destinations that sit ABOVE the tabs rather than inside one.
+ *
+ * A modal is temporary and layered over whatever it interrupted; the sign-in
+ * chain is an interruption of the same kind (§3.1 — it is reached because an
+ * action needed an account, and it returns to that action). Leaving the tabs
+ * visible under either invites a tap that abandons work the screen has just
+ * promised to keep (D26).
+ */
+const COVERS_THE_TABS: ReadonlySet<string> = new Set(["modal", "entry"]);
+
+/**
+ * Whether this screen sits INSIDE a tab, or arrived from outside the app.
+ *
+ * `back: replace` is a screen that took the stack rather than joining one, and
+ * both screens that declare it say why in the contract: "there is no stack
+ * behind a notification". A patient reading a pickup code at a counter did not
+ * navigate to that screen and is not browsing a tab — they were told.
+ *
+ * The cost was measured rather than argued. V2 belongs to `today`, so it drew
+ * the tabs; at 320pt the 78pt they take pushed «اتصال بالصيدلية» off the
+ * bottom of the screen Blueprint v3 says must never fail, on the phone size
+ * with the least room to lose. Leaving is still one tap — `replace` renders a
+ * back control that lands on Today, which has the tabs.
+ */
+const arrivedFromOutside = (back: ScreenContract["back"]): boolean => back.kind === "replace";
+
+/**
+ * Whether a destination is one of the tabs, or one that covers them.
+ *
+ * Exported because "is this a tab" is asked twice — the frame asks it to
+ * decide whether to draw them, and the contracts are asked it to work out
+ * WHICH screens are the roots. Two copies of that set would be one set and one
+ * thing that can disagree, and the disagreement is visible: `back: none` alone
+ * put V1 in the tab bar, because V1 declares no back for a completely
+ * different reason — a hold request is in flight — and a patient waiting on a
+ * pharmacy was offered «نحجز لك» as a place to navigate to.
+ */
+export const isTabDestination = (d: ScreenContract["location"]["destination"]): boolean =>
+  !COVERS_THE_TABS.has(d);
+
 export type ScreenView = {
   readonly id: string;
   /** Where am I. Always present — the contract type does not allow otherwise. */
   readonly title: string;
   readonly destination: ScreenContract["location"]["destination"];
+  /**
+   * The top-level destinations, for the frame to draw.
+   *
+   * Carried on the view rather than passed to each screen because a tab bar
+   * that a screen has to remember to render is a tab bar that some screen will
+   * not have. Empty where the screen covers them, so the frame draws nothing
+   * without every screen re-deciding the same rule.
+   */
+  readonly tabs: readonly Tab[];
   /** How far along, when the screen sits inside a flow. Null for a screen that
    *  is not part of a journey; a progress indicator on a standalone screen is
    *  a lie about a journey the user is not on. */
@@ -83,6 +147,10 @@ export function resolveView(
   history: readonly string[],
   flows: readonly Flow[],
   skippedSteps: readonly string[] = [],
+  /** Every top-level destination this build can show a root for. Defaults to
+   *  none, so a caller that has no tabs — a test, a persona without them —
+   *  gets a frame with none rather than having to say so. */
+  tabs: readonly Tab[] = [],
 ): ScreenView {
   let progress: ScreenView["progress"] = null;
   for (const flow of flows) {
@@ -98,6 +166,7 @@ export function resolveView(
     id: c.id,
     title: c.location.title,
     destination: c.location.destination,
+    tabs: COVERS_THE_TABS.has(c.location.destination) || arrivedFromOutside(c.back) ? [] : tabs,
     progress,
     // The state names the primary when it has an opinion; otherwise the
     // screen's own. Resolved here so no screen chooses an action at render.

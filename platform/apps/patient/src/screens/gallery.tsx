@@ -33,6 +33,8 @@ import { DISTRICTS } from "../data/districts.js";
 import { ReservationScreen } from "./ReservationScreen.jsx";
 import * as Offers from "../model/offers.js";
 import * as Reservation from "../model/reservation.js";
+import * as Today from "../model/today.js";
+import { TodayScreen } from "./TodayScreen.jsx";
 import { PrescriptionScreen } from "./PrescriptionScreen.jsx";
 import { OfferDetailScreen } from "./OfferDetailScreen.jsx";
 import * as Prescription from "../model/prescription.js";
@@ -177,6 +179,14 @@ const resProps = (view: Reservation.ReservationView, now = HOLD_AT, freshness: R
 
 /* ── Prescription capture and substitution consent ────────────────────── */
 
+/* ── Today ────────────────────────────────────────────────────────────── */
+
+/** History is empty on every one of these: S1 is a tab root, so a patient
+ *  arriving there has no stack beneath them and no back control. */
+const todayProps = (today: Today.Today, now = HOLD_AT) => ({
+  t, today, history: [] as readonly string[], now, onBack: noop, onAction: noop,
+});
+
 const rxProps = (capture: Prescription.Capture) => ({
   t, capture, history: ["R1"],
   onCapture: noop, onConfirm: noop, onRetake: noop, onTypeInstead: noop,
@@ -224,6 +234,41 @@ export type Shot = {
 };
 
 export const SHOTS: readonly Shot[] = [
+  {
+    id: "S1-new", screen: "S1", state: "empty · teaching",
+    note: "§22's first empty, and the highest-attention moment in the product: a brand-new account is TAUGHT what this screen will carry, and the one action is worded for a first time rather than a hundredth. The generic «أطلب دواء» is deliberately absent — two controls to one destination on the emptiest screen would be the app repeating itself.",
+    element: <TodayScreen {...todayProps(Today.brandNew())} />,
+  },
+  {
+    id: "S1-quiet", screen: "S1", state: "empty · quiet",
+    note: "§22's second empty, and the opposite screen: a well-managed patient on an ordinary day is REASSURED, not taught. It carries no state action at all — offering one would invent urgency nobody has — so the standing «أطلب دواء» is what a thumb finds.",
+    element: <TodayScreen {...todayProps(Today.quiet())} />,
+  },
+  {
+    id: "S1-held", screen: "S1", state: "ready · a live hold",
+    note: "The one thing that needs the patient today, stated as information rather than as a card-sized button: the pharmacy, the expiry and the time left are all readable by a screen reader instead of being swallowed by a single card label (TD-12). The code stays on V2 — one place to keep honest when a hold lapses.",
+    element: <TodayScreen {...todayProps(Today.fromReservation({ kind: "held", hold: aHold() }))} />,
+  },
+  {
+    id: "S1-last", screen: "S1", state: "ready · nearly expired",
+    note: "The same hold, near its end. The countdown changes colour as it becomes urgent instead of staying calm to the last minute, on the screen a patient glances at before deciding whether to walk.",
+    element: <TodayScreen {...todayProps(Today.fromReservation({ kind: "held", hold: aHold() }), HOLD_AT + 115 * 60_000)} />,
+  },
+  {
+    id: "S1-cached", screen: "S1", state: "offline",
+    note: "S1's offline rule — active reservations from cache, age-labelled. The hold still renders because a patient without a signal still has to reach the counter; the countdown says plainly that it is the last thing we were told.",
+    element: <TodayScreen {...todayProps(Today.cached(aHold(), instant(HOLD_AT)), HOLD_AT + 4 * 60_000)} />,
+  },
+  {
+    id: "S1-failed", screen: "S1", state: "error",
+    note: "§23 — what failed, that nothing was lost, and one thing to press. The hold stays on screen behind the failure: a refresh that could not happen is no reason to take away what we already knew.",
+    element: <TodayScreen {...todayProps(Today.failed(aHold()), HOLD_AT + 30 * 60_000)} />,
+  },
+  {
+    id: "S1-loading", screen: "S1", state: "loading",
+    note: "A skeleton shaped like what is coming, so Today does not jump when it arrives.",
+    element: <TodayScreen {...todayProps(Today.loading())} />,
+  },
   {
     id: "F1-empty", screen: "F1", state: "empty · teaching",
     note: "The first thing a new patient sees. It teaches what to do rather than reporting that there is no data.",

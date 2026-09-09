@@ -20,7 +20,20 @@ const hit = (over: Partial<CatalogueHit> = {}): CatalogueHit => ({
   requestable: true, requiresPrescription: false, isControlled: false, ...over,
 });
 
-const signedIn = (): AppState => ({ ...initial(), session: authenticate(guest(), "acc-1", "subj-1") });
+/**
+ * An authenticated patient, on Today.
+ *
+ * `initial()` is a GUEST's cold start and lands on F1, because E1 sends a
+ * stranger to the guest home and S1 is «authenticated, scoped to the active
+ * subject». A patient who has signed in has been carried to Today by E8, so a
+ * fixture that spread `initial()` unchanged would be testing a state the app
+ * never produces.
+ */
+const signedIn = (): AppState => ({
+  ...initial(),
+  screen: "S1",
+  session: authenticate(guest(), "acc-1", "subj-1"),
+});
 
 /** Run a sequence and keep every effect, so a test can assert what was emitted. */
 function run(state: AppState, intents: readonly Intent[], e = env(), authority = permitted) {

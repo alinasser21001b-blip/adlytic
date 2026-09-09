@@ -1,8 +1,23 @@
 {
   "hasBaseline": true,
-  "added": [],
+  "added": [
+    "S1-cached.png",
+    "S1-failed.png",
+    "S1-held.png",
+    "S1-last.png",
+    "S1-loading.png",
+    "S1-new.png",
+    "S1-quiet.png"
+  ],
   "removed": [],
-  "changed": [],
+  "changed": [
+    "F1-empty.png",
+    "F2-empty.png",
+    "F2-error.png",
+    "F2-loading.png",
+    "F2-offline.png",
+    "F2-results.png"
+  ],
   "unchanged": [
     "E4-direct.png",
     "E4-guarded.png",
@@ -20,12 +35,6 @@
     "E8-chosen.png",
     "E8-list.png",
     "E8-nomatch.png",
-    "F1-empty.png",
-    "F2-empty.png",
-    "F2-error.png",
-    "F2-loading.png",
-    "F2-offline.png",
-    "F2-results.png",
     "R1-empty.png",
     "R1-lines.png",
     "R1-refused.png",

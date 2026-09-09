@@ -22,7 +22,8 @@ import { describe, expect, it } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { App, type Runtime } from "../App.js";
 import type { AcceptResult, CatalogueHit, Fetched } from "../ports.js";
-import type { Intent } from "./store.js";
+import { isBuilt, type Intent } from "./store.js";
+import { CORE_LOOP } from "../screens/core-loop.contract.js";
 import type { Offer } from "../model/offers.js";
 
 /**
@@ -454,11 +455,18 @@ describe("a countdown counts", () => {
   });
 
   it("a screen with no clock on it does not subscribe to one", async () => {
-    // A timer that fires for the search screen is a wakeup that teaches
-    // nobody anything, on phones where that is a real cost.
+    // A timer that fires for a screen with no time on it is a wakeup that
+    // teaches nobody anything, on phones where that is a real cost.
+    //
+    // The draft, not the search screen: F1 and F2 label how old a cached
+    // result is, so they are clock screens and always were — this assertion
+    // only ever passed there because the app started on S1 with no component
+    // and `default` drew the search screen without changing `state.screen`.
     CLOCK.reset();
     const app = open(runtime());
     await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    expect(app.said()).toContain("طلب جديد");
     expect(CLOCK.listeners.size).toBe(0);
     app.unmount();
   });
@@ -637,5 +645,126 @@ describe("a prescription medicine can be requested at all (TD-9)", () => {
     // rather than silently attached.
     expect(app.said()).toContain("شوف الصورة");
     app.unmount();
+  });
+});
+
+describe("the app has a home, and a way between its two roots (S1 · §22)", () => {
+  /**
+   * A tab is not a `button`, deliberately.
+   *
+   * `controls` counts what a SCREEN owns and asserts one primary among them; a
+   * tab belongs to the frame and would be counted as a competing action on
+   * every screen in the product. `tab` is also what a screen reader needs to
+   * announce it as top-level navigation rather than as another thing to press.
+   */
+  const tabs = (root: ReactTestInstance) =>
+    root.findAll((n) => typeof n.type === "string" && n.props["accessibilityRole"] === "tab", { deep: true });
+
+  const openTab = async (app: ReturnType<typeof open>, label: string) => {
+    const tab = tabs(app.root()).find((c) => c.props["accessibilityLabel"] === label);
+    if (!tab) throw new Error(`no tab «${label}» — on screen: ${app.said().slice(0, 200)}`);
+    await act(async () => { (tab.props["onPress"] as () => void)(); });
+    await app.settle();
+  };
+
+  it("a guest starts where a stranger can act — search, not a sign-in ask", () => {
+    // E1 sends a guest to the guest home, whose purpose is «let a stranger
+    // search and browse with no account». S1 is authenticated-only and its
+    // teaching empty leads to R1, so starting there would make the first tap
+    // in the product a sign-in ask — the wall §3.1 forbids.
+    const app = open(runtime());
+    expect(app.said()).toContain("دوّر باسم الدواء");
+    app.unmount();
+  });
+
+  it("both tab roots are offered, named by their own contracts", () => {
+    const app = open(runtime());
+    // «اليوم» and «ابحث» are S1's and F1's own titles. A second label written
+    // beside them would be a name that can disagree with the header it opens.
+    expect(tabs(app.root()).map((c) => c.props["accessibilityLabel"])).toEqual(["اليوم", "ابحث"]);
+    app.unmount();
+  });
+
+  it("every tab clears the 44pt floor, and exactly one says it is selected", () => {
+    const app = open(runtime());
+    const found = tabs(app.root());
+    expect(found.length).toBeGreaterThan(0);
+    for (const tab of found) {
+      const style = Object.assign({}, ...[tab.props["style"]].flat());
+      expect(style.minHeight, `«${tab.props["accessibilityLabel"]}» is under the tap floor`).toBeGreaterThanOrEqual(44);
+      // Selection stated, not merely coloured: "which tab am I on" answered in
+      // hue alone is not answered for a screen reader, nor for a patient with
+      // low colour discrimination.
+      expect(tab.props["accessibilityState"]).toHaveProperty("selected");
+    }
+    expect(found.filter((c) => c.props["accessibilityState"].selected)).toHaveLength(1);
+    app.unmount();
+  });
+
+  it("Today asks a guest for an account with the reason, rather than failing silently", async () => {
+    // S1 is «authenticated, scoped to the active subject», so this tap IS an
+    // action that needs an account: §3.1's moment to ask, with E4 explaining.
+    const app = open(runtime());
+    await openTab(app, "اليوم");
+    expect(app.said()).toContain("نحتاج رقمك حتى نخبرك عندما ترد الصيدليات");
+    app.unmount();
+  });
+
+  it("a modal covers the tabs rather than offering to abandon the work inside it", async () => {
+    const app = open(runtime());
+    await app.type("بانادول");
+    await app.press("أضف بانادول للطلب");
+    expect(app.said()).toContain("طلب جديد");
+    expect(tabs(app.root())).toHaveLength(0);
+    app.unmount();
+  });
+
+  it("leaving a live request lands on Today, which teaches — not on a search box", async () => {
+    /**
+     * R7's «ألغِ الطلب» leads to S1, and until Today had a component the root
+     * drew the SEARCH screen for it — so the one acknowledged way out of a
+     * live request said nothing whatsoever about the request. (What that
+     * control does to the request itself is TD-20 and unchanged here: it
+     * navigates, and nothing is cancelled.)
+     *
+     * The patient arriving is signed in and has never collected anything, so
+     * §22's TEACHING empty is the correct greeting and the reassuring one
+     * would be wrong.
+     */
+    const app = await atOffers(runtime(), []);
+    await app.press("ألغِ الطلب");
+
+    expect(app.said()).toContain("اليوم");
+    expect(app.said()).toContain("هنا راح تشوف حجوزاتك وأدويتك اللي استلمتها");
+    expect(app.said()).not.toContain("دوّر باسم الدواء");
+    // The two empties are opposite screens: a brand-new account must never be
+    // told everything is fine.
+    expect(app.said()).not.toContain("كل شي تمام");
+    // And Today is a tab root, so the frame offers the tabs again.
+    expect(tabs(app.root())).toHaveLength(2);
+    app.unmount();
+  });
+});
+
+describe("the root can draw every screen it says it can", () => {
+  it("has a case for every built screen, or a control leads somewhere nobody wrote", () => {
+    /**
+     * The gate `App.tsx`'s `default` branch depends on.
+     *
+     * `isBuilt` decides whether a control renders, and a screen it admits with
+     * no `case` in the root falls through to a branch that draws something
+     * else. That is TD-19 exactly: R1's «لمن؟» rendered, the tap succeeded, and
+     * the root replaced the patient's request with a search box. Reading the
+     * switch is how that survived review; this reads it instead, so adding a
+     * contract without a case fails the build rather than a browser.
+     */
+    const cases = [...String(App).matchAll(/case\s*"([A-Z]+[0-9]+)"/g)].map((m) => m[1]);
+    // If a transform ever erases the literals, this fails loudly rather than
+    // reporting that every screen is covered by an empty set.
+    expect(cases.length, "no case labels found in the app root — this rule is guarding nothing").toBeGreaterThan(5);
+
+    const drawn = new Set(cases);
+    const missing = CORE_LOOP.map((c) => c.id).filter((id) => isBuilt(id) && !drawn.has(id));
+    expect(missing, `built with no case in the app root: ${missing.join(", ")}`).toEqual([]);
   });
 });

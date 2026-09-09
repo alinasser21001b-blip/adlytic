@@ -19,7 +19,7 @@ import { counted, formatDigits, isolate, needsIsolation, toWesternDigits, tracki
 
 /** §25 — one vocabulary for a minute, so two screens cannot inflect it two ways. */
 const MINUTES = { one: "دقيقة", two: "دقيقتين", few: "دقائق", many: "دقيقة" } as const;
-import type { ScreenView } from "../model/view.js";
+import type { ScreenView, Tab } from "../model/view.js";
 import type { Theme } from "./theme.js";
 import { textStyle } from "./theme.js";
 import { sayRedirect } from "./refusal.js";
@@ -842,6 +842,55 @@ function OfflineBanner(
   );
 }
 
+/**
+ * The top-level destinations, at the bottom edge where a thumb reaches.
+ *
+ * Words, not glyphs. This product has no icon set — the one symbol in the whole
+ * app is the header's «‹» — and two invented pictograms for «اليوم» and «ابحث»
+ * would be two things a patient has to learn before they can move, on the
+ * control that exists so they never have to learn anything to move.
+ *
+ * The selected tab is marked by COLOUR AND WEIGHT AND `accessibilityState`,
+ * not by colour alone: §25's contrast floor is about legibility, and "which
+ * tab am I on" answered only in hue is not answered for a patient with low
+ * colour discrimination, nor for one using a screen reader.
+ */
+export function TabBar(
+  { t, tabs, selected, onOpen }:
+  { t: Theme; tabs: readonly Tab[]; selected: string; onOpen: (id: string) => void },
+) {
+  return (
+    <View
+      accessibilityRole="tablist"
+      style={{
+        flexDirection: "row",
+        borderTopWidth: 1, borderTopColor: t.color.line,
+        backgroundColor: t.color.surfaceRaised,
+        paddingBottom: t.frame.safeBottom,
+      }}
+    >
+      {tabs.map((tab) => {
+        const on = tab.destination === selected;
+        return (
+          <Pressable
+            key={tab.id}
+            accessibilityRole="tab"
+            accessibilityState={{ selected: on }}
+            accessibilityLabel={tab.title}
+            onPress={() => onOpen(tab.id)}
+            // The floor is the floor here too: a tab is pressed more often
+            // than anything else in the product and is the control a patient
+            // reaches for while walking.
+            style={{ flex: 1, minHeight: t.tap.min, alignItems: "center", justifyContent: "center", paddingVertical: t.space[3] }}
+          >
+            <Label t={t} role={on ? "headline" : "body"} color={on ? "accent" : "inkMuted"}>{tab.title}</Label>
+          </Pressable>
+        );
+      })}
+    </View>
+  );
+}
+
 /* ── The frame every screen sits in ───────────────────────────────────── */
 
 /**
@@ -935,13 +984,25 @@ export function Screen(
 
       {footerContent ? (
         <View style={{
-          padding: t.frame.gutter, paddingBottom: t.frame.safeBottom,
+          padding: t.frame.gutter,
+          // The safe-area allowance belongs to whatever is actually at the
+          // bottom edge. With a tab bar below it, a footer that also reserved
+          // it would leave a band of nothing between the two.
+          paddingBottom: view.tabs.length > 0 ? t.frame.gutter : t.frame.safeBottom,
           borderTopWidth: 1, borderTopColor: t.color.line,
           gap: t.space[2], backgroundColor: t.color.surfaceRaised,
         }}>
           {footerContent}
         </View>
       ) : null}
+
+      {/* Drawn by the frame, from the view, so a screen can neither forget the
+          tabs nor draw a second set. The view is already empty of them on a
+          modal and on the sign-in chain — those sit above the tabs, not in
+          one. */}
+      {view.tabs.length > 0
+        ? <TabBar t={t} tabs={view.tabs} selected={view.destination} onOpen={onAction} />
+        : null}
     </View>
   );
 }

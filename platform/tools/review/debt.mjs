@@ -90,6 +90,15 @@ export const DEBT = [
     status: "open",
   },
   {
+    id: "TD-27",
+    description: "S1 cannot tell §22's two empties apart from anything but the CURRENT SESSION. The Blueprint gives Today active reservations AND dispense history, scoped to the active subject; this build has a port for neither — the reservation Today reads is the one held in memory since launch, and V8 (dispense history) is not contracted. So `fromReservation(null)` answers `new`, and a returning patient who collected a prescription last week is greeted by the teaching empty rather than by «كل شي تمام». Two further Blueprint facts are absent for the same reason: the subject switcher (S2) and the history list (V8) are declared exits that `isBuilt` drops, so Today shows one subject's reservation and never says whose.",
+    impact: "The wrong empty, in the SAFE direction, and deliberately so: being taught something you already know costs a patient nothing, while «ما عندك شي يحتاج انتباهك» in front of someone whose hold we failed to load tells them to stay home while their medicine goes back on the shelf. Nothing here is a guess about product behaviour — the states, their words and their actions are all declared, and what is missing is data. It resolves with the reads behind S1 (GET /v1/me for the subject, the dispense history for V8), not with a decision.",
+    priority: "high",
+    owner: "patient-app",
+    slice: "Stage 5 — Infrastructure",
+    status: "open",
+  },
+  {
     id: "TD-17",
     description: "The bundled district list contains four Baghdad districts with `covered` set on three of them. E8's Blueprint row fixes the SHAPE — the list is bundled, location is never requested, an uncovered district is shown honestly rather than hidden (E12) — but Blueprint v3 carries no coverage map, so the contents are the four districts E8 has been drawn and reviewed against since it was designed.",
     impact: "Nothing in the app hard-codes an id from the list and the real one replaces the file wholesale, so this cannot leak into logic. It does mean a patient in a district Dawai actually serves may not find it, and the coverage claim on each row is not yet a claim product has made. Needs the coverage list as a product input.",
@@ -175,11 +184,12 @@ export const DEBT = [
   {
     id: "TD-15",
     description: "A screen can be opened without the state it needs. `open` runs the route guards and `isBuilt`, neither of which knows that V2 without a reservation, R9 without an offer, or R3 without a capture has nothing to draw. Dispatching { kind: \"open\", screen: \"V2\" } on a signed-in state with reservation: null navigates there and renders the Placeholder. App.tsx claimed the reducer prevented this; it does not.",
-    impact: "Not reachable today: nothing rendered dispatches it, and the only declared exit into V2 belongs to S1, which this build does not contain. It becomes reachable the moment S1 lands, and through D26's replay of a pending screen — both of which are ordinary paths, not edge cases. What a patient should see when the reservation behind V2 is gone is a product decision (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect was invented. The Placeholder is honest about the failure but is still a screen nobody designed.",
+    impact: "S1 has now landed, and this did NOT become reachable through it, which the previous version of this item predicted it would. Today draws the control into V2 from the reservation it is holding — no hold, no control — so the one declared exit into V2 cannot be taken while there is nothing behind it. What remains is D26's replay of a pending screen, and the raw intent, neither of which any rendered control produces. The underlying question is unchanged and still a product one: what a patient should see when the reservation behind V2 is gone (§4 V2 says the reservation lives on Today, but that is back behaviour, not a fallback), so no redirect has been invented. The Placeholder is honest about the failure and is still a screen nobody designed.",
     priority: "medium",
     owner: "patient-app",
-    slice: "Blocked — needs a product answer, and lands with S1",
-    status: "open",
+    slice: "Blocked — needs a product answer",
+    status: "partially addressed",
+    note: "S1 landed without opening the path this predicted, because Today derives its exit into V2 from the hold it holds rather than rendering it unconditionally.",
   },
   {
     id: "TD-16",
@@ -222,7 +232,7 @@ export const RESOLVED = [
   {
     id: "TD-19",
     description: "`isBuilt` meant \"this screen has a CONTRACT\", while its docstring promised what callers assumed: \"Nothing renders a control that leads to a screen that is not here.\" Four contracted screens have no component, so R1's «لمن؟» — the control for saying who the medicine is for — rendered, was tapped, navigated successfully, and landed on the root's `default`, which drew the SEARCH screen over the request the patient had just built. E4's «مو هسه — رجعني لطلبي» did the same by dismissing to S1, clearing the history on the way. The navigation gates could not see either: they prove the CONTRACT graph has no unreachable screen and no trap, and every one of these passes that.",
-    resolvedBy: "`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means \"leave for Today\", and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium.",
+    resolvedBy: "`isBuilt` now means what it says — contracted AND drawable — so R4, R5, R11 and R13 are indistinguishable from a screen this build does not contract at all, and no control leads to one. S1 stays deliberately IN, with the reason stated at the list: it is the only missing screen the root substitutes for, every exit naming it means \"leave for Today\", and removing those would take «تمام — خبروني» off R7's offline state and leave a live request with no acknowledged way out. E4's dismiss is answered from D26 instead of from the graph — a dismiss with a preserved action returns to the screen the patient was using, and one without still lands where the graph says. Proved by two tests that press the controls through the real app root, and walked in Chromium. SINCE: S1 has been built, so it is no longer a substitution and the root no longer draws the search screen for it — and the guard this item created is now a gate rather than a convention, because `journey.test.tsx` fails the build when a screen `isBuilt` admits has no case in the app root.",
   },
   {
     id: "TD-0a",

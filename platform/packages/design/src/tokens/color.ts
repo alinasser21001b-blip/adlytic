@@ -170,4 +170,11 @@ export const CONTRACT_PAIRS: readonly (readonly [ColorRole, ColorRole])[] = [
   // role, so text on it was going unmeasured and the accessibility gate was
   // passing without looking at two pairs the product actually renders.
   ["inkMuted", "line"], ["warning", "line"], ["ink", "line"],
+  // The same omission, found the same way and one surface further in. These
+  // three were measured on `surface` and rendered on `surfaceRaised`: V2's
+  // countdown states the time left in accent, warning or alert INSIDE a raised
+  // card, and Today now states the same countdown and marks the selected tab
+  // the same way. A pair the product draws and the gate does not measure is a
+  // pair that is only accessible by luck.
+  ["accent", "surfaceRaised"], ["warning", "surfaceRaised"], ["alert", "surfaceRaised"],
 ];
