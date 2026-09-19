@@ -1,0 +1,26 @@
+{
+  "skill_name": "taste-saas",
+  "evals": [
+    {
+      "id": 1,
+      "name": "vue-naive-issues-list",
+      "prompt": "Build a Pulse (issues tracker) using Vue 3 + Naive UI + Pinia + Vue Router + Tailwind v4. AppShell + IssuesList page with sticky header, sortable columns, status filter, 50 mock issues. Apply the taste-saas skill's patterns.",
+      "expected_output": "A runnable Vue 3 project (source only — no install) under outputs/ following the skill's 4-layer elevation, density tokens, div+flex sticky header, server-style filter contract, URL sort sync. No React/shadcn fallback.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "nextjs-shadcn-issues-list",
+      "prompt": "Build a Pulse (issues tracker) using Next.js 15 App Router + shadcn/ui + Tailwind v4 + TanStack Query. AppShell + IssuesList with sticky header, sortable, status filter, 50 mock issues. Apply the taste-saas skill.",
+      "expected_output": "A Next.js App Router project (source only) under outputs/ — AppShell as Server Component, IssuesList as Client Component, following the skill's patterns. No React Router or Vite fallback.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "svelte-skeleton-issues-list",
+      "prompt": "Build a Pulse (issues tracker) using SvelteKit + Skeleton UI v3 + Tailwind v4 + @tanstack/svelte-query. AppShell + IssuesList with sticky header, sortable, status filter, 50 mock issues. Apply the taste-saas skill.",
+      "expected_output": "A SvelteKit project (source only) under outputs/ — using Svelte 5 runes preferred, Skeleton UI primitives, following the skill's patterns. No React/Vue fallback.",
+      "files": []
+    }
+  ]
+}
