@@ -53,8 +53,10 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
   const deadline = Date.now() + req.timeoutMs;
   const t: EngineTelemetry = { calls: 0, repairs: [], inputTokens: 0, outputTokens: 0, model: null, stripped: false };
 
-  const media: Media[] = mode === "text_only" ? ["text"] : mode === "image_only" ? ["image"] : ["image", "text"];
-  const dims = image ? imageDimensions(image.bytes) : null;
+  const video = req.video;
+  const visual: Media = video ? "video" : "image";
+  const media: Media[] = mode === "text_only" ? ["text"] : mode === "image_only" ? [visual] : [visual, "text"];
+  const dims = video ? { width: video.width, height: video.height } : image ? imageDimensions(image.bytes) : null;
   const aspect = dims ? aspectOf(dims) : undefined;
   const vertical = aspect === "vertical";
   const appDims = applicableDimensions(media, vertical);
@@ -66,14 +68,23 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
   if (input.adCopy) serverEvidence.push({ id: "U1", source: "user_supplied", text: clip(input.adCopy), confidence: "high" });
   if (input.audience) serverEvidence.push({ id: "U2", source: "user_supplied", text: clip(input.audience), confidence: "high" });
   if (input.additionalContext) serverEvidence.push({ id: "U3", source: "user_supplied", text: clip(input.additionalContext), confidence: "high" });
-  if (dims && aspect) serverEvidence.push({ id: "M1", source: "measured_metadata", text: `أبعاد الصورة ${dims.width}×${dims.height} (${ASPECT_AR[aspect]})`, confidence: "high" });
-  if (!image) serverEvidence.push({ id: "M2", source: "measured_metadata", text: "لم تُرفق صورة؛ التقييم للنص فقط.", confidence: "high" });
+  if (video && aspect) {
+    serverEvidence.push({ id: "M1", source: "measured_metadata", text: `فيديو مدته ${video.durationSec} ثانية، ${video.width}×${video.height} (${ASPECT_AR[aspect]})`, confidence: "high" });
+    serverEvidence.push({ id: "M3", source: "measured_metadata", text: `حُللت ${video.frames.length} لقطات عند: ${video.frames.map((f) => f.timeSec).join("، ")} ث`, confidence: "high" });
+    serverEvidence.push({ id: "M4", source: "measured_metadata", text: AUDIO_AR[video.transcript.status], confidence: "high" });
+    video.transcript.segments.forEach((seg, n) =>
+      serverEvidence.push({ id: `A${n + 1}`, source: "audio_transcript", text: clip(seg.text), timeSec: seg.start, confidence: "medium" }),
+    );
+  } else if (dims && aspect) serverEvidence.push({ id: "M1", source: "measured_metadata", text: `أبعاد الصورة ${dims.width}×${dims.height} (${ASPECT_AR[aspect]})`, confidence: "high" });
+  if (!image && !video) serverEvidence.push({ id: "M2", source: "measured_metadata", text: "لم تُرفق صورة؛ التقييم للنص فقط.", confidence: "high" });
 
   const baseText = (repairNote?: string) =>
     buildUserTextV2({
       mode, industry: input.industry, goal: input.goal, adCopy: input.adCopy, audience: input.audience, additionalContext: input.additionalContext,
-      measured: serverEvidence.filter((e) => e.source === "measured_metadata").map((e) => `${e.id}: ${e.text}`),
-      dimensions: appDims, rules, repairNote,
+      measured: serverEvidence
+        .filter((e) => e.source === "measured_metadata" || e.source === "audio_transcript")
+        .map((e) => `${e.id}${e.timeSec != null ? ` [${e.timeSec}s]` : ""}: ${e.source === "audio_transcript" ? fence(e.text) : e.text}`),
+      dimensions: appDims, rules, repairNote, video: video ? { frames: video.frames.length } : undefined,
     });
 
   let repairNote = "";
@@ -96,6 +107,7 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
       system: SYSTEM_PROMPT_V2,
       userText: baseText(repairNote || undefined),
       image,
+      images: video?.frames.map((f) => ({ mime: f.mime, bytes: f.bytes, label: `لقطة عند ${f.timeSec} ث (frame at ${f.timeSec}s)` })),
       toolName: TOOL_NAME_V2,
       toolDescription: TOOL_DESCRIPTION,
       toolSchema: TOOL_SCHEMA,
@@ -126,7 +138,7 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
       repairNote = `A previous attempt was rejected because it echoed internal instructions or tool names. Review the ad only and call ${TOOL_NAME_V2} again.`;
       continue;
     }
-    const built = assemble(v.data, { mode, industry: input.industry, input, serverEvidence, appDims, rules, image: !!image, dims, aspect, showIndex: !!req.showIndex, model: res.model }, t.repairs);
+    const built = assemble(v.data, { mode, industry: input.industry, input, serverEvidence, appDims, rules, image: !!image || !!video, dims, aspect, showIndex: !!req.showIndex, model: res.model, video }, t.repairs);
     const offenders = copyOffenders(built.core, built.factSources);
     if (offenders.length === 0) return { ok: true, report: built.core, telemetry: t };
     t.repairs.push("unsupported_facts");
@@ -146,6 +158,17 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
 }
 
 const ASPECT_AR = { vertical: "عمودية 9:16 تقريباً", portrait: "طولية", square: "مربعة", landscape: "عرضية" } as const;
+const AUDIO_AR = {
+  no_audio: "الفيديو بلا مسار صوت.",
+  silence: "لا يوجد كلام مسموع في الصوت (صمت أو موسيقى فقط).",
+  speech_transcribed: "نُسخ الكلام المسموع في الفيديو.",
+  unavailable: "تعذّر تحليل الصوت؛ قيّمنا الصورة والنص فقط.",
+} as const;
+
+/** Neutralise anything in a transcript that could close or forge our delimiters. */
+function fence(s: string): string {
+  return s.replace(/</g, "‹").replace(/>/g, "›");
+}
 
 function clip(s: string, n = 220): string {
   return s.length > n ? `${s.slice(0, n - 1)}…` : s;
@@ -163,6 +186,7 @@ interface Ctx {
   aspect?: "vertical" | "portrait" | "square" | "landscape";
   showIndex: boolean;
   model: string;
+  video?: EngineRequest["video"];
 }
 
 /** Deterministic validation of everything the model proposed. */
@@ -284,7 +308,21 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
     summary: noPrediction(raw.summary),
     perceivedMessage: noPrediction(raw.perceivedMessage),
     imageTextLegibility: ctx.image ? (raw.imageTextLegibility === "no_image" ? "no_text_in_image" : raw.imageTextLegibility) : "no_image",
-    media: ctx.dims && ctx.aspect ? { kind: "image", width: ctx.dims.width, height: ctx.dims.height, aspect: ctx.aspect } : { kind: "none" },
+    media: ctx.video && ctx.aspect
+      ? { kind: "video", width: ctx.video.width, height: ctx.video.height, aspect: ctx.aspect, durationSec: ctx.video.durationSec, frameTimes: ctx.video.frames.map((f) => f.timeSec), audio: ctx.video.transcript.status }
+      : ctx.dims && ctx.aspect
+        ? { kind: "image", width: ctx.dims.width, height: ctx.dims.height, aspect: ctx.aspect }
+        : { kind: "none" },
+    ...(ctx.video
+      ? {
+          coverageAr: `حللنا ${ctx.video.frames.length} لقطات من فيديو مدته ${ctx.video.durationSec} ثانية (من ${ctx.video.frames[0]?.timeSec ?? 0} إلى ${ctx.video.frames.at(-1)?.timeSec ?? 0} ث)، وليس كل إطار. ${AUDIO_AR[ctx.video.transcript.status]}`,
+          timeline: evidence
+            .filter((e) => typeof e.timeSec === "number" && (e.source === "visible_text" || e.source === "visual_observation" || e.source === "audio_transcript"))
+            .map((e) => ({ timeSec: e.timeSec as number, source: e.source, text: e.text }))
+            .sort((a, b) => a.timeSec - b.timeSec)
+            .slice(0, 30),
+        }
+      : {}),
     evidence,
     dimensions: dimensions.map((d) => ({ ...d, observation: noPrediction(d.observation) })),
     index,
@@ -301,7 +339,9 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
     shareableTips: raw.shareableTips,
     confidence: raw.confidence,
   };
-  const factSources = [ownerText, ...modelEvidence.filter((e) => e.source === "visible_text" && e.confidence !== "low").map((e) => e.text)];
+  // Spoken words in the owner's video are the owner's facts too.
+  const spoken = ctx.serverEvidence.filter((e) => e.source === "audio_transcript").map((e) => e.text);
+  const factSources = [ownerText, ...spoken, ...modelEvidence.filter((e) => e.source === "visible_text" && e.confidence !== "low").map((e) => e.text)];
   return { core, factSources };
 }
 

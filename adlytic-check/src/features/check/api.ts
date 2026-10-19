@@ -57,10 +57,10 @@ export type CheckPhase = "uploading" | "analysing";
  * POST /api/check via XHR so upload completion is observable: the UI switches
  * from "uploading" to "analysing" only when the browser reports the body sent.
  */
-export function submitCheck(form: FormData, onPhase: (p: CheckPhase) => void, timeoutMs = 90_000, onUpload?: (fraction: number) => void): Promise<AnyAnalysisReport> {
+export function submitCheck(form: FormData, onPhase: (p: CheckPhase) => void, timeoutMs = 90_000, onUpload?: (fraction: number) => void, path = "/api/check"): Promise<AnyAnalysisReport> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
-    xhr.open("POST", "/api/check");
+    xhr.open("POST", path);
     xhr.withCredentials = true;
     xhr.timeout = timeoutMs;
     xhr.responseType = "text";

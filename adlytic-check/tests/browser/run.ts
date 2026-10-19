@@ -74,6 +74,7 @@ async function main() {
     ...vars, ANALYZER_VERSION: "v2", ACCOUNTS_ENABLED: "true", GOOGLE_CLIENT_ID: "test-google-client", GOOGLE_CLIENT_SECRET: "test-google-secret",
     GOOGLE_AUTH_URL: `${MOCK}/o/oauth2/v2/auth`, GOOGLE_TOKEN_URL: `${MOCK}/token`, PAYMENTS_ENABLED: "true", ZAINCASH_CLIENT_ID: "zc-client",
     ZAINCASH_CLIENT_SECRET: "zc-secret", ZAINCASH_BASE_URL: `${MOCK}/zc`, MAX_SESSIONS_PER_IP_HOUR: "1000",
+    VIDEO_ENABLED: "true", ASR_BASE_URL: `${MOCK}/asr`,
   };
   const acc = spawn("npx", ["wrangler", "dev", "--port", String(ACC_PORT), "--ip", "127.0.0.1", "--persist-to", accDir, "--inspector-port", "9398", "--show-interactive-dev-session=false", ...Object.entries(accVars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], { env, stdio: "ignore", detached: true });
   for (const base of [BASE, ACC]) {
@@ -91,6 +92,8 @@ async function main() {
     await makeFixture(browser);
     for (const w of [360, 390, 768, 1440]) {
       const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: "ar" });
+      // Never load the real Turnstile in tests: it keeps the network busy (and is unreachable in some sandboxes).
+      await ctx.route("https://challenges.cloudflare.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: TURNSTILE_STUB }));
       const page = await ctx.newPage();
       await page.goto(BASE, { waitUntil: "networkidle" });
       check(`no horizontal overflow at ${w}px (home)`, await noHorizontalOverflow(page));
@@ -230,10 +233,19 @@ async function accountJourney(browser: Browser, w: number) {
   await page.waitForTimeout(700);
   await page.screenshot({ path: `${OUT}/v2-result-${ENGINE}-${w}.png`, fullPage: true });
 
+  // Second free check: a real video file, frames + audio extracted in the page (WebM here: test Chromium has no H.264).
   await page.click("text=افحص إعلاناً آخر");
   await page.waitForSelector("#check");
-  await runCheck("طاولة طعام خشب. اطلب بالخاص.", false);
+  await page.setInputFiles('input[type="file"]', "tests/fixtures/example-video.webm");
+  await page.waitForSelector(".preview .meta", { timeout: 20_000 });
+  const vmeta = (await page.textContent(".preview .meta")) ?? "";
+  check("video read on the device: duration and frames shown, video itself not uploaded", /10/.test(vmeta) && vmeta.includes("لقطات") && vmeta.includes("لا يُرفع"), vmeta);
+  await runCheck("كنبة مخمل تكفي 5 أشخاص. راسلنا على الخاص.", false);
   await page.waitForSelector(".result.v2", { timeout: 30_000 });
+  check("video report shows coverage and a timeline", (await page.isVisible(".coverage")) && (await page.$$(".timeline li")).length > 0);
+  check("speech transcript reached the report", ((await page.textContent(".timeline")) ?? "").includes("اطلب الآن"));
+  await page.waitForTimeout(600);
+  await page.screenshot({ path: `${OUT}/v2-video-${ENGINE}-${w}.png`, fullPage: true });
   await page.click("text=افحص إعلاناً آخر");
   await page.waitForSelector("#check");
   await runCheck("كرسي مكتب مريح.", false);

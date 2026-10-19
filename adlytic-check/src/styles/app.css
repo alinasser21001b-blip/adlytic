@@ -215,6 +215,12 @@ select { appearance: none; background: var(--surface-solid) url("data:image/svg+
 .alternates ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
 .alternates li { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 8px 12px; border-radius: 12px; background: var(--surface-2); }
 .rules, .sources { margin: 8px 0 0; padding-inline-start: 18px; display: grid; gap: 8px; font-size: 15px; }
+.timeline { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 0; border-inline-start: 2px solid var(--accent-weak); }
+.timeline li { position: relative; display: grid; grid-template-columns: auto auto 1fr; gap: 10px; align-items: baseline; padding: 8px 14px 8px 0; padding-inline-start: 16px; }
+.timeline li::before { content: ""; position: absolute; inset-inline-start: -6px; top: 16px; width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 3px var(--accent-weak); }
+.tl-time { font-variant-numeric: tabular-nums; font-weight: 700; color: var(--accent-deep); white-space: nowrap; }
+.tl-text { min-width: 0; overflow-wrap: anywhere; }
+.coverage { padding: 8px 12px; border-radius: 12px; background: var(--gold-weak); color: #5b4515; }
 .index { display: grid; grid-template-columns: 96px 1fr; gap: 16px; align-items: center; }
 .droplet { width: 96px; height: auto; overflow: visible; }
 .drop-shell { fill: var(--gold-weak); stroke: rgba(183, 134, 43, .45); stroke-width: 2; }

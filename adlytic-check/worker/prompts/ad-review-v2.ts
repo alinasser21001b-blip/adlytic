@@ -2,7 +2,7 @@ import { GOALS, INDUSTRIES, type AnalysisMode, type Goal, type Industry } from "
 import { LEVEL_ANCHORS, type Dimension, type Rule } from "../engine/kb";
 
 export const TOOL_NAME_V2 = "submit_ad_review_v2";
-export const PROMPT_VERSION_V2 = "v2-2026-10-19.3";
+export const PROMPT_VERSION_V2 = "v2-2026-10-19.4";
 
 const INDUSTRY_HINTS: Record<Industry, string> = {
   furniture: "dimensions, material/fabric, colours, delivery area, whether assembly is included",
@@ -33,6 +33,9 @@ export const SYSTEM_PROMPT_V2 = `You review ad creatives for small online shops 
 2. ASSESS each rubric dimension listed in the request (legibility: small or tiny key text — price, product name, how to order — or weak contrast is needs_improvement; judge the text, not the photo style): status strong | needs_improvement | unknown | not_applicable, a level 0–4 using the anchors, the evidence ids that support it (required for strong/needs_improvement) and the rule ids you applied (only ids from the provided rule list). Use unknown when the evidence is not enough — never guess.
 3. FIXES: up to 3, most important first, only for real problems, each tied to evidence ids and rule ids.
 4. COPY: one improved Arabic version, plus up to 2 alternate opening lines and up to 2 alternate calls to action (so the owner can A/B test them in Ads Manager).
+
+## Video checks
+When the request contains video frames: they are SAMPLES labelled with their time, not the whole video — never claim anything happens between two frames. Give T/V evidence a timeSec. The opening is what the first ~2 seconds show. sound_off asks whether the core message (what is sold, how to order) is visible on screen without sound; the server supplies the speech transcript as A1, A2… with times (or states that there is no audio, only silence/music, or that audio could not be analysed). Spoken facts in A items count as the owner's facts.
 
 ## Hard rules
 1. Never predict or estimate sales, revenue, CTR, CPA, ROAS, conversions, reach or any performance number. Never call an ad "winning" or "guaranteed". Never claim knowledge of how Meta's algorithm will treat the ad.
@@ -70,9 +73,10 @@ export interface UserTextV2Input {
   adCopy: string;
   audience: string;
   additionalContext: string;
-  measured: string[]; // M1… lines
+  measured: string[]; // M1… and A1… lines
   dimensions: Dimension[];
   rules: Rule[];
+  video?: { frames: number };
   repairNote?: string;
 }
 
@@ -101,5 +105,5 @@ ${dims}
 Rules you may apply (cite by id only these):
 ${rules}
 
-${i.mode === "text_only" ? "No image is attached. Review the text only and follow hard rule 8." : "The ad image is attached above."} Call ${TOOL_NAME_V2}.${i.repairNote ? `\n\n${i.repairNote}` : ""}`;
+${i.mode === "text_only" ? "No image is attached. Review the text only and follow hard rule 8." : i.video ? `The ${i.video.frames} video frames are attached above, each preceded by its time.` : "The ad image is attached above."} Call ${TOOL_NAME_V2}.${i.repairNote ? `\n\n${i.repairNote}` : ""}`;
 }

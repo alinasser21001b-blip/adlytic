@@ -7,3 +7,4 @@ dist/
 .env*
 tests/browser/out/
 eval/out/
+wrangler.deploy.jsonc

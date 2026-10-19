@@ -94,5 +94,6 @@ export async function sessionInfo(c: Ctx, visitorId: string): Promise<SessionInf
       loggedIn: Boolean(await currentUser(c)),
       paymentsEnabled: paymentsReady(c.env),
     },
+    videoEnabled: cfg.videoEnabled,
   };
 }

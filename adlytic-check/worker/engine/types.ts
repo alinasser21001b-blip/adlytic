@@ -1,6 +1,7 @@
 import type { AnalysisInput, AnalysisMode, ErrorCode } from "../../shared/schemas";
 import type { VisionProvider } from "../providers/vision";
 import type { ImageMime } from "../validation/image";
+import type { Transcript } from "../services/asr";
 
 export interface EngineImage {
   mime: ImageMime;
@@ -11,6 +12,8 @@ export interface EngineRequest {
   input: Pick<AnalysisInput, "industry" | "goal" | "adCopy" | "audience" | "additionalContext">;
   mode: AnalysisMode;
   image?: EngineImage;
+  /** Video checks: sampled frames (no video file) and the server's transcript of the audio. */
+  video?: { durationSec: number; width: number; height: number; frames: Array<EngineImage & { timeSec: number }>; transcript: Transcript };
   provider: VisionProvider;
   timeoutMs: number;
   maxOutputTokens: number;

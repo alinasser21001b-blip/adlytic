@@ -6,6 +6,8 @@ export interface VisionRequest {
   system: string;
   userText: string;
   image?: { mime: ImageMime; bytes: Uint8Array };
+  /** Several images (video frames); each is preceded by its label as a text block. */
+  images?: Array<{ mime: ImageMime; bytes: Uint8Array; label: string }>;
   toolName: string;
   toolDescription: string;
   toolSchema: Record<string, unknown>;
@@ -57,6 +59,10 @@ export function anthropicProvider(opts: { apiKey: string; model: string; baseURL
       if (remaining < 2000) return { ok: false, failure: "timeout" };
 
       const content: Anthropic.ContentBlockParam[] = [];
+      for (const img of req.images ?? []) {
+        content.push({ type: "text", text: img.label });
+        content.push({ type: "image", source: { type: "base64", media_type: img.mime, data: Buffer.from(img.bytes).toString("base64") } });
+      }
       if (req.image) {
         content.push({
           type: "image",

@@ -29,7 +29,7 @@ function fontFaces(): string {
   ].join("\n");
 }
 
-function html(img: ImageSpec): string {
+export function html(img: ImageSpec): string {
   const vertical = img.h / img.w > 1.6;
   const pos = vertical ? POS_V : POS_SQ;
   const [pt, ph] = img.productBox ?? (vertical ? [0.3, 0.45] : [0.28, 0.38]);
@@ -60,7 +60,7 @@ function truth(c: CaseSpec) {
   };
 }
 
-async function main() {
+export async function main() {
   const outDir = join(here, "img");
   mkdirSync(outDir, { recursive: true });
   const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
@@ -88,4 +88,4 @@ async function main() {
   writeFileSync(join(here, "cases.json"), JSON.stringify({ fixtureVersion: "fx-2026-10-19.1", synthetic: true, cases: out }, null, 1));
   console.log(`rendered ${out.filter((c) => c.image).length} images, ${out.length} cases`);
 }
-main();
+if (process.argv[1]?.endsWith("generate.ts")) main();

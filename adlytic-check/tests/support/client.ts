@@ -104,7 +104,7 @@ export class Client {
   }
 }
 
-export async function mockState(): Promise<{ calls: number; last: any; siteverifyCalls: number }> {
+export async function mockState(): Promise<{ calls: number; last: any; siteverifyCalls: number; asrCalls: number }> {
   return (await fetch(`${MOCK}/__state`)).json() as any;
 }
 
@@ -130,4 +130,25 @@ export async function login(c: Client, sub: string, returnTo = "/"): Promise<str
   const back = await fetch(idp, { redirect: "manual" });
   const cb = await c.nav(back.headers.get("location")!);
   return cb.location;
+}
+
+/** 16 kHz mono 16-bit WAV: a tone (audible) or silence. */
+export function wav16k(seconds: number, amplitude = 0.3, freq = 440): Uint8Array {
+  const n = Math.round(seconds * 16_000);
+  const out = Buffer.alloc(44 + n * 2);
+  out.write("RIFF", 0);
+  out.writeUInt32LE(36 + n * 2, 4);
+  out.write("WAVE", 8);
+  out.write("fmt ", 12);
+  out.writeUInt32LE(16, 16);
+  out.writeUInt16LE(1, 20);
+  out.writeUInt16LE(1, 22);
+  out.writeUInt32LE(16_000, 24);
+  out.writeUInt32LE(32_000, 28);
+  out.writeUInt16LE(2, 32);
+  out.writeUInt16LE(16, 34);
+  out.write("data", 36);
+  out.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) out.writeInt16LE(Math.round(Math.sin((2 * Math.PI * freq * i) / 16_000) * amplitude * 32767), 44 + i * 2);
+  return new Uint8Array(out);
 }

@@ -90,3 +90,26 @@ Each cycle: problem → hypothesis → change → test → result.
   overflow at 360/390/768/1440; WebKit added to CI. JS 84 KB gzip, CSS 5.3 KB gzip.
 - **Bug found by the journey:** after a 409 the form failed instantly while Turnstile was
   re-issuing its token; the form now waits up to 6 s for a fresh token.
+
+## Cycle 8 — Video checks (2026-10-19)
+- **Problem:** many shop ads are short Reels; V1 accepts one image only.
+- **Hypothesis:** frames sampled in the browser (dense in the first 2 s) + a 16 kHz mono WAV are
+  enough for the same evidence-first review, without uploading or storing the video and without
+  ffmpeg/Containers (D-006).
+- **Change:** `src/features/check/video.ts` (≤60 s, ≤50 MiB, ≤10 frames at 768 px, audio
+  decoded/resampled on the device); `worker/validation/video.ts` (frame count/size/order, strict
+  PCM 16 kHz mono WAV, server-measured silence); `worker/services/asr.ts` (Workers AI Whisper via
+  the `AI` binding, added only at deploy time; statuses no_audio / silence / speech_transcribed /
+  unavailable); Analyzer V2 takes timed frames and transcript segments (A-ids, fenced), returns a
+  coverage statement and a timeline; migration 0004 (`media_kind`); CSP `media-src 'self' blob:`;
+  `VIDEO_ENABLED=false` by default.
+- **Test:** 9 integration tests (labels and order of frames sent to the provider, transcript
+  fencing, silence/no-audio skip ASR, 6 validation refusals before any spend, disabled refusal);
+  browser journey uploads a real video and checks coverage + timeline; frame-sampling unit test.
+  13 synthetic MP4 fixtures (H.264/AAC) with ground truth for the real-provider eval.
+- **Found on the way:** the test Chromium has no H.264 (real Chrome/Safari do) — browser test
+  uses a VP9/Opus copy; rounding dropped the last sample of long videos (fixed); CSP blocked
+  `blob:` video (fixed); `wrangler dev` cannot start with an AI binding without credentials
+  (binding injected by `scripts/ci/deploy.sh`, with a no-AI fallback).
+- **Result:** IMPLEMENTED + TESTED; real-provider video eval and Whisper accuracy on Iraqi Arabic
+  **blocked** (B0, and ASR quality unmeasured).

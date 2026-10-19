@@ -48,6 +48,7 @@ const MESSAGES_AR: Record<ErrorCode, string> = {
   INSUFFICIENT_CREDITS: "لا يوجد رصيد فحوص مدفوعة كافٍ.",
   PAYMENTS_UNAVAILABLE: "الدفع الإلكتروني غير متاح حالياً.",
   PAYMENT_NOT_FOUND: "عملية الدفع غير موجودة.",
+  VIDEO_UNAVAILABLE: "فحص الفيديو غير متاح حالياً. ارفع لقطة شاشة من الإعلان بدلاً منه.",
 };
 
 export class HttpError extends Error {
@@ -112,6 +113,7 @@ export function config(bindings: Bindings) {
     // The 24 h refill period can only be shortened outside production (tests).
     freeRefillMs: !production && env.FREE_REFILL_MS ? num(env.FREE_REFILL_MS, 86_400_000) : 86_400_000,
     paymentsEnabled: env.PAYMENTS_ENABLED === "true",
+    videoEnabled: env.VIDEO_ENABLED === "true",
   };
 }
 export type Config = ReturnType<typeof config>;

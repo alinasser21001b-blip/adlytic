@@ -122,7 +122,8 @@ export type ErrorCode =
   | "PRICE_CHANGED"
   | "INSUFFICIENT_CREDITS"
   | "PAYMENTS_UNAVAILABLE"
-  | "PAYMENT_NOT_FOUND";
+  | "PAYMENT_NOT_FOUND"
+  | "VIDEO_UNAVAILABLE";
 
 export interface ApiError {
   error: { code: ErrorCode; message: string; requestId: string; retryAfter?: number; retryable?: boolean };
@@ -134,6 +135,8 @@ export interface SessionInfo {
   analysisAvailable: boolean;
   /** Accounts mode: checks need a Google login and run on the account's credits. */
   accounts: { enabled: boolean; loginAvailable: boolean; loggedIn: boolean; paymentsEnabled: boolean };
+  /** Video checks (frames + audio extracted in the browser). */
+  videoEnabled: boolean;
 }
 
 export interface ShareInfo {
@@ -275,10 +278,20 @@ export interface QualityIndex {
 }
 
 export interface MediaInfo {
-  kind: "image" | "none";
+  kind: "image" | "video" | "none";
   width?: number;
   height?: number;
   aspect?: "vertical" | "portrait" | "square" | "landscape";
+  /** Video only. */
+  durationSec?: number;
+  frameTimes?: number[];
+  audio?: "no_audio" | "silence" | "speech_transcribed" | "unavailable";
+}
+
+export interface TimelineEntry {
+  timeSec: number;
+  source: EvidenceKind;
+  text: string;
 }
 
 export interface AnalysisReportV2 {
@@ -294,6 +307,9 @@ export interface AnalysisReportV2 {
   perceivedMessage: string;
   imageTextLegibility: ProviderReportV2["imageTextLegibility"];
   media: MediaInfo;
+  /** Video only: what was covered (frames, audio) in plain Arabic. */
+  coverageAr?: string;
+  timeline?: TimelineEntry[];
   evidence: EvidenceItem[];
   dimensions: DimensionResult[];
   index: QualityIndex;

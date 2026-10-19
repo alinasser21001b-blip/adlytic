@@ -41,6 +41,8 @@ export const INSTANCES = {
       ZAINCASH_CLIENT_ID: "zc-client",
       ZAINCASH_CLIENT_SECRET: "zc-secret",
       ZAINCASH_BASE_URL: `${MOCK}/zc`,
+      VIDEO_ENABLED: "true",
+      ASR_BASE_URL: `${MOCK}/asr`,
     },
   },
 } as const;

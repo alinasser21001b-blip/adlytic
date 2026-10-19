@@ -7,6 +7,7 @@ import { BuyChecks } from "../account/Purchase";
 import { ApiFailure, newIdempotencyKey, submitCheck, type CheckPhase } from "./api";
 import { ImageRejected, prepareImage } from "./image";
 import { Turnstile, type TurnstileHandle } from "./Turnstile";
+import { extractVideo, isVideoFile, VideoRejected, type ExtractedVideo } from "./video";
 
 interface Props {
   session: SessionInfo;
@@ -29,6 +30,8 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [imageError, setImageError] = useState<string | null>(null);
   const [preparing, setPreparing] = useState(false);
+  const [prepStep, setPrepStep] = useState("");
+  const [video, setVideo] = useState<ExtractedVideo | null>(null);
   const [dragOver, setDragOver] = useState(false);
   const [adCopy, setAdCopy] = useState("");
   const [industry, setIndustry] = useState<Industry | "">("");
@@ -63,7 +66,7 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
   // Any change to what is being sent invalidates the in-flight idempotency key.
   useEffect(() => {
     keyRef.current = null;
-  }, [image, adCopy, industry, goal, audience, context]);
+  }, [image, video, adCopy, industry, goal, audience, context]);
 
   useEffect(() => () => {
     if (previewUrl) URL.revokeObjectURL(previewUrl);
@@ -74,6 +77,27 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
     setError(null);
     if (!file) return;
     setPreparing(true);
+    if (isVideoFile(file)) {
+      if (!session.videoEnabled) {
+        setPreparing(false);
+        setImageError("فحص الفيديو غير متاح حالياً. ارفع لقطة شاشة من الإعلان.");
+        return;
+      }
+      try {
+        clearImage();
+        const v = await extractVideo(file, setPrepStep);
+        setVideo(v);
+        setPreviewUrl(v.posterUrl);
+      } catch (e) {
+        setVideo(null);
+        setImageError(e instanceof VideoRejected && e.message.length > 12 ? e.message : "لم نتمكن من قراءة هذا الفيديو. جرّب ملف MP4.");
+      } finally {
+        setPreparing(false);
+        setPrepStep("");
+      }
+      return;
+    }
+    setVideo(null);
     try {
       const prepared = await prepareImage(file);
       setImage(prepared);
@@ -88,6 +112,7 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
 
   function clearImage() {
     setImage(null);
+    setVideo(null);
     setPreviewUrl(null);
     if (fileInput.current) fileInput.current.value = "";
   }
@@ -101,7 +126,8 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
   async function submit(opts: { textOnly?: boolean; paid?: boolean } = {}) {
     setError(null);
     const sendImage = opts.textOnly ? null : image;
-    if (!sendImage && !adCopy.trim()) {
+    const sendVideo = opts.textOnly ? null : video;
+    if (!sendImage && !sendVideo && !adCopy.trim()) {
       setError({ message: t.needInput, retryable: false, offerTextOnly: false });
       return;
     }
@@ -123,6 +149,14 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
 
     const fd = new FormData();
     if (sendImage) fd.append("image", sendImage, "ad.jpg");
+    if (sendVideo) {
+      fd.append(
+        "video_meta",
+        JSON.stringify({ durationSec: sendVideo.durationSec, width: sendVideo.width, height: sendVideo.height, frameTimes: sendVideo.frames.map((f) => f.timeSec), audio: sendVideo.audioPresence }),
+      );
+      sendVideo.frames.forEach((f, i) => fd.append(`frame${i}`, f.blob, `frame${i}.jpg`));
+      if (sendVideo.audio) fd.append("audio", sendVideo.audio, "audio.wav");
+    }
     fd.append("adCopy", adCopy.trim());
     fd.append("industry", industry);
     fd.append("goal", goal);
@@ -138,9 +172,9 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
 
     try {
       setUploaded(0);
-      const report = await submitCheck(fd, setPhase, undefined, setUploaded);
+      const report = await submitCheck(fd, setPhase, undefined, setUploaded, sendVideo ? "/api/check?media=video" : "/api/check");
       keyRef.current = null;
-      onDone(report, sendImage ? previewUrl : null);
+      onDone(report, sendImage || sendVideo ? previewUrl : null);
     } catch (e) {
       const f = e instanceof ApiFailure ? e : new ApiFailure(0, "NETWORK", "", true);
       const lostInTransit = f.code === "NETWORK" || f.code === "TIMEOUT";
@@ -150,7 +184,7 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
       setError({
         message,
         retryable: lostInTransit || f.retryable || f.code === "VERIFICATION_FAILED" || f.code === "REQUEST_IN_PROGRESS",
-        offerTextOnly: Boolean(sendImage) && Boolean(adCopy.trim()) && f.code === "ANALYSIS_UNAVAILABLE",
+        offerTextOnly: Boolean(sendImage || sendVideo) && Boolean(adCopy.trim()) && f.code === "ANALYSIS_UNAVAILABLE",
         next: f.code === "LOGIN_REQUIRED" ? "login" : f.code === "PAID_CONSENT_REQUIRED" ? "consent" : f.code === "FREE_QUOTA_EXHAUSTED" || f.code === "INSUFFICIENT_CREDITS" ? "buy" : undefined,
       });
       onQuotaChanged();
@@ -209,7 +243,13 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
         <span className="label" id={ids.image}>{t.imageLabel}</span>
         {previewUrl ? (
           <div className="preview">
-            <img src={previewUrl} alt="معاينة صورة الإعلان المرفوعة" />
+            <img src={previewUrl} alt={video ? "أول لقطة من فيديو الإعلان" : "معاينة صورة الإعلان المرفوعة"} />
+            {video && (
+              <p className="meta">
+                فيديو <bdi>{video.durationSec}</bdi> ث · <bdi>{video.frames.length}</bdi> لقطات ·{" "}
+                {video.audioPresence === "present" ? "الصوت جاهز للتحليل" : video.audioPresence === "no_audio" ? "بلا صوت" : "تعذّر تجهيز الصوت في هذا المتصفح"} — لا يُرفع الفيديو نفسه.
+              </p>
+            )}
             <button type="button" className="btn ghost small" onClick={clearImage} disabled={busy}>
               {t.imageRemove}
             </button>
@@ -227,7 +267,7 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
             <input
               ref={fileInput}
               type="file"
-              accept="image/jpeg,image/png,image/webp"
+              accept={session.videoEnabled ? "image/jpeg,image/png,image/webp,video/mp4,video/quicktime,video/webm" : "image/jpeg,image/png,image/webp"}
               className="visually-hidden"
               aria-labelledby={ids.image}
               aria-describedby={ids.imageHint}
@@ -235,8 +275,10 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
               disabled={busy}
             />
             <span className="dz-icon" aria-hidden="true">＋</span>
-            <span className="dz-cta">{preparing ? t.imagePreparing : t.imagePick}</span>
-            <span className="hint" id={ids.imageHint}>{t.imageHint}</span>
+            <span className="dz-cta">{preparing ? prepStep || t.imagePreparing : session.videoEnabled ? "اختر صورة أو فيديو" : t.imagePick}</span>
+            <span className="hint" id={ids.imageHint}>
+              {session.videoEnabled ? "صورة JPEG/PNG/WebP حتى 3 ميغابايت، أو فيديو حتى 60 ثانية و50 ميغابايت (نحلل لقطات وصوتاً منه على جهازك)." : t.imageHint}
+            </span>
           </label>
         )}
         {imageError && (
@@ -261,7 +303,7 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
           disabled={busy}
         />
         <span className="hint row" id={ids.copyHint}>
-          <span>{image ? t.copyHintWithImage : t.copyHintNoImage}</span>
+          <span>{image || video ? t.copyHintWithImage : t.copyHintNoImage}</span>
           <bdi className="count">
             {adCopy.length}/{LIMITS.adCopy}
           </bdi>

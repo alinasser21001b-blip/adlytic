@@ -35,6 +35,7 @@
     "PAYMENTS_ENABLED": "false",
     "ZAINCASH_ENV": "uat",
     "SINGLE_UNIT_PURCHASE": "false",
+    "VIDEO_ENABLED": "false",
     "FREE_WEEKLY_LIMIT": "3",
     "MAX_PROVIDER_CALLS_PER_DAY": "100",
     "MAX_OUTPUT_TOKENS": "4096",

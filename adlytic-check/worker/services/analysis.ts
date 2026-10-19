@@ -14,6 +14,8 @@ import { runV1 } from "../engine/v1";
 import { runV2, type V2Core } from "../engine/v2";
 import { anthropicProvider } from "../providers/vision";
 import { validateImage, type ImageMime } from "../validation/image";
+import { parseVideo, VIDEO_LIMITS, type VideoInput } from "../validation/video";
+import { transcribe } from "./asr";
 import { recordEvent } from "./events";
 import { sanitizeShareTips } from "./guards";
 import { PRICE_VERSION } from "../../shared/credits";
@@ -69,7 +71,7 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   // 1. Bounded body read + strict field validation, before anything costs money.
   const ct = c.req.header("content-type") ?? "";
   if (!ct.toLowerCase().startsWith("multipart/form-data")) throw new HttpError(400, "INVALID_INPUT");
-  const raw = await readBodyLimited(c.req.raw, LIMITS.requestBytes);
+  const raw = await readBodyLimited(c.req.raw, c.req.query("media") === "video" ? VIDEO_LIMITS.requestBytes : LIMITS.requestBytes);
   let form: FormData;
   try {
     form = await new Response(raw as Uint8Array<ArrayBuffer>, { headers: { "content-type": ct } }).formData();
@@ -96,17 +98,26 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   const priceVersion = field("priceVersion") ?? null;
 
   let image: { mime: ImageMime; bytes: Uint8Array } | undefined;
-  const file = form.get("image");
-  if (file && typeof file !== "string" && file.size > 0) {
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    image = { mime: validateImage(bytes), bytes };
+  let video: VideoInput | undefined;
+  if (form.has("video_meta")) {
+    if (!cfg.videoEnabled) throw new HttpError(503, "VIDEO_UNAVAILABLE", { retryable: false });
+    video = await parseVideo(form);
+  } else {
+    const file = form.get("image");
+    if (file && typeof file !== "string" && file.size > 0) {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      image = { mime: validateImage(bytes), bytes };
+    }
   }
-  if (!image && !input.adCopy) throw new HttpError(400, "INVALID_INPUT");
-  const mode: AnalysisMode = image ? (input.adCopy ? "image_and_text" : "image_only") : "text_only";
+  if (!image && !video && !input.adCopy) throw new HttpError(400, "INVALID_INPUT");
+  const mode: AnalysisMode = image || video ? (input.adCopy ? "image_and_text" : "image_only") : "text_only";
+  const mediaHash = video
+    ? await sha256Hex(JSON.stringify([video.durationSec, ...(await Promise.all(video.frames.map((f) => sha256Hex(f.bytes)))), video.audio ? await sha256Hex(new Uint8Array(video.audio.pcm.buffer)) : null]))
+    : image
+      ? await sha256Hex(image.bytes)
+      : null;
 
-  const inputHash = await sha256Hex(
-    JSON.stringify([input.industry, input.goal, input.adCopy, input.audience, input.additionalContext, image ? await sha256Hex(image.bytes) : null]),
-  );
+  const inputHash = await sha256Hex(JSON.stringify([input.industry, input.goal, input.adCopy, input.audience, input.additionalContext, mediaHash]));
 
   // 2. Idempotent replay: same key never creates a second result or cost.
   const existing = await findByKey(db, visitorId, input.idempotencyKey);
@@ -167,7 +178,9 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     throw new HttpError(429, "QUOTA_EXCEEDED", { retryAfter, retryable: false });
   }
   }
-  c.executionCtx.waitUntil(recordEvent(db, "check_started", visitorId, id, { mode, industry: input.industry, goal: input.goal }));
+  c.executionCtx.waitUntil(
+    db.prepare("UPDATE analyses SET media_kind = ?2 WHERE id = ?1").bind(id, video ? "video" : image ? "image" : "text").run().then(() => recordEvent(db, "check_started", visitorId, id, { mode, media: video ? "video" : image ? "image" : "text", industry: input.industry, goal: input.goal })),
+  );
 
   // 5. Provider call(s) — no open transaction is held while waiting.
   const started = Date.now();
@@ -183,10 +196,20 @@ export async function handleCheck(c: Ctx): Promise<Response> {
         hooks: providerHooks(db, id, cfg),
       }
     : null;
+  // Video: transcribe only now that a unit is reserved; the audio is never stored.
+  const engineVideo = video && engineReq
+    ? {
+        durationSec: video.durationSec,
+        width: video.width,
+        height: video.height,
+        frames: video.frames.map((f) => ({ mime: f.mime, bytes: f.bytes, timeSec: f.timeSec })),
+        transcript: await transcribe(c.env, video.audio, video.audioPresence),
+      }
+    : undefined;
   const outcome: Outcome = !engineReq
     ? { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "provider_not_configured", telemetry: EMPTY_TELEMETRY }
-    : cfg.analyzer === "v2"
-      ? await runV2({ ...engineReq, showIndex: cfg.showQualityIndex })
+    : cfg.analyzer === "v2" || engineVideo
+      ? await runV2({ ...engineReq, video: engineVideo, showIndex: cfg.showQualityIndex })
       : await runV1(engineReq);
   const latency = Date.now() - started;
   if (outcome.telemetry.repairs.length) console.log(`[check] repairs=${outcome.telemetry.repairs.join(",")} calls=${outcome.telemetry.calls}`);

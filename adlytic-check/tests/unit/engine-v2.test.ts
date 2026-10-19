@@ -182,3 +182,15 @@ describe("index and retrieval", () => {
     expect([...priceAmounts("اتصل ٠٧٨٠١٢٣٤٥٦٧ السعر ٣٥ الف")]).toEqual(["35000"]);
   });
 });
+
+describe("video frame sampling", () => {
+  it("samples the opening densely and keeps the last frame inside the video", async () => {
+    const { frameTimes } = await import("../../src/features/check/video");
+    expect(frameTimes(8)).toEqual([0, 0.5, 1, 2, 3, 4, 5, 6, 7, 7.9]);
+    const long = frameTimes(40);
+    expect(long).toHaveLength(10);
+    expect(long.at(-1)).toBeLessThanOrEqual(39.95);
+    expect(long.slice(0, 4)).toEqual([0, 0.5, 1, 2]);
+    expect(frameTimes(1.5)).toEqual([0, 0.5, 1, 1.4]);
+  });
+});

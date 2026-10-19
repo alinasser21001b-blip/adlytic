@@ -140,6 +140,31 @@ export function ReportV2({ report: r, previewUrl, shareActive, onNewCheck, onDel
         )}
       </section>
 
+      {/* 6. Video timeline: what was seen and heard, by time — samples, not every frame */}
+      {r.media.kind === "video" && (
+        <section className="card reveal" aria-labelledby="timeline-title">
+          <h3 id="timeline-title" className="section-title">
+            ما رأيناه وسمعناه في الفيديو
+          </h3>
+          {r.coverageAr && <p className="meta coverage">{r.coverageAr}</p>}
+          {r.timeline && r.timeline.length > 0 ? (
+            <ol className="timeline">
+              {r.timeline.map((e, n) => (
+                <li key={n}>
+                  <span className="tl-time">
+                    <bdi>{e.timeSec.toFixed(1)}</bdi> ث
+                  </span>
+                  <span className="ev-src">{SOURCE_AR[e.source]}</span>
+                  <bdi className="tl-text">{e.text}</bdi>
+                </li>
+              ))}
+            </ol>
+          ) : (
+            <p className="meta">لم نسجّل ملاحظات مرتبطة بوقت محدد.</p>
+          )}
+        </section>
+      )}
+
       {/* 7. Why */}
       {r.fixes.length > 0 && (
         <section className="card reveal" aria-labelledby="why-title">
