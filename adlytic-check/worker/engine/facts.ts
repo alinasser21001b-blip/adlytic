@@ -53,3 +53,26 @@ export function phoneNumbers(text: string): string[] {
   }
   return [...out];
 }
+
+import { CLAIM_TERMS } from "../services/guards";
+
+/** Claim categories (discount, free, guarantee…) present in `copy` but in no source. */
+export function unsupportedClaimTerms(copy: string, sources: string[]): string[] {
+  return CLAIM_TERMS.filter((t) => t.re.test(copy) && !sources.some((s) => t.re.test(s))).map((t) => t.key);
+}
+
+/** Amounts that look like prices: ≥ 1,000 and not a phone number. */
+export function priceAmounts(text: string): Set<string> {
+  const phones = new Set(phoneNumbers(text));
+  return new Set([...amounts(text)].filter((a) => Number(a) >= 1000 && Number(a) < 1e9 && !(a.length >= 8 && a.startsWith("0")) && !phones.has(a)));
+}
+
+const SENTENCE_SPLIT = /(?<=[.!؟?\n،])/;
+
+/** Drop sentences that carry an unsupported amount or claim term. */
+export function stripSentences(text: string, offends: (sentence: string) => boolean): string {
+  return text.split(SENTENCE_SPLIT).filter((p) => !offends(p)).join("").replace(/\s+([.،!؟])/g, "$1").trim();
+}
+
+export const PREDICTION_RE = /سيجلب|ستجلب|سيحقق|ستحقق|سيزيد المبيعات|ستزيد المبيعات|مبيعات أكثر بنسبة|طلبات أكثر بنسبة|نسبة النجاح|مضمون النجاح|سينجح|الخوارزمية ستفضل|ستفضله الخوارزمية/;
+export const MEDICAL_RE = /يعالج|علاج|يشفي|شفاء|نهائياً|نهائيا|طبياً|مثبت طبي/;

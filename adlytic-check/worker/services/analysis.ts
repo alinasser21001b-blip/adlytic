@@ -4,11 +4,14 @@ import {
   type AnalysisInput,
   type AnalysisMode,
   type AnalysisReport,
+  type AnalysisReportV2,
+  type AnyAnalysisReport,
   type ProviderReport,
 } from "../../shared/schemas";
 import { config, HttpError, QUOTA_WINDOW_MS, randomToken, readBodyLimited, sha256Hex, utcDay, type Config, type Ctx } from "../lib";
 import type { EngineHooks, EngineOutcome, EngineTelemetry } from "../engine/types";
 import { runV1 } from "../engine/v1";
+import { runV2, type V2Core } from "../engine/v2";
 import { anthropicProvider } from "../providers/vision";
 import { validateImage, type ImageMime } from "../validation/image";
 import { recordEvent } from "./events";
@@ -30,7 +33,7 @@ interface AnalysisRow {
   deleted_at: number | null;
 }
 
-type Outcome = EngineOutcome<ProviderReport>;
+type Outcome = EngineOutcome<ProviderReport> | EngineOutcome<V2Core>;
 const EMPTY_TELEMETRY: EngineTelemetry = { calls: 0, repairs: [], inputTokens: 0, outputTokens: 0, model: null, stripped: false };
 
 /** Every real provider call is counted against the service-wide daily ceiling and on the row. */
@@ -134,8 +137,8 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   // 5. Provider call(s) — no open transaction is held while waiting.
   const started = Date.now();
   const apiKey = c.env.ANTHROPIC_API_KEY;
-  const outcome: Outcome = apiKey
-    ? await runV1({
+  const engineReq = apiKey
+    ? {
         input,
         mode,
         image,
@@ -143,8 +146,13 @@ export async function handleCheck(c: Ctx): Promise<Response> {
         timeoutMs: cfg.providerTimeoutMs,
         maxOutputTokens: cfg.maxOutputTokens,
         hooks: providerHooks(db, id, cfg),
-      })
-    : { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "provider_not_configured", telemetry: EMPTY_TELEMETRY };
+      }
+    : null;
+  const outcome: Outcome = !engineReq
+    ? { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "provider_not_configured", telemetry: EMPTY_TELEMETRY }
+    : cfg.analyzer === "v2"
+      ? await runV2({ ...engineReq, showIndex: cfg.showQualityIndex })
+      : await runV1(engineReq);
   const latency = Date.now() - started;
   if (outcome.telemetry.repairs.length) console.log(`[check] repairs=${outcome.telemetry.repairs.join(",")} calls=${outcome.telemetry.calls}`);
 
@@ -161,7 +169,10 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     });
   }
 
-  const report = buildReport(id, mode, input, now, now + cfg.retentionMs, outcome.report, outcome.telemetry.stripped);
+  const report: AnyAnalysisReport =
+    "schemaVersion" in outcome.report
+      ? buildReportV2(id, mode, input, now, now + cfg.retentionMs, outcome.report as V2Core)
+      : buildReport(id, mode, input, now, now + cfg.retentionMs, outcome.report as ProviderReport, outcome.telemetry.stripped);
   // 6. Publish only if THIS request still owns a live reservation.
   const done = await db
     .prepare(
@@ -198,6 +209,19 @@ function buildReport(id: string, mode: AnalysisMode, input: AnalysisInput, creat
   };
 }
 
+function buildReportV2(id: string, mode: AnalysisMode, input: AnalysisInput, createdAt: number, expiresAt: number, core: V2Core): AnalysisReportV2 {
+  return {
+    ...core,
+    id,
+    mode,
+    industry: input.industry,
+    goal: input.goal,
+    createdAt: new Date(createdAt).toISOString(),
+    expiresAt: new Date(expiresAt).toISOString(),
+    shareableTips: sanitizeShareTips(core.shareableTips),
+  };
+}
+
 async function takeProviderSlot(db: D1Database, max: number): Promise<boolean> {
   const row = await db
     .prepare(
@@ -225,7 +249,7 @@ async function replay(c: Ctx, row: AnalysisRow, inputHash: string): Promise<Resp
   if (row.input_hash !== inputHash) throw new HttpError(409, "IDEMPOTENCY_CONFLICT", { retryable: false });
   if (row.status === "completed") {
     if (row.deleted_at || row.expires_at <= now || !row.report_json) throw new HttpError(404, "REPORT_NOT_FOUND");
-    return c.json(JSON.parse(row.report_json) as AnalysisReport, 200, { "Cache-Control": "no-store" });
+    return c.json(JSON.parse(row.report_json) as AnyAnalysisReport, 200, { "Cache-Control": "no-store" });
   }
   if (row.status === "pending") {
     if (row.reservation_expires_at > now) throw new HttpError(409, "REQUEST_IN_PROGRESS", { retryAfter: 5, retryable: true });

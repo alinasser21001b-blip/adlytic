@@ -1,4 +1,4 @@
-import type { AnalysisReport, PublicShareView, ShareInfo } from "../../shared/schemas";
+import type { AnyAnalysisReport, AssessmentStatus, DimensionStatus, PublicShareView, ShareInfo } from "../../shared/schemas";
 import { HttpError, randomToken, sha256Hex, type Ctx } from "../lib";
 import { recordEvent } from "./events";
 import { requireVisitor } from "./session";
@@ -29,7 +29,7 @@ async function ownedLiveReport(c: Ctx, id: string): Promise<{ visitorId: string;
 
 export async function getReport(c: Ctx): Promise<Response> {
   const { row } = await ownedLiveReport(c, c.req.param("id") ?? "");
-  const report = JSON.parse(row.report_json!) as AnalysisReport;
+  const report = JSON.parse(row.report_json!) as AnyAnalysisReport;
   return c.json(
     { report, share: row.share_token_hash ? { active: true, createdAt: new Date(row.share_created_at!).toISOString() } : { active: false } },
     200,
@@ -69,7 +69,16 @@ export async function deleteReport(c: Ctx): Promise<Response> {
 }
 
 /** Public view — an explicit allowlist. Nothing from the private report is copied by default. */
-export function toPublicView(r: AnalysisReport): PublicShareView {
+export function toPublicView(r: AnyAnalysisReport): PublicShareView {
+  if (r.schemaVersion === "2") {
+    const axis = (dim: string): AssessmentStatus => v2Axis(r.dimensions.find((d) => d.dimension === dim)?.status);
+    return {
+      createdAt: r.createdAt,
+      mode: r.mode,
+      axes: { hook: axis("opening"), messageClarity: axis("offer_clarity"), visualReadability: axis("legibility"), callToAction: axis("cta") },
+      tips: r.shareableTips,
+    };
+  }
   return {
     createdAt: r.createdAt,
     mode: r.mode,
@@ -93,5 +102,9 @@ export async function findSharedView(db: D1Database, token: string): Promise<Pub
     .bind(await sha256Hex(token), Date.now())
     .first<{ report_json: string | null }>();
   if (!row?.report_json) return null;
-  return toPublicView(JSON.parse(row.report_json) as AnalysisReport);
+  return toPublicView(JSON.parse(row.report_json) as AnyAnalysisReport);
+}
+
+function v2Axis(s: DimensionStatus | undefined): AssessmentStatus {
+  return s === "strong" || s === "needs_improvement" ? s : "not_assessed";
 }

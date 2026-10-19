@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import type { ProviderReport } from "../shared/schemas";
 import type { EngineHooks, EngineOutcome } from "../worker/engine/types";
 import { runV1 } from "../worker/engine/v1";
+import { runV2, type V2Core } from "../worker/engine/v2";
 import { anthropicProvider, type VisionProvider } from "../worker/providers/vision";
 import { aggregate, score, type FixtureCase, type ReportView } from "./score";
 
@@ -40,7 +41,47 @@ const ENGINES: Record<string, Engine> = {
     });
     return { outcome, view: outcome.ok ? viewV1(outcome.report) : null };
   },
+  async v2(c, provider, hooks, timeoutMs) {
+    const outcome = await runV2({
+      input: { industry: c.industry as never, goal: c.goal as never, adCopy: c.adCopy, audience: c.audience, additionalContext: c.additionalContext },
+      mode: c.mode,
+      image: c.image ? { mime: "image/jpeg", bytes: new Uint8Array(readFileSync(join(here, "fixtures", c.image.file))) } : undefined,
+      provider,
+      timeoutMs,
+      maxOutputTokens: 4000,
+      hooks,
+      showIndex: true,
+    });
+    return { outcome, view: outcome.ok ? viewV2(outcome.report) : null };
+  },
 };
+
+const AXIS = (r: V2Core, dim: string) => r.dimensions.find((d) => d.dimension === dim)?.status ?? "not_assessed";
+
+export function viewV2(r: V2Core): ReportView {
+  const ic = r.improvedCopy;
+  const linkedDims = r.dimensions.filter((d) => d.status === "strong" || d.status === "needs_improvement");
+  return {
+    improvedTexts: [ic.opening, ic.body, ic.headline, ic.callToAction, ...r.alternateOpenings, ...r.alternateCallsToAction],
+    factsFromImage: r.evidence.filter((e) => e.source === "visible_text").map((e) => e.text),
+    legibility: r.imageTextLegibility,
+    axes: {
+      cta: AXIS(r, "cta"),
+      offerClear: AXIS(r, "offer_clarity"),
+      readability: r.dimensions.some((d) => d.dimension === "legibility") ? normLeg(AXIS(r, "legibility")) : "not_assessed",
+    },
+    allText: JSON.stringify({ ...r, checkedRules: undefined, citations: undefined }),
+    tips: r.shareableTips,
+    citedSources: r.citations.map((c) => c.sourceId),
+    evidenceLinked: { total: linkedDims.length, linked: linkedDims.filter((d) => d.evidenceIds.length > 0).length },
+    index: r.index.value,
+  };
+}
+
+// V2 "legibility" not_applicable (no text in image) maps to V1's not_assessed.
+function normLeg(s: string): string {
+  return s === "not_applicable" || s === "unknown" ? "not_assessed" : s;
+}
 
 export function viewV1(r: ProviderReport): ReportView {
   const ic = r.improvedCopy;
@@ -107,7 +148,8 @@ async function main() {
   const price = PRICES[req.model];
   // Consistency: second runs vs first runs on the same case.
   const pairs = results.filter((r) => r.run === 2 && r.ok).map((r2) => [first.find((r1) => r1.id === r2.id && r1.ok), r2] as const).filter(([a]) => a);
-  const axesOf = (r: Record<string, unknown>) => { const v = viewV1Safe(r); return v ? [v.axes.cta, v.axes.offerClear, v.axes.readability, v.legibility] : []; };
+  const axesOf = (r: Record<string, unknown>) => { const v = viewAny(r); return v ? [v.axes.cta, v.axes.offerClear, v.axes.readability, v.legibility] : []; };
+  const idxPairs = pairs.map(([a, b]) => [viewAny(a!)?.index, viewAny(b)?.index] as const).filter(([x, y]) => typeof x === "number" && typeof y === "number") as Array<readonly [number, number]>;
   const agree = pairs.map(([a, b]) => { const x = axesOf(a!), y = axesOf(b); return x.filter((v, i) => v === y[i]).length / Math.max(1, x.length); });
 
   const summary = {
@@ -121,7 +163,12 @@ async function main() {
     latencyMs: { p50: pct(0.5), p90: pct(0.9), max: lat.at(-1) ?? null },
     tokens: { input: inTok, output: outTok },
     estCostUsd: price ? +((inTok * price[0] + outTok * price[1]) / 1e6).toFixed(4) : null,
-    consistency: agree.length ? { pairs: agree.length, meanAgreement: +(agree.reduce((a, b) => a + b, 0) / agree.length).toFixed(3) } : null,
+    consistency: agree.length ? { pairs: agree.length, meanAgreement: +(agree.reduce((a, b) => a + b, 0) / agree.length).toFixed(3), indexAbsDiff: idxPairs.map(([x, y]) => Math.abs(x - y)) } : null,
+    sources: {
+      citedUnknown: scores.length ? ok.flatMap((r) => (viewAny(r)?.citedSources ?? []).filter((id) => !KNOWN_SOURCES.has(id))) : [],
+      evidenceLinkRate: (() => { const v = ok.map((r) => viewAny(r)?.evidenceLinked).filter(Boolean) as Array<{ total: number; linked: number }>; const t = v.reduce((a, x) => a + x.total, 0); return t ? +(v.reduce((a, x) => a + x.linked, 0) / t).toFixed(3) : null; })(),
+    },
+    indexValues: ok.map((r) => [r.id, viewAny(r)?.index ?? null]),
     quality: aggregate(scores),
     wallSeconds: Math.round((Date.now() - t0) / 1000),
   };
@@ -130,8 +177,14 @@ async function main() {
   writeFileSync(join(here, "out", `${req.engine}-${req.split}.json`), JSON.stringify({ summary, results }, null, 1));
 }
 
-function viewV1Safe(r: Record<string, unknown>): ReportView | null {
-  try { return r.report ? viewV1(r.report as ProviderReport) : null; } catch { return null; }
+function viewAny(r: Record<string, unknown>): ReportView | null {
+  try {
+    if (!r.report) return null;
+    const rep = r.report as { schemaVersion?: string };
+    return rep.schemaVersion === "2" ? viewV2(r.report as V2Core) : viewV1(r.report as ProviderReport);
+  } catch { return null; }
 }
+
+const KNOWN_SOURCES = new Set((JSON.parse(readFileSync(join(here, "../research/sources.json"), "utf8")).sources as Array<{ sourceId: string }>).map((s) => s.sourceId));
 
 main().catch((e) => { console.error(e); process.exit(1); });

@@ -75,6 +75,8 @@ export function config(bindings: Bindings) {
     production,
     model: env.VISION_MODEL || "claude-haiku-4-5",
     analysisEnabled: env.ANALYSIS_ENABLED !== "false",
+    analyzer: (env.ANALYZER_VERSION === "v2" ? "v2" : "v1") as "v1" | "v2",
+    showQualityIndex: env.SHOW_QUALITY_INDEX === "true",
     weeklyLimit: Math.floor(num(env.FREE_WEEKLY_LIMIT, 3)),
     maxProviderCallsPerDay: Math.floor(num(env.MAX_PROVIDER_CALLS_PER_DAY, 100)),
     maxOutputTokens: Math.floor(num(env.MAX_OUTPUT_TOKENS, 3000)),

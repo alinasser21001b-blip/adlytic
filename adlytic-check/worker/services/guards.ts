@@ -17,7 +17,7 @@ export function extractNumbers(s: string): string[] {
   return (norm.match(/\d[\d,٬.\s]*\d|\d/g) ?? []).map((n) => n.replace(/[,٬.\s]/g, "")).filter(Boolean);
 }
 
-const CLAIM_TERMS: Array<{ key: string; re: RegExp }> = [
+export const CLAIM_TERMS: Array<{ key: string; re: RegExp }> = [
   { key: "discount", re: /خصم|خصومات|تخفيض|تخفيضات|تنزيلات/ },
   { key: "free", re: /مجان|ببلاش|بلاش/ },
   { key: "guarantee", re: /ضمان|كفالة|مضمون/ },
@@ -83,7 +83,7 @@ export function enforceMode(r: ProviderReport, mode: AnalysisMode): ProviderRepo
 
 const LEAK_MARKERS = [/submit_ad_review/i, /ad_submission/i, /sk-ant-/i, /hard rules/i, /system prompt/i];
 
-export function leaksScaffolding(r: ProviderReport): boolean {
+export function leaksScaffolding(r: unknown): boolean {
   const s = JSON.stringify(r);
   return LEAK_MARKERS.some((re) => re.test(s));
 }

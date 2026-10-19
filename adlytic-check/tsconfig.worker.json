@@ -9,6 +9,7 @@
     "skipLibCheck": true,
     "isolatedModules": true,
     "noEmit": true,
+    "resolveJsonModule": true,
     "types": []
   },
   "include": ["worker/**/*.ts", "shared/**/*.ts"]

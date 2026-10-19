@@ -137,3 +137,165 @@ export const clientEventSchema = z
     analysisId: z.string().regex(/^[A-Za-z0-9_-]{8,64}$/).optional(),
   })
   .strict();
+
+// ── V2 report (Analyzer V2) ──────────────────────────────────────────────
+// V1 reports stay readable: the client renders by schemaVersion.
+
+export const DIMENSION_IDS = ["offer_clarity", "cta", "opening", "legibility", "consistency", "sound_off", "details", "safe_zone", "brand"] as const;
+export type DimensionId = (typeof DIMENSION_IDS)[number];
+export const dimensionStatus = z.enum(["strong", "needs_improvement", "unknown", "not_applicable"]);
+export type DimensionStatus = z.infer<typeof dimensionStatus>;
+export const evidenceKind = z.enum(["user_supplied", "visible_text", "visual_observation", "audio_transcript", "measured_metadata"]);
+export type EvidenceKind = z.infer<typeof evidenceKind>;
+const evidenceId = z.string().regex(/^[UMTVA]\d{1,2}$/);
+const ruleId = z.string().regex(/^[A-Z]-[A-Z]+-\d{2}$/);
+
+const providerEvidence = z.object({
+  id: z.string().regex(/^[TVA]\d{1,2}$/),
+  source: z.enum(["visible_text", "visual_observation", "audio_transcript"]),
+  text: short(220),
+  location: z.enum(["top", "middle", "bottom", "whole", "unknown"]).optional(),
+  timeSec: z.number().min(0).max(600).nullable().optional(),
+  confidence: z.enum(["high", "medium", "low"]),
+});
+
+const providerDimension = z.object({
+  dimension: z.enum(DIMENSION_IDS),
+  status: dimensionStatus,
+  level: z.number().int().min(0).max(4).nullable(),
+  evidenceIds: z.array(evidenceId).max(4),
+  ruleIds: z.array(ruleId).max(3),
+  observation: short(300),
+});
+
+const providerFix = z.object({
+  dimension: z.enum(DIMENSION_IDS),
+  change: short(300),
+  why: short(240),
+  evidenceIds: z.array(evidenceId).max(4),
+  ruleIds: z.array(ruleId).max(3),
+});
+
+const copyBlock = z.object({
+  opening: short(300),
+  body: short(1200),
+  headline: short(120),
+  callToAction: short(80),
+});
+
+export const providerReportV2Schema = z.object({
+  evidence: z.array(providerEvidence).max(16),
+  imageTextLegibility: z.enum(["clear", "partially_legible", "illegible", "no_text_in_image", "no_image"]),
+  summary: short(300),
+  perceivedMessage: short(300),
+  dimensions: z.array(providerDimension).min(1).max(9),
+  fixes: z.array(providerFix).max(3),
+  actionSteps: z.array(short(240)).min(1).max(3),
+  improvedCopy: copyBlock,
+  alternateOpenings: z.array(short(200)).max(2),
+  alternateCallsToAction: z.array(short(80)).max(2),
+  missingInformation: z.array(short(200)).max(5),
+  limitations: z.array(short(300)).max(3),
+  shareableTips: z.array(short(200)).max(3),
+  confidence: z.enum(["high", "medium", "low"]),
+});
+export type ProviderReportV2 = z.infer<typeof providerReportV2Schema>;
+
+export interface EvidenceItem {
+  id: string;
+  source: EvidenceKind;
+  text: string;
+  location?: "top" | "middle" | "bottom" | "whole" | "unknown";
+  timeSec?: number | null;
+  confidence: "high" | "medium" | "low";
+}
+
+export interface DimensionResult {
+  dimension: DimensionId;
+  labelAr: string;
+  weight: number;
+  status: DimensionStatus;
+  level: number | null;
+  evidenceIds: string[];
+  ruleIds: string[];
+  observation: string;
+}
+
+export interface FixResult {
+  dimension: DimensionId;
+  labelAr: string;
+  change: string;
+  why: string;
+  evidenceIds: string[];
+  ruleIds: string[];
+}
+
+export interface Citation {
+  sourceId: string;
+  title: string;
+  publisher: string;
+  url: string | null;
+  evidenceType: string;
+  access: "full_text" | "search_excerpt";
+  publishedAt: string | null;
+  secondaryOnly: boolean;
+}
+
+export interface CheckedRule {
+  ruleId: string;
+  dimension: string;
+  principleAr: string;
+  judgeability: "detectable" | "inference" | "not_judgeable";
+  evidenceStrength: "strong" | "moderate" | "weak" | "hypothesis";
+  sourceIds: string[];
+}
+
+export interface QualityIndex {
+  /** 0–100, server-computed from anchored levels; null when nothing was measurable. */
+  value: number | null;
+  /** Share of applicable rubric weight that was actually measured (0–1). */
+  coverage: number;
+  measured: number;
+  applicable: number;
+  /** Feature flag: the UI shows the number only when true. */
+  shown: boolean;
+}
+
+export interface MediaInfo {
+  kind: "image" | "none";
+  width?: number;
+  height?: number;
+  aspect?: "vertical" | "portrait" | "square" | "landscape";
+}
+
+export interface AnalysisReportV2 {
+  schemaVersion: "2";
+  id: string;
+  mode: AnalysisMode;
+  industry: Industry;
+  goal: Goal;
+  createdAt: string;
+  expiresAt: string;
+  versions: { rubricVersion: string; knowledgeVersion: string; promptVersion: string; providerModel: string | null };
+  summary: string;
+  perceivedMessage: string;
+  imageTextLegibility: ProviderReportV2["imageTextLegibility"];
+  media: MediaInfo;
+  evidence: EvidenceItem[];
+  dimensions: DimensionResult[];
+  index: QualityIndex;
+  fixes: FixResult[];
+  actionSteps: string[];
+  originalCopy: string;
+  improvedCopy: ProviderReportV2["improvedCopy"];
+  alternateOpenings: string[];
+  alternateCallsToAction: string[];
+  missingInformation: string[];
+  limitations: string[];
+  checkedRules: CheckedRule[];
+  citations: Citation[];
+  shareableTips: string[];
+  confidence: "high" | "medium" | "low";
+}
+
+export type AnyAnalysisReport = AnalysisReport | AnalysisReportV2;

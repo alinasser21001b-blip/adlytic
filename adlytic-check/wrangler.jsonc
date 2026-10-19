@@ -29,6 +29,8 @@
     "VISION_MODEL": "claude-haiku-4-5",
     "TURNSTILE_SITE_KEY": "",
     "ANALYSIS_ENABLED": "true",
+    "ANALYZER_VERSION": "v1",
+    "SHOW_QUALITY_INDEX": "false",
     "FREE_WEEKLY_LIMIT": "3",
     "MAX_PROVIDER_CALLS_PER_DAY": "100",
     "MAX_OUTPUT_TOKENS": "3000",
