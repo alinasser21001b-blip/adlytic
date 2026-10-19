@@ -19,7 +19,7 @@ describe("login (Google OIDC with state, nonce, PKCE)", () => {
   it("advertises accounts and refuses checks without a login", async () => {
     const c = new Client(ACC);
     const s = await c.session();
-    expect(s.body.accounts).toEqual({ enabled: true, loginAvailable: true, loggedIn: false, paymentsEnabled: false });
+    expect(s.body.accounts).toEqual({ enabled: true, loginAvailable: true, loggedIn: false, paymentsEnabled: true });
     const r = await c.check({ adCopy: "كنبة" });
     expect(r.status).toBe(401);
     expect(r.body.error.code).toBe("LOGIN_REQUIRED");

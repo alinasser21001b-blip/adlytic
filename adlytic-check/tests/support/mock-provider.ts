@@ -69,6 +69,9 @@ export function goodReportV2(overrides: Record<string, unknown> = {}) {
 
 const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 
+/** Fake ZainCash v2 gateway state. */
+const zcTx = new Map<string, { amount: number; ref: string; successUrl: string; failureUrl: string; status: string; paidAmount?: number }>();
+
 /** Fake Google IdP state: authorization codes waiting to be exchanged. */
 const codes = new Map<string, { sub: string; nonce: string; challenge: string; redirectUri: string; clientId: string }>();
 
@@ -86,7 +89,10 @@ export interface MockState {
   siteverifyCalls: number;
 }
 
+let MOCK_SELF = "";
+
 export function startMock(port: number): Promise<{ server: Server; state: MockState }> {
+  MOCK_SELF = `http://127.0.0.1:${port}`;
   const state: MockState = { calls: 0, last: null, siteverifyCalls: 0 };
   const server = createServer(async (req, res) => {
     const body = await readBody(req);
@@ -114,6 +120,39 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
       res.writeHead(302, { location: redirect.toString() });
       return res.end();
     }
+    // ── Fake ZainCash Payment Gateway v2 ──
+    if (u.pathname === "/zc/oauth2/token" && req.method === "POST") {
+      const f = new URLSearchParams(body.toString("utf8"));
+      if (f.get("client_id") !== "zc-client" || f.get("client_secret") !== "zc-secret" || f.get("grant_type") !== "client_credentials") return send(401, { error: "invalid_client" });
+      return send(200, { access_token: "zc-access", expires_in: 300, token_type: "Bearer" });
+    }
+    if (u.pathname.startsWith("/zc/api/") && req.headers.authorization !== "Bearer zc-access") return send(401, { error: "unauthorized" });
+    if (u.pathname === "/zc/api/v2/payment-gateway/transaction/init" && req.method === "POST") {
+      const j = JSON.parse(body.toString("utf8"));
+      if (j.currency !== "IQD" || !Number.isInteger(j.amount) || j.amount <= 0) return send(400, { error: "bad amount" });
+      const id = `zc_${Math.random().toString(36).slice(2, 12)}`;
+      zcTx.set(id, { amount: j.amount, ref: j.externalReferenceId, successUrl: j.successUrl, failureUrl: j.failureUrl, status: "PENDING" });
+      return send(200, { data: { transactionId: id, redirectUrl: `${MOCK_SELF}/zc/pay/${id}` } });
+    }
+    const inq = u.pathname.match(/^\/zc\/api\/v2\/payment-gateway\/transaction\/inquiry\/(.+)$/);
+    if (inq) {
+      const t = zcTx.get(decodeURIComponent(inq[1]!));
+      if (!t) return send(404, { error: "not found" });
+      return send(200, { data: { transactionId: inq[1], currentStatus: t.status, amount: t.paidAmount ?? t.amount } });
+    }
+    const pay = u.pathname.match(/^\/zc\/pay\/(.+)$/);
+    if (pay) {
+      // The customer pays (or fails) on the gateway page; ?amount= simulates a tampered amount.
+      const t = zcTx.get(pay[1]!)!;
+      const ok = u.searchParams.get("result") !== "fail";
+      t.status = ok ? "SUCCESS" : "FAILED";
+      if (u.searchParams.get("amount")) t.paidAmount = Number(u.searchParams.get("amount"));
+      const back = new URL(ok ? t.successUrl : t.failureUrl);
+      back.searchParams.set("token", `${b64url(JSON.stringify({ alg: "HS256" }))}.${b64url(JSON.stringify({ data: { externalReferenceId: t.ref, currentStatus: t.status } }))}.sig`);
+      res.writeHead(302, { location: back.toString() });
+      return res.end();
+    }
+
     if (u.pathname === "/token" && req.method === "POST") {
       const f = new URLSearchParams(body.toString("utf8"));
       const entry = codes.get(f.get("code") ?? "");

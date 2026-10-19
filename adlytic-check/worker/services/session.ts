@@ -2,12 +2,12 @@ import { getCookie, setCookie } from "hono/cookie";
 import type { SessionInfo } from "../../shared/schemas";
 import { currentUser } from "./auth";
 import { providerBlocked } from "./events";
+import { paymentsReady } from "./payments";
 import { clientIp, config, hmacHex, HttpError, QUOTA_WINDOW_MS, randomToken, sha256Hex, takeRateSlot, utcDay, type Ctx } from "../lib";
 
 const COOKIE = "ac_sid";
 const COOKIE_MAX_AGE_S = 60 * 86_400;
 const TOKEN_RE = /^[A-Za-z0-9_-]{43}$/;
-const PER_IP_SESSIONS_PER_HOUR = 30;
 
 /** Resolve the caller's visitor id from the HttpOnly cookie, or null. */
 export async function currentVisitor(c: Ctx): Promise<string | null> {
@@ -43,7 +43,7 @@ export async function createVisitor(c: Ctx): Promise<string> {
   const ip = clientIp(c);
   if (ip && c.env.IP_HASH_SECRET) {
     const ipKey = await hmacHex(c.env.IP_HASH_SECRET, `${utcDay(now)}|${ip}`);
-    if (!(await takeRateSlot(c.env.DB, `sessions:ip:${ipKey.slice(0, 32)}`, 3_600_000, PER_IP_SESSIONS_PER_HOUR, now))) {
+    if (!(await takeRateSlot(c.env.DB, `sessions:ip:${ipKey.slice(0, 32)}`, 3_600_000, cfg.maxSessionsPerIpHour, now))) {
       throw new HttpError(429, "RATE_LIMITED", { retryAfter: 900 });
     }
   }
@@ -92,7 +92,7 @@ export async function sessionInfo(c: Ctx, visitorId: string): Promise<SessionInf
       enabled: cfg.accountsEnabled,
       loginAvailable: cfg.accountsEnabled && Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
       loggedIn: Boolean(await currentUser(c)),
-      paymentsEnabled: cfg.paymentsEnabled,
+      paymentsEnabled: paymentsReady(c.env),
     },
   };
 }

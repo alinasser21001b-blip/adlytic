@@ -36,6 +36,11 @@ export const INSTANCES = {
       FREE_REFILL_MS: "4000",
       RESERVATION_TTL_SECONDS: "6",
       PROVIDER_TIMEOUT_MS: "20000",
+      PAYMENTS_ENABLED: "true",
+      MAX_SESSIONS_PER_IP_HOUR: "1000",
+      ZAINCASH_CLIENT_ID: "zc-client",
+      ZAINCASH_CLIENT_SECRET: "zc-secret",
+      ZAINCASH_BASE_URL: `${MOCK}/zc`,
     },
   },
 } as const;

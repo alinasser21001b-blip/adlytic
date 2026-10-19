@@ -7,6 +7,8 @@ export type Bindings = Env & {
   IP_HASH_SECRET?: string;
   GOOGLE_CLIENT_ID?: string;
   GOOGLE_CLIENT_SECRET?: string;
+  ZAINCASH_CLIENT_ID?: string;
+  ZAINCASH_CLIENT_SECRET?: string;
   /** Non-production only: point the provider / siteverify / IdP at local doubles. */
   PROVIDER_BASE_URL?: string;
   TURNSTILE_VERIFY_URL?: string;
@@ -97,6 +99,7 @@ export function config(bindings: Bindings) {
     providerTimeoutMs: num(env.PROVIDER_TIMEOUT_MS, 45_000),
     reservationTtlMs: num(env.RESERVATION_TTL_SECONDS, 120) * 1000,
     maxNewSessionsPerDay: Math.floor(num(env.MAX_NEW_SESSIONS_PER_DAY, 3000)),
+    maxSessionsPerIpHour: Math.floor(num(env.MAX_SESSIONS_PER_IP_HOUR, 30)),
     // Test doubles are honoured only outside production.
     providerBaseUrl: !production && env.PROVIDER_BASE_URL ? env.PROVIDER_BASE_URL : "https://api.anthropic.com",
     turnstileVerifyUrl:

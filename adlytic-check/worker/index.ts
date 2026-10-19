@@ -6,6 +6,7 @@ import { handleClientEvent, providerBlocked } from "./services/events";
 import { createShare, deleteReport, findSharedView, getReport, revokeShare } from "./services/reports";
 import { currentUser, finishGoogleLogin, logout, requireUser, startGoogleLogin } from "./services/auth";
 import { balanceOf, sweepExpiredStatements } from "./services/credits";
+import { catalogView, createOrder, getOrder, paymentReturn, paymentWebhook, reconcilePayments } from "./services/payments";
 import { createVisitor, currentVisitor, sessionInfo } from "./services/session";
 
 const app = new Hono<AppEnv>();
@@ -21,7 +22,8 @@ app.use("*", async (c, next) => {
 // Mutations must come from our own origin. No CORS is offered to anyone else.
 app.use("/api/*", async (c, next) => {
   const m = c.req.method;
-  if (m !== "GET" && m !== "HEAD" && m !== "OPTIONS") {
+  // The gateway's server-to-server webhook carries no browser Origin; it can only trigger an inquiry.
+  if (m !== "GET" && m !== "HEAD" && m !== "OPTIONS" && new URL(c.req.url).pathname !== "/api/payments/zaincash/webhook") {
     const origin = c.req.header("origin");
     if (!origin || origin !== new URL(c.req.url).origin) throw new HttpError(403, "FORBIDDEN_ORIGIN");
   }
@@ -84,6 +86,12 @@ app.get("/api/balance", async (c) => {
   return c.json(await balanceOf(c.env.DB, user.id, Date.now(), config(c.env).freeRefillMs), 200, { "Cache-Control": "no-store" });
 });
 
+app.get("/api/payments/catalog", (c) => c.json(catalogView(c.env), 200, { "Cache-Control": "no-store" }));
+app.post("/api/payments/orders", createOrder);
+app.get("/api/payments/orders/:id", getOrder);
+app.get("/api/payments/return", paymentReturn);
+app.post("/api/payments/zaincash/webhook", paymentWebhook);
+
 app.post("/api/check", handleCheck);
 app.get("/api/reports/:id", getReport);
 app.post("/api/reports/:id/share", createShare);
@@ -129,6 +137,6 @@ export async function purgeExpired(db: D1Database, now: number): Promise<void> {
 export default {
   fetch: app.fetch,
   async scheduled(_event: ScheduledController, env: Bindings, ctx: ExecutionContext) {
-    ctx.waitUntil(purgeExpired(env.DB, Date.now()));
+    ctx.waitUntil(Promise.all([purgeExpired(env.DB, Date.now()), reconcilePayments(env).catch((e) => console.error("[payments] reconcile run failed", e instanceof Error ? e.message : e))]));
   },
 } satisfies ExportedHandler<Bindings>;

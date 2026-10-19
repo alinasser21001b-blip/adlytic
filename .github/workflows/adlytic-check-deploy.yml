@@ -194,6 +194,10 @@ jobs:
       - name: Worker secrets (values never printed)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
+          GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ZAINCASH_CLIENT_ID: ${{ secrets.ZAINCASH_CLIENT_ID }}
+          ZAINCASH_CLIENT_SECRET: ${{ secrets.ZAINCASH_CLIENT_SECRET }}
         run: |
           set +e; node scripts/ci/cfjson.mjs has-secret IP_HASH_SECRET < secrets.json; rc=$?; set -e
           case $rc in
@@ -206,6 +210,24 @@ jobs:
             echo "ANTHROPIC_API_KEY set from repository secret"
           else
             echo "ANTHROPIC_API_KEY not provided — analysis stays closed"
+          fi
+          # Google sign-in (accounts). Both or neither; login stays unavailable without them.
+          if [ -n "$GOOGLE_CLIENT_ID" ] && [ -n "$GOOGLE_CLIENT_SECRET" ]; then
+            printf '%s' "$GOOGLE_CLIENT_ID" | npx wrangler secret put GOOGLE_CLIENT_ID >/dev/null
+            printf '%s' "$GOOGLE_CLIENT_SECRET" | npx wrangler secret put GOOGLE_CLIENT_SECRET >/dev/null
+            echo "GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET set from repository secrets"
+          elif [ -n "$GOOGLE_CLIENT_ID$GOOGLE_CLIENT_SECRET" ]; then
+            echo "::warning::Only one of GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET is set — add both to enable Google sign-in"
+          else
+            echo "Google sign-in not configured — accounts stay off (guest quota)"
+          fi
+          # ZainCash merchant API credentials. Payments also need PAYMENTS_ENABLED=true in wrangler.jsonc.
+          if [ -n "$ZAINCASH_CLIENT_ID" ] && [ -n "$ZAINCASH_CLIENT_SECRET" ]; then
+            printf '%s' "$ZAINCASH_CLIENT_ID" | npx wrangler secret put ZAINCASH_CLIENT_ID >/dev/null
+            printf '%s' "$ZAINCASH_CLIENT_SECRET" | npx wrangler secret put ZAINCASH_CLIENT_SECRET >/dev/null
+            echo "ZAINCASH_CLIENT_ID / ZAINCASH_CLIENT_SECRET set from repository secrets"
+          else
+            echo "ZainCash not configured — purchases stay unavailable"
           fi
 
       # Diagnoses a missing provider key by NAME only. Secrets reach this step

@@ -16,6 +16,39 @@ export const CATALOG = [
 ] as const;
 export type ProductId = (typeof CATALOG)[number]["productId"];
 
+/**
+ * A single 500 IQD payment is not offered by default: ZainCash's published
+ * minimum gateway fee is 500 IQD on a Small Projects wallet (150 IQD on a
+ * Merchant wallet), which would consume the whole price. See UNIT_ECONOMICS.md.
+ */
+export const SINGLE_UNIT_PURCHASE_DEFAULT = false;
+
+export interface CatalogEntry {
+  productId: ProductId;
+  units: number;
+  priceIQD: number;
+  unitPriceIQD: number;
+  available: boolean;
+  noteAr?: string;
+}
+
+export interface CatalogView {
+  priceVersion: string;
+  unitPriceIQD: number;
+  paymentsEnabled: boolean;
+  provider: "zaincash";
+  products: CatalogEntry[];
+}
+
+export interface OrderView {
+  orderId: string;
+  status: "created" | "pending" | "paid" | "failed" | "expired";
+  productId: string;
+  units: number;
+  amountIQD: number;
+  createdAt: string;
+}
+
 export interface Balance {
   serverNow: string;
   freeAvailable: number;
