@@ -8,7 +8,7 @@ its gate. Section 0 is in progress; the rest is not started.
 | # | Item | Gate | Owner action needed |
 |---|---|---|---|
 | 0.1 | ✅ Done — 4 real-provider rounds (EVALUATION.md, E-013/E-014) | met except index stability and one legibility case (D-015) | — |
-| 0.2 | ✅ Switched with `VISION_MODEL=claude-haiku-5-5` (D-015) | first person-run live V2 check to record | — |
+| 0.2 | ✅ Switched with `VISION_MODEL=claude-haiku-5-5` (D-015); owner's live check worked (E-017) | met | — |
 | 0.3 | `SHOW_QUALITY_INDEX=true` only if the index is stable (today run-to-run Δ mean 5.4, max 15 points — not yet) and a human agrees it ranks ads sensibly | 0.4 + a stability fix (e.g. average two calls, or fewer levels) | — |
 | 0.4 | Human quality review of the 18 held-out cases (sheet in EVALUATION.md) | — | B4: a reviewer |
 | 0.5 | `VIDEO_ENABLED=true` after video fixtures pass and Whisper is measured on Iraqi Arabic speech (word error rate on a small labelled, consented set) | WER and coverage reported | a small set of consented, labelled Iraqi speech samples |

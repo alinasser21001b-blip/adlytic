@@ -22,7 +22,7 @@ production URL) · BLOCKED (owner action named in BLOCKERS.md).
 |---|---|---|
 | Core analysis (V1) | rollback path, TESTED | replaced live by V2 (D-015): V1 on haiku-4-5 surfaced a phone number and prediction language on held-out cases (E-013) |
 | Research registry + rules KB | IMPLEMENTED | 22 registry entries (S01–S21 + INT-PH internal), 18 rules; no fabricated sources (server registry check) |
-| Analyzer V2 | LIVE (D-015, E-016: health + probe of the configured model); real-provider eval E-014 (round 4: 46/46, 0 invented facts) | real model output rendered in the browser suite (E-015); first person-run live V2 check not yet recorded |
+| Analyzer V2 | LIVE_VERIFIED (D-015; E-016 health + model probe; E-017 owner's real check on the live site); real-provider eval E-014 (round 4: 46/46, 0 invented facts) | real model output also rendered in the browser suite (E-015) |
 | Quality index | IMPLEMENTED, TESTED; hidden | server-computed; `SHOW_QUALITY_INDEX=false` until stable |
 | Retrieval eval | TESTED (offline) | recall 1.0, P@5 0.326 / nDCG@5 0.475 vs baseline 0.235 / 0.410 |
 | Google identity | IMPLEMENTED, TESTED (mock IdP) | **BLOCKED (B1)**; live `/api/auth/google/start` says unavailable |
