@@ -24,10 +24,16 @@ on:
     branches: [claude/save-for-reuse-djv4h8]
     paths:
       - 'adlytic-check/**'
+      - '!adlytic-check/docs/**'
+      - '!adlytic-check/research/**'
+      - '!adlytic-check/**/*.md'
       - '.github/workflows/adlytic-check-deploy.yml'
   pull_request:
     paths:
       - 'adlytic-check/**'
+      - '!adlytic-check/docs/**'
+      - '!adlytic-check/research/**'
+      - '!adlytic-check/**/*.md'
       - '.github/workflows/adlytic-check-deploy.yml'
   workflow_dispatch:
 
