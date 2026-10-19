@@ -361,7 +361,9 @@ describe("production mode", () => {
     const c = await visitor(urlOf("production"));
     const before = await mockState();
     const r = await c.check({ adCopy: "إعلان" });
-    expect(r.status).toBe(503);
+    // Fails closed either way: 503 where Cloudflare is unreachable, 403 where the
+    // real siteverify rejects the fake secret. Never 200, never the doubles.
+    expect([403, 503]).toContain(r.status);
     const after = await mockState();
     expect(after.siteverifyCalls).toBe(before.siteverifyCalls);
     expect(after.calls).toBe(before.calls);

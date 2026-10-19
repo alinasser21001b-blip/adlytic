@@ -1,0 +1,110 @@
+# ════════════════════════════════════════════════════════════════════════
+#  Adlytic Check — deploy the standalone checker in adlytic-check/ to
+#  Cloudflare Workers. Touches nothing in Adlytic itself (Railway, src/,
+#  prisma/). Runs only for this branch or by hand, gated on its own tests.
+#
+#  Repository secrets (Settings → Secrets and variables → Actions):
+#    CLOUDFLARE_API_TOKEN   required — "Edit Cloudflare Workers" + D1 Edit
+#    CLOUDFLARE_ACCOUNT_ID  optional when the token is scoped to one account
+#    ANTHROPIC_API_KEY      optional — without it analysis stays closed
+#    TURNSTILE_SECRET_KEY   optional — without it analysis stays closed
+#  Repository variable:
+#    TURNSTILE_SITE_KEY     optional — the widget's public site key
+#
+#  A missing provider/Turnstile key never weakens anything: the Worker
+#  deploys, serves the page, and fails closed on new analyses until set.
+# ════════════════════════════════════════════════════════════════════════
+name: Adlytic Check — deploy
+
+on:
+  push:
+    branches: [claude/save-for-reuse-djv4h8]
+    paths:
+      - 'adlytic-check/**'
+      - '.github/workflows/adlytic-check-deploy.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: adlytic-check-deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: adlytic-check
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require Cloudflare credentials
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error title=Missing secret::Add the repository secret CLOUDFLARE_API_TOKEN, then re-run this workflow. See adlytic-check/docs/DEPLOYMENT.md."
+            exit 1
+          fi
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: adlytic-check/package-lock.json
+
+      - run: npm ci
+
+      - name: Typecheck + build
+        run: npm run build
+
+      - name: Tests (real wrangler dev + local D1, provider double)
+        run: npm test
+
+      - name: D1 migrations (remote, idempotent)
+        run: npx wrangler d1 migrations apply adlytic-check-db --remote
+
+      - name: Deploy
+        env:
+          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+        run: |
+          args=(--var "BUILD_ID:${GITHUB_SHA::7}")
+          if [ -n "$TURNSTILE_SITE_KEY" ]; then args+=(--var "TURNSTILE_SITE_KEY:$TURNSTILE_SITE_KEY"); fi
+          npx wrangler deploy "${args[@]}" 2>&1 | tee deploy.log
+          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
+          echo "WORKER_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Worker secrets (only those provided; values never printed)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+        run: |
+          existing=$(npx wrangler secret list --format json 2>/dev/null || echo '[]')
+          put() { printf '%s' "$2" | npx wrangler secret put "$1" >/dev/null && echo "set $1"; }
+          for name in ANTHROPIC_API_KEY TURNSTILE_SECRET_KEY; do
+            if [ -n "${!name}" ]; then put "$name" "${!name}"; else echo "$name not provided — analysis stays closed"; fi
+          done
+          if ! printf '%s' "$existing" | grep -q '"IP_HASH_SECRET"'; then
+            put IP_HASH_SECRET "$(openssl rand -hex 32)"
+          fi
+
+      - name: Smoke test the live Worker
+        run: |
+          if [ -z "$WORKER_URL" ]; then echo "::warning::workers.dev URL not found in deploy output"; exit 0; fi
+          sleep 5
+          health=$(curl -fsS "$WORKER_URL/api/health")
+          echo "$health"
+          echo "$health" | grep -q '"status":"ok"'
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$WORKER_URL/api/not-found")" = 404
+          test "$(curl -s -o /dev/null -w '%{http_code}' "$WORKER_URL/")" = 200
+          {
+            echo "### Adlytic Check deployed"
+            echo ""
+            echo "- URL: $WORKER_URL"
+            echo "- Build: ${GITHUB_SHA::7}"
+            echo '- Health: `'"$health"'`'
+          } >> "$GITHUB_STEP_SUMMARY"
