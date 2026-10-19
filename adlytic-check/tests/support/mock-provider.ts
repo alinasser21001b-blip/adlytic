@@ -183,6 +183,13 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
       if (f.get("client_id") !== "zc-client" || f.get("client_secret") !== "zc-secret" || f.get("grant_type") !== "client_credentials") return send(401, { error: "invalid_client" });
       return send(200, { access_token: "zc-access", expires_in: 300, token_type: "Bearer" });
     }
+    if (u.pathname === "/zc/__seed" && req.method === "POST") {
+      // Test-only: a transaction the customer already settled on the gateway page.
+      const j = JSON.parse(body.toString("utf8")) as { amount: number; ref: string; status?: string };
+      const id = `zc_${Math.random().toString(36).slice(2, 12)}`;
+      zcTx.set(id, { amount: j.amount, ref: j.ref, successUrl: "", failureUrl: "", status: j.status ?? "SUCCESS" });
+      return send(200, { transactionId: id });
+    }
     if (u.pathname.startsWith("/zc/api/") && req.headers.authorization !== "Bearer zc-access") return send(401, { error: "unauthorized" });
     if (u.pathname === "/zc/api/v2/payment-gateway/transaction/init" && req.method === "POST") {
       const j = JSON.parse(body.toString("utf8"));

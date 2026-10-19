@@ -33,6 +33,17 @@ describe("routing and headers", () => {
     expect(JSON.stringify(h)).not.toContain("test-key-not-real");
     const p: any = await (await fetch(`${urlOf("production")}/api/health`)).json();
     expect(p.environment).toBe("production");
+    // Per-capability state is reported without any secret value.
+    const a: any = await (await fetch(`${urlOf("accounts")}/api/health`)).json();
+    expect(a.capabilities).toEqual({
+      analyzer: "v2",
+      qualityIndexShown: false,
+      accounts: { enabled: true, loginConfigured: true },
+      payments: { enabled: true, ready: true },
+      video: { enabled: true, speechToText: false },
+      linkImport: true,
+    });
+    expect(JSON.stringify(a)).not.toMatch(/test-google-secret|zc-secret|test-key-not-real/);
   });
 });
 

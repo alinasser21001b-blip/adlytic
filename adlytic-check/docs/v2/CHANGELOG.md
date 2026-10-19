@@ -126,3 +126,27 @@ Each cycle: problem → hypothesis → change → test → result.
   production ignores the test origin); browser checks for the Instagram explanation and a shop
   page import.
 - **Result:** IMPLEMENTED + TESTED (direct links); Meta import BLOCKED (B3 — needs an approved app).
+
+## Cycle 10 — Launch readiness (2026-10-19)
+- **Problem:** live verification only covered V1 routes; nothing proved on the production URL
+  that the V2 surfaces behave (SSRF refusals, honest disabled states, price, the new UI), and the
+  readiness job stopped at the first failed step, hiding other missing pieces.
+- **Change:** per-capability `capabilities` in `/api/health` (no secret values); `verify-live.sh`
+  section 5 (link import refuses metadata/loopback/mapped-private/localhost/self before
+  connecting, Instagram → AUTH_REQUIRED, catalog 500 IQD @ `iqd-500@1` and consistent with
+  health, login start honest about its state, display font served); `scripts/ci/live-ui.mjs`
+  real-browser smoke on the production URL at 360/390/768/1440 + privacy/terms, screenshots kept
+  as an artifact; readiness job reports configuration even after a failed billing probe. Privacy
+  and terms updated for video, link import, Google login (sub only), ZainCash, 2 + 1/24 h quota
+  and the 500 IQD consent. THREAT_MODEL.md, MODEL_CARD.md, ROADMAP_V3.md, retrieval eval.
+- **Test:** the new live checks ran against a real local Worker in production mode (E-009).
+  The first font check passed vacuously (`document.fonts.check` is true for an undeclared
+  family); replaced by an explicit loaded-face check, which then caught a wrong family name in
+  the script itself.
+- **Bug found while writing the kill-switch table:** `PAYMENTS_ENABLED=false` also stopped the
+  daily reconciliation, so a customer who paid on the ZainCash page but never came back would not
+  be credited until payments were switched on again. Reconciliation now needs only the gateway
+  credentials; the switch stops new orders only. Two new integration tests fire the real cron
+  handler (`/cdn-cgi/handler/scheduled`): paid-but-never-returned is credited exactly once, and an
+  already-paid order is credited with the switch off (this test fails on the old code).
+- **Result:** IMPLEMENTED + TESTED locally; LIVE result recorded after the deploy of this commit.

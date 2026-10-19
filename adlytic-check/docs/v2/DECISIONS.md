@@ -51,3 +51,27 @@ records `provider_blocked`, and makes health readiness false for 15 minutes.
 
 **D-010 — Migration 0002 applied ahead of use (expand step).** Additive tables/columns only;
 `ACCOUNTS_ENABLED=false` keeps live behaviour identical until Google credentials exist.
+
+**D-011 — Keep the applicability filter; send every filtered rule (measured).** Offline retrieval
+eval on the 46 labelled fixtures: the filter keeps recall 1.0 while cutting rules sent from 18 to
+13.4 on average; BM25 ordering gains a little at k=5 (P@5 0.326 vs 0.287) and loses at k=8
+(nDCG@8 0.588 vs 0.637). No cap is applied, so ordering barely matters. Confirms D-005.
+
+**D-012 — Workers AI binding is injected at deploy time, not kept in `wrangler.jsonc`.**
+`wrangler dev` refuses to start with an `ai` binding without Cloudflare credentials, which would
+break the no-secrets test job. `scripts/ci/deploy.sh` writes a deploy-only config with the
+binding and falls back to a no-AI deploy with a warning (video then reports audio as
+`unavailable`, never as silence). Verified: the binding deployed on `dc08f3f`.
+
+**D-013 — Live verification proves only what can be proven without spending.** Every deploy now
+checks, on the production URL: capabilities in `/api/health`, link import refusing internal
+targets before connecting, Instagram → AUTH_REQUIRED, the server catalog price (500 IQD,
+`iqd-500@1`), login/payments being honest about their state, and a real-browser UI smoke at
+360/390/768/1440 (real Turnstile, fonts and CSP; nothing is submitted). Real analyses are proven
+only by the readiness probe and the manual eval workflow (D-003).
+
+**D-014 — Flags are flipped by commit, not by dashboard.** `ANALYZER_VERSION`,
+`SHOW_QUALITY_INDEX`, `ACCOUNTS_ENABLED`, `PAYMENTS_ENABLED`, `VIDEO_ENABLED`,
+`SINGLE_UNIT_PURCHASE` and the kill switch `ANALYSIS_ENABLED` live in `wrangler.jsonc`, so each
+change is reviewed, deployed by CI and verified live. Rejected: GitHub repository variables
+(unreviewed, and not masked in the public logs).

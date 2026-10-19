@@ -124,3 +124,55 @@ describe("purchase flow", () => {
     expect(MOCK).toMatch(/^http:\/\/127\.0\.0\.1/);
   });
 });
+
+describe("daily reconciliation", () => {
+  const OFF = urlOf("paymentsOff");
+  const OFF_DIR = () => inject("d1Dirs").paymentsOff!;
+
+  /** Fire the Worker's cron handler (wrangler dev --test-scheduled; /__scheduled would hit the SPA fallback); it settles in waitUntil. */
+  async function runCron(base: string) {
+    const r = await fetch(`${base}/cdn-cgi/handler/scheduled?cron=${encodeURIComponent("17 3 * * *")}`);
+    expect([r.status, await r.text()]).toEqual([200, "ok"]);
+  }
+  async function eventually(probe: () => Promise<boolean>, ms = 10_000) {
+    const until = Date.now() + ms;
+    while (!(await probe())) {
+      if (Date.now() > until) throw new Error("condition not reached in time");
+      await new Promise((r) => setTimeout(r, 250));
+    }
+  }
+
+  it("credits a customer who paid but never came back, exactly once", async () => {
+    const c = new Client(ACC);
+    await login(c, "sub-pay-noreturn");
+    const o = await order(c);
+    await fetch(o.body.redirectUrl, { redirect: "manual" }); // paid on the gateway page; the browser never returns
+    expect(await paid(c)).toBe(0);
+    d1(DIR(), `UPDATE payment_orders SET created_at = created_at - 180000 WHERE id = '${o.body.orderId}'`);
+    await runCron(ACC);
+    await eventually(async () => (await paid(c)) === 5);
+    await runCron(ACC);
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(await paid(c)).toBe(5);
+    expect((await c.req("GET", `/api/payments/orders/${o.body.orderId}`)).body.status).toBe("paid");
+  });
+
+  it("the payments kill switch stops new orders but still credits an order already paid", async () => {
+    const c = new Client(OFF);
+    await login(c, "sub-pay-killswitch");
+    expect((await c.req("GET", "/api/payments/catalog")).body.paymentsEnabled).toBe(false);
+    expect((await order(c)).status).toBe(503);
+    const uid = (await c.req("GET", "/api/me")).body.user.id;
+    // An order created before the switch was flipped and paid on the gateway page.
+    const id = `ord_${"k".repeat(16)}`;
+    const seed = (await (await fetch(`${MOCK}/zc/__seed`, { method: "POST", body: JSON.stringify({ amount: 2500, ref: id }) })).json()) as { transactionId: string };
+    const t = Date.now() - 180_000;
+    d1(
+      OFF_DIR(),
+      `INSERT INTO payment_orders (id, user_id, product_id, units, amount_iqd, price_version, provider, provider_tx_id, status, idempotency_key, created_at, updated_at)
+       VALUES ('${id}', '${uid}', 'check_5', 5, 2500, '${PRICE_VERSION}', 'zaincash', '${seed.transactionId}', 'pending', 'ks-1', ${t}, ${t})`,
+    );
+    await runCron(OFF);
+    await eventually(async () => (await paid(c)) === 5);
+  });
+});

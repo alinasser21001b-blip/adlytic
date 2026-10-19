@@ -5,7 +5,8 @@
 | المورد | الحالة |
 |---|---|
 | Worker `adlytic-check` | **منشور**: https://adlytic-check.i6900612.workers.dev — يُنشر من GitHub Actions |
-| D1 `adlytic-check-db` | `28ec9cd8-ab1e-4ff4-9f2a-e81724642830` (EEUR/FRA)، الهجرة 0001 مطبقة ومسجلة |
+| D1 `adlytic-check-db` | `28ec9cd8-ab1e-4ff4-9f2a-e81724642830` (EEUR/FRA)، الهجرات 0001–0004 مطبقة ومسجلة (تراكمية فقط) |
+| Workers AI | ربط `AI` يُضاف وقت النشر فقط (`scripts/ci/deploy.sh`) لتحويل كلام الفيديو إلى نص |
 | Turnstile widget `adlytic-check` | أُنشئ تلقائياً للنطاق `adlytic-check.i6900612.workers.dev` فقط، mode managed. site key العام: `0x4AAAAAAFbw7mW6jomUvNdo` |
 | أسرار الـWorker | `TURNSTILE_SECRET_KEY` و`IP_HASH_SECRET` و`ANTHROPIC_API_KEY` مضبوطة — `/api/health` يعيد `ready: true` |
 
@@ -22,12 +23,19 @@
 | `ANALYSIS_ENABLED` | `true` | `false` يوقف التحليلات الجديدة فوراً (مفتاح طوارئ للتكلفة) |
 | `FREE_WEEKLY_LIMIT` | `3` | فحوص ناجحة لكل متصفح كل 7 أيام |
 | `MAX_PROVIDER_CALLS_PER_DAY` | `100` | سقف الخدمة اليومي لاستدعاءات المزوّد (تشمل الفاشلة ومحاولات الإصلاح) |
-| `MAX_OUTPUT_TOKENS` | `3000` | حد مخرجات كل استدعاء |
+| `MAX_OUTPUT_TOKENS` | `4096` | حد مخرجات كل استدعاء (3000 كان يقطع ~30 % من التقارير) |
 | `REPORT_RETENTION_DAYS` | `7` | عمر التقرير الخاص |
-| `PROVIDER_TIMEOUT_MS` | `45000` | المهلة الإجمالية للتحليل (الواجهة تنتظر 75 ثانية) |
+| `PROVIDER_TIMEOUT_MS` | `60000` | المهلة الإجمالية للتحليل (الواجهة تنتظر 90 ثانية) |
 | `RESERVATION_TTL_SECONDS` | `120` | عمر حجز الحصة قبل اعتباره معلّقاً |
 | `MAX_NEW_SESSIONS_PER_DAY` | `3000` | سقف إنشاء جلسات مجهولة جديدة يومياً |
 | `BUILD_ID` | `dev` | يُستبدل بـ commit عند `npm run deploy` ويظهر في `/api/health` |
+| `ANALYZER_VERSION` | `v1` | `v2` يشغّل المحلل المبني على الأدلة. التقارير القديمة تبقى مقروءة في الحالتين |
+| `SHOW_QUALITY_INDEX` | `false` | إظهار المؤشر المحسوب في الخادم (V2 فقط) |
+| `ACCOUNTS_ENABLED` | `false` | تسجيل الدخول عبر Google وحصة 2 + 1 كل 24 ساعة بحد أقصى 2. يحتاج سرّي Google |
+| `PAYMENTS_ENABLED` | `false` | الشراء عبر زين كاش. يحتاج الحسابات وسرّي زين كاش |
+| `ZAINCASH_ENV` | `uat` | `uat` بيئة الاختبار، `production` للدفع الحقيقي |
+| `SINGLE_UNIT_PURCHASE` | `false` | السماح بشراء فحص واحد (رسوم الدفع تجعله خاسراً — UNIT_ECONOMICS.md) |
+| `VIDEO_ENABLED` | `false` | فحص الفيديو (لقطات + صوت تُستخرج في المتصفح) |
 
 ## الأسرار (بـ `wrangler secret put` فقط — لا قيم في الملفات)
 
@@ -36,6 +44,11 @@
 | `ANTHROPIC_API_KEY` | مفتاح مزوّد التحليل. يمكن نقل المفتاح المستخدم في Adlytic إن كان صاحب الحساب يوافق |
 | `TURNSTILE_SECRET_KEY` | المفتاح السري لـ widget Turnstile |
 | `IP_HASH_SECRET` | ملح HMAC لعدّ إنشاء الجلسات لكل شبكة بدون تخزين IP. ولّده بـ `openssl rand -hex 32` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | عميل OAuth من نوع Web، عنوان العودة `https://adlytic-check.i6900612.workers.dev/api/auth/google/callback` |
+| `ZAINCASH_CLIENT_ID` / `ZAINCASH_CLIENT_SECRET` | بيانات API التاجر من زين كاش (PAYMENT_PROVIDER_DECISION.md) |
+
+مهمة النشر تنسخ كل هذه من أسرار المستودع إلى الـWorker عبر pipe دون طباعتها، وتتخطى أي سر
+غير موجود.
 
 بدون أي من هذه الأسرار تعمل الصفحة لكن التحليل **مغلق** (فشل مغلق)، و`/api/health`
 يُظهر `ready: false` مع السبب.
@@ -45,9 +58,9 @@
 
 | المهمة | تحتاج أسراراً؟ | معنى نجاحها |
 |---|---|---|
-| **Test (no secrets)** | لا | فحص الأنواع + البناء + 37 اختباراً + المتصفح على 3 أحجام |
-| **Deploy to Cloudflare** | `CLOUDFLARE_API_TOKEN` | الواجهة منشورة **ومتحقق منها من الخارج**: الصحة، معرّف البناء الفعلي، التوجيه، CSP، كوكي الجلسة، وملكية التقارير على Worker وD1 الحقيقيين |
-| **Analysis readiness** | — | خدمة التحليل مهيأة بالكامل (مزوّد + Turnstile + ملح IP). حمراء مع السبب حتى تكتمل |
+| **Test (no secrets)** | لا | فحص الأنواع + البناء + اختبارات الوحدات والتكامل على Worker وD1 محليين + رحلات المتصفح في Chromium وWebKit |
+| **Deploy to Cloudflare** | `CLOUDFLARE_API_TOKEN` | الواجهة منشورة **ومتحقق منها من الخارج**: الصحة، معرّف البناء الفعلي، التوجيه، CSP، كوكي الجلسة، ملكية التقارير على Worker وD1 الحقيقيين، رفض استيراد الروابط الداخلية، سعر الكتالوج، وفحص الواجهة في متصفح حقيقي على 360–1440 (بدون إرسال فحص) |
+| **Analysis readiness** | `ANTHROPIC_API_KEY` | استدعاء من token واحد يثبت أن حساب المزوّد يقبل الطلبات (يطبع نوع الخطأ فقط)، ثم أن الخدمة مهيأة بالكامل. حمراء مع السبب حتى تكتمل |
 
 تعمل عند كل push على الفرع `claude/save-for-reuse-djv4h8` يمس `adlytic-check/`، وعند
 pull request (الاختبار فقط)، أو يدوياً. بدون التوكن تبقى مهمة النشر **حمراء
@@ -130,5 +143,16 @@ curl -s -o /dev/null -w '%{http_code}\n' https://…/s/xxxxxxxxxxxxxxxxxxxxxxxxx
 6. نفّذ 3 فحوص ثم رابعاً ← رسالة الحصة.
 7. `npx wrangler tail` أثناء ذلك: لا أخطاء bindings أو provider، ولا نصوص إعلانات في السجلات.
 
-## الإيقاف الطارئ
-`ANALYSIS_ENABLED="false"` ثم `npx wrangler deploy` — الصفحة تبقى، والتحليل يتوقف.
+## الإيقاف الطارئ ومفاتيح القدرات
+كل مفتاح في `wrangler.jsonc`؛ التغيير commit على الفرع ثم ينشره CI ويتحقق منه (D-014).
+
+| المفتاح | أثر `false` |
+|---|---|
+| `ANALYSIS_ENABLED` | الصفحة تبقى، والتحليل يتوقف فوراً (لا تُستهلك حصة) |
+| `PAYMENTS_ENABLED` | لا طلبات شراء جديدة؛ الرصيد المدفوع الموجود يبقى قابلاً للاستخدام، والتسوية اليومية تستمر |
+| `VIDEO_ENABLED` | الفيديو يُرفض قبل أي إنفاق؛ الصور والنص مستمرة |
+| `ACCOUNTS_ENABLED` | عودة لحصة الزائر المجهول؛ الحسابات وأرصدتها محفوظة في D1 |
+| `ANALYZER_VERSION=v1` | الرجوع للمحلل الأول؛ تقارير V2 السابقة تبقى مقروءة |
+
+`/api/health` يعرض `capabilities` لكل قدرة (بدون قيم سرية). إن رفض المزوّد الطلبات لسبب
+فوترة يتوقف التحليل تلقائياً 15 دقيقة (503 `ANALYSIS_DISABLED`) وتُعاد الوحدة.

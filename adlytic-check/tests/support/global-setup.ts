@@ -61,7 +61,7 @@ export default async function setup(project: TestProject) {
       const varArgs = Object.entries(inst.vars).flatMap(([k, v]) => ["--var", `${k}:${v}`]);
       const p = spawn(
         "npx",
-        ["wrangler", "dev", "--port", String(inst.port), "--ip", "127.0.0.1", "--persist-to", dir, "--inspector-port", String(inspector++), "--show-interactive-dev-session=false", ...varArgs],
+        ["wrangler", "dev", "--port", String(inst.port), "--ip", "127.0.0.1", "--persist-to", dir, "--inspector-port", String(inspector++), "--show-interactive-dev-session=false", "--test-scheduled", ...varArgs],
         { env, stdio: ["ignore", "pipe", "pipe"], detached: true },
       );
       p.stdout?.on("data", () => {});

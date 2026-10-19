@@ -6,7 +6,7 @@ import { handleClientEvent, providerBlocked } from "./services/events";
 import { createShare, deleteReport, findSharedView, getReport, listReports, revokeShare } from "./services/reports";
 import { currentUser, finishGoogleLogin, logout, requireUser, startGoogleLogin } from "./services/auth";
 import { balanceOf, sweepExpiredStatements } from "./services/credits";
-import { catalogView, createOrder, getOrder, paymentReturn, paymentWebhook, reconcilePayments } from "./services/payments";
+import { catalogView, createOrder, getOrder, paymentReturn, paymentsReady, paymentWebhook, reconcilePayments } from "./services/payments";
 import { importLink } from "./services/links";
 import { createVisitor, currentVisitor, sessionInfo } from "./services/session";
 
@@ -49,6 +49,16 @@ app.get("/api/health", async (c) => {
     // false for 15 min after the provider refused a call for billing reasons
     providerUsable: database ? !(await providerBlocked(c.env.DB)) : false,
   };
+  const env = c.env as unknown as Record<string, unknown>;
+  // Per-capability state (informational; `ready` covers the core analysis only). No secret values.
+  const capabilities = {
+    analyzer: cfg.analyzer,
+    qualityIndexShown: cfg.showQualityIndex,
+    accounts: { enabled: cfg.accountsEnabled, loginConfigured: Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET) },
+    payments: { enabled: cfg.paymentsEnabled, ready: paymentsReady(c.env) },
+    video: { enabled: cfg.videoEnabled, speechToText: Boolean(env.AI) },
+    linkImport: true,
+  };
   return c.json(
     {
       status: database ? "ok" : "degraded",
@@ -57,6 +67,7 @@ app.get("/api/health", async (c) => {
       environment: c.env.ENVIRONMENT,
       ready: Object.values(readiness).every(Boolean),
       readiness,
+      capabilities,
     },
     database ? 200 : 503,
     { "Cache-Control": "no-store" },

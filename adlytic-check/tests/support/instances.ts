@@ -16,7 +16,28 @@ const base = {
   BUILD_ID: "test",
 };
 
-/** Four real `wrangler dev` Workers, each with its own local D1 and settings. */
+// V2 analyzer + Google accounts + credits, with a 4-second "day" and a short lease.
+const accountsVars = {
+  ...base,
+  ANALYZER_VERSION: "v2",
+  ACCOUNTS_ENABLED: "true",
+  GOOGLE_CLIENT_ID: "test-google-client",
+  GOOGLE_CLIENT_SECRET: "test-google-secret",
+  GOOGLE_AUTH_URL: `${MOCK}/o/oauth2/v2/auth`,
+  GOOGLE_TOKEN_URL: `${MOCK}/token`,
+  FREE_REFILL_MS: "4000",
+  RESERVATION_TTL_SECONDS: "6",
+  PROVIDER_TIMEOUT_MS: "20000",
+  PAYMENTS_ENABLED: "true",
+  MAX_SESSIONS_PER_IP_HOUR: "1000",
+  ZAINCASH_CLIENT_ID: "zc-client",
+  ZAINCASH_CLIENT_SECRET: "zc-secret",
+  ZAINCASH_BASE_URL: `${MOCK}/zc`,
+  VIDEO_ENABLED: "true",
+  ASR_BASE_URL: `${MOCK}/asr`,
+} as const;
+
+/** Real `wrangler dev` Workers, each with its own local D1 and settings. */
 export const INSTANCES = {
   main: { port: 8801, vars: base },
   capped: { port: 8802, vars: { ...base, MAX_PROVIDER_CALLS_PER_DAY: "2" } },
@@ -24,29 +45,9 @@ export const INSTANCES = {
   short: { port: 8803, vars: { ...base, RESERVATION_TTL_SECONDS: "3", PROVIDER_TIMEOUT_MS: "20000", REPORT_RETENTION_DAYS: "0.00006" } },
   // Production must ignore the test-double URLs and fail closed.
   production: { port: 8804, vars: { ...base, ENVIRONMENT: "production" } },
-  // V2 analyzer + Google accounts + credits, with a 4-second "day" and a short lease.
-  accounts: {
-    port: 8805,
-    vars: {
-      ...base,
-      ANALYZER_VERSION: "v2",
-      ACCOUNTS_ENABLED: "true",
-      GOOGLE_CLIENT_ID: "test-google-client",
-      GOOGLE_CLIENT_SECRET: "test-google-secret",
-      GOOGLE_AUTH_URL: `${MOCK}/o/oauth2/v2/auth`,
-      GOOGLE_TOKEN_URL: `${MOCK}/token`,
-      FREE_REFILL_MS: "4000",
-      RESERVATION_TTL_SECONDS: "6",
-      PROVIDER_TIMEOUT_MS: "20000",
-      PAYMENTS_ENABLED: "true",
-      MAX_SESSIONS_PER_IP_HOUR: "1000",
-      ZAINCASH_CLIENT_ID: "zc-client",
-      ZAINCASH_CLIENT_SECRET: "zc-secret",
-      ZAINCASH_BASE_URL: `${MOCK}/zc`,
-      VIDEO_ENABLED: "true",
-      ASR_BASE_URL: `${MOCK}/asr`,
-    },
-  },
+  accounts: { port: 8805, vars: accountsVars },
+  // Kill switch: new purchases off, gateway credentials still present.
+  paymentsOff: { port: 8806, vars: { ...accountsVars, PAYMENTS_ENABLED: "false" } },
 } as const;
 
 export type InstanceName = keyof typeof INSTANCES;

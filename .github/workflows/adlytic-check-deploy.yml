@@ -267,6 +267,18 @@ jobs:
           BUILD_ID: ${{ github.sha }}
         run: bash scripts/ci/verify-live.sh "${{ steps.deploy.outputs.url }}" "${BUILD_ID::7}"
 
+      - name: Live UI smoke (real page, Turnstile and CSP at 360–1440; submits nothing)
+        run: |
+          npx playwright install --with-deps chromium
+          node scripts/ci/live-ui.mjs "${{ steps.deploy.outputs.url }}" live-shots
+      - name: Live screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adlytic-check-live-screenshots
+          path: adlytic-check/live-shots/
+          if-no-files-found: ignore
+
   analysis-readiness:
     name: Analysis readiness
     needs: deploy
@@ -289,6 +301,7 @@ jobs:
           echo "::error title=Provider account not usable::HTTP $code ($kind). Top up or raise limits in the Anthropic console (Billing / Limits); no key or content is printed."
           exit 1
       - name: Is the analysis service fully configured?
+        if: ${{ !cancelled() }}   # report every missing piece, even when the probe already failed
         working-directory: .
         env:
           URL: ${{ needs.deploy.outputs.url }}

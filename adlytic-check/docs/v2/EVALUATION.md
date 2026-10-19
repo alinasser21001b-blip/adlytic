@@ -44,8 +44,33 @@ Scorer corrections found while reading the baseline (applied before any V2 compa
 the Arabic comma «،» and «٫» are thousands separators; a negated disclaimer
 («لا نستطيع التنبؤ… نسبة النجاح») is not prediction language.
 
-## Comparison runs
-Pending — see CHANGELOG cycle 3.
+## Comparison runs (2026-10-19, run 39301610297) — partial: the provider account ran out of credit mid-run (B0)
+
+| Run | Completed | p50 / p90 latency | Repairs | Price read from image | CTA verdict | Offer verdict | Legibility flagged | Conflicts | Invented facts |
+|---|---|---|---|---|---|---|---|---|---|
+| V1, haiku-4-5, 4 096 tok / 60 s | 17 before the stop (0 truncation timeouts) | 26.6 s / 50.7 s | 6.5 % | 5/9 | 6/8 | 10/13 | 3/8 | 1/3 | 0 |
+| V2, haiku-4-5 | 11 before the stop | 34.0 s / 60.0 s | 13 % | 6/7 | 4/7 | 10/10 | 4/4 | 2/2 | 0 |
+| **V2, haiku-5-5** | **38/46** (6 of 8 failures = billing stop) | **11.5 s / 20.6 s** | 33 % (schema, before cycle-4 fixes) | **16/16** | 9/21* | 15/28* | **7/8** | **3/3** | **0** |
+| V2, sonnet-5-5 | 0 — every call rejected (400) before tokens | — | — | — | — | — | — | — | — |
+
+\*Mostly calibration and fixture artefacts analysed in CHANGELOG cycle 4 (the model rated
+«راسلنا على الخاص» as vague, and penalised illustrations vs photos); prompt v2-2026-10-19.3+ and
+KB `kb-2026-10-19.2` address both. Evidence links 100 % and zero unknown sources in every V2 run.
+
+**Not yet measured (blocked by B0):** the calibrated V2 prompt; consistency of the index across
+repeated runs; video fixtures (v01–v13); held-out-only scores.
+
+## Retrieval (offline, `npx tsx eval/retrieval.ts`, labels = `relevantRules` on 46 fixtures)
+
+| Strategy | Rules sent | Recall (all) | P@5 | nDCG@5 | P@8 | nDCG@8 |
+|---|---|---|---|---|---|---|
+| Baseline: all 18 rules, KB order | 18 | 1.00 | 0.235 | 0.410 | 0.274 | 0.555 |
+| Applicability filter | 13.4 | **1.00** | 0.287 | 0.464 | **0.329** | **0.637** |
+| Filter + BM25 order (engine) | 13.4 | **1.00** | **0.326** | **0.475** | 0.299 | 0.588 |
+
+The filter never drops a labelled rule and cuts the prompt by 25 %. BM25 ordering helps slightly
+at 5 and hurts at 8, so all filtered rules are sent (order matters little). Embeddings are not
+justified at this KB size (decision D-005).
 
 ## Human quality review
 `HUMAN_QUALITY_REVIEW: pending` — no human reviewer in this cycle. Review sheet: for each

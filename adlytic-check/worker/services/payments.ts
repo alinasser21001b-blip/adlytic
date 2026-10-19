@@ -86,10 +86,16 @@ export function zaincashGateway(env: Bindings): PaymentGateway {
   };
 }
 
+/** New purchases allowed. PAYMENTS_ENABLED=false stops only this. */
 export function paymentsReady(env: Bindings): boolean {
   const cfg = config(env);
+  return cfg.paymentsEnabled && cfg.accountsEnabled && gatewayConfigured(env);
+}
+
+/** Enough to confirm orders that already exist: a customer who paid is credited even after the kill switch. */
+function gatewayConfigured(env: Bindings): boolean {
   const e = env as unknown as Record<string, string | undefined>;
-  return cfg.paymentsEnabled && cfg.accountsEnabled && Boolean(e.ZAINCASH_CLIENT_ID && e.ZAINCASH_CLIENT_SECRET);
+  return Boolean(e.ZAINCASH_CLIENT_ID && e.ZAINCASH_CLIENT_SECRET);
 }
 
 function singleUnitAllowed(env: Bindings): boolean {
@@ -280,7 +286,7 @@ export async function getOrder(c: Ctx): Promise<Response> {
  * check that every paid balance equals its ledger.
  */
 export async function reconcilePayments(env: Bindings, now = Date.now()): Promise<void> {
-  if (!paymentsReady(env)) return;
+  if (!gatewayConfigured(env)) return;
   const db = env.DB;
   const run = await db.prepare("INSERT INTO reconciliation_runs (started_at) VALUES (?1) RETURNING id").bind(now).first<{ id: number }>();
   const pending = await db

@@ -67,11 +67,37 @@ echo "$own" | grep -qi '^cache-control: no-store' || fail "private report is cac
 [ "$(code -X DELETE -H "Origin: https://evil.example" -H "Cookie: ac_sid=$A" "$URL/api/reports/$RID")" = 403 ] || fail "foreign Origin was accepted"
 [ "$(code -H "Cookie: ac_sid=$A" "$URL/api/reports/$RID")" = 200 ] || fail "report changed after refused mutations"
 
+# 5. V2 capabilities that can be proven without spending: health reports them,
+#    link import refuses internal targets before connecting and never scrapes
+#    Meta, login/payments are honest about being off, the price is the server's.
+caps=$(jget "$health" '.capabilities')
+[ -n "$caps" ] && [ "$caps" != undefined ] || fail "/api/health has no capabilities"
+link() { curl -s -X POST -H "Origin: $URL" -H "Cookie: ac_sid=$S" -H 'content-type: application/json' -d "{\"url\":\"$1\"}" "$URL/api/import-link"; }
+for target in "https://169.254.169.254/latest/meta-data/" "https://127.0.0.1/" "https://[::ffff:10.0.0.1]/" "https://localhost/"; do
+  r=$(link "$target")
+  [ "$(jget "$r" '.state')" = UNSUPPORTED ] && jget "$r" '.reason' | grep -q '^blocked:' || fail "link import did not refuse internal target $target: $r"
+done
+r=$(link "$URL/api/health"); jget "$r" '.reason' | grep -q '^blocked:' || fail "link import fetched the Worker itself: $r"
+r=$(link "https://www.instagram.com/p/abc123/"); [ "$(jget "$r" '.state')" = AUTH_REQUIRED ] || fail "Instagram link not AUTH_REQUIRED: $r"
+cat=$(curl -fsS "$URL/api/payments/catalog")
+[ "$(jget "$cat" '.unitPriceIQD')" = 500 ] && [ "$(jget "$cat" '.priceVersion')" = "iqd-500@1" ] || fail "catalog price is not 500 IQD @ iqd-500@1: $cat"
+[ "$(jget "$cat" '.paymentsEnabled')" = "$(jget "$health" '.capabilities.payments.ready')" ] || fail "catalog and health disagree on payments"
+loc=$(curl -s -D - -o /dev/null "$URL/api/auth/google/start" | tr -d '\r' | grep -i '^location:' || true)
+if [ "$(jget "$health" '.capabilities.accounts.enabled')" = true ] && [ "$(jget "$health" '.capabilities.accounts.loginConfigured')" = true ]; then
+  echo "$loc" | grep -q 'accounts.google.com' || fail "login is configured but start does not go to Google: $loc"
+else
+  echo "$loc" | grep -q 'auth=unavailable' || fail "login is off but start does not say so: $loc"
+fi
+[ "$(code "$URL/fonts/readex-pro-arabic-600-normal.woff2")" = 200 ] || fail "display font not served"
+
 sum "### Live verification — passed"
 sum ""
 sum "- URL: $URL"
 sum "- Build serving: \`$build\`"
 sum "- Routing, CSP, JSON 404, share 404, HttpOnly+Secure+SameSite session cookie, Origin enforcement"
 sum "- Owner-only report access on live Worker + D1 (owner 200 no-store · other visitor 404 · anonymous 401 · foreign share/delete refused)"
+sum "- Link import refuses metadata/loopback/mapped-private/localhost/self targets before connecting; Instagram → AUTH_REQUIRED"
+sum "- Catalog 500 IQD @ iqd-500@1; login and payments honest about their state"
+sum "- Capabilities: \`$caps\`"
 sum "- Analysis readiness (reported by the next job): \`$(jget "$health" '.readiness')\`"
 echo "live verification passed for $URL (build $build)"
