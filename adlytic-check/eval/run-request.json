@@ -1,47 +1,8 @@
 {
  "runs": [
-  {
-   "engine": "v2",
-   "model": "claude-haiku-5-5",
-   "split": "all",
-   "maxCalls": 130,
-   "concurrency": 4,
-   "repeatIds": [
-    "f03",
-    "f05",
-    "f08",
-    "f10",
-    "f13",
-    "f15",
-    "f18",
-    "f20",
-    "f23",
-    "f25",
-    "f28",
-    "f30",
-    "f33",
-    "f35",
-    "f38",
-    "f40",
-    "f43",
-    "f45"
-   ],
-   "note": "V2 prompt v2-2026-10-19.7 (legibility scope + class, video opening style) + server legibility-class consistency: all 46 + held-out repeated"
-  },
-  {
-   "suite": "video",
-   "engine": "v2",
-   "model": "claude-haiku-5-5",
-   "split": "all",
-   "maxCalls": 35,
-   "concurrency": 3,
-   "repeatIds": [
-    "v01",
-    "v05",
-    "v06",
-    "v10"
-   ],
-   "note": "Video suite after the same changes"
-  }
+  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 100, "concurrency": 4, "note": "BEFORE: production today (no prompt cache, no second rating)"},
+  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 100, "concurrency": 4, "promptCache": true, "note": "AFTER: rule base in a cached system block"},
+  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 240, "concurrency": 4, "promptCache": true, "secondOpinion": true, "repeatIds": ["f03", "f05", "f08", "f10", "f13", "f15", "f18", "f20", "f23", "f25", "f28", "f30", "f33", "f35", "f38", "f40", "f43", "f45", "f01", "f02", "f04", "f06", "f07", "f09", "f11", "f12", "f14", "f16", "f17", "f19"], "note": "Cache + levels-only second rating: index stability on 30 repeated cases"},
+  {"suite": "video", "engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 30, "concurrency": 3, "promptCache": true, "note": "Video with the cached layout"}
  ]
 }

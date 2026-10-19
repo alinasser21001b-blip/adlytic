@@ -45,7 +45,7 @@ function fakeProvider(outputs: unknown[]): VisionProvider & { calls: VisionReque
     async review(req) {
       calls.push(req);
       const out = outputs[Math.min(calls.length - 1, outputs.length - 1)];
-      return { ok: true, toolInput: out, model: "fake-model", inputTokens: 100, outputTokens: 50, stopReason: "tool_use" };
+      return { ok: true, toolInput: out, model: "fake-model", inputTokens: 100, outputTokens: 50, cacheWriteTokens: null, cacheReadTokens: null, stopReason: "tool_use" };
     },
   };
 }
@@ -268,5 +268,55 @@ describe("legibility class agrees with the legibility level", () => {
   it("no text in the image stays no_text_in_image", async () => {
     const { out } = await run([base({ imageTextLegibility: "no_text_in_image" })]);
     expect(out.ok && out.report.imageTextLegibility).toBe("no_text_in_image");
+  });
+});
+
+describe("prompt caching layout and the index second rating", () => {
+  const levels = (over: Record<string, number | null> = {}) => ({
+    levels: base().dimensions.map((d) => ({ dimension: d.dimension, level: d.dimension in over ? over[d.dimension]! : d.level })),
+  });
+
+  it("with caching the whole rule base sits in a stable system block and the request names only applicable ids", async () => {
+    const { out, provider } = await run([base()], { promptCache: true });
+    expect(out.ok).toBe(true);
+    const call = provider.calls[0]!;
+    expect(call.cache).toBe(true);
+    expect(call.tools?.map((t) => t.name)).toEqual(["submit_ad_review_v2", "rate_levels_v2"]);
+    for (const r of RULES) expect(call.systemCached).toContain(r.ruleId);
+    expect(call.userText).toContain("R-CTA-01");
+    expect(call.userText).not.toContain(RULES.find((r) => r.ruleId === "R-CTA-01")!.principleAr);
+    // Same bytes for a different ad: the cached prefix does not depend on the request.
+    const other = await run([base()], { promptCache: true, input: { ...input, adCopy: "شيء آخر تماماً", industry: "clothing" as const } });
+    expect(other.provider.calls[0]!.systemCached).toBe(call.systemCached);
+    expect(other.provider.calls[0]!.system).toBe(call.system);
+  });
+
+  it("without caching the original single-tool layout is unchanged", async () => {
+    const { provider } = await run([base()]);
+    expect(provider.calls[0]!.systemCached).toBeUndefined();
+    expect(provider.calls[0]!.tools).toBeUndefined();
+    expect(provider.calls[0]!.userText).toContain(RULES.find((r) => r.ruleId === "R-CTA-01")!.principleAr);
+  });
+
+  it("when the index is shown, a levels-only second rating is averaged into it", async () => {
+    const one = await run([base()], { promptCache: true, showIndex: true });
+    const two = await run([base(), levels({ cta: 3 })], { promptCache: true, showIndex: true, secondOpinion: true });
+    expect(two.provider.calls).toHaveLength(2);
+    expect(two.provider.calls[1]!.toolName).toBe("rate_levels_v2");
+    expect(two.provider.calls[1]!.maxTokens).toBeLessThanOrEqual(400);
+    expect(two.provider.calls[1]!.systemCached).toBe(two.provider.calls[0]!.systemCached);
+    if (!one.out.ok || !two.out.ok) throw new Error("expected reports");
+    expect(two.out.report.index.samples).toBe(2);
+    expect(two.out.report.index.value!).toBeGreaterThan(one.out.report.index.value!); // cta 1 and 3 average to 2
+    expect(two.out.report.dimensions.find((d) => d.dimension === "cta")!.level).toBe(1); // verdicts keep the report's own levels
+    expect(two.out.telemetry.secondOpinion).toBe("ok");
+  });
+
+  it("no second call while the index is hidden; a failed second rating keeps the first", async () => {
+    const hidden = await run([base(), levels()], { promptCache: true, showIndex: false, secondOpinion: true });
+    expect(hidden.provider.calls).toHaveLength(1);
+    const bad = await run([base(), { levels: "nope" }], { promptCache: true, showIndex: true, secondOpinion: true });
+    expect(bad.out.ok && bad.out.report.index.samples).toBeFalsy();
+    expect(bad.out.telemetry.secondOpinion).toBe("failed");
   });
 });

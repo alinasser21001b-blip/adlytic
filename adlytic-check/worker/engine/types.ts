@@ -18,13 +18,17 @@ export interface EngineRequest {
   timeoutMs: number;
   maxOutputTokens: number;
   hooks: EngineHooks;
+  /** Rule base in a cached system block (tools + system identical on every call). */
+  promptCache?: boolean;
+  /** When the index is shown: a short levels-only second rating, averaged into the index. */
+  secondOpinion?: boolean;
 }
 
 /** The engine owns no storage: callers decide how calls are counted and recorded. */
 export interface EngineHooks {
   /** Before every provider call. false = the daily ceiling is reached; a throw fails closed. */
   beforeCall(attempt: number): Promise<boolean>;
-  afterCall?(usage: { model: string; inputTokens: number; outputTokens: number }): Promise<void>;
+  afterCall?(usage: { model: string; inputTokens: number; outputTokens: number; cacheWriteTokens?: number; cacheReadTokens?: number }): Promise<void>;
 }
 
 /** Why an attempt was rejected — a category only, never content. */
@@ -41,6 +45,11 @@ export interface EngineTelemetry {
   schemaPaths?: string[];
   /** Cosmetic slips fixed before validation (echoed/renumbered ids, unknown labels). */
   tidied?: number;
+  /** Prompt-cache tokens across all calls of this check. */
+  cacheWriteTokens?: number;
+  cacheReadTokens?: number;
+  /** The levels-only second rating for the index. */
+  secondOpinion?: "ok" | "skipped" | "failed";
 }
 
 export type EngineOutcome<R> =

@@ -39,6 +39,8 @@ describe("routing and headers", () => {
       analyzer: "v2",
       model: expect.stringMatching(/^claude-/),
       qualityIndexShown: false,
+      promptCache: false,
+      indexSecondOpinion: false,
       accounts: { enabled: true, loginConfigured: true },
       payments: { enabled: true, ready: true },
       video: { enabled: true, speechToText: false },

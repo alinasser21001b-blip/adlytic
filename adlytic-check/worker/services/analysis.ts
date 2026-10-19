@@ -53,8 +53,8 @@ function providerHooks(db: D1Database, id: string, cfg: Config): EngineHooks {
     },
     async afterCall(u) {
       await db
-        .prepare("UPDATE analyses SET model = ?2, input_tokens = ?3, output_tokens = ?4 WHERE id = ?1")
-        .bind(id, u.model, u.inputTokens, u.outputTokens)
+        .prepare("UPDATE analyses SET model = ?2, input_tokens = ?3, output_tokens = ?4, cache_write_tokens = ?5, cache_read_tokens = ?6 WHERE id = ?1")
+        .bind(id, u.model, u.inputTokens, u.outputTokens, u.cacheWriteTokens ?? null, u.cacheReadTokens ?? null)
         .run();
     },
   };
@@ -209,7 +209,7 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   const outcome: Outcome = !engineReq
     ? { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "provider_not_configured", telemetry: EMPTY_TELEMETRY }
     : cfg.analyzer === "v2" || engineVideo
-      ? await runV2({ ...engineReq, video: engineVideo, showIndex: cfg.showQualityIndex })
+      ? await runV2({ ...engineReq, video: engineVideo, showIndex: cfg.showQualityIndex, promptCache: cfg.promptCache, secondOpinion: cfg.indexSecondOpinion })
       : await runV1(engineReq);
   const latency = Date.now() - started;
   if (outcome.telemetry.repairs.length) console.log(`[check] repairs=${outcome.telemetry.repairs.join(",")} calls=${outcome.telemetry.calls}`);

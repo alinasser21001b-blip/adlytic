@@ -31,3 +31,17 @@ Mocks and partial paths are never reported as "works".
 - V1 reports remain readable; migrations are additive only;
 - free quota invariant `freeAvailable + freeHeld ≤ 2` holds under concurrency tests;
 - no paid unit is ever consumed without explicit consent carrying the price version.
+
+## Cycle 13 — cost, index stability, re-check (gates fixed before measuring, 2026-10-19)
+- **Prompt caching** is adopted if, on the same 46 cases against a cache-off run: the cache
+  engages (`cache_read_input_tokens` > 0), completed ≥ 45/46, 0 invented facts, CTA / offer /
+  legibility verdicts each within 2 cases of cache-off, input-token equivalents per completed check
+  lower (`input + 1.25·cache_write + 0.1·cache_read`), and p50 latency not worse by more than 1 s.
+- **Quality index** is shown (`SHOW_QUALITY_INDEX=true`) if, on ≥ 18 repeated cases: mean |Δ|
+  between two runs of the same ad ≤ 4 points, ≥ 90 % of pairs within 10 points, and clean ads still
+  rank above flawed ones (AUC ≥ 0.9). Offline study on the existing repeats (EVALUATION.md)
+  showed fewer levels make it worse; the candidate is the mean of two independent ratings, the
+  second from a short levels-only call that reads the cached prefix.
+- **Re-check** ships if a re-check report compares only against a report the same owner holds
+  (IDOR test), the comparison is computed by the server without an extra provider call, and the
+  browser journey shows it at 390 and 1440 without overflow.

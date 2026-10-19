@@ -87,6 +87,8 @@ async function readBody(req: IncomingMessage): Promise<Buffer> {
 }
 
 export interface MockState {
+  /** Prompt-cache keys already written (model + cached block length). */
+  cache: Set<string>;
   calls: number;
   last: unknown;
   siteverifyCalls: number;
@@ -103,7 +105,7 @@ function realJpeg(): Buffer | null {
 
 export function startMock(port: number): Promise<{ server: Server; state: MockState }> {
   MOCK_SELF = `http://127.0.0.1:${port}`;
-  const state: MockState = { calls: 0, last: null, siteverifyCalls: 0, asrCalls: 0 };
+  const state: MockState = { calls: 0, last: null, siteverifyCalls: 0, asrCalls: 0, cache: new Set() };
   const server = createServer(async (req, res) => {
     const body = await readBody(req);
     const send = (status: number, obj: unknown) => {
@@ -255,6 +257,21 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
       if (slow) await sleep(Number(slow[1]));
 
       const v2 = payload.tools?.[0]?.name === "submit_ad_review_v2";
+      // Prompt caching: a system block marked for caching is "written" once, then "read".
+      const cachedBlock = Array.isArray(payload.system) ? payload.system.find((b: { cache_control?: unknown }) => b.cache_control) : null;
+      const cacheKey = cachedBlock ? `${payload.model}:${String(cachedBlock.text).length}` : null;
+      const cacheUsage = cacheKey ? (state.cache.has(cacheKey) ? { cache_read_input_tokens: 4000, cache_creation_input_tokens: 0 } : { cache_read_input_tokens: 0, cache_creation_input_tokens: 4000 }) : {};
+      if (cacheKey) state.cache.add(cacheKey);
+      if (payload.tool_choice?.name === "rate_levels_v2") {
+        // Levels-only second rating: one level apart on the CTA, so averaging is visible.
+        const levels = (goodReportV2().dimensions as Array<{ dimension: string; level: number }>).map((d) => ({ dimension: d.dimension, level: d.dimension === "cta" ? d.level + 1 : d.level }));
+        if (text.includes("[[MOCK:levels_fail]]")) return send(500, { type: "error", error: { type: "api_error", message: "boom" } });
+        return send(200, {
+          id: `msg_${state.calls}`, type: "message", role: "assistant", model: payload.model,
+          content: [{ type: "tool_use", id: `toolu_${state.calls}`, name: "rate_levels_v2", input: { levels } }],
+          stop_reason: "tool_use", stop_sequence: null, usage: { input_tokens: 600, output_tokens: 60, ...cacheUsage },
+        });
+      }
       let input: unknown = v2 ? goodReportV2() : goodReport();
       if (text.includes("[[MOCK:500]]")) return send(500, { type: "error", error: { type: "api_error", message: "upstream boom" } });
       if (text.includes("[[MOCK:credit]]")) {
@@ -284,7 +301,7 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
         content: [{ type: "tool_use", id: `toolu_${state.calls}`, name: v2 ? "submit_ad_review_v2" : "submit_ad_review", input }],
         stop_reason: "tool_use",
         stop_sequence: null,
-        usage: { input_tokens: 1500, output_tokens: 900 },
+        usage: { input_tokens: 1500, output_tokens: 900, ...cacheUsage },
       });
     }
     send(404, { error: "not found" });

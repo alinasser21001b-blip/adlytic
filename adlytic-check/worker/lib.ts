@@ -108,6 +108,9 @@ export function config(bindings: Bindings) {
         ? env.TURNSTILE_VERIFY_URL
         : "https://challenges.cloudflare.com/turnstile/v0/siteverify",
     accountsEnabled: env.ACCOUNTS_ENABLED === "true",
+    // Rule base in a cached system block; and a short second rating that steadies the index.
+    promptCache: env.PROMPT_CACHE === "true",
+    indexSecondOpinion: env.INDEX_SECOND_OPINION === "true",
     googleAuthUrl: !production && env.GOOGLE_AUTH_URL ? env.GOOGLE_AUTH_URL : "https://accounts.google.com/o/oauth2/v2/auth",
     googleTokenUrl: !production && env.GOOGLE_TOKEN_URL ? env.GOOGLE_TOKEN_URL : "https://oauth2.googleapis.com/token",
     // The 24 h refill period can only be shortened outside production (tests).

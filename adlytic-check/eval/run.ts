@@ -27,10 +27,15 @@ interface Request {
   only?: string[];
   timeoutMs?: number;
   maxOutputTokens?: number;
+  /** Rule base in a cached system block (production flag PROMPT_CACHE). */
+  promptCache?: boolean;
+  /** Levels-only second rating averaged into the index (production flag INDEX_SECOND_OPINION). */
+  secondOpinion?: boolean;
   note?: string;
 }
 
-type Engine = (c: FixtureCase, provider: VisionProvider, hooks: EngineHooks, timeoutMs: number, maxOutputTokens: number) => Promise<{ outcome: EngineOutcome<unknown>; view: ReportView | null }>;
+type EngineOpts = { promptCache?: boolean; secondOpinion?: boolean };
+type Engine = (c: FixtureCase, provider: VisionProvider, hooks: EngineHooks, timeoutMs: number, maxOutputTokens: number, opts: EngineOpts) => Promise<{ outcome: EngineOutcome<unknown>; view: ReportView | null }>;
 
 const ENGINES: Record<string, Engine> = {
   async v1(c, provider, hooks, timeoutMs, maxOutputTokens) {
@@ -45,7 +50,7 @@ const ENGINES: Record<string, Engine> = {
     });
     return { outcome, view: outcome.ok ? viewV1(outcome.report) : null };
   },
-  async v2(c, provider, hooks, timeoutMs, maxOutputTokens) {
+  async v2(c, provider, hooks, timeoutMs, maxOutputTokens, opts) {
     const outcome = await runV2({
       input: { industry: c.industry as never, goal: c.goal as never, adCopy: c.adCopy, audience: c.audience, additionalContext: c.additionalContext },
       mode: c.mode,
@@ -55,6 +60,7 @@ const ENGINES: Record<string, Engine> = {
       maxOutputTokens,
       hooks,
       showIndex: true,
+      ...opts,
     });
     return { outcome, view: outcome.ok ? viewV2(outcome.report) : null };
   },
@@ -133,7 +139,7 @@ async function main() {
       const started = Date.now();
       let res: Awaited<ReturnType<Engine>>;
       try {
-        res = await engine!(c, provider, hooks, req.timeoutMs ?? 60000, req.maxOutputTokens ?? 4096);
+        res = await engine!(c, provider, hooks, req.timeoutMs ?? 60000, req.maxOutputTokens ?? 4096, { promptCache: req.promptCache, secondOpinion: req.secondOpinion });
       } catch (e) {
         console.log(`EVAL_ERROR ${c.id} ${e instanceof Error ? e.message : e}`);
         continue;
@@ -144,6 +150,7 @@ async function main() {
       const row = {
         id: c.id, run, split: c.split, mode: c.mode, ok: res.outcome.ok, reason: res.outcome.ok ? null : res.outcome.reason,
         calls: t.calls, repairs: t.repairs, schemaPaths: t.schemaPaths ?? [], stripped: t.stripped, latencyMs, inTok: t.inputTokens, outTok: t.outputTokens, model: t.model,
+        cacheWrite: t.cacheWriteTokens ?? 0, cacheRead: t.cacheReadTokens ?? 0, secondOpinion: t.secondOpinion ?? null,
         score: s, report: res.outcome.ok ? res.outcome.report : null,
       };
       results.push(row);
@@ -159,6 +166,8 @@ async function main() {
   const pct = (p: number) => lat.length ? lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] : null;
   const inTok = results.reduce((a, r) => a + (r.inTok as number), 0);
   const outTok = results.reduce((a, r) => a + (r.outTok as number), 0);
+  const cacheWrite = results.reduce((a, r) => a + ((r.cacheWrite as number) ?? 0), 0);
+  const cacheRead = results.reduce((a, r) => a + ((r.cacheRead as number) ?? 0), 0);
   const price = PRICES[req.model];
   // Consistency: second runs vs first runs on the same case.
   const pairs = results.filter((r) => r.run === 2 && r.ok).map((r2) => [first.find((r1) => r1.id === r2.id && r1.ok), r2] as const).filter(([a]) => a);
@@ -176,8 +185,12 @@ async function main() {
     strippedReports: first.filter((r) => r.stripped).map((r) => r.id),
     schemaPaths: results.flatMap((r) => (r.schemaPaths as string[]) ?? []).reduce<Record<string, number>>((m, k) => ((m[k] = (m[k] ?? 0) + 1), m), {}),
     latencyMs: { p50: pct(0.5), p90: pct(0.9), max: lat.at(-1) ?? null },
-    tokens: { input: inTok, output: outTok },
-    estCostUsd: price ? +((inTok * price[0] + outTok * price[1]) / 1e6).toFixed(4) : null,
+    promptCache: !!req.promptCache, secondOpinion: !!req.secondOpinion,
+    // input = uncached remainder only; a cache write is billed ~1.25× and a read ~0.1× the input price.
+    tokens: { input: inTok, output: outTok, cacheWrite, cacheRead, inputEquivalent: Math.round(inTok + 1.25 * cacheWrite + 0.1 * cacheRead) },
+    perCompletedCheck: ok.length ? { inputEquivalent: Math.round((inTok + 1.25 * cacheWrite + 0.1 * cacheRead) / results.filter((r) => r.ok).length), output: Math.round(outTok / results.filter((r) => r.ok).length) } : null,
+    secondOpinions: results.reduce<Record<string, number>>((m, r) => (r.secondOpinion ? ((m[r.secondOpinion as string] = (m[r.secondOpinion as string] ?? 0) + 1), m) : m), {}),
+    estCostUsd: price ? +(((inTok + 1.25 * cacheWrite + 0.1 * cacheRead) * price[0] + outTok * price[1]) / 1e6).toFixed(4) : null,
     consistency: agree.length ? { pairs: agree.length, meanAgreement: +(agree.reduce((a, b) => a + b, 0) / agree.length).toFixed(3), indexAbsDiff: idxPairs.map(([x, y]) => Math.abs(x - y)) } : null,
     sources: {
       citedUnknown: scores.length ? ok.flatMap((r) => (viewAny(r)?.citedSources ?? []).filter((id) => !KNOWN_SOURCES.has(id))) : [],
@@ -200,7 +213,7 @@ async function videoMain(req: Request, index: number, apiKey: string) {
   const provider = anthropicProvider({ apiKey, model: req.model, baseURL: "https://api.anthropic.com" });
   let calls = 0;
   const hooks: EngineHooks = { beforeCall: async () => (calls < req.maxCalls ? (calls++, true) : false) };
-  const results: Array<{ id: string; run: number; ok: boolean; reason: string | null; repairs: string[]; latencyMs: number; inTok: number; outTok: number; score: VideoScore | null; report: V2Core | null }> = [];
+  const results: Array<{ id: string; run: number; ok: boolean; reason: string | null; repairs: string[]; latencyMs: number; inTok: number; outTok: number; cacheWrite: number; cacheRead: number; score: VideoScore | null; report: V2Core | null }> = [];
   const t0 = Date.now();
   let next = 0;
   async function worker() {
@@ -208,10 +221,11 @@ async function videoMain(req: Request, index: number, apiKey: string) {
       const { c, run } = jobs[next++]!;
       const started = Date.now();
       try {
-        const out = await runVideoCase(c, provider, hooks, req.timeoutMs ?? 60000, req.maxOutputTokens ?? 4096);
+        const out = await runVideoCase(c, provider, hooks, req.timeoutMs ?? 60000, req.maxOutputTokens ?? 4096, { promptCache: req.promptCache, secondOpinion: req.secondOpinion });
         const t = out.telemetry;
         const row = {
           id: c.id, run, ok: out.ok, reason: out.ok ? null : out.reason, repairs: t.repairs, latencyMs: Date.now() - started, inTok: t.inputTokens, outTok: t.outputTokens,
+          cacheWrite: t.cacheWriteTokens ?? 0, cacheRead: t.cacheReadTokens ?? 0,
           score: out.ok ? scoreVideo(c, out.report) : null, report: out.ok ? out.report : null,
         };
         results.push(row);
@@ -238,7 +252,8 @@ async function videoMain(req: Request, index: number, apiKey: string) {
     providerCalls: calls, callCapHit: calls >= req.maxCalls,
     repairRate: +(first.filter((r) => r.repairs.length > 0).length / Math.max(1, first.length)).toFixed(3),
     latencyMs: { p50: pct(0.5), p90: pct(0.9), max: lat.at(-1) ?? null },
-    tokens: { input: inTok, output: outTok },
+    promptCache: !!req.promptCache,
+    tokens: { input: inTok, output: outTok, cacheWrite: results.reduce((a, r) => a + r.cacheWrite, 0), cacheRead: results.reduce((a, r) => a + r.cacheRead, 0) },
     estCostUsd: price ? +((inTok * price[0] + outTok * price[1]) / 1e6).toFixed(4) : null,
     indexValues: ok.map((r) => [r.id, idx(r)]),
     indexAbsDiff: pairs.map(([a, b]) => { const x = idx(a!), y = idx(b); return x !== null && y !== null ? Math.abs(x - y) : null; }),

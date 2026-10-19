@@ -55,6 +55,8 @@ app.get("/api/health", async (c) => {
     analyzer: cfg.analyzer,
     model: cfg.model,
     qualityIndexShown: cfg.showQualityIndex,
+    promptCache: cfg.promptCache,
+    indexSecondOpinion: cfg.indexSecondOpinion,
     accounts: { enabled: cfg.accountsEnabled, loginConfigured: Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET) },
     payments: { enabled: cfg.paymentsEnabled, ready: paymentsReady(c.env) },
     video: { enabled: cfg.videoEnabled, speechToText: Boolean(env.AI) },

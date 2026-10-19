@@ -2,6 +2,7 @@ import { GOALS, INDUSTRIES, type AnalysisMode, type Goal, type Industry } from "
 import { LEVEL_ANCHORS, type Dimension, type Rule } from "../engine/kb";
 
 export const TOOL_NAME_V2 = "submit_ad_review_v2";
+export const LEVELS_TOOL_NAME = "rate_levels_v2";
 export const PROMPT_VERSION_V2 = "v2-2026-10-19.7";
 
 const INDUSTRY_HINTS: Record<Industry, string> = {
@@ -78,17 +79,36 @@ export interface UserTextV2Input {
   measured: string[]; // M1… and A1… lines
   dimensions: Dimension[];
   rules: Rule[];
+  /** The rule text sits in the cached rule base; list ids only. */
+  ruleIdsOnly?: boolean;
   video?: { frames: number };
   repairNote?: string;
 }
+
+function ruleLine(r: Rule): string {
+  return `- ${r.ruleId} [${r.dimension}; ${r.judgeability}; evidence ${r.evidenceStrength}]: ${r.principleAr}${r.notApplicableWhen ? ` (not applicable when: ${r.notApplicableWhen})` : ""}`;
+}
+
+/**
+ * The whole rule base as one stable system block (fixed order), so tools + system form a
+ * prefix that is byte-identical for every check and can be cached. Each request then
+ * names only the rule ids that apply to it.
+ */
+export function knowledgeBlock(all: Rule[]): string {
+  const sorted = [...all].sort((a, b) => (a.ruleId < b.ruleId ? -1 : a.ruleId > b.ruleId ? 1 : 0));
+  return `## Rule base (cite a rule only when the request lists its id as applicable)\n${sorted.map(ruleLine).join("\n")}`;
+}
+
+/** Second, independent rating used only to steady the quality index. */
+export const LEVELS_INSTRUCTION = `Now rate again, independently, using the same level anchors: call ${LEVELS_TOOL_NAME} with a level 0–4 for each rubric dimension listed above (null when it is unknown or not applicable). No explanations.`;
 
 export function buildUserTextV2(i: UserTextV2Input): string {
   const industry = INDUSTRIES.find((x) => x.value === i.industry)!;
   const goal = GOALS.find((g) => g.value === i.goal)!;
   const dims = i.dimensions.map((d) => `- ${d.id} (${d.labelAr})`).join("\n");
-  const rules = i.rules
-    .map((r) => `- ${r.ruleId} [${r.dimension}; ${r.judgeability}; evidence ${r.evidenceStrength}]: ${r.principleAr}${r.notApplicableWhen ? ` (not applicable when: ${r.notApplicableWhen})` : ""}`)
-    .join("\n");
+  const rules = i.ruleIdsOnly
+    ? `${i.rules.map((r) => r.ruleId).join(", ")} (their text is in the rule base)`
+    : i.rules.map(ruleLine).join("\n");
   return `<ad_submission>
 <mode>${i.mode}</mode>
 <industry>${industry.labelAr} (${industry.value}) — details buyers often ask about: ${INDUSTRY_HINTS[i.industry]}</industry>

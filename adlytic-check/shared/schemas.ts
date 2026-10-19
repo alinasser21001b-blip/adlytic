@@ -216,6 +216,11 @@ export const providerReportV2Schema = z.object({
 });
 export type ProviderReportV2 = z.infer<typeof providerReportV2Schema>;
 
+/** Second, levels-only rating (used to steady the quality index). */
+export const providerLevelsSchema = z.object({
+  levels: z.array(z.object({ dimension: z.enum(DIMENSION_IDS), level: z.number().int().min(0).max(4).nullable() })).min(1).max(9),
+});
+
 export interface EvidenceItem {
   id: string;
   source: EvidenceKind;
@@ -275,6 +280,8 @@ export interface QualityIndex {
   applicable: number;
   /** Feature flag: the UI shows the number only when true. */
   shown: boolean;
+  /** 2 when the levels are the mean of two independent ratings. */
+  samples?: 1 | 2;
 }
 
 export interface MediaInfo {

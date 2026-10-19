@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   GOALS,
   INDUSTRIES,
+  providerLevelsSchema,
   providerReportV2Schema,
   type AnalysisReportV2,
   type CheckedRule,
@@ -12,12 +13,13 @@ import {
   type ProviderReportV2,
   type QualityIndex,
 } from "../../shared/schemas";
-import { PROMPT_VERSION_V2, SYSTEM_PROMPT_V2, TOOL_NAME_V2, buildUserTextV2 } from "../prompts/ad-review-v2";
+import { LEVELS_INSTRUCTION, LEVELS_TOOL_NAME, PROMPT_VERSION_V2, SYSTEM_PROMPT_V2, TOOL_NAME_V2, buildUserTextV2, knowledgeBlock } from "../prompts/ad-review-v2";
 import { leaksScaffolding } from "../services/guards";
 import { aspectOf, imageDimensions } from "../validation/dimensions";
 import { MEDICAL_RE, amounts, predicts, phoneNumbers, priceAmounts, stripSentences, unsupportedAmounts, unsupportedClaimTerms } from "./facts";
 import {
   KNOWLEDGE_VERSION,
+  RULES,
   RUBRIC_VERSION,
   applicableDimensions,
   retrieve,
@@ -39,6 +41,18 @@ const TOOL_SCHEMA = (() => {
   return s;
 })();
 const TOOL_DESCRIPTION = "Submit the complete evidence-linked ad review. Call exactly once with every field filled.";
+const LEVELS_SCHEMA = (() => {
+  const s = z.toJSONSchema(providerLevelsSchema) as Record<string, unknown>;
+  delete s["$schema"];
+  return s;
+})();
+const LEVELS_DESCRIPTION = "Submit only a 0–4 level per rubric dimension (null when unknown or not applicable).";
+/** Fixed order: the same tool list on every call keeps the cached prefix identical. */
+const TOOLS = [
+  { name: TOOL_NAME_V2, description: TOOL_DESCRIPTION, schema: TOOL_SCHEMA },
+  { name: LEVELS_TOOL_NAME, description: LEVELS_DESCRIPTION, schema: LEVELS_SCHEMA },
+];
+const KB_BLOCK = knowledgeBlock(RULES);
 
 export type V2Core = Omit<AnalysisReportV2, "id" | "mode" | "industry" | "goal" | "createdAt" | "expiresAt">;
 
@@ -52,6 +66,23 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
   const { input, mode, image, provider, hooks } = req;
   const deadline = Date.now() + req.timeoutMs;
   const t: EngineTelemetry = { calls: 0, repairs: [], inputTokens: 0, outputTokens: 0, model: null, stripped: false };
+  const cached = !!req.promptCache;
+  // Layout: with caching (or a second rating) both tools are always offered and, with caching,
+  // the rule base sits in a cached system block; otherwise the original single-tool layout.
+  const layout = {
+    system: SYSTEM_PROMPT_V2,
+    systemCached: cached ? KB_BLOCK : undefined,
+    cache: cached,
+    tools: cached || req.secondOpinion ? TOOLS : undefined,
+  };
+  const account = (res: { model: string; inputTokens: number | null; outputTokens: number | null; cacheWriteTokens: number | null; cacheReadTokens: number | null }) => {
+    t.inputTokens += res.inputTokens ?? 0;
+    t.outputTokens += res.outputTokens ?? 0;
+    t.cacheWriteTokens = (t.cacheWriteTokens ?? 0) + (res.cacheWriteTokens ?? 0);
+    t.cacheReadTokens = (t.cacheReadTokens ?? 0) + (res.cacheReadTokens ?? 0);
+    t.model = res.model;
+    return hooks.afterCall?.({ model: res.model, inputTokens: t.inputTokens, outputTokens: t.outputTokens, cacheWriteTokens: t.cacheWriteTokens, cacheReadTokens: t.cacheReadTokens });
+  };
 
   const video = req.video;
   const visual: Media = video ? "video" : "image";
@@ -84,8 +115,43 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
       measured: serverEvidence
         .filter((e) => e.source === "measured_metadata" || e.source === "audio_transcript")
         .map((e) => `${e.id}${e.timeSec != null ? ` [${e.timeSec}s]` : ""}: ${e.source === "audio_transcript" ? fence(e.text) : e.text}`),
-      dimensions: appDims, rules, repairNote, video: video ? { frames: video.frames.length } : undefined,
+      dimensions: appDims, rules, ruleIdsOnly: cached, repairNote, video: video ? { frames: video.frames.length } : undefined,
     });
+  const frames = video?.frames.map((f) => ({ mime: f.mime, bytes: f.bytes, label: `لقطة عند ${f.timeSec} ث (frame at ${f.timeSec}s)` }));
+
+  /** Index only: a short independent levels-only rating, averaged with the report's levels. */
+  const steadyIndex = async (core: V2Core): Promise<V2Core> => {
+    if (!req.secondOpinion || !req.showIndex || core.index.value === null) return core;
+    let slot = false;
+    try {
+      slot = deadline - Date.now() > 8000 && (await hooks.beforeCall(2));
+    } catch {
+      slot = false;
+    }
+    if (!slot) return (t.secondOpinion = "skipped"), core;
+    t.calls++;
+    const res = await provider.review({
+      ...layout,
+      userText: `${baseText()}\n\n${LEVELS_INSTRUCTION}`,
+      image,
+      images: frames,
+      toolName: LEVELS_TOOL_NAME,
+      toolDescription: LEVELS_DESCRIPTION,
+      toolSchema: LEVELS_SCHEMA,
+      maxTokens: 400,
+      deadline,
+    });
+    if (!res.ok) return (t.secondOpinion = "failed"), core;
+    await account(res);
+    const v = providerLevelsSchema.safeParse(tidyProviderOutput(res.toolInput).value);
+    if (!v.success) return (t.secondOpinion = "failed"), core;
+    const second = new Map(v.data.levels.filter((l) => l.level !== null).map((l) => [l.dimension, l.level as number]));
+    const averaged = core.dimensions.map((d) =>
+      (d.status === "strong" || d.status === "needs_improvement") && typeof d.level === "number" && second.has(d.dimension) ? { ...d, level: (d.level + second.get(d.dimension)!) / 2 } : d,
+    );
+    t.secondOpinion = "ok";
+    return { ...core, index: { ...computeIndex(averaged, core.index.shown), samples: 2 } };
+  };
 
   let repairNote = "";
   let lastValid: V2Core | null = null;
@@ -104,10 +170,10 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
     }
     t.calls++;
     const res = await provider.review({
-      system: SYSTEM_PROMPT_V2,
+      ...layout,
       userText: baseText(repairNote || undefined),
       image,
-      images: video?.frames.map((f) => ({ mime: f.mime, bytes: f.bytes, label: `لقطة عند ${f.timeSec} ث (frame at ${f.timeSec}s)` })),
+      images: frames,
       toolName: TOOL_NAME_V2,
       toolDescription: TOOL_DESCRIPTION,
       toolSchema: TOOL_SCHEMA,
@@ -119,10 +185,7 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
       if (lastValid) break;
       return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: `provider_${res.failure}${res.detail ? `:${res.detail}` : ""}`, telemetry: t };
     }
-    t.inputTokens += res.inputTokens ?? 0;
-    t.outputTokens += res.outputTokens ?? 0;
-    t.model = res.model;
-    await hooks.afterCall?.({ model: res.model, inputTokens: t.inputTokens, outputTokens: t.outputTokens });
+    await account(res);
     console.log(`[engine] v2 model=${res.model} attempt=${attempt + 1} stop=${res.stopReason} in=${res.inputTokens} out=${res.outputTokens}`);
 
     const tidy = tidyProviderOutput(res.toolInput);
@@ -142,7 +205,7 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
     }
     const built = assemble(v.data, { mode, industry: input.industry, input, serverEvidence, appDims, rules, image: !!image || !!video, dims, aspect, showIndex: !!req.showIndex, model: res.model, video }, t.repairs);
     const offenders = copyOffenders(built.core, built.factSources);
-    if (offenders.length === 0) return { ok: true, report: built.core, telemetry: t };
+    if (offenders.length === 0) return { ok: true, report: await steadyIndex(built.core), telemetry: t };
     t.repairs.push("unsupported_facts");
     lastValid = built.core;
     repairNote = `A previous attempt was rejected because the improved copy or alternates introduced facts the owner never supplied (${offenders.join(", ")}). Use only facts from U1–U3 or high-confidence visible_text; put missing details in missingInformation.`;
@@ -156,7 +219,7 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
   if (!stripped) return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "unsupported_claims_unrecoverable", telemetry: t };
   t.stripped = true;
   stripped.limitations = [...stripped.limitations, NOTE_STRIPPED].slice(0, 5);
-  return { ok: true, report: stripped, telemetry: t };
+  return { ok: true, report: await steadyIndex(stripped), telemetry: t };
 }
 
 const ASPECT_AR = { vertical: "عمودية 9:16 تقريباً", portrait: "طولية", square: "مربعة", landscape: "عرضية" } as const;

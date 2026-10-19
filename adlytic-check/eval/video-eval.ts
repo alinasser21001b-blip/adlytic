@@ -52,7 +52,7 @@ export function videoFrames(c: VideoCase) {
   return { durationSec: Math.round(duration * 10) / 10, width: c.w, height: c.h, frames };
 }
 
-export async function runVideoCase(c: VideoCase, provider: VisionProvider, hooks: EngineHooks, timeoutMs: number, maxOutputTokens: number) {
+export async function runVideoCase(c: VideoCase, provider: VisionProvider, hooks: EngineHooks, timeoutMs: number, maxOutputTokens: number, opts: { promptCache?: boolean; secondOpinion?: boolean } = {}) {
   const v = videoFrames(c);
   return runV2({
     input: { industry: c.industry, goal: c.goal, adCopy: c.adCopy, audience: "", additionalContext: "" },
@@ -62,6 +62,7 @@ export async function runVideoCase(c: VideoCase, provider: VisionProvider, hooks
     maxOutputTokens,
     hooks,
     showIndex: true,
+    ...opts,
     video: { ...v, transcript: videoTranscript(c) },
   });
 }

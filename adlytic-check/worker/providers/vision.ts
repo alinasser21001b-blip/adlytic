@@ -11,6 +11,11 @@ export interface VisionRequest {
   toolName: string;
   toolDescription: string;
   toolSchema: Record<string, unknown>;
+  /** Every tool offered, in a fixed order (identical on every call so the prefix can be cached); `toolName` is the one forced. */
+  tools?: Array<{ name: string; description: string; schema: Record<string, unknown> }>;
+  /** A second, stable system block (the rule base). With `cache`, tools + system are marked for prompt caching. */
+  systemCached?: string;
+  cache?: boolean;
   maxTokens: number;
   /** Absolute deadline (epoch ms) for this single call. */
   deadline: number;
@@ -19,7 +24,17 @@ export interface VisionRequest {
 export type VisionFailure = "timeout" | "unavailable" | "refused" | "no_tool_output" | "rejected_request";
 
 export type VisionResult =
-  | { ok: true; toolInput: unknown; model: string; inputTokens: number | null; outputTokens: number | null; stopReason: string | null }
+  | {
+      ok: true;
+      toolInput: unknown;
+      model: string;
+      inputTokens: number | null;
+      outputTokens: number | null;
+      /** Prompt-cache usage: tokens written (~1.25× input price) and read (~0.1×). */
+      cacheWriteTokens: number | null;
+      cacheReadTokens: number | null;
+      stopReason: string | null;
+    }
   | { ok: false; failure: VisionFailure; status?: number; detail?: string };
 
 /** Classify a provider error without logging request content: type + a coarse reason. */
@@ -76,8 +91,17 @@ export function anthropicProvider(opts: { apiKey: string; model: string; baseURL
           {
             model: opts.model,
             max_tokens: req.maxTokens,
-            system: req.system,
-            tools: [{ name: req.toolName, description: req.toolDescription, input_schema: req.toolSchema as Anthropic.Tool.InputSchema }],
+            system: req.systemCached
+              ? [
+                  { type: "text", text: req.system },
+                  { type: "text", text: req.systemCached, ...(req.cache ? { cache_control: { type: "ephemeral" as const } } : {}) },
+                ]
+              : req.system,
+            tools: (req.tools ?? [{ name: req.toolName, description: req.toolDescription, schema: req.toolSchema }]).map((t) => ({
+              name: t.name,
+              description: t.description,
+              input_schema: t.schema as Anthropic.Tool.InputSchema,
+            })),
             tool_choice: { type: "tool", name: req.toolName },
             messages: [{ role: "user", content }],
           },
@@ -92,6 +116,8 @@ export function anthropicProvider(opts: { apiKey: string; model: string; baseURL
           model: msg.model,
           inputTokens: msg.usage?.input_tokens ?? null,
           outputTokens: msg.usage?.output_tokens ?? null,
+          cacheWriteTokens: msg.usage?.cache_creation_input_tokens ?? null,
+          cacheReadTokens: msg.usage?.cache_read_input_tokens ?? null,
           stopReason: msg.stop_reason ?? null,
         };
       } catch (err) {

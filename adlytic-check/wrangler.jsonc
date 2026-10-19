@@ -31,6 +31,8 @@
     "ANALYSIS_ENABLED": "true",
     "ANALYZER_VERSION": "v2",
     "SHOW_QUALITY_INDEX": "false",
+    "PROMPT_CACHE": "false",
+    "INDEX_SECOND_OPINION": "false",
     "ACCOUNTS_ENABLED": "false",
     "PAYMENTS_ENABLED": "false",
     "ZAINCASH_ENV": "uat",
