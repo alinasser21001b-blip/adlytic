@@ -1,0 +1,41 @@
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "adlytic-check",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-10-19",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*", "/s/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "adlytic-check-db",
+      "database_id": "28ec9cd8-ab1e-4ff4-9f2a-e81724642830",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  // Daily purge of expired report text, stale rows and old rate buckets.
+  "triggers": { "crons": ["17 3 * * *"] },
+  "observability": { "enabled": true, "head_sampling_rate": 1 },
+  "upload_source_maps": false,
+  // Non-secret operating values. Secrets (ANTHROPIC_API_KEY,
+  // TURNSTILE_SECRET_KEY, IP_HASH_SECRET) are set with `wrangler secret put`.
+  "vars": {
+    "ENVIRONMENT": "production",
+    "VISION_MODEL": "claude-haiku-4-5",
+    "TURNSTILE_SITE_KEY": "",
+    "ANALYSIS_ENABLED": "true",
+    "FREE_WEEKLY_LIMIT": "3",
+    "MAX_PROVIDER_CALLS_PER_DAY": "100",
+    "MAX_OUTPUT_TOKENS": "3000",
+    "REPORT_RETENTION_DAYS": "7",
+    "PROVIDER_TIMEOUT_MS": "45000",
+    "RESERVATION_TTL_SECONDS": "120",
+    "MAX_NEW_SESSIONS_PER_DAY": "3000",
+    "BUILD_ID": "dev"
+  }
+}
