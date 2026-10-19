@@ -103,9 +103,9 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
       deadline,
     });
     if (!res.ok) {
-      console.warn(`[engine] provider failure=${res.failure} status=${res.status ?? "-"} attempt=${attempt + 1}`);
+      console.warn(`[engine] provider failure=${res.failure} status=${res.status ?? "-"} detail=${res.detail ?? "-"} attempt=${attempt + 1}`);
       if (lastValid) break;
-      return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: `provider_${res.failure}`, telemetry: t };
+      return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: `provider_${res.failure}${res.detail ? `:${res.detail}` : ""}`, telemetry: t };
     }
     t.inputTokens += res.inputTokens ?? 0;
     t.outputTokens += res.outputTokens ?? 0;

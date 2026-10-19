@@ -18,7 +18,28 @@ export type VisionFailure = "timeout" | "unavailable" | "refused" | "no_tool_out
 
 export type VisionResult =
   | { ok: true; toolInput: unknown; model: string; inputTokens: number | null; outputTokens: number | null; stopReason: string | null }
-  | { ok: false; failure: VisionFailure; status?: number };
+  | { ok: false; failure: VisionFailure; status?: number; detail?: string };
+
+/** Classify a provider error without logging request content: type + a coarse reason. */
+export function classifyProviderError(err: unknown): string {
+  const body = (err as { error?: { error?: { type?: string; message?: string } } })?.error?.error;
+  const type = body?.type ?? "unknown_type";
+  const msg = body?.message ?? "";
+  const reason = /credit balance/i.test(msg)
+    ? "credit_balance_too_low"
+    : /usage limit|spend limit|reached your/i.test(msg)
+      ? "usage_limit_reached"
+      : /model/i.test(msg)
+        ? "model_not_available"
+        : /image/i.test(msg)
+          ? "image_rejected"
+          : /tool|schema|input_schema/i.test(msg)
+            ? "tool_schema_rejected"
+            : /max_tokens|token/i.test(msg)
+              ? "token_limit"
+              : "other";
+  return `${type}:${reason}`;
+}
 
 /** One small seam so the provider can be swapped later without touching the analysis flow. */
 export interface VisionProvider {
@@ -74,12 +95,13 @@ export function anthropicProvider(opts: { apiKey: string; model: string; baseURL
         if (err instanceof Anthropic.APIError) {
           const status = err.status ?? 0;
           // 400/401/403/404: our request or configuration is wrong — retrying will not help.
+          const detail = classifyProviderError(err);
           if (status >= 400 && status < 500 && status !== 408 && status !== 409 && status !== 429) {
-            console.error(`[vision] provider rejected request status=${status}`);
-            return { ok: false, failure: "rejected_request", status };
+            console.error(`[vision] provider rejected request status=${status} detail=${detail}`);
+            return { ok: false, failure: "rejected_request", status, detail };
           }
-          console.error(`[vision] provider unavailable status=${status}`);
-          return { ok: false, failure: "unavailable", status };
+          console.error(`[vision] provider unavailable status=${status} detail=${detail}`);
+          return { ok: false, failure: "unavailable", status, detail };
         }
         console.error("[vision] unexpected provider error:", err instanceof Error ? err.name : typeof err);
         return { ok: false, failure: "unavailable" };

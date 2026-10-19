@@ -114,7 +114,15 @@ export type ErrorCode =
   | "IDEMPOTENCY_CONFLICT"
   | "FORBIDDEN_ORIGIN"
   | "NOT_FOUND"
-  | "INTERNAL";
+  | "INTERNAL"
+  | "LOGIN_REQUIRED"
+  | "AUTH_UNAVAILABLE"
+  | "FREE_QUOTA_EXHAUSTED"
+  | "PAID_CONSENT_REQUIRED"
+  | "PRICE_CHANGED"
+  | "INSUFFICIENT_CREDITS"
+  | "PAYMENTS_UNAVAILABLE"
+  | "PAYMENT_NOT_FOUND";
 
 export interface ApiError {
   error: { code: ErrorCode; message: string; requestId: string; retryAfter?: number; retryable?: boolean };

@@ -1,14 +1,8 @@
 {
  "runs": [
-  {"engine": "v2", "model": "claude-haiku-4-5", "split": "all", "maxCalls": 120, "timeoutMs": 60000, "maxOutputTokens": 4096,
-   "repeatIds": ["f01", "f06", "f11", "f14", "f17", "f20", "f23", "f29", "f36", "f41", "f43", "f45"],
-   "note": "V2 prompt v2-2026-10-19.2 on the production model"},
-  {"engine": "v1", "model": "claude-haiku-4-5", "split": "all", "maxCalls": 100, "timeoutMs": 60000, "maxOutputTokens": 4096,
-   "note": "V1 with the new live limits (4096 tokens, 60 s) — isolates the truncation fix"},
-  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 100, "timeoutMs": 60000, "maxOutputTokens": 4096,
-   "repeatIds": ["f01", "f11", "f14", "f36"],
-   "note": "Candidate model; price not verified from Anthropic's page"},
-  {"engine": "v2", "model": "claude-sonnet-5-5", "split": "dev", "maxCalls": 40, "timeoutMs": 60000, "maxOutputTokens": 4096,
-   "note": "Quality ceiling check on the dev split only; price not verified"}
+  {"engine": "v2", "model": "claude-haiku-4-5", "split": "all", "maxCalls": 2, "only": ["f01", "f23"], "concurrency": 1, "note": "Diagnostic: classify the HTTP 400s"},
+  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 1, "only": ["f01"], "concurrency": 1, "note": "Diagnostic"},
+  {"engine": "v2", "model": "claude-sonnet-5-5", "split": "all", "maxCalls": 1, "only": ["f01"], "concurrency": 1, "note": "Diagnostic"},
+  {"engine": "v1", "model": "claude-haiku-4-5", "split": "all", "maxCalls": 1, "only": ["f23"], "concurrency": 1, "note": "Diagnostic"}
  ]
 }

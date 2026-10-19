@@ -5,9 +5,14 @@ export type Bindings = Env & {
   ANTHROPIC_API_KEY?: string;
   TURNSTILE_SECRET_KEY?: string;
   IP_HASH_SECRET?: string;
-  /** Non-production only: point the provider / siteverify at a local double. */
+  GOOGLE_CLIENT_ID?: string;
+  GOOGLE_CLIENT_SECRET?: string;
+  /** Non-production only: point the provider / siteverify / IdP at local doubles. */
   PROVIDER_BASE_URL?: string;
   TURNSTILE_VERIFY_URL?: string;
+  GOOGLE_AUTH_URL?: string;
+  GOOGLE_TOKEN_URL?: string;
+  FREE_REFILL_MS?: string;
 };
 
 export type AppEnv = { Bindings: Bindings; Variables: { requestId: string } };
@@ -33,6 +38,14 @@ const MESSAGES_AR: Record<ErrorCode, string> = {
   FORBIDDEN_ORIGIN: "طلب غير مسموح.",
   NOT_FOUND: "المسار غير موجود.",
   INTERNAL: "حدث خطأ غير متوقع. حاول مرة أخرى.",
+  LOGIN_REQUIRED: "سجّل الدخول لاستخدام فحوصك المجانية اليومية.",
+  AUTH_UNAVAILABLE: "تسجيل الدخول غير متاح حالياً.",
+  FREE_QUOTA_EXHAUSTED: "استخدمت فحوصك المجانية. يُضاف فحص مجاني جديد كل 24 ساعة (بحد أقصى فحصين).",
+  PAID_CONSENT_REQUIRED: "لا توجد فحوص مجانية متاحة الآن. يمكنك استخدام فحص مدفوع إذا وافقت على ذلك.",
+  PRICE_CHANGED: "تغيّر سعر الفحص. راجع السعر الجديد ووافق عليه ثم أعد المحاولة.",
+  INSUFFICIENT_CREDITS: "لا يوجد رصيد فحوص مدفوعة كافٍ.",
+  PAYMENTS_UNAVAILABLE: "الدفع الإلكتروني غير متاح حالياً.",
+  PAYMENT_NOT_FOUND: "عملية الدفع غير موجودة.",
 };
 
 export class HttpError extends Error {
@@ -90,6 +103,12 @@ export function config(bindings: Bindings) {
       !production && env.TURNSTILE_VERIFY_URL
         ? env.TURNSTILE_VERIFY_URL
         : "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+    accountsEnabled: env.ACCOUNTS_ENABLED === "true",
+    googleAuthUrl: !production && env.GOOGLE_AUTH_URL ? env.GOOGLE_AUTH_URL : "https://accounts.google.com/o/oauth2/v2/auth",
+    googleTokenUrl: !production && env.GOOGLE_TOKEN_URL ? env.GOOGLE_TOKEN_URL : "https://oauth2.googleapis.com/token",
+    // The 24 h refill period can only be shortened outside production (tests).
+    freeRefillMs: !production && env.FREE_REFILL_MS ? num(env.FREE_REFILL_MS, 86_400_000) : 86_400_000,
+    paymentsEnabled: env.PAYMENTS_ENABLED === "true",
   };
 }
 export type Config = ReturnType<typeof config>;
