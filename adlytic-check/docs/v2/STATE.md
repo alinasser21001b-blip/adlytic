@@ -9,7 +9,7 @@ H — Launch: V2 analysis live; accounts, payments and Meta import wait on owner
 | Item | Value |
 |---|---|
 | URL | https://adlytic-check.i6900612.workers.dev (unchanged) |
-| Last verified build | `cb8205d` (E-016) — Analyzer V2 on `claude-haiku-5-5` |
+| Last verified build | `7dd4416` (E-021) — V2 on `claude-haiku-5-5`, prompt caching, index shown, re-check |
 | D1 migrations | 0001–0004 applied remotely (additive only) |
 | Readiness | `ready: true` since 20:06 UTC (E-012) — B0 resolved by the owner's top-up |
 | Flags | `ANALYZER_VERSION=v2` + `VISION_MODEL=claude-haiku-5-5` (D-015), `PROMPT_CACHE=true` (D-016), `SHOW_QUALITY_INDEX=true` + `INDEX_SECOND_OPINION=true` (D-017), `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |
