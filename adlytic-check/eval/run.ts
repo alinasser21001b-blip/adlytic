@@ -10,11 +10,14 @@ import { runV1 } from "../worker/engine/v1";
 import { runV2, type V2Core } from "../worker/engine/v2";
 import { anthropicProvider, type VisionProvider } from "../worker/providers/vision";
 import { aggregate, score, type FixtureCase, type ReportView } from "./score";
+import { aggregateVideo, loadVideoCases, runVideoCase, scoreVideo, type VideoScore } from "./video-eval";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const PRICES: Record<string, [number, number]> = { "claude-haiku-4-5": [1, 5], "claude-sonnet-4-5": [3, 15], "claude-sonnet-4-6": [3, 15] };
 
 interface Request {
+  /** "video": the 13 MP4 fixtures (V2 only); default: the 46 image/text cases. */
+  suite?: "image" | "video";
   engine: "v1" | "v2";
   split: "dev" | "heldout" | "all";
   model: string;
@@ -108,6 +111,7 @@ async function main() {
   }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
+  if (req.suite === "video") return videoMain(req, index, apiKey);
   const engine = ENGINES[req.engine];
   if (!engine) throw new Error(`engine ${req.engine} not available`);
   const all: FixtureCase[] = JSON.parse(readFileSync(join(here, "fixtures/cases.json"), "utf8")).cases;
@@ -185,6 +189,64 @@ async function main() {
   console.log(`EVAL_SUMMARY ${JSON.stringify(summary)}`);
   mkdirSync(join(here, "out"), { recursive: true });
   writeFileSync(join(here, "out", `run${index}-${req.engine}-${req.model}-${req.split}.json`), JSON.stringify({ summary, results }, null, 1));
+}
+
+async function videoMain(req: Request, index: number, apiKey: string) {
+  if (req.engine !== "v2") throw new Error("the video suite needs engine v2");
+  let cases = loadVideoCases();
+  if (req.only?.length) cases = cases.filter((c) => req.only!.includes(c.id));
+  const jobs = [...cases.map((c) => ({ c, run: 1 })), ...(req.repeatIds ?? []).flatMap((id) => cases.filter((c) => c.id === id).map((c) => ({ c, run: 2 })))];
+  const provider = anthropicProvider({ apiKey, model: req.model, baseURL: "https://api.anthropic.com" });
+  let calls = 0;
+  const hooks: EngineHooks = { beforeCall: async () => (calls < req.maxCalls ? (calls++, true) : false) };
+  const results: Array<{ id: string; run: number; ok: boolean; reason: string | null; repairs: string[]; latencyMs: number; inTok: number; outTok: number; score: VideoScore | null; report: V2Core | null }> = [];
+  const t0 = Date.now();
+  let next = 0;
+  async function worker() {
+    while (next < jobs.length) {
+      const { c, run } = jobs[next++]!;
+      const started = Date.now();
+      try {
+        const out = await runVideoCase(c, provider, hooks, req.timeoutMs ?? 60000, req.maxOutputTokens ?? 4096);
+        const t = out.telemetry;
+        const row = {
+          id: c.id, run, ok: out.ok, reason: out.ok ? null : out.reason, repairs: t.repairs, latencyMs: Date.now() - started, inTok: t.inputTokens, outTok: t.outputTokens,
+          score: out.ok ? scoreVideo(c, out.report) : null, report: out.ok ? out.report : null,
+        };
+        results.push(row);
+        console.log(`EVAL_RESULT ${JSON.stringify(row)}`);
+      } catch (e) {
+        console.log(`EVAL_ERROR ${c.id} ${e instanceof Error ? e.message : e}`);
+      }
+    }
+  }
+  await Promise.all(Array.from({ length: req.concurrency ?? 4 }, worker));
+  const first = results.filter((r) => r.run === 1);
+  const ok = first.filter((r) => r.ok);
+  const lat = ok.map((r) => r.latencyMs).sort((a, b) => a - b);
+  const pct = (p: number) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor(p * lat.length))] : null);
+  const inTok = results.reduce((a, r) => a + r.inTok, 0);
+  const outTok = results.reduce((a, r) => a + r.outTok, 0);
+  const price = PRICES[req.model];
+  const idx = (r: (typeof results)[number]) => r.report?.index.value ?? null;
+  const pairs = results.filter((r) => r.run === 2 && r.ok).map((r2) => [first.find((r1) => r1.id === r2.id && r1.ok), r2] as const).filter(([a]) => a);
+  const summary = {
+    runIndex: index, suite: "video", engine: req.engine, model: req.model, note: req.note ?? null,
+    jobs: jobs.length, completed: ok.length, failed: first.length - ok.length,
+    failures: first.filter((r) => !r.ok).map((r) => `${r.id}:${r.reason}`),
+    providerCalls: calls, callCapHit: calls >= req.maxCalls,
+    repairRate: +(first.filter((r) => r.repairs.length > 0).length / Math.max(1, first.length)).toFixed(3),
+    latencyMs: { p50: pct(0.5), p90: pct(0.9), max: lat.at(-1) ?? null },
+    tokens: { input: inTok, output: outTok },
+    estCostUsd: price ? +((inTok * price[0] + outTok * price[1]) / 1e6).toFixed(4) : null,
+    indexValues: ok.map((r) => [r.id, idx(r)]),
+    indexAbsDiff: pairs.map(([a, b]) => { const x = idx(a!), y = idx(b); return x !== null && y !== null ? Math.abs(x - y) : null; }),
+    quality: aggregateVideo(ok.map((r) => r.score!).filter(Boolean)),
+    wallSeconds: Math.round((Date.now() - t0) / 1000),
+  };
+  console.log(`EVAL_SUMMARY ${JSON.stringify(summary)}`);
+  mkdirSync(join(here, "out"), { recursive: true });
+  writeFileSync(join(here, "out", `run${index}-video-${req.model}.json`), JSON.stringify({ summary, results }, null, 1));
 }
 
 function viewAny(r: Record<string, unknown>): ReportView | null {

@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        run: [0, 1, 2, 3]
+        run: [0, 1, 2, 3, 4]
     environment: adlytic-check
     defaults:
       run:
@@ -38,6 +38,8 @@ jobs:
           cache: npm
           cache-dependency-path: adlytic-check/package-lock.json
       - run: npm ci --no-audit --no-fund
+      - name: ffmpeg (video suite samples frames with it)
+        run: command -v ffmpeg >/dev/null || { sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg; }
       - name: Check provider key is present (name only)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
