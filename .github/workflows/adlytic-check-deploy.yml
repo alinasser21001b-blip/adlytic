@@ -1,18 +1,21 @@
 # ════════════════════════════════════════════════════════════════════════
-#  Adlytic Check — deploy the standalone checker in adlytic-check/ to
-#  Cloudflare Workers. Touches nothing in Adlytic itself (Railway, src/,
-#  prisma/). Runs only for this branch or by hand, gated on its own tests.
+#  Adlytic Check — test, deploy, and readiness for the standalone checker in
+#  adlytic-check/. Touches nothing in Adlytic itself (Railway, src/, prisma/).
 #
-#  Repository secrets (Settings → Secrets and variables → Actions):
-#    CLOUDFLARE_API_TOKEN   required — "Edit Cloudflare Workers" + D1 Edit
-#    CLOUDFLARE_ACCOUNT_ID  optional when the token is scoped to one account
-#    ANTHROPIC_API_KEY      optional — without it analysis stays closed
-#    TURNSTILE_SECRET_KEY   optional — without it analysis stays closed
-#  Repository variable:
-#    TURNSTILE_SITE_KEY     optional — the widget's public site key
+#  Three jobs, three separate answers:
+#    test               needs no secrets; runs on every push/PR touching it
+#    deploy             BLOCKED (red, with the reason) until Cloudflare
+#                       credentials exist; on success the UI is live and
+#                       verified from outside, including report ownership
+#    analysis-readiness red until the analysis service is fully configured —
+#                       a live page is not a working analysis service
 #
-#  A missing provider/Turnstile key never weakens anything: the Worker
-#  deploys, serves the page, and fails closed on new analyses until set.
+#  Credentials (repository secrets, or secrets of the `adlytic-check`
+#  environment): CLOUDFLARE_API_TOKEN (required to deploy),
+#  CLOUDFLARE_ACCOUNT_ID (when the token can see more than one account),
+#  ANTHROPIC_API_KEY (to enable analysis). Turnstile is created and wired
+#  automatically when the token carries Turnstile Edit. IP_HASH_SECRET is
+#  generated once and never regenerated.
 # ════════════════════════════════════════════════════════════════════════
 name: Adlytic Check — deploy
 
@@ -22,89 +25,208 @@ on:
     paths:
       - 'adlytic-check/**'
       - '.github/workflows/adlytic-check-deploy.yml'
+  pull_request:
+    paths:
+      - 'adlytic-check/**'
+      - '.github/workflows/adlytic-check-deploy.yml'
   workflow_dispatch:
 
 concurrency:
-  group: adlytic-check-deploy
+  group: adlytic-check-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
   contents: read
 
+defaults:
+  run:
+    working-directory: adlytic-check
+
 jobs:
-  deploy:
+  test:
+    name: Test (no secrets)
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: adlytic-check
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       WRANGLER_SEND_METRICS: 'false'
     steps:
       - uses: actions/checkout@v4
-
-      - name: Require Cloudflare credentials
-        run: |
-          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
-            echo "::error title=Missing secret::Add the repository secret CLOUDFLARE_API_TOKEN, then re-run this workflow. See adlytic-check/docs/DEPLOYMENT.md."
-            exit 1
-          fi
-
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
           cache: npm
           cache-dependency-path: adlytic-check/package-lock.json
-
       - run: npm ci
-
       - name: Typecheck + build
         run: npm run build
-
-      - name: Tests (real wrangler dev + local D1, provider double)
+      - name: Unit + integration (real wrangler dev + local D1, provider double)
         run: npm test
+      - name: Browser (Chromium at 390/768/1440)
+        run: |
+          npx playwright install --with-deps chromium
+          npm run test:browser
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: adlytic-check-screenshots
+          path: adlytic-check/tests/browser/out/
+          if-no-files-found: ignore
+
+  deploy:
+    name: Deploy to Cloudflare
+    needs: test
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    environment:
+      name: adlytic-check
+      url: ${{ steps.deploy.outputs.url }}
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      WRANGLER_SEND_METRICS: 'false'
+      WRANGLER_WRITE_LOGS: 'false'
+      WRANGLER_LOG_SANITIZE: 'true'
+    steps:
+      - name: Deploy credentials
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "::error title=Deploy blocked — CLOUDFLARE_API_TOKEN not available::This ${GITHUB_EVENT_NAME} run received no CLOUDFLARE_API_TOKEN. Add it under Settings → Secrets and variables → Actions → Repository secrets (or as a secret of the 'adlytic-check' environment), then re-run. Dependabot/Codespaces secrets are not visible to Actions."
+            exit 1
+          fi
+          if [ -n "$CLOUDFLARE_ACCOUNT_ID" ]; then echo "token present; account id provided"; else echo "token present; no account id — the token must see exactly one account"; fi
+        working-directory: .
+
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: adlytic-check/package-lock.json
+      - run: npm ci
+      - run: npm run build
 
       - name: D1 migrations (remote, idempotent)
         run: npx wrangler d1 migrations apply adlytic-check-db --remote
 
-      - name: Deploy
-        env:
-          TURNSTILE_SITE_KEY: ${{ vars.TURNSTILE_SITE_KEY }}
+      - name: Find the Turnstile widget
+        id: ts
         run: |
-          args=(--var "BUILD_ID:${GITHUB_SHA::7}")
-          if [ -n "$TURNSTILE_SITE_KEY" ]; then args+=(--var "TURNSTILE_SITE_KEY:$TURNSTILE_SITE_KEY"); fi
-          npx wrangler deploy "${args[@]}" 2>&1 | tee deploy.log
-          url=$(grep -oE 'https://[a-z0-9.-]+\.workers\.dev' deploy.log | head -1)
-          echo "WORKER_URL=$url" >> "$GITHUB_ENV"
+          set +e
+          list=$(npx wrangler turnstile widget list --json 2>ts.err); rc=$?
+          set -e
+          if [ $rc -ne 0 ]; then
+            echo "state=unavailable" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Turnstile not managed::The token cannot list Turnstile widgets (add Account → Turnstile → Edit to the token). The site deploys; analysis stays closed until Turnstile is configured."
+            sed -n '1,5p' ts.err
+            exit 0
+          fi
+          found=$(printf '%s' "$list" | node scripts/ci/cfjson.mjs widget-by-name adlytic-check)
+          if [ -z "$found" ]; then echo "state=absent" >> "$GITHUB_OUTPUT"; exit 0; fi
+          echo "state=present" >> "$GITHUB_OUTPUT"
+          echo "sitekey=$(printf '%s' "$found" | cut -f1)" >> "$GITHUB_OUTPUT"
+          echo "domains=$(printf '%s' "$found" | cut -f2)" >> "$GITHUB_OUTPUT"
 
-      - name: Worker secrets (only those provided; values never printed)
+      - name: Deploy
+        id: deploy
         env:
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
+          BUILD_ID: ${{ github.sha }}
+        run: BUILD_ID="${BUILD_ID::7}" bash scripts/ci/deploy.sh "${{ steps.ts.outputs.sitekey }}"
+
+      - name: Read existing Worker secrets (a failed read stops the job)
+        run: npx wrangler secret list --format json > secrets.json
+
+      - name: Turnstile widget + secret
+        id: tsw
+        env:
+          HOST: ${{ steps.deploy.outputs.host }}
+          STATE: ${{ steps.ts.outputs.state }}
+          SITEKEY: ${{ steps.ts.outputs.sitekey }}
+          DOMAINS: ${{ steps.ts.outputs.domains }}
         run: |
-          existing=$(npx wrangler secret list --format json 2>/dev/null || echo '[]')
-          put() { printf '%s' "$2" | npx wrangler secret put "$1" >/dev/null && echo "set $1"; }
-          for name in ANTHROPIC_API_KEY TURNSTILE_SECRET_KEY; do
-            if [ -n "${!name}" ]; then put "$name" "${!name}"; else echo "$name not provided — analysis stays closed"; fi
-          done
-          if ! printf '%s' "$existing" | grep -q '"IP_HASH_SECRET"'; then
-            put IP_HASH_SECRET "$(openssl rand -hex 32)"
+          if [ "$STATE" = unavailable ]; then echo "skipped (no Turnstile permission)"; exit 0; fi
+          put_secret_from_widget_json() {
+            # $1 = widget JSON held only in memory; the secret goes straight into the pipe.
+            local secret
+            secret=$(printf '%s' "$1" | node scripts/ci/cfjson.mjs field secret)
+            printf '%s' "$secret" | npx wrangler secret put TURNSTILE_SECRET_KEY >/dev/null
+            echo "TURNSTILE_SECRET_KEY set"
+          }
+          if [ "$STATE" = absent ]; then
+            widget=$(npx wrangler turnstile widget create adlytic-check --domain "$HOST" --mode managed --json)
+            sitekey=$(printf '%s' "$widget" | node scripts/ci/cfjson.mjs field sitekey)
+            put_secret_from_widget_json "$widget"
+            echo "sitekey=$sitekey" >> "$GITHUB_OUTPUT"
+            echo "redeploy=true" >> "$GITHUB_OUTPUT"
+            echo "created Turnstile widget $sitekey for $HOST"
+            exit 0
+          fi
+          case ",$DOMAINS," in
+            *",$HOST,"*) ;;
+            *) npx wrangler turnstile widget update "$SITEKEY" --domain "${DOMAINS:+$DOMAINS,}$HOST" >/dev/null
+               echo "added $HOST to widget $SITEKEY" ;;
+          esac
+          set +e; node scripts/ci/cfjson.mjs has-secret TURNSTILE_SECRET_KEY < secrets.json; rc=$?; set -e
+          if [ $rc -eq 10 ]; then
+            put_secret_from_widget_json "$(npx wrangler turnstile widget get "$SITEKEY" --json)"
+          elif [ $rc -ne 0 ]; then
+            echo "::error::could not read the Worker's secret list"; exit 1
+          else
+            echo "TURNSTILE_SECRET_KEY already set"
           fi
 
-      - name: Smoke test the live Worker
+      - name: Redeploy with the new Turnstile site key
+        id: redeploy
+        if: steps.tsw.outputs.redeploy == 'true'
+        env:
+          BUILD_ID: ${{ github.sha }}
+        run: BUILD_ID="${BUILD_ID::7}" bash scripts/ci/deploy.sh "${{ steps.tsw.outputs.sitekey }}"
+
+      - name: Worker secrets (values never printed)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
         run: |
-          if [ -z "$WORKER_URL" ]; then echo "::warning::workers.dev URL not found in deploy output"; exit 0; fi
-          sleep 5
-          health=$(curl -fsS "$WORKER_URL/api/health")
+          set +e; node scripts/ci/cfjson.mjs has-secret IP_HASH_SECRET < secrets.json; rc=$?; set -e
+          case $rc in
+            0)  echo "IP_HASH_SECRET already set — kept" ;;
+            10) openssl rand -hex 32 | tr -d '\n' | npx wrangler secret put IP_HASH_SECRET >/dev/null; echo "IP_HASH_SECRET generated (first deploy)" ;;
+            *)  echo "::error::could not read the Worker's secret list"; exit 1 ;;
+          esac
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            printf '%s' "$ANTHROPIC_API_KEY" | npx wrangler secret put ANTHROPIC_API_KEY >/dev/null
+            echo "ANTHROPIC_API_KEY set from repository secret"
+          else
+            echo "ANTHROPIC_API_KEY not provided — analysis stays closed"
+          fi
+
+      - name: Verify the live Worker (health, build, routing, cookie, report ownership)
+        env:
+          BUILD_ID: ${{ github.sha }}
+        run: bash scripts/ci/verify-live.sh "${{ steps.deploy.outputs.url }}" "${BUILD_ID::7}"
+
+  analysis-readiness:
+    name: Analysis readiness
+    needs: deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Is the analysis service fully configured?
+        working-directory: .
+        env:
+          URL: ${{ needs.deploy.outputs.url }}
+        run: |
+          health=$(curl -fsS "$URL/api/health")
           echo "$health"
-          echo "$health" | grep -q '"status":"ok"'
-          test "$(curl -s -o /dev/null -w '%{http_code}' "$WORKER_URL/api/not-found")" = 404
-          test "$(curl -s -o /dev/null -w '%{http_code}' "$WORKER_URL/")" = 200
-          {
-            echo "### Adlytic Check deployed"
-            echo ""
-            echo "- URL: $WORKER_URL"
-            echo "- Build: ${GITHUB_SHA::7}"
-            echo '- Health: `'"$health"'`'
-          } >> "$GITHUB_STEP_SUMMARY"
+          H="$health" node -e '
+            const h = JSON.parse(process.env.H), r = h.readiness, fix = {
+              database: "D1 binding failing — check the deploy log",
+              analysisEnabled: "ANALYSIS_ENABLED is \"false\" in wrangler.jsonc",
+              providerConfigured: "add the ANTHROPIC_API_KEY secret and re-run",
+              turnstileConfigured: "give the token Account → Turnstile → Edit (or set TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY) and re-run",
+              abuseHashConfigured: "IP_HASH_SECRET missing — re-run the deploy job",
+            };
+            const missing = Object.keys(fix).filter((k) => !r[k]);
+            if (h.ready && missing.length === 0) { console.log("analysis service READY"); process.exit(0); }
+            for (const k of missing) console.log(`::error title=Analysis not ready — ${k}::${fix[k]}`);
+            process.exit(1);
+          '

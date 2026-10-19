@@ -46,18 +46,44 @@ Wrangler، فتشغيل `npm run db:migrate:remote` لاحقاً لن يعيد �
 يُظهر `ready: false` مع السبب.
 
 ## الطريق الأسرع: GitHub Actions (بدون جهاز)
-الملف `.github/workflows/adlytic-check-deploy.yml` يعمل عند كل push على الفرع
-`claude/save-for-reuse-djv4h8` يمس `adlytic-check/`، أو يدوياً من تبويب Actions.
-يشغّل الاختبارات الـ37، يطبق الهجرات، ينشر، يضبط الأسرار المتوفرة، ثم يفحص
-الرابط الحي ويكتبه في ملخص التشغيل.
+`.github/workflows/adlytic-check-deploy.yml` فيه ثلاث مهام منفصلة:
 
-في GitHub ← Settings ← Secrets and variables ← Actions أضف:
-- **Secret** `CLOUDFLARE_API_TOKEN` (مطلوب): Cloudflare ← Account API tokens ← Create Token ← قالب **Edit Cloudflare Workers** + أضف **D1: Edit**، مقيّد بهذا الحساب فقط.
-- **Secret** `CLOUDFLARE_ACCOUNT_ID` (اختياري إذا كان التوكن لحساب واحد).
-- **Secret** `ANTHROPIC_API_KEY` و`TURNSTILE_SECRET_KEY`، و**Variable** `TURNSTILE_SITE_KEY` — لتفعيل التحليل. بدونها ينشر الموقع لكن التحليل مغلق.
+| المهمة | تحتاج أسراراً؟ | معنى نجاحها |
+|---|---|---|
+| **Test (no secrets)** | لا | فحص الأنواع + البناء + 37 اختباراً + المتصفح على 3 أحجام |
+| **Deploy to Cloudflare** | `CLOUDFLARE_API_TOKEN` | الواجهة منشورة **ومتحقق منها من الخارج**: الصحة، معرّف البناء الفعلي، التوجيه، CSP، كوكي الجلسة، وملكية التقارير على Worker وD1 الحقيقيين |
+| **Analysis readiness** | — | خدمة التحليل مهيأة بالكامل (مزوّد + Turnstile + ملح IP). حمراء مع السبب حتى تكتمل |
 
-`IP_HASH_SECRET` يُولَّد تلقائياً في أول نشر. بعد إضافة الأسرار: Actions ←
-«Adlytic Check — deploy» ← Re-run.
+تعمل عند كل push على الفرع `claude/save-for-reuse-djv4h8` يمس `adlytic-check/`، وعند
+pull request (الاختبار فقط)، أو يدوياً. بدون التوكن تبقى مهمة النشر **حمراء
+وبرسالة صريحة** — لا تُعرض كنجاح.
+
+### ما تضيفه بنفسك (لا تلصق أي مفتاح في المحادثة أو الكود)
+1. أنشئ التوكن: Cloudflare ← **Account API tokens** ← Create Token ← قالب
+   **Edit Cloudflare Workers**، ثم أضف صلاحيتين: **Account → D1 → Edit** و
+   **Account → Turnstile → Edit**. قيّده بهذا الحساب فقط.
+2. GitHub ← adlytic ← Settings ← Secrets and variables ← Actions ←
+   **New repository secret**:
+   - `CLOUDFLARE_API_TOKEN` (مطلوب)
+   - `CLOUDFLARE_ACCOUNT_ID` (فقط إذا كان التوكن يرى أكثر من حساب)
+   - `ANTHROPIC_API_KEY` (لتفعيل التحليل)
+3. أعد تشغيل آخر run من تبويب Actions (Re-run all jobs).
+
+يمكن وضع الأسرار نفسها في بيئة GitHub اسمها `adlytic-check` بدل مستوى المستودع.
+أسرار Dependabot وCodespaces **لا** تصل إلى Actions.
+
+### ما تفعله مهمة النشر تلقائياً
+- الهجرات عن بُعد (لا تعيد تطبيق المطبَّق).
+- **Turnstile:** إن كان للتوكن صلاحية Turnstile، تنشئ widget باسم `adlytic-check`
+  لنطاق `adlytic-check.<subdomain>.workers.dev` فقط (بلا localhost)، وتضع مفتاحه
+  العام في متغير `TURNSTILE_SITE_KEY` والسري في `TURNSTILE_SECRET_KEY` مباشرة عبر
+  pipe — لا يُطبع ولا يُكتب في ملف. في التشغيلات التالية تعيد استخدام نفس widget.
+- **الأسرار:** تقرأ قائمة أسرار الـWorker أولاً، وفشل القراءة يوقف المهمة (لا
+  يُعامَل كغياب). `IP_HASH_SECRET` يُولَّد مرة واحدة فقط ولا يُعاد توليده.
+  `ANTHROPIC_API_KEY` يُنسخ من سر المستودع إن وُجد.
+- **التحقق الحي** (`scripts/ci/verify-live.sh`): يطابق `build` في `/api/health` مع
+  commit التشغيل، ويثبت ملكية التقارير بزائرين اصطناعيين بتوكنات عشوائية تُولَّد
+  داخل المهمة وتُحذف صفوفهم عند الانتهاء.
 
 ## خطوات النشر (من جهاز صاحب الحساب)
 
