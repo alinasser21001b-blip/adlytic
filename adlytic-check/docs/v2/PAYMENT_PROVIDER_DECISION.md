@@ -24,7 +24,9 @@ Credits are granted in one D1 batch guarded by `credited_at IS NULL` and the led
 UNIQUE(reason='purchase', ref=order) — replays, refreshes and duplicate webhooks cannot credit
 twice. A paid amount that differs from the order is held (never credited) for manual review.
 The daily cron reconciles pending orders (inquiry), expires abandoned ones after 48 h and checks
-`paid_balance = SUM(ledger)` per account.
+`paid_balance = SUM(ledger)` per account. It runs whenever the gateway credentials exist, so
+setting `PAYMENTS_ENABLED=false` stops new orders but still credits customers who already paid
+(tested by firing the real cron handler).
 
 ## Unverified details (must be checked against the full docs before going live)
 - Exact JSON field names of init/inquiry responses (`data.transactionId`, `data.redirectUrl`,
