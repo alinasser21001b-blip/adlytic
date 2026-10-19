@@ -15,7 +15,7 @@ import {
 import { PROMPT_VERSION_V2, SYSTEM_PROMPT_V2, TOOL_NAME_V2, buildUserTextV2 } from "../prompts/ad-review-v2";
 import { leaksScaffolding } from "../services/guards";
 import { aspectOf, imageDimensions } from "../validation/dimensions";
-import { MEDICAL_RE, PREDICTION_RE, amounts, phoneNumbers, priceAmounts, stripSentences, unsupportedAmounts, unsupportedClaimTerms } from "./facts";
+import { MEDICAL_RE, amounts, predicts, phoneNumbers, priceAmounts, stripSentences, unsupportedAmounts, unsupportedClaimTerms } from "./facts";
 import {
   KNOWLEDGE_VERSION,
   RUBRIC_VERSION,
@@ -242,7 +242,7 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
   let improvedCopy = { ...raw.improvedCopy };
   let alternateOpenings = [...raw.alternateOpenings];
   let alternateCallsToAction = [...raw.alternateCallsToAction];
-  const limitations = [NOTE_CONTENT_ONLY, ...raw.limitations.filter((l) => !PREDICTION_RE.test(l))];
+  const limitations = [NOTE_CONTENT_ONLY, ...raw.limitations.filter((l) => !predicts(l))];
   if (conflict) {
     const disputed = new Set([...ownerPrices, ...imagePrices]);
     const hit = (s: string) => [...amounts(s)].some((a) => disputed.has(a));
@@ -273,7 +273,7 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
     citations.push({ sourceId: s.sourceId, title: s.title, publisher: s.publisher, url: s.url, evidenceType: s.evidenceType, access: s.access, publishedAt: s.publishedAt, secondaryOnly: s.verification === "unverified_secondary" });
   }
 
-  const noPrediction = (s: string) => stripSentences(s, (x) => PREDICTION_RE.test(x)) || s.replace(PREDICTION_RE, "");
+  const noPrediction = (s: string) => (predicts(s) ? stripSentences(s, predicts) : s);
   const core: V2Core = {
     schemaVersion: "2",
     versions: { rubricVersion: RUBRIC_VERSION, knowledgeVersion: KNOWLEDGE_VERSION, promptVersion: PROMPT_VERSION_V2, providerModel: ctx.model },

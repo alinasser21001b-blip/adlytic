@@ -155,6 +155,8 @@ const providerEvidence = z.object({
   source: z.enum(["visible_text", "visual_observation", "audio_transcript"]),
   text: short(220),
   location: z.enum(["top", "middle", "bottom", "whole", "unknown"]).optional(),
+  /** For visible_text: how large the text is relative to the image. */
+  size: z.enum(["large", "medium", "small", "tiny"]).optional(),
   timeSec: z.number().min(0).max(600).nullable().optional(),
   confidence: z.enum(["high", "medium", "low"]),
 });
@@ -206,6 +208,7 @@ export interface EvidenceItem {
   source: EvidenceKind;
   text: string;
   location?: "top" | "middle" | "bottom" | "whole" | "unknown";
+  size?: "large" | "medium" | "small" | "tiny";
   timeSec?: number | null;
   confidence: "high" | "medium" | "low";
 }

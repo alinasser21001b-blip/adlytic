@@ -23,32 +23,33 @@ interface Request {
   repeatIds?: string[];
   only?: string[];
   timeoutMs?: number;
+  maxOutputTokens?: number;
   note?: string;
 }
 
-type Engine = (c: FixtureCase, provider: VisionProvider, hooks: EngineHooks, timeoutMs: number) => Promise<{ outcome: EngineOutcome<unknown>; view: ReportView | null }>;
+type Engine = (c: FixtureCase, provider: VisionProvider, hooks: EngineHooks, timeoutMs: number, maxOutputTokens: number) => Promise<{ outcome: EngineOutcome<unknown>; view: ReportView | null }>;
 
 const ENGINES: Record<string, Engine> = {
-  async v1(c, provider, hooks, timeoutMs) {
+  async v1(c, provider, hooks, timeoutMs, maxOutputTokens) {
     const outcome = await runV1({
       input: { industry: c.industry as never, goal: c.goal as never, adCopy: c.adCopy, audience: c.audience, additionalContext: c.additionalContext },
       mode: c.mode,
       image: c.image ? { mime: "image/jpeg", bytes: new Uint8Array(readFileSync(join(here, "fixtures", c.image.file))) } : undefined,
       provider,
       timeoutMs,
-      maxOutputTokens: 3000,
+      maxOutputTokens,
       hooks,
     });
     return { outcome, view: outcome.ok ? viewV1(outcome.report) : null };
   },
-  async v2(c, provider, hooks, timeoutMs) {
+  async v2(c, provider, hooks, timeoutMs, maxOutputTokens) {
     const outcome = await runV2({
       input: { industry: c.industry as never, goal: c.goal as never, adCopy: c.adCopy, audience: c.audience, additionalContext: c.additionalContext },
       mode: c.mode,
       image: c.image ? { mime: "image/jpeg", bytes: new Uint8Array(readFileSync(join(here, "fixtures", c.image.file))) } : undefined,
       provider,
       timeoutMs,
-      maxOutputTokens: 4000,
+      maxOutputTokens,
       hooks,
       showIndex: true,
     });
@@ -96,7 +97,14 @@ export function viewV1(r: ProviderReport): ReportView {
 }
 
 async function main() {
-  const req: Request = JSON.parse(readFileSync(process.argv[2] ?? join(here, "run-request.json"), "utf8"));
+  const file = JSON.parse(readFileSync(process.argv[2] ?? join(here, "run-request.json"), "utf8"));
+  const runs: Request[] = Array.isArray(file.runs) ? file.runs : [file];
+  const index = Number(process.argv[3] ?? 0);
+  const req = runs[index];
+  if (!req) {
+    console.log(`EVAL_SKIP no run at index ${index}`);
+    return;
+  }
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not set");
   const engine = ENGINES[req.engine];
@@ -119,7 +127,7 @@ async function main() {
       const started = Date.now();
       let res: Awaited<ReturnType<Engine>>;
       try {
-        res = await engine!(c, provider, hooks, req.timeoutMs ?? 45000);
+        res = await engine!(c, provider, hooks, req.timeoutMs ?? 60000, req.maxOutputTokens ?? 4096);
       } catch (e) {
         console.log(`EVAL_ERROR ${c.id} ${e instanceof Error ? e.message : e}`);
         continue;
@@ -153,7 +161,7 @@ async function main() {
   const agree = pairs.map(([a, b]) => { const x = axesOf(a!), y = axesOf(b); return x.filter((v, i) => v === y[i]).length / Math.max(1, x.length); });
 
   const summary = {
-    engine: req.engine, model: req.model, split: req.split, note: req.note ?? null,
+    runIndex: index, engine: req.engine, model: req.model, split: req.split, timeoutMs: req.timeoutMs ?? 60000, maxOutputTokens: req.maxOutputTokens ?? 4096, note: req.note ?? null,
     jobs: jobs.length, completed: ok.length, failed: first.length - ok.length,
     failures: first.filter((r) => !r.ok).map((r) => `${r.id}:${r.reason}`),
     providerCalls: calls, callCapHit: calls >= req.maxCalls,
@@ -174,7 +182,7 @@ async function main() {
   };
   console.log(`EVAL_SUMMARY ${JSON.stringify(summary)}`);
   mkdirSync(join(here, "out"), { recursive: true });
-  writeFileSync(join(here, "out", `${req.engine}-${req.split}.json`), JSON.stringify({ summary, results }, null, 1));
+  writeFileSync(join(here, "out", `run${index}-${req.engine}-${req.model}-${req.split}.json`), JSON.stringify({ summary, results }, null, 1));
 }
 
 function viewAny(r: Record<string, unknown>): ReportView | null {

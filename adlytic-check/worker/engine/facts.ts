@@ -12,10 +12,11 @@ const MULTIPLIERS: Array<[RegExp, number]> = [
 export function amounts(text: string): Set<string> {
   const s = normalizeDigits(text);
   const out = new Set<string>();
-  const re = /\d(?:[\d,٬]|[.\s](?=\d{3}(?!\d)))*\d|\d/g;
+  // Thousands separators: "," "٬" anywhere between digits; "." "،" "٫" or a space only before exactly 3 digits.
+  const re = /\d(?:[\d,٬]|[.\s،٫](?=\d{3}(?!\d)))*\d|\d/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(s))) {
-    const raw = m[0].replace(/[,٬.\s]/g, "");
+    const raw = m[0].replace(/[,٬.\s،٫]/g, "");
     if (!raw) continue;
     out.add(stripZeros(raw));
     const rest = s.slice(m.index + m[0].length, m.index + m[0].length + 8);
@@ -72,6 +73,11 @@ const SENTENCE_SPLIT = /(?<=[.!؟?\n،])/;
 /** Drop sentences that carry an unsupported amount or claim term. */
 export function stripSentences(text: string, offends: (sentence: string) => boolean): string {
   return text.split(SENTENCE_SPLIT).filter((p) => !offends(p)).join("").replace(/\s+([.،!؟])/g, "$1").trim();
+}
+
+/** A prediction claim, unless the sentence negates it ("لا نستطيع التنبؤ… نسبة النجاح"). */
+export function predicts(sentence: string): boolean {
+  return PREDICTION_RE.test(sentence) && !/(^|\s)(لا|لن|ليس|ليست|دون|بدون)(\s|$)|لا يمكن|لا نستطيع/.test(sentence);
 }
 
 export const PREDICTION_RE = /سيجلب|ستجلب|سيحقق|ستحقق|سيزيد المبيعات|ستزيد المبيعات|مبيعات أكثر بنسبة|طلبات أكثر بنسبة|نسبة النجاح|مضمون النجاح|سينجح|الخوارزمية ستفضل|ستفضله الخوارزمية/;

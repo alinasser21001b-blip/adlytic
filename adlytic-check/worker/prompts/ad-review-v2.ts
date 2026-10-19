@@ -2,7 +2,7 @@ import { GOALS, INDUSTRIES, type AnalysisMode, type Goal, type Industry } from "
 import { LEVEL_ANCHORS, type Dimension, type Rule } from "../engine/kb";
 
 export const TOOL_NAME_V2 = "submit_ad_review_v2";
-export const PROMPT_VERSION_V2 = "v2-2026-10-19.1";
+export const PROMPT_VERSION_V2 = "v2-2026-10-19.2";
 
 const INDUSTRY_HINTS: Record<Industry, string> = {
   furniture: "dimensions, material/fabric, colours, delivery area, whether assembly is included",
@@ -25,11 +25,12 @@ export const SYSTEM_PROMPT_V2 = `You review ad creatives for small online shops 
 
 ## Method
 1. EVIDENCE first. List what you can actually observe, each with an id:
-   - T1, T2… visible_text: text you can read in the image, quoted exactly as written (keep the original digits). Only text you can read with certainty; if text is too small or unclear, do not quote it — record a V item saying it is unreadable.
+   - T1, T2… visible_text: text you can read in the image, quoted exactly as written (keep the original digits), with location and size (large | medium | small | tiny relative to the image). Only text you can read with certainty; if text is too small or unclear, do not quote it — record a V item saying it is unreadable.
+     Eastern Arabic digits: the zero «٠» is a small dot and is easy to misread as a period or to drop. Read every digit group carefully; if you are not sure of every digit of a number, set confidence "low" and never use that number in the copy.
    - V1, V2… visual_observation: short factual observations (what product is shown, layout, crowding, contrast, where text sits: top/middle/bottom).
    The server already provides U1 (owner's ad text), U2 (audience), U3 (extra context) and M1… (measured metadata). Reference them by id; do not repeat them as new evidence.
    Never transcribe phone numbers or personal data; write "رقم هاتف" instead.
-2. ASSESS each rubric dimension listed in the request: status strong | needs_improvement | unknown | not_applicable, a level 0–4 using the anchors, the evidence ids that support it (required for strong/needs_improvement) and the rule ids you applied (only ids from the provided rule list). Use unknown when the evidence is not enough — never guess.
+2. ASSESS each rubric dimension listed in the request (legibility: small or tiny key text — price, product name, how to order — or weak contrast is needs_improvement; judge the text, not the photo style): status strong | needs_improvement | unknown | not_applicable, a level 0–4 using the anchors, the evidence ids that support it (required for strong/needs_improvement) and the rule ids you applied (only ids from the provided rule list). Use unknown when the evidence is not enough — never guess.
 3. FIXES: up to 3, most important first, only for real problems, each tied to evidence ids and rule ids.
 4. COPY: one improved Arabic version, plus up to 2 alternate opening lines and up to 2 alternate calls to action (so the owner can A/B test them in Ads Manager).
 
@@ -48,7 +49,8 @@ ${Object.entries(LEVEL_ANCHORS).map(([k, v]) => `${k} = ${v}`).join("; ")}
 strong means level 3–4; needs_improvement means level 0–2.
 
 ## Language
-All user-facing strings in clear, friendly Arabic a shop owner in Iraq understands — light and natural, no heavy dialect, no English unless it is a brand/product name from the ad. Avoid jargon: «الافتتاحية» not "hook", «طريقة الطلب» not "CTA". Keep every field short.
+All user-facing strings in clear, friendly Arabic a shop owner in Iraq understands — light and natural, no heavy dialect, no English unless it is a brand/product name from the ad. Avoid jargon: «الافتتاحية» not "hook", «طريقة الطلب» not "CTA".
+Be brief: every observation, fix and step is one short sentence (about 12–20 words). Evidence text is a quote or a short phrase. The whole report should stay compact.
 
 Call ${TOOL_NAME_V2} exactly once.`;
 

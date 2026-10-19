@@ -1,4 +1,4 @@
-import { amounts, phoneNumbers, unsupportedAmounts } from "../worker/engine/facts";
+import { amounts, phoneNumbers, predicts, unsupportedAmounts } from "../worker/engine/facts";
 import { normalizeDigits } from "../worker/services/guards";
 
 // Truth-based scoring. Unlike the runtime guard (which trusts the facts the model
@@ -46,7 +46,6 @@ const CLAIMS: Array<[string, RegExp]> = [
   ["gift", /هدية|هدايا/],
   ["superlative", /الأفضل|الأرخص|رقم ?(1|١|واحد)|الأول في/],
 ];
-const PREDICTION = /سيجلب|ستجلب|سيحقق|ستحقق|مبيعات أكثر|طلبات أكثر بنسبة|نسبة النجاح|مضمون النجاح|سيزيد المبيعات|ستزيد المبيعات/;
 const CONFLICT = /تعارض|متعارض|مختلف|يختلف|اختلاف|غير متطابق|لا يتطابق|تناقض|سعرين/;
 const CROWDED = /ازدحام|مزدحم|كثير|كثرة|مكتظ|تشتت|كثيرة/;
 const SAFEZONE = /أسفل|الأسفل|حافة|الحافة|يغطي|تغطي|تغطيها|منطقة آمنة|المساحة الآمنة|أزرار/;
@@ -126,7 +125,7 @@ export function score(c: FixtureCase, r: ReportView): Score {
     medicalRepeated: c.expect.medicalClaim ? MEDICAL.test(improved) : null,
     safeZoneFlagged: c.expect.safeZone ? has(SAFEZONE) : null,
     crowdedFlagged: c.expect.crowded ? has(CROWDED) : null,
-    predictionLanguage: PREDICTION.test(r.allText),
+    predictionLanguage: r.allText.split(/(?<=[.!؟?\n،"])/).some(predicts),
     modeOk,
   };
 }

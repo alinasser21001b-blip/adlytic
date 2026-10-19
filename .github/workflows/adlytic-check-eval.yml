@@ -22,6 +22,10 @@ jobs:
   eval:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        run: [0, 1, 2, 3]
     environment: adlytic-check
     defaults:
       run:
@@ -43,10 +47,10 @@ jobs:
       - name: Run benchmark
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        run: npx tsx eval/run.ts eval/run-request.json
+        run: npx tsx eval/run.ts eval/run-request.json ${{ matrix.run }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: eval-results
+          name: eval-results-${{ matrix.run }}
           path: adlytic-check/eval/out/
           retention-days: 14
