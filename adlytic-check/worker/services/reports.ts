@@ -15,17 +15,27 @@ interface OwnedRow {
  * Owner-only lookup. A report that is missing, someone else's, deleted, or
  * expired all produce the SAME 404 — a caller cannot learn which.
  */
+// Owner = the account that holds the report, or — for a report no account holds yet —
+// the guest browser that created it. ?2 = now, ?3 = user id, ?4 = visitor id.
+const OWNED_LIVE = `status = 'completed' AND deleted_at IS NULL AND expires_at > ?2
+       AND ((?3 IS NOT NULL AND user_id = ?3) OR (user_id IS NULL AND ?4 IS NOT NULL AND visitor_id = ?4))`;
+
+/** The stored report JSON if this owner holds a live report with this id; null otherwise (never says why). */
+export async function ownedReportJson(db: D1Database, id: string, userId: string | null, visitorId: string | null): Promise<string | null> {
+  if (!/^[A-Za-z0-9_-]{8,64}$/.test(id) || (!userId && !visitorId)) return null;
+  const row = await db
+    .prepare(`SELECT report_json FROM analyses WHERE id = ?1 AND ${OWNED_LIVE}`)
+    .bind(id, Date.now(), userId, visitorId)
+    .first<{ report_json: string | null }>();
+  return row?.report_json ?? null;
+}
+
 async function ownedLiveReport(c: Ctx, id: string): Promise<{ visitorId: string | null; row: OwnedRow }> {
   const [visitorId, user] = await Promise.all([currentVisitor(c), currentUser(c)]);
   if (!visitorId && !user) throw new HttpError(401, "SESSION_REQUIRED");
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) throw new HttpError(404, "REPORT_NOT_FOUND");
-  // Owner = the account that holds the report, or — for a report no account holds yet —
-  // the guest browser that created it. Everyone else gets the same 404.
-  const row = await c.env.DB.prepare(
-    `SELECT id, report_json, share_token_hash, share_created_at FROM analyses
-     WHERE id = ?1 AND status = 'completed' AND deleted_at IS NULL AND expires_at > ?2
-       AND ((?3 IS NOT NULL AND user_id = ?3) OR (user_id IS NULL AND ?4 IS NOT NULL AND visitor_id = ?4))`,
-  )
+  // Everyone but the owner gets the same 404.
+  const row = await c.env.DB.prepare(`SELECT id, report_json, share_token_hash, share_created_at FROM analyses WHERE id = ?1 AND ${OWNED_LIVE}`)
     .bind(id, Date.now(), user?.id ?? null, visitorId)
     .first<OwnedRow>();
   if (!row || !row.report_json) throw new HttpError(404, "REPORT_NOT_FOUND");

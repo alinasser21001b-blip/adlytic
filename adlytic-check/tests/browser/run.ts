@@ -103,6 +103,8 @@ async function main() {
     await accountJourney(browser, 390);
     await accountJourney(browser, 1440);
     await realReports(browser, dir);
+    await recheckJourney(browser, 390);
+    await recheckJourney(browser, 1440);
     for (const [w, h] of [[390, 844], [768, 1024], [1440, 900]] as const) {
       console.log(`\n── ${w}×${h}`);
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: "ar", ...(ENGINE === "chromium" ? { permissions: ["clipboard-read", "clipboard-write"] } : {}) });
@@ -335,4 +337,51 @@ async function realReports(browser: Browser, dir: string) {
     check(`${w}px: no console errors on real reports`, errors.length === 0, errors.slice(0, 3).join(" | "));
     await ctx.close();
   }
+}
+
+/** Re-check: a second check compared with the first, from the report's own button. */
+async function recheckJourney(browser: Browser, w: number) {
+  console.log(`\n── re-check at ${w}px`);
+  const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: "ar" });
+  await ctx.route("https://challenges.cloudflare.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: TURNSTILE_STUB }));
+  await fetch(`${MOCK}/__idp/next-sub`, { method: "POST", body: `recheck-${ENGINE}-${w}-${Date.now()}` });
+  const page = await ctx.newPage();
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
+  page.on("console", (m) => m.type() === "error" && !/status of (401|402|409|429)/.test(m.text()) && errors.push(m.text()));
+  await page.goto(ACC, { waitUntil: "networkidle" });
+  await page.click('.login-callout a:has-text("تسجيل الدخول")');
+  await page.waitForURL(`${ACC}/`);
+  await page.waitForFunction(() => /\d/.test(document.querySelector(".balance-chip")?.textContent ?? ""));
+
+  const submit = async () => {
+    await page.waitForFunction(() => !(document.querySelector('button[type="submit"]') as HTMLButtonElement).disabled);
+    await page.click('button[type="submit"]');
+    await page.waitForSelector(".result.v2", { timeout: 30_000 });
+  };
+  await page.setInputFiles('input[type="file"]', FIXTURE);
+  await page.waitForSelector(".preview img");
+  await page.fill("textarea", "كنبة مخمل زيتوني مريحة.");
+  await page.selectOption("select", "furniture");
+  await submit();
+  check("report offers a re-check after the steps", await page.isVisible('.recheck-cta button:has-text("افحص مرة أخرى")'));
+  await page.click('.recheck-cta button:has-text("افحص مرة أخرى")');
+  await page.waitForSelector(".recheck-banner");
+  check("form says it will compare, keeps the text and the industry", ((await page.inputValue("textarea")) === "كنبة مخمل زيتوني مريحة.") && (await page.inputValue("select")) === "furniture");
+  await page.click('.recheck-banner button:has-text("استخدم النص المقترح")');
+  check("suggested copy can be taken over", ((await page.inputValue("textarea")) ?? "").includes("راسلنا على الخاص"));
+  await page.fill("textarea", "كنبة مخمل زيتوني مريحة. راسلنا على الخاص [[MOCK:cta_fixed]]");
+  await page.setInputFiles('input[type="file"]', FIXTURE);
+  await page.waitForSelector(".preview img");
+  await submit();
+  await page.waitForSelector(".recheck");
+  check("comparison shows the CTA fix as applied", ((await page.textContent(".recheck-fixes")) ?? "").includes("طُبّق"));
+  check("comparison summary counts it", ((await page.textContent(".recheck-summary")) ?? "").includes("١ من ١"));
+  check("no horizontal overflow (re-check result)", await noHorizontalOverflow(page));
+  await page.reload({ waitUntil: "networkidle" });
+  await page.waitForSelector(".recheck");
+  check("comparison is stored with the report (survives reload)", true);
+  check("no console errors (re-check)", errors.length === 0, errors.slice(0, 3).join(" | "));
+  await page.screenshot({ path: `${OUT}/recheck-${ENGINE}-${w}.png`, fullPage: true });
+  await ctx.close();
 }

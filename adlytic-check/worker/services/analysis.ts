@@ -7,10 +7,12 @@ import {
   type AnalysisReportV2,
   type AnyAnalysisReport,
   type ProviderReport,
+  type RecheckComparison,
 } from "../../shared/schemas";
 import { config, HttpError, QUOTA_WINDOW_MS, randomToken, readBodyLimited, sha256Hex, utcDay, type Config, type Ctx } from "../lib";
 import type { EngineHooks, EngineOutcome, EngineTelemetry } from "../engine/types";
 import { runV1 } from "../engine/v1";
+import { compareReports } from "../engine/recheck";
 import { runV2, type V2Core } from "../engine/v2";
 import { anthropicProvider } from "../providers/vision";
 import { validateImage, type ImageMime } from "../validation/image";
@@ -21,6 +23,7 @@ import { sanitizeShareTips } from "./guards";
 import { PRICE_VERSION } from "../../shared/credits";
 import { currentUser, requireUser, type CurrentUser } from "./auth";
 import { balanceOf, consume, release, reserve } from "./credits";
+import { ownedReportJson } from "./reports";
 import { requireVisitor } from "./session";
 import { verifyTurnstile } from "./turnstile";
 
@@ -93,6 +96,9 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   });
   if (!parsed.success) throw new HttpError(400, "INVALID_INPUT");
   const input = parsed.data;
+  // Re-check: the earlier report to compare with. Malformed → 400; not this owner's (or gone) → no comparison.
+  const parentId = field("parentId") || null;
+  if (parentId && !/^[A-Za-z0-9_-]{8,64}$/.test(parentId)) throw new HttpError(400, "INVALID_INPUT");
   const creditField = field("credit") ?? "free";
   if (creditField !== "free" && creditField !== "paid") throw new HttpError(400, "INVALID_INPUT");
   const priceVersion = field("priceVersion") ?? null;
@@ -234,9 +240,15 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     });
   }
 
+  let recheck: RecheckComparison | undefined;
+  if (parentId && "schemaVersion" in outcome.report) {
+    const parentJson = await ownedReportJson(db, parentId, user?.id ?? null, visitorId);
+    const parent = parentJson ? (JSON.parse(parentJson) as AnyAnalysisReport) : null;
+    if (parent && parent.schemaVersion === "2") recheck = compareReports(parent, outcome.report as V2Core, input.adCopy);
+  }
   const report: AnyAnalysisReport =
     "schemaVersion" in outcome.report
-      ? buildReportV2(id, mode, input, now, now + cfg.retentionMs, outcome.report as V2Core)
+      ? { ...buildReportV2(id, mode, input, now, now + cfg.retentionMs, outcome.report as V2Core), ...(recheck ? { recheck } : {}) }
       : buildReport(id, mode, input, now, now + cfg.retentionMs, outcome.report as ProviderReport, outcome.telemetry.stripped);
   // 6. Publish only if THIS request still owns a live reservation (that is when the unit is spent).
   const published = user
@@ -256,7 +268,8 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     c.executionCtx.waitUntil(recordEvent(db, "check_failed", visitorId, id, { reason: "reservation_expired", latencyMs: latency }));
     throw new HttpError(503, "ANALYSIS_UNAVAILABLE", { retryable: true });
   }
-  c.executionCtx.waitUntil(recordEvent(db, "check_completed", visitorId, id, { mode, latencyMs: latency }));
+  if (recheck) c.executionCtx.waitUntil(db.prepare("UPDATE analyses SET parent_id = ?2 WHERE id = ?1").bind(id, recheck.parentId).run().then(() => undefined));
+  c.executionCtx.waitUntil(recordEvent(db, "check_completed", visitorId, id, { mode, latencyMs: latency, ...(recheck ? { recheck: true } : {}) }));
   return c.json(report, 200, { "Cache-Control": "no-store" });
 }
 

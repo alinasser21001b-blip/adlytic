@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AnyAnalysisReport, SessionInfo } from "../../shared/schemas";
+import type { AnalysisReportV2, AnyAnalysisReport, SessionInfo } from "../../shared/schemas";
 import { AccountBar } from "../features/account/AccountBar";
 import { accountApi, type Me } from "../features/account/api";
 import { PaymentBanner } from "../features/account/Purchase";
@@ -28,6 +28,8 @@ export function App() {
   const [me, setMe] = useState<Me | null>(null);
   const [recent, setRecent] = useState<Array<{ id: string; mode: string; createdAt: string; title: string }>>([]);
   const [reportState, setReportState] = useState<"idle" | "loading" | "gone">("idle");
+  // Re-check: the earlier report the next check is compared with (kept in memory only).
+  const [recheckFrom, setRecheckFrom] = useState<AnalysisReportV2 | null>(null);
 
   const refreshSession = useCallback(() => {
     api
@@ -68,6 +70,7 @@ export function App() {
   }
 
   function onDone(report: AnyAnalysisReport, previewUrl: string | null) {
+    setRecheckFrom(null);
     setResult({ report, previewUrl, shareActive: false });
     history.pushState(null, "", `/r/${report.id}`);
     setRoute({ name: "report", id: report.id });
@@ -76,7 +79,13 @@ export function App() {
     window.scrollTo({ top: 0 });
   }
 
-  function newCheck() {
+  function recheck(from: AnalysisReportV2) {
+    setRecheckFrom(from);
+    newCheck(true);
+  }
+
+  function newCheck(keepRecheck = false) {
+    if (!keepRecheck) setRecheckFrom(null);
     if (result?.previewUrl) URL.revokeObjectURL(result.previewUrl);
     setResult(null);
     api.event("new_check_started");
@@ -107,7 +116,8 @@ export function App() {
                 report={result.report}
                 previewUrl={result.previewUrl}
                 shareActive={result.shareActive}
-                onNewCheck={newCheck}
+                onNewCheck={() => newCheck()}
+                onRecheck={() => recheck(result.report as AnalysisReportV2)}
                 onDeleted={() => {
                   setResult(null);
                   refreshSession();
@@ -119,7 +129,7 @@ export function App() {
               report={result.report}
               previewUrl={result.previewUrl}
               shareActive={result.shareActive}
-              onNewCheck={newCheck}
+              onNewCheck={() => newCheck()}
               onDeleted={() => {
                 setResult(null);
                 refreshSession();
@@ -131,7 +141,7 @@ export function App() {
             <div className="card center">
               <p role="status">{reportState === "gone" ? t.reportGone : t.loadingReport}</p>
               {reportState === "gone" && (
-                <button type="button" className="btn primary" onClick={newCheck}>
+                <button type="button" className="btn primary" onClick={() => newCheck()}>
                   {t.newCheck}
                 </button>
               )}
@@ -165,7 +175,7 @@ export function App() {
                   {sessionError}
                 </p>
               )}
-              {session ? <CheckForm session={session} me={me} onDone={onDone} onQuotaChanged={refreshSession} /> : !sessionError && <div className="card skeleton" aria-hidden="true" />}
+              {session ? <CheckForm session={session} me={me} onDone={onDone} onQuotaChanged={refreshSession} recheckFrom={recheckFrom} onCancelRecheck={() => setRecheckFrom(null)} /> : !sessionError && <div className="card skeleton" aria-hidden="true" />}
               {recent.length > 0 && (
                 <section className="history" aria-labelledby="history-title">
                   <h2 id="history-title">تقاريرك الأخيرة</h2>

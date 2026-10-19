@@ -295,6 +295,32 @@ export interface MediaInfo {
   audio?: "no_audio" | "silence" | "speech_transcribed" | "unavailable";
 }
 
+export interface RecheckDimension {
+  dimension: DimensionId;
+  labelAr: string;
+  before: DimensionStatus;
+  after: DimensionStatus;
+  change: "improved" | "same" | "worse" | "not_comparable";
+}
+
+export interface RecheckFix {
+  dimension: DimensionId;
+  labelAr: string;
+  /** The earlier fix, as the owner saw it. */
+  change: string;
+  outcome: "applied" | "partly" | "not_yet" | "unclear";
+}
+
+export interface RecheckComparison {
+  parentId: string;
+  parentCreatedAt: string;
+  summaryAr: string;
+  fixes: RecheckFix[];
+  dimensions: RecheckDimension[];
+  copyChanged: boolean;
+  usedSuggestedCopy: boolean;
+}
+
 export interface TimelineEntry {
   timeSec: number;
   source: EvidenceKind;
@@ -317,6 +343,8 @@ export interface AnalysisReportV2 {
   /** Video only: what was covered (frames, audio) in plain Arabic. */
   coverageAr?: string;
   timeline?: TimelineEntry[];
+  /** Re-check only: how this check compares with the owner's earlier report (server-computed). */
+  recheck?: RecheckComparison;
   evidence: EvidenceItem[];
   dimensions: DimensionResult[];
   index: QualityIndex;

@@ -301,3 +301,18 @@ select { appearance: none; background: var(--surface-solid) url("data:image/svg+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
+
+/* Re-check: the invitation under the steps, the banner on the form, and the comparison */
+.recheck-cta { display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); justify-items: start; }
+.recheck-banner { display: grid; gap: 10px; padding: 14px; margin-bottom: 14px; border-radius: var(--radius-sm); background: linear-gradient(135deg, var(--accent-weak), var(--gold-weak)); }
+.recheck-banner p { margin: 0; }
+.recheck { border-inline-start: 4px solid var(--accent); }
+.recheck-summary { font-weight: 600; margin: 6px 0 10px; }
+.recheck-fixes, .recheck-dims { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.recheck-fixes li { display: flex; gap: 10px; align-items: flex-start; }
+.recheck-dims { margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.recheck-dims li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px; }
+.oc { flex: none; padding: 2px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; white-space: nowrap; background: var(--surface-2); color: var(--muted); }
+.oc.applied { background: var(--accent-weak); color: var(--accent-deep); }
+.oc.partly { background: var(--gold-weak); color: #7a5a17; }
+.oc.not_yet { background: #fbefef; color: #7d2323; }

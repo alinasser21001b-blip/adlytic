@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { GOALS, INDUSTRIES, LIMITS, type Goal, type Industry } from "../../../shared/constants";
-import type { AnyAnalysisReport, SessionInfo } from "../../../shared/schemas";
+import type { AnalysisReportV2, AnyAnalysisReport, SessionInfo } from "../../../shared/schemas";
 import { t } from "../../i18n/ar";
 import { fmtIQD, fmtWhen, loginHref, type Me } from "../account/api";
 import { BuyChecks } from "../account/Purchase";
@@ -14,6 +14,9 @@ interface Props {
   me: Me | null;
   onDone: (report: AnyAnalysisReport, previewUrl: string | null) => void;
   onQuotaChanged: () => void;
+  /** Re-check: compare the next check with this earlier report. */
+  recheckFrom?: AnalysisReportV2 | null;
+  onCancelRecheck?: () => void;
 }
 
 interface FormError {
@@ -24,7 +27,7 @@ interface FormError {
   next?: "login" | "consent" | "buy";
 }
 
-export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
+export function CheckForm({ session, me, onDone, onQuotaChanged, recheckFrom, onCancelRecheck }: Props) {
   const ids = { copy: useId(), copyHint: useId(), industry: useId(), audience: useId(), context: useId(), image: useId(), imageHint: useId() };
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -47,6 +50,15 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
   const [uploaded, setUploaded] = useState(0);
   const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<FormError | null>(null);
+
+  // Re-check: start from what the owner sent last time; the image is never stored, so it is uploaded again.
+  useEffect(() => {
+    if (!recheckFrom) return;
+    setIndustry(recheckFrom.industry);
+    setGoal(recheckFrom.goal);
+    setAdCopy(recheckFrom.originalCopy ?? "");
+  }, [recheckFrom]);
+  const suggestedCopy = recheckFrom ? [recheckFrom.improvedCopy.opening, recheckFrom.improvedCopy.body, recheckFrom.improvedCopy.callToAction].join("\n\n") : "";
   const keyRef = useRef<string | null>(null);
   const tokenRef = useRef<string | null>(null);
   tokenRef.current = token;
@@ -203,6 +215,7 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
     fd.append("audience", audience.trim());
     fd.append("additionalContext", context.trim());
     fd.append("idempotencyKey", keyRef.current);
+    if (recheckFrom) fd.append("parentId", recheckFrom.id);
     fd.append("turnstileToken", tk);
     if (opts.paid && me?.balance) {
       // Explicit consent: one paid unit at the price the owner was shown.
@@ -269,7 +282,25 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
         void submit();
       }}
     >
-      <h2 id="form-title">{t.formTitle}</h2>
+      <h2 id="form-title">{recheckFrom ? "افحص إعلانك بعد التعديل" : t.formTitle}</h2>
+      {recheckFrom && (
+        <div className="recheck-banner" role="note">
+          <p>
+            سنقارن هذا الفحص بتقريرك من {fmtDate(recheckFrom.createdAt)} ونُظهر أي الإصلاحات طبّقتها. عدّل النص كما ستنشره
+            {recheckFrom.mode !== "text_only" ? " وارفع الصورة أو الفيديو بعد التعديل" : ""}.
+          </p>
+          <div className="row-actions">
+            {suggestedCopy && (
+              <button type="button" className="btn ghost" onClick={() => setAdCopy(suggestedCopy.slice(0, LIMITS.adCopy))} disabled={busy}>
+                استخدم النص المقترح
+              </button>
+            )}
+            <button type="button" className="btn ghost" onClick={onCancelRecheck} disabled={busy}>
+              فحص جديد بدون مقارنة
+            </button>
+          </div>
+        </div>
+      )}
       {accountsMode && !loggedIn && session.accounts.loginAvailable && (
         <div className="login-callout">
           <p>سجّل الدخول بحساب Google لتحصل على فحصين مجانيين، ثم فحص جديد كل 24 ساعة. لا نحفظ بريدك أو اسمك.</p>

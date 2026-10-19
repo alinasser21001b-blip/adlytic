@@ -70,10 +70,11 @@ export class Client {
     return fd;
   }
 
-  async check(f: CheckFields & { credit?: string; priceVersion?: string }) {
+  async check(f: CheckFields & { credit?: string; priceVersion?: string; parentId?: string }) {
     const fd = this.form(f);
     if (f.credit) fd.append("credit", f.credit);
     if (f.priceVersion) fd.append("priceVersion", f.priceVersion);
+    if (f.parentId) fd.append("parentId", f.parentId);
     const res = await fetch(`${this.base}/api/check`, { method: "POST", headers: this.headers(), body: fd });
     const text = await res.text();
     let body: any = null;

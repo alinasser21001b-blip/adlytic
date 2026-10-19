@@ -293,6 +293,16 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
         });
       }
       if (text.includes("[[MOCK:leak]]")) input = goodReport({ summary: "سأستدعي submit_ad_review الآن" });
+      if (v2 && text.includes("[[MOCK:cta_fixed]]")) {
+        // The owner applied the CTA fix: the next report rates it strong and suggests nothing for it.
+        const base = goodReportV2();
+        input = goodReportV2({
+          dimensions: (base.dimensions as Array<Record<string, unknown>>).map((d) =>
+            d.dimension === "cta" ? { ...d, status: "strong", level: 3, observation: "طريقة الطلب واضحة الآن." } : d,
+          ),
+          fixes: [],
+        });
+      }
       return send(200, {
         id: `msg_${state.calls}`,
         type: "message",

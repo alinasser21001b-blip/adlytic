@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { AnalysisReportV2, DimensionResult, EvidenceItem } from "../../../shared/schemas";
+import type { AnalysisReportV2, DimensionResult, EvidenceItem, RecheckComparison } from "../../../shared/schemas";
 import { t } from "../../i18n/ar";
 import { api } from "./api";
 import { fmtDate } from "./CheckForm";
@@ -11,7 +11,16 @@ interface Props {
   shareActive: boolean;
   onNewCheck: () => void;
   onDeleted: () => void;
+  /** Start a new check compared with this report. */
+  onRecheck?: () => void;
 }
+
+const OUTCOME_AR: Record<RecheckComparison["fixes"][number]["outcome"], string> = {
+  applied: "طُبّق",
+  partly: "تحسّن جزئياً",
+  not_yet: "لم يُطبّق بعد",
+  unclear: "غير واضح",
+};
 
 const STATUS_AR: Record<DimensionResult["status"], string> = {
   strong: "واضح",
@@ -40,7 +49,7 @@ const EVIDENCE_TYPE_AR: Record<string, string> = {
 const STRENGTH_AR = { strong: "قوي", moderate: "متوسط", weak: "ضعيف", hypothesis: "فرضية" } as const;
 const JUDGE_AR = { detectable: "يُرى مباشرة", inference: "استنتاج", not_judgeable: "لا يُحكم عليه من المحتوى" } as const;
 
-export function ReportV2({ report: r, previewUrl, shareActive, onNewCheck, onDeleted }: Props) {
+export function ReportV2({ report: r, previewUrl, shareActive, onNewCheck, onDeleted, onRecheck }: Props) {
   const evidence = new Map(r.evidence.map((e) => [e.id, e]));
   const top = r.fixes[0];
   const copy = r.improvedCopy;
@@ -64,6 +73,9 @@ export function ReportV2({ report: r, previewUrl, shareActive, onNewCheck, onDel
         <p className="summary">{r.summary}</p>
         {r.mode === "text_only" && <p className="badge na">{t.modeTextOnly}</p>}
       </header>
+
+      {/* 1b. Re-check: what changed since the owner's earlier report */}
+      {r.recheck && <RecheckSection c={r.recheck} />}
 
       {/* 2. The one fix that matters most */}
       <section className={`card lens first-fix reveal${top ? "" : " calm"}`} aria-labelledby="first-fix">
@@ -89,6 +101,14 @@ export function ReportV2({ report: r, previewUrl, shareActive, onNewCheck, onDel
             <li key={n}>{s}</li>
           ))}
         </ol>
+        {onRecheck && (
+          <div className="recheck-cta">
+            <p className="meta">بعد ما تطبّق الخطوات، افحص الإعلان مرة ثانية ونقارن النتيجة بهذا التقرير.</p>
+            <button type="button" className="btn ghost" onClick={onRecheck}>
+              افحص مرة أخرى بعد التعديل
+            </button>
+          </div>
+        )}
       </section>
 
       {/* 4. Index — only when the flag allows it */}
@@ -327,6 +347,43 @@ function IndexMeter({ value, measured, applicable }: { value: number; measured: 
           محسوب من {measured} من {applicable} جوانب أمكن قياسها. يقيس وضوح المحتوى فقط، ولا يتنبأ بالمبيعات أو بأداء الإعلان.
         </p>
       </div>
+    </section>
+  );
+}
+
+function RecheckSection({ c }: { c: RecheckComparison }) {
+  const changed = c.dimensions.filter((d) => d.change === "improved" || d.change === "worse");
+  return (
+    <section className="card recheck reveal" aria-labelledby="recheck-title">
+      <h3 id="recheck-title" className="section-title">
+        مقارنة بفحصك السابق
+      </h3>
+      <p className="meta">فحص {fmtDate(c.parentCreatedAt)}</p>
+      <p className="recheck-summary">{c.summaryAr}</p>
+      {c.fixes.length > 0 && (
+        <ul className="recheck-fixes">
+          {c.fixes.map((f, n) => (
+            <li key={n}>
+              <span className={`oc ${f.outcome}`}>{OUTCOME_AR[f.outcome]}</span>
+              <span>{f.change}</span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {changed.length > 0 && (
+        <ul className="recheck-dims">
+          {changed.map((d) => (
+            <li key={d.dimension}>
+              <span className="axis-label">{d.labelAr}</span>
+              <span className="meta">
+                {STATUS_AR[d.before]} ← {STATUS_AR[d.after]}
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {c.usedSuggestedCopy && <p className="meta">استخدمت النص المقترح من الفحص السابق.</p>}
+      {!c.copyChanged && <p className="meta">نص الإعلان لم يتغير عن الفحص السابق.</p>}
     </section>
   );
 }
