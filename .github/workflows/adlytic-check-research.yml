@@ -1,0 +1,31 @@
+# Adlytic Check — research fetch. The session that writes research/ cannot reach
+# most publishers, so this job fetches the listed primary sources and prints a
+# bounded excerpt with provenance to the log. No secrets, read-only, nothing
+# is committed. Runs when research/fetch-list.json changes.
+name: Adlytic Check — research fetch
+
+on:
+  push:
+    branches: [claude/save-for-reuse-djv4h8]
+    paths:
+      - 'adlytic-check/research/fetch-list.json'
+      - 'adlytic-check/scripts/research/**'
+      - '.github/workflows/adlytic-check-research.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install pdftotext
+        run: sudo apt-get install -y -qq poppler-utils >/dev/null
+      - name: Fetch sources
+        working-directory: adlytic-check
+        run: node scripts/research/fetch-sources.mjs research/fetch-list.json
