@@ -258,3 +258,15 @@ describe("double-encoded fields and video-only opening", () => {
     expect(ids(["image", "text"])).toContain("R-OPEN-01");
   });
 });
+
+describe("legibility class agrees with the legibility level", () => {
+  it("a level-2 legibility verdict is never shown as a clear image", async () => {
+    const dims = base().dimensions.map((d) => (d.dimension === "legibility" ? { ...d, status: "needs_improvement" as const, level: 2 } : d));
+    const { out } = await run([base({ imageTextLegibility: "clear", dimensions: dims })]);
+    expect(out.ok && out.report.imageTextLegibility).toBe("partially_legible");
+  });
+  it("no text in the image stays no_text_in_image", async () => {
+    const { out } = await run([base({ imageTextLegibility: "no_text_in_image" })]);
+    expect(out.ok && out.report.imageTextLegibility).toBe("no_text_in_image");
+  });
+});

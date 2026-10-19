@@ -26,7 +26,7 @@
     "f43",
     "f45"
    ],
-   "note": "V2 prompt v2-2026-10-19.6 + kb-2026-10-19.3 (video opening = frames only) + double-encoding decode + fixed safe-zone scoring: all 46 + held-out repeated"
+   "note": "V2 prompt v2-2026-10-19.7 (legibility scope + class, video opening style) + server legibility-class consistency: all 46 + held-out repeated"
   },
   {
    "suite": "video",

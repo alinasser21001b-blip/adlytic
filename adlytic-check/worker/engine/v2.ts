@@ -167,6 +167,15 @@ const AUDIO_AR = {
   unavailable: "تعذّر تحليل الصوت؛ قيّمنا الصورة والنص فقط.",
 } as const;
 
+/** The legibility class shown to the owner always agrees with the legibility level (3–4 clear, 2 partial, 0–1 illegible). */
+function legibilityClass(image: boolean, claimed: ProviderReportV2["imageTextLegibility"], dim: DimensionResult | undefined): ProviderReportV2["imageTextLegibility"] {
+  if (!image) return "no_image";
+  if (claimed === "no_image" || claimed === "no_text_in_image") return "no_text_in_image";
+  const level = dim && (dim.status === "strong" || dim.status === "needs_improvement") ? dim.level : null;
+  if (typeof level !== "number") return claimed;
+  return level >= 3 ? "clear" : level === 2 ? "partially_legible" : "illegible";
+}
+
 const MODEL_EVIDENCE_ID = /^[TVA]\d{1,2}$/;
 const SERVER_EVIDENCE_ID = /^[UM]\d{1,2}$/i;
 const ID_PREFIX: Record<string, string> = { visible_text: "T", visual_observation: "V", audio_transcript: "A" };
@@ -408,7 +417,7 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
     versions: { rubricVersion: RUBRIC_VERSION, knowledgeVersion: KNOWLEDGE_VERSION, promptVersion: PROMPT_VERSION_V2, providerModel: ctx.model },
     summary: noPrediction(raw.summary),
     perceivedMessage: noPrediction(raw.perceivedMessage),
-    imageTextLegibility: ctx.image ? (raw.imageTextLegibility === "no_image" ? "no_text_in_image" : raw.imageTextLegibility) : "no_image",
+    imageTextLegibility: legibilityClass(ctx.image, raw.imageTextLegibility, dimensions.find((d) => d.dimension === "legibility")),
     media: ctx.video && ctx.aspect
       ? { kind: "video", width: ctx.video.width, height: ctx.video.height, aspect: ctx.aspect, durationSec: ctx.video.durationSec, frameTimes: ctx.video.frames.map((f) => f.timeSec), audio: ctx.video.transcript.status }
       : ctx.dims && ctx.aspect
