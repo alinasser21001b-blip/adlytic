@@ -7,6 +7,7 @@ import { createShare, deleteReport, findSharedView, getReport, listReports, revo
 import { currentUser, finishGoogleLogin, logout, requireUser, startGoogleLogin } from "./services/auth";
 import { balanceOf, sweepExpiredStatements } from "./services/credits";
 import { catalogView, createOrder, getOrder, paymentReturn, paymentWebhook, reconcilePayments } from "./services/payments";
+import { importLink } from "./services/links";
 import { createVisitor, currentVisitor, sessionInfo } from "./services/session";
 
 const app = new Hono<AppEnv>();
@@ -92,6 +93,7 @@ app.get("/api/payments/orders/:id", getOrder);
 app.get("/api/payments/return", paymentReturn);
 app.post("/api/payments/zaincash/webhook", paymentWebhook);
 
+app.post("/api/import-link", importLink);
 app.post("/api/check", handleCheck);
 app.get("/api/reports", listReports);
 app.get("/api/reports/:id", getReport);

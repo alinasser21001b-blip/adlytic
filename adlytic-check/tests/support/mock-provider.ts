@@ -5,6 +5,7 @@
  * at this server. Behaviour is selected by a marker inside the ad text.
  */
 import { createHash } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
 export function goodReport(overrides: Record<string, unknown> = {}) {
@@ -94,6 +95,12 @@ export interface MockState {
 
 let MOCK_SELF = "";
 
+/** A browser-decodable JPEG for link-import tests (the tiny one has no Huffman tables). */
+function realJpeg(): Buffer | null {
+  const p = new URL("../fixtures/example-ad.jpg", import.meta.url);
+  return existsSync(p) ? readFileSync(p) : null;
+}
+
 export function startMock(port: number): Promise<{ server: Server; state: MockState }> {
   MOCK_SELF = `http://127.0.0.1:${port}`;
   const state: MockState = { calls: 0, last: null, siteverifyCalls: 0, asrCalls: 0 };
@@ -131,6 +138,31 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
       res.writeHead(302, { location: redirect.toString() });
       return res.end();
     }
+    // ── Remote files for link import ──
+    if (u.pathname.startsWith("/files/")) {
+      const jpeg = Buffer.from("/9j/4AAQSkZJRgABAQEASABIAAD/2wBDAP//////////////////////////////////////////////////////////////////////////////////////wgALCAABAAEBAREA/8QAFBABAAAAAAAAAAAAAAAAAAAAAP/aAAgBAQABPxA=", "base64");
+      const file = (type: string, body: Buffer | string, extra: Record<string, string> = {}) => {
+        res.writeHead(200, { "content-type": type, ...extra });
+        res.end(body);
+      };
+      switch (u.pathname) {
+        case "/files/ad.jpg": return file("image/jpeg", realJpeg() ?? jpeg);
+        case "/files/ad-misnamed.txt": return file("text/plain", jpeg); // bytes decide, not the header
+        case "/files/clip.mp4": return file("video/mp4", Buffer.concat([Buffer.from([0, 0, 0, 0x18]), Buffer.from("ftypisom"), Buffer.alloc(64)]));
+        case "/files/shop.html": return file("text/html; charset=utf-8", `<html><head><meta property="og:image" content="${MOCK_SELF}/files/ad.jpg"></head><body>متجر</body></html>`);
+        case "/files/shop-internal.html": return file("text/html", `<html><head><meta property="og:image" content="http://169.254.169.254/latest/meta-data"></head></html>`);
+        case "/files/plain.html": return file("text/html", "<html><body>no preview</body></html>");
+        case "/files/big.jpg": return file("image/jpeg", Buffer.concat([jpeg.subarray(0, 4), Buffer.alloc(4 * 1024 * 1024)]));
+        case "/files/huge-declared.jpg": res.writeHead(200, { "content-type": "image/jpeg", "content-length": String(900 * 1024 * 1024) }); return res.end(jpeg);
+        case "/files/notes.txt": return file("text/plain", "hello");
+        case "/files/gone.jpg": return send(404, { error: "gone" });
+        case "/files/hop": res.writeHead(302, { location: "/files/ad.jpg" }); return res.end();
+        case "/files/hop-internal": res.writeHead(302, { location: "http://169.254.169.254/latest/meta-data" }); return res.end();
+        case "/files/hop-loop": res.writeHead(302, { location: "/files/hop-loop" }); return res.end();
+      }
+      return send(404, {});
+    }
+
     // ── Fake Workers AI Whisper (speech to text) ──
     if (u.pathname === "/asr" && req.method === "POST") {
       state.asrCalls++;

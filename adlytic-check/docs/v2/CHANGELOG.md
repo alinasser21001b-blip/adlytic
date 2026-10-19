@@ -113,3 +113,16 @@ Each cycle: problem → hypothesis → change → test → result.
   (binding injected by `scripts/ci/deploy.sh`, with a no-AI fallback).
 - **Result:** IMPLEMENTED + TESTED; real-provider video eval and Whisper accuracy on Iraqi Arabic
   **blocked** (B0, and ASR quality unmeasured).
+
+## Cycle 9 — Link import (2026-10-19)
+- **Problem:** owners have links (Instagram posts, product pages, file links), not files.
+- **Change:** `POST /api/import-link` with honest states (AUTH_REQUIRED for Meta, UNSUPPORTED for
+  other platforms, SUPPORTED for direct image/video files, PREVIEW_ONLY for a page's og:image,
+  UNAVAILABLE); SSRF controls per OWASP (https/443, no credentials, internal names and v4/v6
+  addresses incl. embedded IPv4, DoH answers checked, every redirect re-checked, streaming byte
+  caps); paste-a-link control in the form. `docs/v2/LINK_SUPPORT.md`.
+- **Test:** 45 SSRF unit tests; 18 integration tests against a local file server (incl. redirect to
+  the metadata address, og:image pointing inside, redirect loop, oversize declared/actual,
+  production ignores the test origin); browser checks for the Instagram explanation and a shop
+  page import.
+- **Result:** IMPLEMENTED + TESTED (direct links); Meta import BLOCKED (B3 — needs an approved app).

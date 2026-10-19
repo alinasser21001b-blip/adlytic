@@ -64,7 +64,7 @@ async function main() {
   const vars = {
     ENVIRONMENT: "development", ANTHROPIC_API_KEY: "test-key-not-real", PROVIDER_BASE_URL: MOCK,
     TURNSTILE_SECRET_KEY: "test", TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_VERIFY_URL: `${MOCK}/siteverify`,
-    IP_HASH_SECRET: "t", BUILD_ID: "browser-test",
+    IP_HASH_SECRET: "t", BUILD_ID: "browser-test", LINK_TEST_ORIGIN: MOCK,
   };
   const wr = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--persist-to", dir, "--inspector-port", "9399", "--show-interactive-dev-session=false", ...Object.entries(vars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], { env, stdio: "ignore", detached: true });
   // Second Worker: Analyzer V2 + Google accounts (fake IdP) + ZainCash (fake gateway).
@@ -119,6 +119,15 @@ async function main() {
       if (w === 390) {
         await page.setInputFiles('input[type="file"]', { name: "IMG_0001.HEIC", mimeType: "image/heic", buffer: Buffer.from("....ftypheic....") });
         check("HEIC is refused with a phone-friendly message", (await page.textContent(".inline-error"))?.includes("لقطة شاشة") ?? false);
+        await page.fill("#link-url", "https://www.instagram.com/p/abc123/");
+        await page.click('button:has-text("استورد")');
+        await page.waitForSelector('.meta[role="status"]');
+        check("Instagram link is explained, not scraped", ((await page.textContent('.meta[role="status"]')) ?? "").includes("ربطاً رسمياً"));
+        await page.fill("#link-url", `${MOCK}/files/shop.html`);
+        await page.click('button:has-text("استورد")');
+        await page.waitForSelector(".preview img");
+        check("shop page link imports its preview image, labelled as a preview", ((await page.textContent('.meta[role="status"]')) ?? "").includes("صورة المعاينة"));
+        await page.click("text=إزالة الصورة");
       }
 
       await page.setInputFiles('input[type="file"]', FIXTURE);

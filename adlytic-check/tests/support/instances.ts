@@ -9,6 +9,8 @@ const base = {
   TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
   TURNSTILE_VERIFY_URL: `${MOCK}/siteverify`,
   IP_HASH_SECRET: "test-ip-secret",
+  // Non-production only: link import may fetch this exact origin over plain http.
+  LINK_TEST_ORIGIN: MOCK,
   PROVIDER_TIMEOUT_MS: "9000",
   MAX_PROVIDER_CALLS_PER_DAY: "1000",
   BUILD_ID: "test",

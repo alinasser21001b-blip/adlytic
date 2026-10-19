@@ -32,6 +32,9 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
   const [preparing, setPreparing] = useState(false);
   const [prepStep, setPrepStep] = useState("");
   const [video, setVideo] = useState<ExtractedVideo | null>(null);
+  const [link, setLink] = useState("");
+  const [linkMsg, setLinkMsg] = useState("");
+  const [linkBusy, setLinkBusy] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const [adCopy, setAdCopy] = useState("");
   const [industry, setIndustry] = useState<Industry | "">("");
@@ -107,6 +110,43 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
       setImageError(e instanceof ImageRejected ? e.message : t.imageUnreadable);
     } finally {
       setPreparing(false);
+    }
+  }
+
+  /** Import from a link: the server fetches safely; social platforms get a plain explanation. */
+  async function importFromLink() {
+    if (!link.trim()) return;
+    setLinkBusy(true);
+    setLinkMsg("");
+    try {
+      const res = await fetch("/api/import-link", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: link.trim() }) });
+      const type = res.headers.get("content-type") ?? "";
+      if (!res.ok) {
+        setLinkMsg(res.status === 429 ? "استوردت روابط كثيرة خلال وقت قصير. انتظر قليلاً." : "تعذّر استيراد الرابط.");
+        return;
+      }
+      if (type.includes("json")) {
+        const j = (await res.json()) as { state: string; reason: string };
+        setLinkMsg(
+          j.state === "AUTH_REQUIRED"
+            ? "روابط إنستغرام وفيسبوك تحتاج ربطاً رسمياً بحسابك عبر ميتا، وهو غير متاح بعد. احفظ الصورة أو الفيديو من التطبيق وارفعه هنا."
+            : j.state === "UNAVAILABLE"
+              ? "تعذّر الوصول إلى الرابط الآن. تأكد أنه يعمل أو ارفع الملف مباشرة."
+              : j.reason === "platform_has_no_official_import"
+                ? "لا نستورد من هذه المنصة. احفظ الإعلان على جهازك وارفعه هنا."
+                : "هذا الرابط لا يشير إلى صورة أو فيديو يمكن استيراده بأمان.",
+        );
+        return;
+      }
+      const blob = await res.blob();
+      const kind = res.headers.get("x-link-kind");
+      const file = new File([blob], kind === "video" ? "linked-video" : "linked-image", { type: blob.type });
+      await acceptFile(file);
+      setLinkMsg(res.headers.get("x-link-state") === "PREVIEW_ONLY" ? "استوردنا صورة المعاينة من الصفحة — قد لا تكون الإعلان نفسه. ارفع الإعلان مباشرة إن كان مختلفاً." : "تم الاستيراد من الرابط.");
+    } catch {
+      setLinkMsg("تعذّر استيراد الرابط.");
+    } finally {
+      setLinkBusy(false);
     }
   }
 
@@ -284,6 +324,24 @@ export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
         {imageError && (
           <p className="inline-error" role="alert">
             {imageError}
+          </p>
+        )}
+        {!previewUrl && (
+          <div className="link-import">
+            <label htmlFor="link-url" className="hint">
+              أو الصق رابط ملف الإعلان أو صفحة منتجك
+            </label>
+            <div className="link-row">
+              <input id="link-url" type="url" inputMode="url" dir="ltr" placeholder="https://" value={link} onChange={(e) => setLink(e.target.value)} disabled={busy || linkBusy} />
+              <button type="button" className="btn secondary small" onClick={() => void importFromLink()} disabled={busy || linkBusy || !link.trim()}>
+                {linkBusy ? "جارٍ الاستيراد…" : "استورد"}
+              </button>
+            </div>
+          </div>
+        )}
+        {linkMsg && (
+          <p className="meta" role="status">
+            {linkMsg}
           </p>
         )}
       </div>
