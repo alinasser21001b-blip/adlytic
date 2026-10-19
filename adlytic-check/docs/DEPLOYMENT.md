@@ -7,7 +7,7 @@
 | Worker `adlytic-check` | **منشور**: https://adlytic-check.i6900612.workers.dev — يُنشر من GitHub Actions |
 | D1 `adlytic-check-db` | `28ec9cd8-ab1e-4ff4-9f2a-e81724642830` (EEUR/FRA)، الهجرة 0001 مطبقة ومسجلة |
 | Turnstile widget `adlytic-check` | أُنشئ تلقائياً للنطاق `adlytic-check.i6900612.workers.dev` فقط، mode managed. site key العام: `0x4AAAAAAFbw7mW6jomUvNdo` |
-| أسرار الـWorker | `TURNSTILE_SECRET_KEY` و`IP_HASH_SECRET` مضبوطان. `ANTHROPIC_API_KEY` **غير مضاف بعد** — التحليل مغلق |
+| أسرار الـWorker | `TURNSTILE_SECRET_KEY` و`IP_HASH_SECRET` و`ANTHROPIC_API_KEY` مضبوطة — `/api/health` يعيد `ready: true` |
 
 جلسة Claude التي بنت المشروع لا تصل إلى `api.cloudflare.com` (سياسة الشبكة)، لذلك
 النشر يجري حصراً عبر GitHub Actions بالتوكن المحفوظ كسر في المستودع.
