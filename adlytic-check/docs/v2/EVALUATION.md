@@ -101,10 +101,41 @@ weak (v11, which is R-BRAND-01's own positive example).
 **`claude-sonnet-5-5`:** `400 invalid_request_error: model_not_available` — the account has no
 access to this model; not a billing problem.
 
-**Decision:** keep `ANALYZER_VERSION=v1` live until the recalibrated prompt is measured. V1 on the
+**Decision (superseded by D-015 after round 4):** keep `ANALYZER_VERSION=v1` live until the recalibrated prompt is measured. V1 on the
 live model surfaced a phone number and used prediction language on held-out cases, so V2 on
 haiku-5-5 is the target once its repair rate and CTA calibration are fixed (prompt
 `v2-2026-10-19.5` + pre-validation tidy-up, measured next).
+
+## Recalibration rounds (2026-10-19, V2 · haiku-5-5, all 46 + 18 held-out repeats; video 13 + 4 repeats)
+
+| Round · run | Change | Completed | Repairs | p50 / p90 | CTA | Offer | Legibility class | Readability | Agreement | Index \|Δ\| mean / max |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 1 · 39315476685 | prompt .4 | 43/46 | 48 % | 11.7 / 22.3 s | 13/24 | 27/30 | 33/43 | 8/9 | 0.82 | 6.4 / 13 |
+| 2 · 39316947615 | prompt .5 + tidy-up (ids, labels) | 46/46 | 22 % | 10.9 / 21.2 s | 22/26 | 25/30 | 35/46 | 9/10 | 0.78 | 6.0 / 13 |
+| 3 · 39317944621 | prompt .6, KB .3 (video opening = frames), JSON double-encoding decoded, safe-zone scorer fixed | 46/46 | 11 % | 10.7 / 14.1 s | 22/26 | 28/30 | 36/46 | 7/10 | 0.78 | 4.3 / 11 |
+| 4 · 39319055637 | prompt .7 (legibility only on text present; class ↔ level enforced by the server; video opening ignores style) | **46/46** | **9 %** | **10.6 / 12.1 s** | **25/26** | **29/30** | **43/46** | **10/10** | **0.93** | 5.4 / 15 |
+
+Every round: 0 invented commercial facts, 0 PII, 0 prediction language, prices 19/19, conflicts
+3/3, injection 2/2, evidence linked 100 %, 0 unknown sources. Still weak: crowded image flagged
+1/3, vertical safe-zone violation f43 rated 3 although the observation names the CTA near the
+bottom (scored on the verdict; a text-mention scorer, as used for V1, would count it).
+
+**Held-out only, round 4:** 18/18, p50 10.1 s, CTA 11/11, offer 12/12, price 7/7, conflict 1/1,
+legibility class 17/18, readability 3/3, 0 invented / PII / prediction, 1 image "fact" not in the
+image (f45). Live V1 on the same 18: CTA 7/11, offer 8/12, price 6/7, conflict 0/1, legibility
+18/18, readability 3/3, 1 phone number surfaced, 1 prediction, 8 image "facts" not in the image.
+
+**Video, round 4:** 13/13, repairs 8 %, p50 13.2 s, 0 invented, audio status / coverage / timeline
+13/13, sound-off 4/4, brand 2/2, conflict 1/1, injection 1/1, opening 3/5 (static synthetic scenes
+marked down), safe zone 1/2.
+
+Scorer correction (round 3): a vertical "ok" safe-zone case used to count any mention of an edge
+as success, so a correct "key text is mid-frame" verdict scored as a miss. Now: "violation" must
+be raised; "ok" must not be called a problem; V1 (no verdict) is not scored on "ok".
+
+Caveat: the anchors were tuned on this benchmark (dev and held-out together) — each change
+follows a KB rule's own wording/examples, and the held-out split is reported separately, but a
+fresh set of real ads is still needed (ROADMAP_V3 §1).
 
 ## Retrieval (offline, `npx tsx eval/retrieval.ts`, labels = `relevantRules` on 46 fixtures)
 

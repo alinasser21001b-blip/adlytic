@@ -37,6 +37,7 @@ describe("routing and headers", () => {
     const a: any = await (await fetch(`${urlOf("accounts")}/api/health`)).json();
     expect(a.capabilities).toEqual({
       analyzer: "v2",
+      model: expect.stringMatching(/^claude-/),
       qualityIndexShown: false,
       accounts: { enabled: true, loginConfigured: true },
       payments: { enabled: true, ready: true },

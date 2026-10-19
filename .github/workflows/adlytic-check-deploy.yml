@@ -288,17 +288,20 @@ jobs:
       run:
         working-directory: .
     steps:
-      - name: Can the provider account be billed? (1-token probe, error class only)
+      - name: Can the provider account be billed for the configured model? (1-token probe, error class only)
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          URL: ${{ needs.deploy.outputs.url }}
         run: |
           if [ -z "$ANTHROPIC_API_KEY" ]; then echo "probe skipped: ANTHROPIC_API_KEY not visible to this job"; exit 0; fi
+          model=$(curl -fsS "$URL/api/health" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const m=JSON.parse(s).capabilities?.model;process.stdout.write(/^claude-[a-z0-9.-]+$/.test(m||"")?m:"claude-haiku-4-5")})')
+          echo "probing model: $model"
           code=$(curl -sS -o /tmp/probe.json -w '%{http_code}' https://api.anthropic.com/v1/messages \
             -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
-            -d '{"model":"claude-haiku-4-5","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}')
-          if [ "$code" = "200" ]; then echo "provider account: OK"; exit 0; fi
-          kind=$(node -e 'try{const e=require("/tmp/probe.json").error||{};const m=String(e.message||"");console.log(`${e.type||"unknown"}:${/credit balance/i.test(m)?"credit_balance_too_low":/usage limit|spend limit|reached your/i.test(m)?"usage_limit_reached":"other"}`)}catch{console.log("unparseable")}')
-          echo "::error title=Provider account not usable::HTTP $code ($kind). Top up or raise limits in the Anthropic console (Billing / Limits); no key or content is printed."
+            -d "{\"model\":\"$model\",\"max_tokens\":1,\"messages\":[{\"role\":\"user\",\"content\":\"ping\"}]}")
+          if [ "$code" = "200" ]; then echo "provider account: OK for $model"; exit 0; fi
+          kind=$(node -e 'try{const e=require("/tmp/probe.json").error||{};const m=String(e.message||"");console.log(`${e.type||"unknown"}:${/credit balance/i.test(m)?"credit_balance_too_low":/usage limit|spend limit|reached your/i.test(m)?"usage_limit_reached":/not.?available|not_found|model/i.test(m)?"model_not_available":"other"}`)}catch{console.log("unparseable")}')
+          echo "::error title=Provider account not usable::HTTP $code ($kind) for $model. Billing: top up or raise limits in the Anthropic console; model access: set VISION_MODEL in wrangler.jsonc to a model this account can use. No key or content is printed."
           exit 1
       - name: Is the analysis service fully configured?
         if: ${{ !cancelled() }}   # report every missing piece, even when the probe already failed

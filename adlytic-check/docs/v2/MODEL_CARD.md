@@ -1,13 +1,13 @@
 # Model card — Adlytic Check Analyzer
 
-| | V1 (live default) | V2 (behind `ANALYZER_VERSION=v2`; used for video) |
+| | V1 (rollback path) | V2 (live since D-015; also used for video) |
 |---|---|---|
 | Purpose | Clarity review of a small shop's ad before boosting | Same, evidence-first |
-| Provider / model | Anthropic `claude-haiku-4-5` (configurable `VISION_MODEL`) | Same seam; benchmarked with `claude-haiku-4-5` and `claude-haiku-5-5` |
+| Provider / model | Anthropic `claude-haiku-4-5` (configurable `VISION_MODEL`) | `claude-haiku-5-5` (live); haiku-4-5 completed only 11/18 with V2; `claude-sonnet-5-5` not available to this account |
 | Inputs | Ad text, optional image (≤1568 px JPEG), industry, goal, audience, context | + video frames with times and an ASR transcript (Workers AI Whisper) |
 | Output | Four axes, issues, steps, improved copy | Evidence (U/M/T/V/A ids), 9 rubric dimensions with 0–4 anchored levels, ≤3 fixes linked to evidence and rules, improved copy + A/B alternates, citations from the registry, optional index |
-| Versions | prompt `v1-2026-10-19` | prompt `v2-2026-10-19.4`, rubric `rubric-1`, knowledge `kb-2026-10-19.2`, schema `2` |
-| Server guards | schema, scaffolding leak, fact guard (repair → strip), mode guard | + evidence-link check, rule-id check, modality, price-conflict detection, medical and prediction text removal, phone redaction, index computed server-side |
+| Versions | prompt `v1-2026-10-19` | prompt `v2-2026-10-19.7`, rubric `rubric-1`, knowledge `kb-2026-10-19.3`, schema `2` |
+| Server guards | schema, scaffolding leak, fact guard (repair → strip), mode guard | + pre-validation tidy-up (echoed/renumbered ids, double-encoded fields, unknown labels → safe values), evidence-link check, rule-id check, modality, price-conflict detection, medical and prediction text removal, phone redaction, legibility class tied to its level, index computed server-side |
 
 ## Intended use
 Help an owner fix what is unclear (what is sold, how to order, readability, consistency) before
@@ -15,13 +15,16 @@ paying to boost. **Not** a predictor of sales, CTR, cost or Meta delivery; it ne
 Meta's algorithm (research S01, S02).
 
 ## Known limitations (measured — see EVALUATION.md)
-- Eastern-Arabic zero «٠» is misread by the model (V1 read the price correctly 5/14). V2 prompt
-  asks for care and low confidence; V2/haiku-5-5 read 16/16 on the dev+held-out set.
-- Tiny or low-contrast text is not always noticed (V1 flagged 0/5; V2/haiku-5-5 7/8).
+- Eastern-Arabic zero «٠» is misread by V1 (price read 5/14 at baseline); V2/haiku-5-5 read 19/19
+  in all four post-top-up rounds.
+- V1 on haiku-4-5 surfaced an owner's phone number and used prediction language on held-out
+  cases; V2/haiku-5-5 did neither in any round.
+- Still weak in V2: crowded images flagged 1/3; one vertical safe-zone violation rated 3;
+  static synthetic videos marked down on the opening (3/5).
 - Iraqi-dialect speech recognition quality is **not measured** (no Arabic TTS for fixtures; the
   eval feeds ground-truth transcripts).
 - Video analysis sees ≤10 sampled frames, never the whole video; the report says so.
-- Quality index: hidden (`SHOW_QUALITY_INDEX=false`) until run-to-run stability is measured.
+- Quality index: hidden (`SHOW_QUALITY_INDEX=false`) — measured run-to-run |Δ| mean 5.4, max 15 points.
 - Human quality review: **pending**.
 
 ## Data

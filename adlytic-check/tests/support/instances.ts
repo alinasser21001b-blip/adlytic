@@ -14,6 +14,8 @@ const base = {
   PROVIDER_TIMEOUT_MS: "9000",
   MAX_PROVIDER_CALLS_PER_DAY: "1000",
   BUILD_ID: "test",
+  // V1 stays tested explicitly: it is the rollback path (production runs V2).
+  ANALYZER_VERSION: "v1",
 };
 
 // V2 analyzer + Google accounts + credits, with a 4-second "day" and a short lease.

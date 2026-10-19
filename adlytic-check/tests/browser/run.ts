@@ -4,7 +4,8 @@
  * Run: npm run test:browser   (screenshots land in tests/browser/out/)
  */
 import { spawn, spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { chromium, webkit, type Browser, type Page } from "playwright";
@@ -64,7 +65,7 @@ async function main() {
   const vars = {
     ENVIRONMENT: "development", ANTHROPIC_API_KEY: "test-key-not-real", PROVIDER_BASE_URL: MOCK,
     TURNSTILE_SECRET_KEY: "test", TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_VERIFY_URL: `${MOCK}/siteverify`,
-    IP_HASH_SECRET: "t", BUILD_ID: "browser-test", LINK_TEST_ORIGIN: MOCK,
+    IP_HASH_SECRET: "t", BUILD_ID: "browser-test", LINK_TEST_ORIGIN: MOCK, ANALYZER_VERSION: "v1",
   };
   const wr = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--persist-to", dir, "--inspector-port", "9399", "--show-interactive-dev-session=false", ...Object.entries(vars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], { env, stdio: "ignore", detached: true });
   // Second Worker: Analyzer V2 + Google accounts (fake IdP) + ZainCash (fake gateway).
@@ -101,6 +102,7 @@ async function main() {
     }
     await accountJourney(browser, 390);
     await accountJourney(browser, 1440);
+    await realReports(browser, dir);
     for (const [w, h] of [[390, 844], [768, 1024], [1440, 900]] as const) {
       console.log(`\n── ${w}×${h}`);
       const ctx = await browser.newContext({ viewport: { width: w, height: h }, locale: "ar", ...(ENGINE === "chromium" ? { permissions: ["clipboard-read", "clipboard-write"] } : {}) });
@@ -287,3 +289,50 @@ async function accountJourney(browser: Browser, w: number) {
 }
 
 void main();
+
+/**
+ * Real Analyzer V2 outputs (from the real-provider eval on synthetic fixtures)
+ * stored for this browser's session and opened through the real /r/:id path:
+ * the first time model-written text, not mock text, goes through the page.
+ */
+async function realReports(browser: Browser, dir: string) {
+  console.log("\n── real V2 reports (eval outputs)");
+  const fixture = JSON.parse(readFileSync("tests/fixtures/real-v2-reports.json", "utf8")) as { reports: Array<{ fixture: string; mode: string; industry: string; goal: string; core: Record<string, unknown> }> };
+  for (const w of [360, 1440]) {
+    const ctx = await browser.newContext({ viewport: { width: w, height: 900 }, locale: "ar" });
+    await ctx.route("https://challenges.cloudflare.com/**", (r) => r.fulfill({ contentType: "text/javascript", body: TURNSTILE_STUB }));
+    const page = await ctx.newPage();
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+    await page.goto(BASE, { waitUntil: "networkidle" });
+    const token = (await ctx.cookies()).find((c) => c.name === "ac_sid")?.value;
+    if (!token) {
+      check(`${w}px: session cookie for the real-report check`, false);
+      await ctx.close();
+      continue;
+    }
+    const visitor = createHash("sha256").update(token).digest("hex");
+    for (const r of fixture.reports) {
+      const id = `rv${r.fixture}${w}`.padEnd(12, "0").slice(0, 12);
+      const now = Date.now();
+      const report = { ...r.core, id, mode: r.mode, industry: r.industry, goal: r.goal, createdAt: new Date(now).toISOString(), expiresAt: new Date(now + 3_600_000).toISOString() };
+      const sql = `INSERT INTO analyses (id, visitor_id, idempotency_key, input_hash, status, mode, industry, goal, created_at, reservation_expires_at, expires_at, completed_at, report_json)
+        VALUES ('${id}', '${visitor}', 'real-${id}', 'real', 'completed', '${r.mode}', '${r.industry}', '${r.goal}', ${now}, ${now}, ${now + 3_600_000}, ${now}, '${JSON.stringify(report).replace(/'/g, "''")}')`;
+      const ins = spawnSync("npx", ["wrangler", "d1", "execute", "adlytic-check-db", "--local", "--persist-to", dir, "--command", sql], { encoding: "utf8", env: { ...process.env, WRANGLER_SEND_METRICS: "false" } });
+      if (ins.status !== 0) {
+        check(`${r.fixture}: stored`, false, ins.stderr.slice(0, 200));
+        continue;
+      }
+      await page.goto(`${BASE}/r/${id}`, { waitUntil: "networkidle" });
+      await page.waitForSelector(".result.v2", { timeout: 15_000 });
+      check(`${w}px ${r.fixture}: real report renders with its top fix`, (await page.$$(".first-fix")).length === 1);
+      check(`${w}px ${r.fixture}: index stays hidden as stored`, (await page.$(".index")) === null);
+      if ((r.core.timeline as unknown[] | undefined)?.length) check(`${w}px ${r.fixture}: video timeline and coverage shown`, (await page.$$(".timeline li")).length > 0 && (await page.isVisible(".coverage")));
+      check(`${w}px ${r.fixture}: no horizontal overflow`, await noHorizontalOverflow(page));
+      await page.screenshot({ path: `${OUT}/real-${r.fixture}-${ENGINE}-${w}.png`, fullPage: true });
+    }
+    check(`${w}px: no console errors on real reports`, errors.length === 0, errors.slice(0, 3).join(" | "));
+    await ctx.close();
+  }
+}

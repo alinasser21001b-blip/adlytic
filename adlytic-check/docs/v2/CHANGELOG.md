@@ -150,3 +150,25 @@ Each cycle: problem → hypothesis → change → test → result.
   handler (`/cdn-cgi/handler/scheduled`): paid-but-never-returned is credited exactly once, and an
   already-paid order is credited with the switch off (this test fails on the old code).
 - **Result:** IMPLEMENTED + TESTED locally; LIVE result recorded after the deploy of this commit.
+
+## Cycle 11 — Real-provider measurement after the top-up (2026-10-19)
+- **Problem:** V2 had never been measured end to end; video never on a real model.
+- **Change:** eval video suite (ffmpeg frames at the browser's exact times, known transcript as
+  ASR); post-top-up benchmark (V2 haiku-5-5 / haiku-4-5, V1 live config, video, sonnet diagnostic).
+- **Result:** V2·haiku-5-5 43/46, 0 invented facts; V1 live config leaked a phone number and used
+  prediction language on held-out cases; V2·haiku-4-5 11/18; sonnet-5-5 not available to the
+  account. Weak spots: 48 % schema repairs, CTA 13/24, video opening/brand/safe-zone calibration.
+
+## Cycle 12 — Recalibration to release (2026-10-19)
+- **Hypotheses → changes:** (1) repairs are cosmetic (echoed U/M ids, off-pattern ids, labels
+  JSON-encoded twice) → deterministic pre-validation tidy-up that never touches text; (2) CTA
+  misses are one stance («بالخاص» = "which app?") → anchors naming Meta DM phrases as specific,
+  following R-CTA-01's own example; (3) the video opening mixed text and frames → KB
+  `excludeMedia`, R-OPEN-01 off for video; (4) legibility penalised missing items and disagreed
+  with its own class → anchors + server-enforced class ↔ level.
+- **Test:** 4 rounds on the real provider (EVALUATION.md); 8 new unit tests; browser suite now
+  renders real model output (E-015); 163/163 vitest.
+- **Found on the way:** the safe-zone scorer counted any edge mention as success for "ok" cases
+  (fixed, documented).
+- **Result:** round 4 meets the release bar on held-out cases → D-015: production runs V2 on
+  haiku-5-5; index and video stay off with measured reasons.

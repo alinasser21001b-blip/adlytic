@@ -53,6 +53,7 @@ app.get("/api/health", async (c) => {
   // Per-capability state (informational; `ready` covers the core analysis only). No secret values.
   const capabilities = {
     analyzer: cfg.analyzer,
+    model: cfg.model,
     qualityIndexShown: cfg.showQualityIndex,
     accounts: { enabled: cfg.accountsEnabled, loginConfigured: Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET) },
     payments: { enabled: cfg.paymentsEnabled, ready: paymentsReady(c.env) },

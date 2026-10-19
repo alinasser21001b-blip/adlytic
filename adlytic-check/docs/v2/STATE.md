@@ -12,7 +12,7 @@ H — Launch (all build phases A–G implemented; release blocked on owner actio
 | Last verified build | `dd0100c` (E-012) |
 | D1 migrations | 0001–0004 applied remotely (additive only) |
 | Readiness | `ready: true` since 20:06 UTC (E-012) — B0 resolved by the owner's top-up |
-| Flags | `ANALYZER_VERSION=v1`, `SHOW_QUALITY_INDEX=false`, `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |
+| Flags | `ANALYZER_VERSION=v2` + `VISION_MODEL=claude-haiku-5-5` (D-015), `SHOW_QUALITY_INDEX=false`, `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |
 
 ## Capability status
 Vocabulary: IMPLEMENTED · TESTED (automated, local + CI) · LIVE_VERIFIED (observed on the
@@ -20,9 +20,9 @@ production URL) · BLOCKED (owner action named in BLOCKERS.md).
 
 | Capability | Status | Notes |
 |---|---|---|
-| Core analysis (V1) | LIVE (ready, billing probe OK — E-011/E-012); last person-run live check E-001 | V1 on haiku-4-5 surfaced a phone number and prediction language on held-out cases (E-013) — reason to move to V2 |
+| Core analysis (V1) | rollback path, TESTED | replaced live by V2 (D-015): V1 on haiku-4-5 surfaced a phone number and prediction language on held-out cases (E-013) |
 | Research registry + rules KB | IMPLEMENTED | 22 registry entries (S01–S21 + INT-PH internal), 18 rules; no fabricated sources (server registry check) |
-| Analyzer V2 | IMPLEMENTED, TESTED; real-provider eval E-013 (43/46, 0 invented facts) | behind `ANALYZER_VERSION`; recalibration `v2-2026-10-19.5` being measured |
+| Analyzer V2 | LIVE (switched by D-015; readiness probe on haiku-5-5 recorded in EVIDENCE.md); real-provider eval E-014 (round 4: 46/46, 0 invented facts) | real model output rendered in the browser suite (E-015); first person-run live V2 check not yet recorded |
 | Quality index | IMPLEMENTED, TESTED; hidden | server-computed; `SHOW_QUALITY_INDEX=false` until stable |
 | Retrieval eval | TESTED (offline) | recall 1.0, P@5 0.326 / nDCG@5 0.475 vs baseline 0.235 / 0.410 |
 | Google identity | IMPLEMENTED, TESTED (mock IdP) | **BLOCKED (B1)**; live `/api/auth/google/start` says unavailable |

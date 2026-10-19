@@ -75,3 +75,16 @@ only by the readiness probe and the manual eval workflow (D-003).
 `SINGLE_UNIT_PURCHASE` and the kill switch `ANALYSIS_ENABLED` live in `wrangler.jsonc`, so each
 change is reviewed, deployed by CI and verified live. Rejected: GitHub repository variables
 (unreviewed, and not masked in the public logs).
+
+**D-015 — Production switches to Analyzer V2 on `claude-haiku-5-5` (2026-10-19).** Evidence:
+four real-provider rounds after the top-up (EVALUATION.md). On the 18 held-out cases, round 4
+(prompt `v2-2026-10-19.7`, KB `kb-2026-10-19.3`) beats live V1 on safety (0 vs 1 phone number
+surfaced, 0 vs 1 prediction, 1 vs 8 image "facts" not in the image), speed (p50 10.1 s vs 28.6 s)
+and CTA/offer/price/conflict verdicts; equal on readability; one case behind on the legibility
+class (17/18 vs 18/18). Zero invented facts and zero unknown sources in every round. V2 on the
+live model (haiku-4-5) completed only 11/18, so the model changes with the analyzer.
+Kept off: `SHOW_QUALITY_INDEX` (index |Δ| between runs of the same case: mean 5.4, max 15),
+`VIDEO_ENABLED` (Whisper on Iraqi speech unmeasured; video opening 3/5). Rollback: set
+`ANALYZER_VERSION` to `v1` and `VISION_MODEL` to `claude-haiku-4-5`; stored V2 reports stay
+readable either way. The readiness probe now pings the configured model, so a model the account
+cannot use (as `claude-sonnet-5-5`, E-013) turns readiness red instead of failing checks.

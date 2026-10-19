@@ -1,0 +1,1244 @@
+{
+ "note": "Real Analyzer V2 outputs from eval run 39317944621 on synthetic fixtures (no customer content); used to render real-shaped reports in the browser suite. Index stored hidden, as production (SHOW_QUALITY_INDEX=false) stores it.",
+ "reports": [
+  {
+   "fixture": "f44",
+   "mode": "image_and_text",
+   "industry": "accessories",
+   "goal": "orders",
+   "core": {
+    "schemaVersion": "2",
+    "versions": {
+     "rubricVersion": "rubric-1",
+     "knowledgeVersion": "kb-2026-10-19.3",
+     "promptVersion": "v2-2026-10-19.6",
+     "providerModel": "claude-haiku-5-5"
+    },
+    "summary": "الإعلان واضح: ساعة نسائية بسعر وطريقة طلب بالخاص، لكن لا يظهر اسم المتجر ولا تفاصيل المنتج.",
+    "perceivedMessage": "ساعة نسائية ذهبية بسعر ٥٥ ألف دينار، والطلب عن طريق الرسائل الخاصة.",
+    "imageTextLegibility": "clear",
+    "media": {
+     "kind": "image",
+     "width": 1080,
+     "height": 1920,
+     "aspect": "vertical"
+    },
+    "evidence": [
+     {
+      "id": "U1",
+      "source": "user_supplied",
+      "text": "ساعة نسائية ذهبي. ٥٥ ألف. اطلبي بالخاص.",
+      "confidence": "high"
+     },
+     {
+      "id": "M1",
+      "source": "measured_metadata",
+      "text": "أبعاد الصورة 1080×1920 (عمودية 9:16 تقريباً)",
+      "confidence": "high"
+     },
+     {
+      "id": "T1",
+      "source": "visible_text",
+      "text": "ساعة نسائية ذهبي",
+      "location": "top",
+      "size": "large",
+      "timeSec": null,
+      "confidence": "high"
+     },
+     {
+      "id": "T2",
+      "source": "visible_text",
+      "text": "٥٥,٠٠٠ دينار",
+      "location": "middle",
+      "size": "large",
+      "timeSec": null,
+      "confidence": "high"
+     },
+     {
+      "id": "T3",
+      "source": "visible_text",
+      "text": "اطلبي بالخاص",
+      "location": "middle",
+      "size": "medium",
+      "timeSec": null,
+      "confidence": "high"
+     },
+     {
+      "id": "V1",
+      "source": "visual_observation",
+      "text": "رسم بسيط لساعة يد بإطار رمادي وسوار داكن في منتصف الصورة، بلا صورة فوتوغرافية للمنتج",
+      "location": "bottom",
+      "size": "medium",
+      "timeSec": null,
+      "confidence": "high"
+     },
+     {
+      "id": "V2",
+      "source": "visual_observation",
+      "text": "خلفية كريمية فاتحة؛ النص البني الداكن واضح، والسعر أبيض على خانة بنية",
+      "location": "whole",
+      "size": "large",
+      "timeSec": null,
+      "confidence": "high"
+     },
+     {
+      "id": "V3",
+      "source": "visual_observation",
+      "text": "لا يظهر اسم متجر أو شعار في الصورة",
+      "location": "whole",
+      "size": "small",
+      "timeSec": null,
+      "confidence": "high"
+     }
+    ],
+    "dimensions": [
+     {
+      "dimension": "offer_clarity",
+      "labelAr": "وضوح ما يُباع",
+      "weight": 3,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T1",
+       "T2",
+       "V1"
+      ],
+      "ruleIds": [
+       "R-OFFER-01"
+      ],
+      "observation": "المنتج مسمّى (ساعة نسائية ذهبي) والسعر ظاهر، والرسم يوضح نوع المنتج. الصورة رسم بسيط وليست صورة فعلية للساعة."
+     },
+     {
+      "dimension": "cta",
+      "labelAr": "طريقة الطلب",
+      "weight": 3,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T3"
+      ],
+      "ruleIds": [
+       "R-CTA-01"
+      ],
+      "observation": "«اطلبي بالخاص» فعل وقناة واضحان، لكن لا توجد تفاصيل عما تكتبه الزبونة."
+     },
+     {
+      "dimension": "opening",
+      "labelAr": "الافتتاحية",
+      "weight": 2,
+      "status": "needs_improvement",
+      "level": 2,
+      "evidenceIds": [
+       "T1",
+       "U1"
+      ],
+      "ruleIds": [
+       "R-OPEN-01"
+      ],
+      "observation": "السطر الأول اسم المنتج فقط، وهو يعطي سبباً محدوداً لإكمال القراءة دون فائدة أو ميزة."
+     },
+     {
+      "dimension": "legibility",
+      "labelAr": "قراءة النص على الهاتف",
+      "weight": 2,
+      "status": "strong",
+      "level": 4,
+      "evidenceIds": [
+       "T1",
+       "T2",
+       "T3",
+       "V2"
+      ],
+      "ruleIds": [
+       "R-LEG-01",
+       "R-LEG-02",
+       "R-LEG-03"
+      ],
+      "observation": "النصوص قليلة وكبيرة، والتباين واضح على الخلفية الفاتحة، والسعر أبيض على خانة داكنة."
+     },
+     {
+      "dimension": "consistency",
+      "labelAr": "تطابق الصورة والنص",
+      "weight": 2,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T2",
+       "U1"
+      ],
+      "ruleIds": [
+       "R-CONS-01"
+      ],
+      "observation": "السعر في الصورة «٥٥,٠٠٠ دينار» يطابق «٥٥ ألف» في النص، واسم المنتج متطابق."
+     },
+     {
+      "dimension": "details",
+      "labelAr": "المعلومات الأساسية",
+      "weight": 1,
+      "status": "needs_improvement",
+      "level": 1,
+      "evidenceIds": [
+       "U1",
+       "V1"
+      ],
+      "ruleIds": [
+       "R-DET-01"
+      ],
+      "observation": "لا تظهر مواد الساعة أو قياس الميناء أو ما يشمله البيع، وهي أسئلة يطرحها المشترون عادة."
+     },
+     {
+      "dimension": "safe_zone",
+      "labelAr": "مساحة آمنة في الإطار العمودي",
+      "weight": 1,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T1",
+       "T2",
+       "T3"
+      ],
+      "ruleIds": [
+       "R-SAFE-01"
+      ],
+      "observation": "النصوص المهمة في الوسط تقريباً، وبعيدة عن أعلى الإطار وأسفله."
+     },
+     {
+      "dimension": "brand",
+      "labelAr": "ظهور اسم المتجر",
+      "weight": 1,
+      "status": "needs_improvement",
+      "level": 0,
+      "evidenceIds": [
+       "V3"
+      ],
+      "ruleIds": [
+       "R-BRAND-01"
+      ],
+      "observation": "لا يظهر اسم المتجر أو شعاره في الصورة ولا في النص."
+     }
+    ],
+    "index": {
+     "value": 67,
+     "coverage": 1,
+     "measured": 8,
+     "applicable": 8,
+     "shown": false
+    },
+    "fixes": [
+     {
+      "dimension": "opening",
+      "labelAr": "الافتتاحية",
+      "change": "ابدئي النص المرافق بفائدة أو ميزة للساعة بدل اسم المنتج وحده.",
+      "why": "السطر الأول يدفع الزبونة لإكمال القراءة إذا وضح سبب الاهتمام.",
+      "evidenceIds": [
+       "U1"
+      ],
+      "ruleIds": [
+       "R-OPEN-01"
+      ]
+     },
+     {
+      "dimension": "brand",
+      "labelAr": "ظهور اسم المتجر",
+      "change": "أضيفي اسم المتجر أو شعاره بخط واضح في أعلى الصورة أو أسفلها بعيداً عن الحواف.",
+      "why": "الزبونة لا تعرف من هو البائع دون اسم المتجر.",
+      "evidenceIds": [
+       "V3"
+      ],
+      "ruleIds": [
+       "R-BRAND-01"
+      ]
+     },
+     {
+      "dimension": "details",
+      "labelAr": "المعلومات الأساسية",
+      "change": "أضيفي سطراً صغيراً عن المواد أو القياس في النص المرافق، مثل نوع الذهب المطلي أو قياس الميناء.",
+      "why": "المشترون يسألون عن المواد والمقاس قبل الطلب.",
+      "evidenceIds": [
+       "U1",
+       "V1"
+      ],
+      "ruleIds": [
+       "R-DET-01"
+      ]
+     }
+    ],
+    "actionSteps": [
+     "أضيفي اسم المتجر في الصورة أو في أول سطر من النص.",
+     "أضيفي المادة أو القياس في النص المرافق للإعلان.",
+     "جربي الافتتاحيات البديلة في اختبار A/B من مدير الإعلانات."
+    ],
+    "originalCopy": "ساعة نسائية ذهبي. ٥٥ ألف. اطلبي بالخاص.",
+    "improvedCopy": {
+     "opening": "ساعة نسائية بلون ذهبي، أنيقة وتناسب الإطلالة اليومية.",
+     "body": "ساعة نسائية ذهبي بسعر ٥٥ ألف دينار. للطلب، راسلينا بالخاص. أضيفي المادة والقياس الذي تحتاجينه في رسالتك.",
+     "headline": "ساعة نسائية ذهبي",
+     "callToAction": "اطلبي بالخاص"
+    },
+    "alternateOpenings": [
+     "ساعة نسائية بلون ذهبي تكمل إطلالتك اليومية.",
+     "تبحثين عن ساعة نسائية ذهبي بسعر واضح؟"
+    ],
+    "alternateCallsToAction": [
+     "راسلينا بالخاص للطلب",
+     "اطلبي بالخاص الآن"
+    ],
+    "missingInformation": [
+     "اسم المتجر أو شعاره",
+     "المادة ونوع الطلاء الذهبي",
+     "القياس أو قطر الميناء",
+     "ما يشمله البيع (علبة، بطارية، ضمان)",
+     "منطقة التوصيل إن وُجدت"
+    ],
+    "limitations": [
+     "هذه مراجعة لوضوح المحتوى فقط، ولا تتنبأ بعدد الطلبات أو المبيعات أو بطريقة توزيع ميتا للإعلان.",
+     "المراجعة تقتصر على الصورة والنص المقدمين، ولا تشمل الاستهداف أو أداء الإعلان.",
+     "الصورة رسم وليست صورة فعلية للمنتج، لذا لا يمكن تقييم شكل الساعة الحقيقي."
+    ],
+    "checkedRules": [
+     {
+      "ruleId": "G-NOPRED-01",
+      "dimension": "guard",
+      "principleAr": "لا يمكن لمراجعة المحتوى أن تتنبأ بالمبيعات أو عدد الطلبات أو تكلفة النتيجة؛ حتى الطرق الإحصائية المتقدمة تخطئ بدون تجربة عشوائية.",
+      "judgeability": "not_judgeable",
+      "evidenceStrength": "strong",
+      "sourceIds": [
+       "S02",
+       "S01"
+      ]
+     },
+     {
+      "ruleId": "R-OFFER-01",
+      "dimension": "offer_clarity",
+      "principleAr": "يجب أن يفهم المشاهد ما الذي يُباع من أول نظرة: المنتج ظاهر أو مسمّى بوضوح. أسلوب الصورة (تصوير أو رسم) ليس مشكلة بحد ذاته ما دام المنتج مفهوماً.",
+      "judgeability": "detectable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S08",
+       "S07"
+      ]
+     },
+     {
+      "ruleId": "R-OFFER-02",
+      "dimension": "offer_clarity",
+      "principleAr": "رسالة رئيسية واحدة أوضح من عدة عروض ورسائل متزاحمة في الإعلان نفسه.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S07",
+       "S05"
+      ]
+     },
+     {
+      "ruleId": "R-OPEN-01",
+      "dimension": "opening",
+      "principleAr": "السطر الأول من النص يعطي سبباً واضحاً لإكمال القراءة (المنتج أو الفائدة أو العرض)، لا تحية عامة.",
+      "judgeability": "inference",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S07"
+      ]
+     },
+     {
+      "ruleId": "R-LEG-01",
+      "dimension": "legibility",
+      "principleAr": "الكلمات المهمة (اسم المنتج، السعر، طريقة الطلب) يجب أن تكون كبيرة بما يكفي لتُقرأ على شاشة الهاتف.",
+      "judgeability": "inference",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S08"
+      ]
+     },
+     {
+      "ruleId": "R-LEG-02",
+      "dimension": "legibility",
+      "principleAr": "تباين كافٍ بين لون النص وخلفيته؛ النص الفاتح على خلفية فاتحة يصعب قراءته.",
+      "judgeability": "inference",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S10"
+      ]
+     },
+     {
+      "ruleId": "R-LEG-03",
+      "dimension": "legibility",
+      "principleAr": "تقليل كمية النص داخل الصورة يسهّل القراءة؛ التفاصيل الطويلة مكانها نص المنشور.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S05"
+      ]
+     },
+     {
+      "ruleId": "R-CTA-01",
+      "dimension": "cta",
+      "principleAr": "يجب أن يعرف المشاهد كيف يطلب أو يتواصل: الفعل والقناة واضحان (راسلنا على الخاص، اطلب عبر واتساب، زورونا في…) وبما يناسب هدف الإعلان.",
+      "judgeability": "detectable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S07"
+      ]
+     },
+     {
+      "ruleId": "R-SAFE-01",
+      "dimension": "safe_zone",
+      "principleAr": "في الإعلانات العمودية 9:16 أبعد النص المهم وزر الطلب عن أعلى الإطار وأسفله؛ واجهة المنصة قد تغطيها. تحقّق من المعاينة في مدير الإعلانات.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S04"
+      ]
+     },
+     {
+      "ruleId": "R-CONS-01",
+      "dimension": "consistency",
+      "principleAr": "السعر والعرض واسم المنتج يجب أن تكون متطابقة بين الصورة والنص؛ أي تعارض يربك المشتري.",
+      "judgeability": "detectable",
+      "evidenceStrength": "hypothesis",
+      "sourceIds": [
+       "INT-PH"
+      ]
+     },
+     {
+      "ruleId": "R-DET-01",
+      "dimension": "details",
+      "principleAr": "اقتراح التفاصيل التي يسأل عنها المشترون عادةً في هذا المجال (السعر، المقاسات، منطقة التوصيل…) — كاقتراح فقط وليس كحقيقة.",
+      "judgeability": "inference",
+      "evidenceStrength": "hypothesis",
+      "sourceIds": [
+       "INT-PH"
+      ]
+     },
+     {
+      "ruleId": "R-BRAND-01",
+      "dimension": "brand",
+      "principleAr": "اسم المتجر أو شعاره يظهر بوضوح؛ في الفيديو الأفضل ظهوره قصيراً أكثر من مرة بدل لقطة طويلة واحدة.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S07",
+       "S09"
+      ]
+     },
+     {
+      "ruleId": "G-TEST-01",
+      "dimension": "guard",
+      "principleAr": "لمعرفة أي نسخة أفضل فعلياً: جرّب الافتتاحيات البديلة في اختبار A/B من مدير الإعلانات بدل الاعتماد على تخمين.",
+      "judgeability": "not_judgeable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S06",
+       "S02"
+      ]
+     },
+     {
+      "ruleId": "G-ALGO-01",
+      "dimension": "guard",
+      "principleAr": "لا نقول شيئاً عن خوارزمية ميتا أو كيف ستوزّع الإعلان؛ هذه أنظمة داخلية لا نراها.",
+      "judgeability": "not_judgeable",
+      "evidenceStrength": "strong",
+      "sourceIds": [
+       "S01"
+      ]
+     },
+     {
+      "ruleId": "G-FACT-01",
+      "dimension": "guard",
+      "principleAr": "النص المقترح لا يضيف أي سعر أو خصم أو ضمان أو توصيل مجاني أو مهلة لم يذكرها صاحب المتجر أو تظهر بوضوح في الصورة.",
+      "judgeability": "detectable",
+      "evidenceStrength": "hypothesis",
+      "sourceIds": [
+       "INT-PH"
+      ]
+     }
+    ],
+    "citations": [
+     {
+      "sourceId": "S08",
+      "title": "Attention Capture and Transfer in Advertising: Brand, Pictorial, and Text-Size Effects",
+      "publisher": "Journal of Marketing 68(2):36–50",
+      "url": "https://www.scinapse.io/papers/2147156975",
+      "evidenceType": "observational_study",
+      "access": "search_excerpt",
+      "publishedAt": "2004-04",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S07",
+      "title": "YouTube ABCDs: Video ad best practices",
+      "publisher": "Think with Google",
+      "url": "https://business.google.com/en-all/think/future-of-marketing/youtube-video-ad-creative/",
+      "evidenceType": "vendor_experiment",
+      "access": "full_text",
+      "publishedAt": "2022-04-19",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S10",
+      "title": "Web Content Accessibility Guidelines (WCAG) 2.2 — 1.4.3 Contrast (Minimum)",
+      "publisher": "W3C",
+      "url": "https://www.w3.org/TR/WCAG22/",
+      "evidenceType": "official_guidance",
+      "access": "full_text",
+      "publishedAt": "2023-10-05",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S05",
+      "title": "Meta's former 20% image-text rule and current recommendation",
+      "publisher": "Social Media Today; Jon Loomer Digital (reporting Meta Help Center wording)",
+      "url": "https://socialmediatoday.com/news/facebooks-removing-its-restrictions-on-text-content-in-facebook-ad-images/585705",
+      "evidenceType": "official_guidance",
+      "access": "search_excerpt",
+      "publishedAt": "2020",
+      "secondaryOnly": true
+     },
+     {
+      "sourceId": "INT-PH",
+      "title": "Adlytic product hypotheses (internal, not external evidence)",
+      "publisher": "Adlytic",
+      "url": null,
+      "evidenceType": "product_hypothesis",
+      "access": "full_text",
+      "publishedAt": null,
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S04",
+      "title": "Reels ad safe zones (Meta Ads Guide, as reported by third-party spec guides)",
+      "publisher": "Meta (reported by adsuploader.com, firstpier.com, adnabu.com)",
+      "url": "https://adsuploader.com/blog/meta-ads-safe-zones",
+      "evidenceType": "official_guidance",
+      "access": "search_excerpt",
+      "publishedAt": null,
+      "secondaryOnly": true
+     },
+     {
+      "sourceId": "S09",
+      "title": "Moment-to-Moment Optimal Branding in TV Commercials: Preventing Avoidance by Pulsing",
+      "publisher": "Marketing Science 29(5):783–804",
+      "url": "https://pubsonline.informs.org/doi/fpi/10.1287/mksc.1100.0567",
+      "evidenceType": "peer_reviewed_experiment",
+      "access": "search_excerpt",
+      "publishedAt": "2010",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S02",
+      "title": "A Comparison of Approaches to Advertising Measurement: Evidence from Big Field Experiments at Facebook",
+      "publisher": "Marketing Science (INFORMS)",
+      "url": "https://www.kellogg.northwestern.edu/faculty/gordon_b/files/fb_comparison.pdf",
+      "evidenceType": "peer_reviewed_experiment",
+      "access": "full_text",
+      "publishedAt": "2019",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S01",
+      "title": "Meta Andromeda: Supercharging Advantage+ automation with the next-gen personalized ads retrieval engine",
+      "publisher": "Engineering at Meta",
+      "url": "https://engineering.fb.com/2024/12/02/production-engineering/meta-andromeda-advantage-automation-next-gen-personalized-ads-retrieval-engine/",
+      "evidenceType": "engineering_description",
+      "access": "full_text",
+      "publishedAt": "2024-12-02",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S06",
+      "title": "Meta Experiments: A/B test and Conversion Lift (Ads Manager)",
+      "publisher": "Meta (reported by Jon Loomer Digital; Triple Whale)",
+      "url": "https://www.jonloomer.com/how-to-create-an-a-b-test-in-meta-experiments/",
+      "evidenceType": "official_guidance",
+      "access": "search_excerpt",
+      "publishedAt": null,
+      "secondaryOnly": true
+     }
+    ],
+    "shareableTips": [
+     "اذكري اسم المتجر في كل إعلان ليتعرف الزبون على البائع.",
+     "ضعي التفاصيل الطويلة في نص المنشور، والصورة فيها سطر أو اثنان فقط."
+    ],
+    "confidence": "high"
+   }
+  },
+  {
+   "fixture": "v02",
+   "mode": "image_and_text",
+   "industry": "clothing",
+   "goal": "orders",
+   "core": {
+    "schemaVersion": "2",
+    "versions": {
+     "rubricVersion": "rubric-1",
+     "knowledgeVersion": "kb-2026-10-19.3",
+     "promptVersion": "v2-2026-10-19.6",
+     "providerModel": "claude-haiku-5-5"
+    },
+    "summary": "إعلان فيديو عمودي يعرض فستان سهرة مع السعر وطريقة الطلب عبر واتساب، لكن المنتج يظهر متأخراً بعد ثلاث ثوان.",
+    "perceivedMessage": "فستان سهرة ستان بسعر ٣٥,٠٠٠ د.ع، واطلبي عبر واتساب.",
+    "imageTextLegibility": "clear",
+    "media": {
+     "kind": "video",
+     "width": 540,
+     "height": 960,
+     "aspect": "vertical",
+     "durationSec": 10,
+     "frameTimes": [
+      0,
+      0.5,
+      1,
+      2,
+      3.3,
+      4.7,
+      6,
+      7.3,
+      8.6,
+      9.9
+     ],
+     "audio": "silence"
+    },
+    "coverageAr": "حللنا 10 لقطات من فيديو مدته 10 ثانية (من 0 إلى 9.9 ث)، وليس كل إطار. لا يوجد كلام مسموع في الصوت (صمت أو موسيقى فقط).",
+    "timeline": [
+     {
+      "timeSec": 0,
+      "source": "visible_text",
+      "text": "دار الأناقة"
+     },
+     {
+      "timeSec": 0,
+      "source": "visual_observation",
+      "text": "شاشة بخلفية بنفسجية داكنة وفيها اسم المتجر فقط لمدة نحو 3 ثوان (من 0 إلى 3.3 ث تقريباً)"
+     },
+     {
+      "timeSec": 4.7,
+      "source": "visible_text",
+      "text": "فستان سهرة ستان"
+     },
+     {
+      "timeSec": 4.7,
+      "source": "visible_text",
+      "text": "٣٥,٠٠٠ د.ع"
+     },
+     {
+      "timeSec": 4.7,
+      "source": "visible_text",
+      "text": "اطلبي عبر واتساب"
+     },
+     {
+      "timeSec": 4.7,
+      "source": "visual_observation",
+      "text": "رسم بسيط لفستان باللون الوردي الداكن على خلفية فاتحة في الجزء السفلي من الإطار، بدون صورة حقيقية للمنتج"
+     },
+     {
+      "timeSec": 4.7,
+      "source": "visual_observation",
+      "text": "النص الداكن على الخلفية الفاتحة واضح؛ السعر بنص أبيض على خلفية بنية داكنة"
+     },
+     {
+      "timeSec": 9.9,
+      "source": "visual_observation",
+      "text": "المشهد الأخير (6 إلى 9.9 ث) ثابت ولا يتغير؛ لا يوجد اسم متجر ظاهر بعد الثانية 3.3"
+     }
+    ],
+    "evidence": [
+     {
+      "id": "U1",
+      "source": "user_supplied",
+      "text": "فستان سهرة ستان. ٣٥ ألف. اطلبي عبر واتساب.",
+      "confidence": "high"
+     },
+     {
+      "id": "M1",
+      "source": "measured_metadata",
+      "text": "فيديو مدته 10 ثانية، 540×960 (عمودية 9:16 تقريباً)",
+      "confidence": "high"
+     },
+     {
+      "id": "M3",
+      "source": "measured_metadata",
+      "text": "حُللت 10 لقطات عند: 0، 0.5، 1، 2، 3.3، 4.7، 6، 7.3، 8.6، 9.9 ث",
+      "confidence": "high"
+     },
+     {
+      "id": "M4",
+      "source": "measured_metadata",
+      "text": "لا يوجد كلام مسموع في الصوت (صمت أو موسيقى فقط).",
+      "confidence": "high"
+     },
+     {
+      "id": "T1",
+      "source": "visible_text",
+      "text": "دار الأناقة",
+      "location": "middle",
+      "size": "large",
+      "timeSec": 0,
+      "confidence": "high"
+     },
+     {
+      "id": "V1",
+      "source": "visual_observation",
+      "text": "شاشة بخلفية بنفسجية داكنة وفيها اسم المتجر فقط لمدة نحو 3 ثوان (من 0 إلى 3.3 ث تقريباً)",
+      "location": "middle",
+      "size": "large",
+      "timeSec": 0,
+      "confidence": "high"
+     },
+     {
+      "id": "T2",
+      "source": "visible_text",
+      "text": "فستان سهرة ستان",
+      "location": "top",
+      "size": "large",
+      "timeSec": 4.7,
+      "confidence": "high"
+     },
+     {
+      "id": "T3",
+      "source": "visible_text",
+      "text": "٣٥,٠٠٠ د.ع",
+      "location": "middle",
+      "size": "medium",
+      "timeSec": 4.7,
+      "confidence": "high"
+     },
+     {
+      "id": "T4",
+      "source": "visible_text",
+      "text": "اطلبي عبر واتساب",
+      "location": "middle",
+      "size": "medium",
+      "timeSec": 4.7,
+      "confidence": "high"
+     },
+     {
+      "id": "V2",
+      "source": "visual_observation",
+      "text": "رسم بسيط لفستان باللون الوردي الداكن على خلفية فاتحة في الجزء السفلي من الإطار، بدون صورة حقيقية للمنتج",
+      "location": "bottom",
+      "size": "medium",
+      "timeSec": 4.7,
+      "confidence": "high"
+     },
+     {
+      "id": "V3",
+      "source": "visual_observation",
+      "text": "النص الداكن على الخلفية الفاتحة واضح؛ السعر بنص أبيض على خلفية بنية داكنة",
+      "location": "middle",
+      "size": "medium",
+      "timeSec": 4.7,
+      "confidence": "medium"
+     },
+     {
+      "id": "V4",
+      "source": "visual_observation",
+      "text": "المشهد الأخير (6 إلى 9.9 ث) ثابت ولا يتغير؛ لا يوجد اسم متجر ظاهر بعد الثانية 3.3",
+      "location": "whole",
+      "size": "large",
+      "timeSec": 9.9,
+      "confidence": "high"
+     }
+    ],
+    "dimensions": [
+     {
+      "dimension": "offer_clarity",
+      "labelAr": "وضوح ما يُباع",
+      "weight": 3,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T2",
+       "T3",
+       "V2"
+      ],
+      "ruleIds": [
+       "R-OFFER-01"
+      ],
+      "observation": "اسم الفستان والسعر واضحان، لكن الرسم البسيط يظهر بعد نحو 4.7 ث وليس في البداية."
+     },
+     {
+      "dimension": "cta",
+      "labelAr": "طريقة الطلب",
+      "weight": 3,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T4"
+      ],
+      "ruleIds": [
+       "R-CTA-01"
+      ],
+      "observation": "الفعل والقناة واضحان: اطلبي عبر واتساب، لكن لا يوضح ما الذي تكتبه المشترية."
+     },
+     {
+      "dimension": "opening",
+      "labelAr": "الافتتاحية",
+      "weight": 2,
+      "status": "needs_improvement",
+      "level": 1,
+      "evidenceIds": [
+       "V1",
+       "T1"
+      ],
+      "ruleIds": [
+       "R-OPEN-02"
+      ],
+      "observation": "أول ثلاث ثوان تعرض اسم المتجر فقط، والمنتج لا يظهر إلا بعد نحو 4.7 ث."
+     },
+     {
+      "dimension": "legibility",
+      "labelAr": "قراءة النص على الهاتف",
+      "weight": 2,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T2",
+       "T3",
+       "T4",
+       "V3"
+      ],
+      "ruleIds": [
+       "R-LEG-01",
+       "R-LEG-02"
+      ],
+      "observation": "النصوص كبيرة وواضحة على خلفيات متباينة، لكن نص الطلب أصغر قليلاً من الاسم."
+     },
+     {
+      "dimension": "consistency",
+      "labelAr": "تطابق الصورة والنص",
+      "weight": 2,
+      "status": "strong",
+      "level": 4,
+      "evidenceIds": [
+       "U1",
+       "T2",
+       "T3"
+      ],
+      "ruleIds": [
+       "R-CONS-01"
+      ],
+      "observation": "اسم الفستان والسعر في الصورة يطابقان نص الإعلان (٣٥ ألف)."
+     },
+     {
+      "dimension": "sound_off",
+      "labelAr": "الفهم بدون صوت",
+      "weight": 2,
+      "status": "strong",
+      "level": 4,
+      "evidenceIds": [
+       "T2",
+       "T3",
+       "T4",
+       "M4"
+      ],
+      "ruleIds": [
+       "R-SOUND-01"
+      ],
+      "observation": "لا يوجد صوت، والرسالة الأساسية مكتوبة على الشاشة في المشهد الثاني."
+     },
+     {
+      "dimension": "details",
+      "labelAr": "المعلومات الأساسية",
+      "weight": 1,
+      "status": "needs_improvement",
+      "level": 2,
+      "evidenceIds": [
+       "T2",
+       "T3"
+      ],
+      "ruleIds": [
+       "R-DET-01"
+      ],
+      "observation": "لا تظهر المقاسات أو الألوان أو الخامة، وهي أسئلة يسألها المشترون عادة في هذا المجال."
+     },
+     {
+      "dimension": "safe_zone",
+      "labelAr": "مساحة آمنة في الإطار العمودي",
+      "weight": 1,
+      "status": "strong",
+      "level": 3,
+      "evidenceIds": [
+       "T2",
+       "T3",
+       "T4"
+      ],
+      "ruleIds": [
+       "R-SAFE-01"
+      ],
+      "observation": "اسم الفستان قرب أعلى الإطار، لكنه بعيد بما يكفي عن الحافة في معظم الشاشات."
+     },
+     {
+      "dimension": "brand",
+      "labelAr": "ظهور اسم المتجر",
+      "weight": 1,
+      "status": "needs_improvement",
+      "level": 2,
+      "evidenceIds": [
+       "T1",
+       "V4"
+      ],
+      "ruleIds": [
+       "R-BRAND-01"
+      ],
+      "observation": "اسم المتجر يظهر لثلاث ثوان فقط في البداية ولا يتكرر بعد ذلك."
+     }
+    ],
+    "index": {
+     "value": 72,
+     "coverage": 1,
+     "measured": 9,
+     "applicable": 9,
+     "shown": false
+    },
+    "fixes": [
+     {
+      "dimension": "opening",
+      "labelAr": "الافتتاحية",
+      "change": "اعرض صورة الفستان الحقيقية مع اسمه والسعر في أول ثانيتين بدل شاشة اسم المتجر وحدها.",
+      "why": "المنتج لا يظهر إلا بعد نحو 4.7 ث، فيضيع الانتباه الأول.",
+      "evidenceIds": [
+       "V1",
+       "T1",
+       "T2"
+      ],
+      "ruleIds": [
+       "R-OPEN-02"
+      ]
+     },
+     {
+      "dimension": "brand",
+      "labelAr": "ظهور اسم المتجر",
+      "change": "أضف اسم المتجر في نهاية الإعلان أيضاً، مثلاً مع نص الطلب.",
+      "why": "ظهور اسم المتجر مرة واحدة في البداية يضعف تذكّره.",
+      "evidenceIds": [
+       "T1",
+       "V4"
+      ],
+      "ruleIds": [
+       "R-BRAND-01"
+      ]
+     },
+     {
+      "dimension": "details",
+      "labelAr": "المعلومات الأساسية",
+      "change": "أضف في النص المكتوب المقاسات المتوفرة واللون والخامة إن كانت معروفة لديك.",
+      "why": "المشترية تسأل عن المقاس واللون عادةً قبل الطلب.",
+      "evidenceIds": [
+       "T2",
+       "T4"
+      ],
+      "ruleIds": [
+       "R-DET-01"
+      ]
+     }
+    ],
+    "actionSteps": [
+     "ضع صورة الفستان الحقيقية في أول ثانيتين مع اسمه والسعر.",
+     "أضف اسم المتجر في آخر لقطة أيضاً.",
+     "اكتب في النص المقاسات واللون والخامة إن كانت متوفرة."
+    ],
+    "originalCopy": "فستان سهرة ستان. ٣٥ ألف. اطلبي عبر واتساب.",
+    "improvedCopy": {
+     "opening": "فستان سهرة ستان بسعر ٣٥ ألف د.ع.",
+     "body": "فستان سهرة ستان بسعر ٣٥,٠٠٠ د.ع. للطلب اطلبي عبر واتساب واكتبي المقاس الذي تحتاجينه. دار الأناقة.",
+     "headline": "فستان سهرة ستان",
+     "callToAction": "اطلبي عبر واتساب"
+    },
+    "alternateOpenings": [
+     "فستان سهرة ستان بسعر ٣٥ ألف د.ع، شوفيه قبل ما يخلص.",
+     "فستان سهرة من ستان، بسعر ٣٥ ألف د.ع، تفضلي اطلبيه."
+    ],
+    "alternateCallsToAction": [
+     "اطلبي عبر واتساب الآن",
+     "اطلبي عبر واتساب واكتبي المقاس"
+    ],
+    "missingInformation": [
+     "المقاسات المتوفرة للفستان.",
+     "اللون والخامة.",
+     "منطقة التوصيل وطريقته، إن كانت تهم المشترين.",
+     "صورة حقيقية للفستان بدل الرسم، إن توفرت."
+    ],
+    "limitations": [
+     "هذه مراجعة لوضوح المحتوى فقط، ولا تتنبأ بعدد الطلبات أو المبيعات أو بطريقة توزيع ميتا للإعلان.",
+     "المراجعة تقتصر على المحتوى الظاهر، ولا تتوقع أداء الإعلان.",
+     "لم تُرفع مادة صوتية لأن الفيديو صامت."
+    ],
+    "checkedRules": [
+     {
+      "ruleId": "R-CTA-01",
+      "dimension": "cta",
+      "principleAr": "يجب أن يعرف المشاهد كيف يطلب أو يتواصل: الفعل والقناة واضحان (راسلنا على الخاص، اطلب عبر واتساب، زورونا في…) وبما يناسب هدف الإعلان.",
+      "judgeability": "detectable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S07"
+      ]
+     },
+     {
+      "ruleId": "G-NOPRED-01",
+      "dimension": "guard",
+      "principleAr": "لا يمكن لمراجعة المحتوى أن تتنبأ بالمبيعات أو عدد الطلبات أو تكلفة النتيجة؛ حتى الطرق الإحصائية المتقدمة تخطئ بدون تجربة عشوائية.",
+      "judgeability": "not_judgeable",
+      "evidenceStrength": "strong",
+      "sourceIds": [
+       "S02",
+       "S01"
+      ]
+     },
+     {
+      "ruleId": "R-OFFER-01",
+      "dimension": "offer_clarity",
+      "principleAr": "يجب أن يفهم المشاهد ما الذي يُباع من أول نظرة: المنتج ظاهر أو مسمّى بوضوح. أسلوب الصورة (تصوير أو رسم) ليس مشكلة بحد ذاته ما دام المنتج مفهوماً.",
+      "judgeability": "detectable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S08",
+       "S07"
+      ]
+     },
+     {
+      "ruleId": "R-OFFER-02",
+      "dimension": "offer_clarity",
+      "principleAr": "رسالة رئيسية واحدة أوضح من عدة عروض ورسائل متزاحمة في الإعلان نفسه.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S07",
+       "S05"
+      ]
+     },
+     {
+      "ruleId": "R-OPEN-02",
+      "dimension": "opening",
+      "principleAr": "في الفيديو: يظهر المنتج أو العرض خلال أول ثانيتين تقريباً.",
+      "judgeability": "detectable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S07",
+       "S03"
+      ]
+     },
+     {
+      "ruleId": "R-LEG-01",
+      "dimension": "legibility",
+      "principleAr": "الكلمات المهمة (اسم المنتج، السعر، طريقة الطلب) يجب أن تكون كبيرة بما يكفي لتُقرأ على شاشة الهاتف.",
+      "judgeability": "inference",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S08"
+      ]
+     },
+     {
+      "ruleId": "R-LEG-02",
+      "dimension": "legibility",
+      "principleAr": "تباين كافٍ بين لون النص وخلفيته؛ النص الفاتح على خلفية فاتحة يصعب قراءته.",
+      "judgeability": "inference",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S10"
+      ]
+     },
+     {
+      "ruleId": "R-LEG-03",
+      "dimension": "legibility",
+      "principleAr": "تقليل كمية النص داخل الصورة يسهّل القراءة؛ التفاصيل الطويلة مكانها نص المنشور.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S05"
+      ]
+     },
+     {
+      "ruleId": "R-SAFE-01",
+      "dimension": "safe_zone",
+      "principleAr": "في الإعلانات العمودية 9:16 أبعد النص المهم وزر الطلب عن أعلى الإطار وأسفله؛ واجهة المنصة قد تغطيها. تحقّق من المعاينة في مدير الإعلانات.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S04"
+      ]
+     },
+     {
+      "ruleId": "R-CONS-01",
+      "dimension": "consistency",
+      "principleAr": "السعر والعرض واسم المنتج يجب أن تكون متطابقة بين الصورة والنص؛ أي تعارض يربك المشتري.",
+      "judgeability": "detectable",
+      "evidenceStrength": "hypothesis",
+      "sourceIds": [
+       "INT-PH"
+      ]
+     },
+     {
+      "ruleId": "R-DET-01",
+      "dimension": "details",
+      "principleAr": "اقتراح التفاصيل التي يسأل عنها المشترون عادةً في هذا المجال (السعر، المقاسات، منطقة التوصيل…) — كاقتراح فقط وليس كحقيقة.",
+      "judgeability": "inference",
+      "evidenceStrength": "hypothesis",
+      "sourceIds": [
+       "INT-PH"
+      ]
+     },
+     {
+      "ruleId": "R-SOUND-01",
+      "dimension": "sound_off",
+      "principleAr": "في الفيديو: يجب أن تُفهم الرسالة الأساسية بدون صوت (نص على الشاشة أو ترجمة)، لأن كثيراً من المشاهدة تكون بلا صوت.",
+      "judgeability": "detectable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S03"
+      ]
+     },
+     {
+      "ruleId": "R-BRAND-01",
+      "dimension": "brand",
+      "principleAr": "اسم المتجر أو شعاره يظهر بوضوح؛ في الفيديو الأفضل ظهوره قصيراً أكثر من مرة بدل لقطة طويلة واحدة.",
+      "judgeability": "inference",
+      "evidenceStrength": "weak",
+      "sourceIds": [
+       "S07",
+       "S09"
+      ]
+     },
+     {
+      "ruleId": "G-TEST-01",
+      "dimension": "guard",
+      "principleAr": "لمعرفة أي نسخة أفضل فعلياً: جرّب الافتتاحيات البديلة في اختبار A/B من مدير الإعلانات بدل الاعتماد على تخمين.",
+      "judgeability": "not_judgeable",
+      "evidenceStrength": "moderate",
+      "sourceIds": [
+       "S06",
+       "S02"
+      ]
+     },
+     {
+      "ruleId": "G-ALGO-01",
+      "dimension": "guard",
+      "principleAr": "لا نقول شيئاً عن خوارزمية ميتا أو كيف ستوزّع الإعلان؛ هذه أنظمة داخلية لا نراها.",
+      "judgeability": "not_judgeable",
+      "evidenceStrength": "strong",
+      "sourceIds": [
+       "S01"
+      ]
+     },
+     {
+      "ruleId": "G-FACT-01",
+      "dimension": "guard",
+      "principleAr": "النص المقترح لا يضيف أي سعر أو خصم أو ضمان أو توصيل مجاني أو مهلة لم يذكرها صاحب المتجر أو تظهر بوضوح في الصورة.",
+      "judgeability": "detectable",
+      "evidenceStrength": "hypothesis",
+      "sourceIds": [
+       "INT-PH"
+      ]
+     }
+    ],
+    "citations": [
+     {
+      "sourceId": "S08",
+      "title": "Attention Capture and Transfer in Advertising: Brand, Pictorial, and Text-Size Effects",
+      "publisher": "Journal of Marketing 68(2):36–50",
+      "url": "https://www.scinapse.io/papers/2147156975",
+      "evidenceType": "observational_study",
+      "access": "search_excerpt",
+      "publishedAt": "2004-04",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S07",
+      "title": "YouTube ABCDs: Video ad best practices",
+      "publisher": "Think with Google",
+      "url": "https://business.google.com/en-all/think/future-of-marketing/youtube-video-ad-creative/",
+      "evidenceType": "vendor_experiment",
+      "access": "full_text",
+      "publishedAt": "2022-04-19",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S03",
+      "title": "Capture Attention with Updated Features for Video Ads",
+      "publisher": "Meta for Business (Facebook business news)",
+      "url": "https://www.facebook.com/business/news/updated-features-for-video-ads",
+      "evidenceType": "official_guidance",
+      "access": "search_excerpt",
+      "publishedAt": null,
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S10",
+      "title": "Web Content Accessibility Guidelines (WCAG) 2.2 — 1.4.3 Contrast (Minimum)",
+      "publisher": "W3C",
+      "url": "https://www.w3.org/TR/WCAG22/",
+      "evidenceType": "official_guidance",
+      "access": "full_text",
+      "publishedAt": "2023-10-05",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "INT-PH",
+      "title": "Adlytic product hypotheses (internal, not external evidence)",
+      "publisher": "Adlytic",
+      "url": null,
+      "evidenceType": "product_hypothesis",
+      "access": "full_text",
+      "publishedAt": null,
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S04",
+      "title": "Reels ad safe zones (Meta Ads Guide, as reported by third-party spec guides)",
+      "publisher": "Meta (reported by adsuploader.com, firstpier.com, adnabu.com)",
+      "url": "https://adsuploader.com/blog/meta-ads-safe-zones",
+      "evidenceType": "official_guidance",
+      "access": "search_excerpt",
+      "publishedAt": null,
+      "secondaryOnly": true
+     },
+     {
+      "sourceId": "S09",
+      "title": "Moment-to-Moment Optimal Branding in TV Commercials: Preventing Avoidance by Pulsing",
+      "publisher": "Marketing Science 29(5):783–804",
+      "url": "https://pubsonline.informs.org/doi/fpi/10.1287/mksc.1100.0567",
+      "evidenceType": "peer_reviewed_experiment",
+      "access": "search_excerpt",
+      "publishedAt": "2010",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S02",
+      "title": "A Comparison of Approaches to Advertising Measurement: Evidence from Big Field Experiments at Facebook",
+      "publisher": "Marketing Science (INFORMS)",
+      "url": "https://www.kellogg.northwestern.edu/faculty/gordon_b/files/fb_comparison.pdf",
+      "evidenceType": "peer_reviewed_experiment",
+      "access": "full_text",
+      "publishedAt": "2019",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S01",
+      "title": "Meta Andromeda: Supercharging Advantage+ automation with the next-gen personalized ads retrieval engine",
+      "publisher": "Engineering at Meta",
+      "url": "https://engineering.fb.com/2024/12/02/production-engineering/meta-andromeda-advantage-automation-next-gen-personalized-ads-retrieval-engine/",
+      "evidenceType": "engineering_description",
+      "access": "full_text",
+      "publishedAt": "2024-12-02",
+      "secondaryOnly": false
+     },
+     {
+      "sourceId": "S06",
+      "title": "Meta Experiments: A/B test and Conversion Lift (Ads Manager)",
+      "publisher": "Meta (reported by Jon Loomer Digital; Triple Whale)",
+      "url": "https://www.jonloomer.com/how-to-create-an-a-b-test-in-meta-experiments/",
+      "evidenceType": "official_guidance",
+      "access": "search_excerpt",
+      "publishedAt": null,
+      "secondaryOnly": true
+     }
+    ],
+    "shareableTips": [
+     "ابدئي الفيديو بالمنتج والسعر مباشرة.",
+     "كرّري اسم المتجر في نهاية الإعلان.",
+     "اذكري المقاسات في النص حتى يعرف المشتري ما يطلبه."
+    ],
+    "confidence": "high"
+   }
+  }
+ ]
+}

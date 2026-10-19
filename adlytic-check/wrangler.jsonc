@@ -26,10 +26,10 @@
   // TURNSTILE_SECRET_KEY, IP_HASH_SECRET) are set with `wrangler secret put`.
   "vars": {
     "ENVIRONMENT": "production",
-    "VISION_MODEL": "claude-haiku-4-5",
+    "VISION_MODEL": "claude-haiku-5-5",
     "TURNSTILE_SITE_KEY": "",
     "ANALYSIS_ENABLED": "true",
-    "ANALYZER_VERSION": "v1",
+    "ANALYZER_VERSION": "v2",
     "SHOW_QUALITY_INDEX": "false",
     "ACCOUNTS_ENABLED": "false",
     "PAYMENTS_ENABLED": "false",

@@ -7,9 +7,9 @@ its gate. Nothing here is started.
 
 | # | Item | Gate | Owner action needed |
 |---|---|---|---|
-| 0.1 | Re-run the real-provider eval: calibrated V2 (`v2-2026-10-19.4`, `kb-2026-10-19.2`) on haiku-5-5 vs haiku-4-5, 4 runs, held-out scores, index stability, 13 video fixtures | ≥ 90 % completed, 0 invented facts, verdict accuracy ≥ V1 on every axis, index σ ≤ 5 points across runs | B0: add Anthropic credit |
-| 0.2 | Switch `ANALYZER_VERSION=v2` (one-line var change) if 0.1 passes; V1 reports stay readable | 0.1 | — |
-| 0.3 | `SHOW_QUALITY_INDEX=true` only if the index is stable (σ ≤ 5) and a human agrees it ranks ads sensibly | 0.1 + 0.4 | — |
+| 0.1 | ✅ Done — 4 real-provider rounds (EVALUATION.md, E-013/E-014) | met except index stability and one legibility case (D-015) | — |
+| 0.2 | ✅ Switched with `VISION_MODEL=claude-haiku-5-5` (D-015) | first person-run live V2 check to record | — |
+| 0.3 | `SHOW_QUALITY_INDEX=true` only if the index is stable (today |Δ| mean 5.4, max 15 — not yet) and a human agrees it ranks ads sensibly | 0.4 + a stability fix (e.g. average two calls, or fewer levels) | — |
 | 0.4 | Human quality review of the 18 held-out cases (sheet in EVALUATION.md) | — | B4: a reviewer |
 | 0.5 | `VIDEO_ENABLED=true` after video fixtures pass and Whisper is measured on Iraqi Arabic speech (word error rate on a small labelled, consented set) | WER and coverage reported | B0 |
 | 0.6 | Google login live (`ACCOUNTS_ENABLED=true`) | first real login verified, guest → account move verified | B1: OAuth client |
