@@ -37,8 +37,10 @@ export interface EngineTelemetry {
   outputTokens: number;
   model: string | null;
   stripped: boolean;
-  /** For schema repairs: the first failing field paths (no content). */
+  /** For schema repairs: the first failing field paths (labels/ids only, no ad content). */
   schemaPaths?: string[];
+  /** Cosmetic slips fixed before validation (echoed/renumbered ids, unknown labels). */
+  tidied?: number;
 }
 
 export type EngineOutcome<R> =

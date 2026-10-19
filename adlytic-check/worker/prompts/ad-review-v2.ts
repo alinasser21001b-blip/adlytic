@@ -2,7 +2,7 @@ import { GOALS, INDUSTRIES, type AnalysisMode, type Goal, type Industry } from "
 import { LEVEL_ANCHORS, type Dimension, type Rule } from "../engine/kb";
 
 export const TOOL_NAME_V2 = "submit_ad_review_v2";
-export const PROMPT_VERSION_V2 = "v2-2026-10-19.4";
+export const PROMPT_VERSION_V2 = "v2-2026-10-19.5";
 
 const INDUSTRY_HINTS: Record<Industry, string> = {
   furniture: "dimensions, material/fabric, colours, delivery area, whether assembly is included",
@@ -35,7 +35,7 @@ export const SYSTEM_PROMPT_V2 = `You review ad creatives for small online shops 
 4. COPY: one improved Arabic version, plus up to 2 alternate opening lines and up to 2 alternate calls to action (so the owner can A/B test them in Ads Manager).
 
 ## Video checks
-When the request contains video frames: they are SAMPLES labelled with their time, not the whole video — never claim anything happens between two frames. Give T/V evidence a timeSec. The opening is what the first ~2 seconds show. sound_off asks whether the core message (what is sold, how to order) is visible on screen without sound; the server supplies the speech transcript as A1, A2… with times (or states that there is no audio, only silence/music, or that audio could not be analysed). Spoken facts in A items count as the owner's facts.
+When the request contains video frames: they are SAMPLES labelled with their time, not the whole video — never claim anything happens between two frames. Give T/V evidence a timeSec. The opening of a video is judged by its frames (R-OPEN-02): the product or offer visible in the frames up to ~2 s means level 3–4, whatever the first line of the text says (a weak first text line can be a separate fix); a logo, greeting or unrelated scene for the first seconds means 0–2. A drawing or illustration of the product counts as showing it. sound_off asks whether the core message (what is sold, how to order) is visible on screen without sound; the server supplies the speech transcript as A1, A2… with times (or states that there is no audio, only silence/music, or that audio could not be analysed). Spoken facts in A items count as the owner's facts.
 
 ## Hard rules
 1. Never predict or estimate sales, revenue, CTR, CPA, ROAS, conversions, reach or any performance number. Never call an ad "winning" or "guaranteed". Never claim knowledge of how Meta's algorithm will treat the ad.
@@ -51,9 +51,11 @@ When the request contains video frames: they are SAMPLES labelled with their tim
 ${Object.entries(LEVEL_ANCHORS).map(([k, v]) => `${k} = ${v}`).join("; ")}
 strong means level 3–4; needs_improvement means level 0–2.
 Calibration for the main dimensions:
-- cta: 4 = action + channel + what to write or do next; 3 = a clear action and channel («راسلنا على الخاص», «اطلب عبر واتساب»); 2 = vague («التفاصيل بالخاص») or channel unclear; 0–1 = no way to order or contact anywhere in the ad (image or text).
+- cta: 4 = action + channel + what to write or do next («راسلنا على الخاص واكتب المقاس»); 3 = a clear action with a channel or a place. In a Facebook/Instagram ad «بالخاص», «على الخاص», «راسلنا», «راسلينا», DM, «الرابط بالبايو» and «تعال للمحل في …» ARE specific: the buyer replies inside the app that shows the ad or goes to the named place — never ask which app and never go below 3 for that reason; 2 = no action verb («التفاصيل بالخاص» alone) or a contact mentioned without saying what to do; 0–1 = no way to order or contact anywhere in the ad (image or text). A CTA present only in U1 is still a full CTA: adding it to the image may be a fix, but the level stays 3+.
 - offer_clarity: 4 = product visible AND named, with a key detail; 3 = product clearly visible or clearly named; 2 = guessable only; 0–1 = cannot tell what is sold. Photo versus illustration is a style choice, not a clarity problem, unless the picture contradicts the name.
 - legibility: judge the size and contrast of the key text (product name, price, how to order) on a phone screen; 4 = large and high contrast, 2 = small or weak contrast, 0–1 = key text unreadable.
+- brand: 3–4 = store name or logo readable at least once (in a video, appearing briefly at the start and again later is the recommended pattern, R-BRAND-01 — level 4 even if small); 2 = present but unreadable; 0–1 = absent from image/frames and text.
+- safe_zone (vertical only): needs_improvement only when KEY information — product name, price or how to order — sits in roughly the top 14% or bottom 35% of the frame where app buttons cover it; a store name or decoration near an edge is level 3 at worst.
 Judge the whole ad: a CTA or price written in U1 counts even if it is not in the image.
 
 ## Language

@@ -4,7 +4,7 @@ import type { ProviderReportV2 } from "../../shared/schemas";
 import { amounts, priceAmounts } from "../../worker/engine/facts";
 import { RULES, applicableRules, rankBm25, sourceById } from "../../worker/engine/kb";
 import type { EngineHooks } from "../../worker/engine/types";
-import { computeIndex, runV2 } from "../../worker/engine/v2";
+import { computeIndex, runV2, tidyProviderOutput } from "../../worker/engine/v2";
 import type { VisionProvider, VisionRequest } from "../../worker/providers/vision";
 
 const JPEG = new Uint8Array(readFileSync(new URL("../../eval/fixtures/img/f11.jpg", import.meta.url)));
@@ -192,5 +192,51 @@ describe("video frame sampling", () => {
     expect(long.at(-1)).toBeLessThanOrEqual(39.95);
     expect(long.slice(0, 4)).toEqual([0, 0.5, 1, 2]);
     expect(frameTimes(1.5)).toEqual([0, 0.5, 1, 1.4]);
+  });
+});
+
+describe("pre-validation tidy-up", () => {
+  it("drops echoed server evidence, renumbers bad ids and follows every reference", () => {
+    const raw = base({
+      evidence: [
+        { id: "U1", source: "visible_text", text: "echo of the owner text", confidence: "high" },
+        { id: "t1", source: "visible_text", text: "كنبة ٣ مقاعد", location: "top", confidence: "high" },
+        { id: "E2", source: "visual_observation", text: "كنبة بنية", location: "middle", confidence: "high" },
+        { id: "M3", source: "visual_observation", text: "echo of a measurement", confidence: "high" },
+      ] as never,
+      dimensions: [
+        { dimension: "offer_clarity", status: "strong", level: 4, evidenceIds: ["t1", "E2", "U1"], ruleIds: ["R-OFFER-01"], observation: "واضح." },
+      ],
+      fixes: [{ dimension: "cta", change: "اكتب طريقة الطلب.", why: "للوضوح.", evidenceIds: ["E2"], ruleIds: ["R-CTA-01"] }],
+    });
+    const { value, changed } = tidyProviderOutput(raw);
+    const v = value as ProviderReportV2;
+    expect(v.evidence.map((e) => e.id)).toEqual(["T1", "V1"]);
+    expect(v.dimensions[0]!.evidenceIds).toEqual(["T1", "V1", "U1"]);
+    expect(v.fixes[0]!.evidenceIds).toEqual(["V1"]);
+    expect(changed).toBeGreaterThanOrEqual(5);
+    expect(v.evidence[1]!.text).toBe("كنبة بنية"); // text untouched
+  });
+
+  it("makes unknown labels safe instead of failing: size removed, confidence low", () => {
+    const raw = base({ evidence: [{ id: "T1", source: "visible_text", text: "٢٥٠ ألف", size: "huge", confidence: "certain" }] as never });
+    const v = tidyProviderOutput(raw).value as ProviderReportV2;
+    expect(v.evidence[0]).not.toHaveProperty("size");
+    expect(v.evidence[0]!.confidence).toBe("low");
+  });
+
+  it("leaves a valid report unchanged", () => {
+    const raw = base();
+    const { value, changed } = tidyProviderOutput(raw);
+    expect(changed).toBe(0);
+    expect(value).toEqual(raw);
+  });
+
+  it("a report that only had cosmetic id slips now passes without a repair call", async () => {
+    const slipped = base({ evidence: [{ id: "T01x", source: "visible_text", text: "كنبة ٣ مقاعد", location: "top", confidence: "high" }] as never, dimensions: [{ dimension: "offer_clarity", status: "strong", level: 4, evidenceIds: ["T01x"], ruleIds: ["R-OFFER-01"], observation: "واضح." }] });
+    const { out, provider } = await run([slipped]);
+    expect(provider.calls).toHaveLength(1);
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.telemetry.tidied).toBeGreaterThan(0);
   });
 });

@@ -1,9 +1,6 @@
 {
  "runs": [
-  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 140, "concurrency": 4, "repeatIds": ["f03", "f05", "f08", "f10", "f13", "f15", "f18", "f20", "f23", "f25", "f28", "f30", "f33", "f35", "f38", "f40", "f43", "f45"], "note": "Calibrated V2 (prompt v2-2026-10-19.4, kb-2026-10-19.2): all 46 + held-out repeated for consistency/index stability"},
-  {"engine": "v2", "model": "claude-haiku-4-5", "split": "heldout", "maxCalls": 45, "concurrency": 4, "note": "Calibrated V2 on the live model, held-out only"},
-  {"engine": "v1", "model": "claude-haiku-4-5", "split": "heldout", "maxCalls": 45, "concurrency": 4, "note": "V1 at live config (4096 tokens / 60 s), held-out only"},
-  {"suite": "video", "engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 40, "concurrency": 3, "repeatIds": ["v01", "v05", "v06", "v10"], "note": "13 synthetic videos, frames at browser sample times, known transcript as ASR"},
-  {"engine": "v2", "model": "claude-sonnet-5-5", "split": "all", "maxCalls": 1, "only": ["f01"], "concurrency": 1, "note": "Diagnostic: is the earlier 400 for this model a billing or a model-access error?"}
+  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 130, "concurrency": 4, "repeatIds": ["f03", "f05", "f08", "f10", "f13", "f15", "f18", "f20", "f23", "f25", "f28", "f30", "f33", "f35", "f38", "f40", "f43", "f45"], "note": "V2 prompt v2-2026-10-19.5 (CTA/brand/safe-zone/video-opening anchors) + pre-validation tidy-up: all 46 + held-out repeated"},
+  {"suite": "video", "engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 35, "concurrency": 3, "repeatIds": ["v01", "v05", "v06", "v10"], "note": "Video suite after the same changes"}
  ]
 }

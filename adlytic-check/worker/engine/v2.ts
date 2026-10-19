@@ -125,10 +125,12 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
     await hooks.afterCall?.({ model: res.model, inputTokens: t.inputTokens, outputTokens: t.outputTokens });
     console.log(`[engine] v2 model=${res.model} attempt=${attempt + 1} stop=${res.stopReason} in=${res.inputTokens} out=${res.outputTokens}`);
 
-    const v = providerReportV2Schema.safeParse(res.toolInput);
+    const tidy = tidyProviderOutput(res.toolInput);
+    if (tidy.changed) t.tidied = (t.tidied ?? 0) + tidy.changed;
+    const v = providerReportV2Schema.safeParse(tidy.value);
     if (!v.success) {
       t.repairs.push("schema");
-      t.schemaPaths = [...(t.schemaPaths ?? []), ...v.error.issues.slice(0, 3).map((i) => i.path.join(".").replace(/\.\d+\./g, ".#."))];
+      t.schemaPaths = [...(t.schemaPaths ?? []), ...v.error.issues.slice(0, 3).map((i) => schemaPath(i.path, tidy.value))];
       const errs = v.error.issues.slice(0, 8).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
       repairNote = `A previous attempt was rejected because the report did not match the required structure (${errs}). Call ${TOOL_NAME_V2} again with a complete, valid report and keep every field short.`;
       continue;
@@ -164,6 +166,89 @@ const AUDIO_AR = {
   speech_transcribed: "نُسخ الكلام المسموع في الفيديو.",
   unavailable: "تعذّر تحليل الصوت؛ قيّمنا الصورة والنص فقط.",
 } as const;
+
+const MODEL_EVIDENCE_ID = /^[TVA]\d{1,2}$/;
+const SERVER_EVIDENCE_ID = /^[UM]\d{1,2}$/i;
+const ID_PREFIX: Record<string, string> = { visible_text: "T", visual_observation: "V", audio_transcript: "A" };
+const SIZES = new Set(["large", "medium", "small", "tiny"]);
+const CONFIDENCES = new Set(["high", "medium", "low"]);
+
+/**
+ * Deterministic tidy-up before validation, so a cosmetic slip does not cost a
+ * repair call. Server-owned evidence the model echoes back (U#, M#) is dropped —
+ * the server already holds it; other off-pattern evidence ids are renumbered by
+ * kind and every reference follows; an unknown optional `size` is removed; an
+ * unknown evidence confidence becomes "low" (low-confidence text never feeds
+ * the copy). No text is changed.
+ */
+export function tidyProviderOutput(raw: unknown): { value: unknown; changed: number } {
+  if (!raw || typeof raw !== "object" || !Array.isArray((raw as { evidence?: unknown }).evidence)) return { value: raw, changed: 0 };
+  const r = structuredClone(raw) as { evidence: unknown[]; dimensions?: unknown; fixes?: unknown };
+  let changed = 0;
+  const rename = new Map<string, string>();
+  const used = new Set<string>();
+  const kept: Array<Record<string, unknown>> = [];
+  const renumber: Array<Record<string, unknown>> = [];
+  for (const item of r.evidence) {
+    if (!item || typeof item !== "object") {
+      kept.push(item as Record<string, unknown>);
+      continue;
+    }
+    const e = item as Record<string, unknown>;
+    const id = typeof e.id === "string" ? e.id.trim() : "";
+    if (SERVER_EVIDENCE_ID.test(id)) {
+      changed++;
+      continue;
+    }
+    const upper = id.toUpperCase();
+    if (MODEL_EVIDENCE_ID.test(upper) && !used.has(upper)) {
+      if (upper !== e.id) rename.set(String(e.id), upper), (e.id = upper), changed++;
+      used.add(upper);
+    } else if (typeof e.source === "string" && ID_PREFIX[e.source]) {
+      renumber.push(e);
+    }
+    if (e.size !== undefined && !SIZES.has(e.size as string)) delete e.size, changed++;
+    if (!CONFIDENCES.has(e.confidence as string)) (e.confidence = "low"), changed++;
+    kept.push(e);
+  }
+  for (const e of renumber) {
+    const prefix = ID_PREFIX[e.source as string]!;
+    let n = 1;
+    while (used.has(`${prefix}${n}`)) n++;
+    const next = `${prefix}${n}`;
+    // A duplicate id keeps pointing at its first holder; only a unique bad id is followed.
+    if (typeof e.id === "string" && !rename.has(e.id) && !used.has(e.id.trim().toUpperCase())) rename.set(e.id, next);
+    e.id = next;
+    used.add(next);
+    changed++;
+  }
+  r.evidence = kept;
+  const follow = (ids: unknown) =>
+    Array.isArray(ids)
+      ? ids.map((x) => {
+          if (typeof x !== "string") return x;
+          const to = rename.get(x) ?? (/^[umtva]\d{1,2}$/i.test(x.trim()) ? x.trim().toUpperCase() : x);
+          if (to !== x) changed++;
+          return to;
+        })
+      : ids;
+  for (const list of [r.dimensions, r.fixes]) {
+    if (!Array.isArray(list)) continue;
+    for (const d of list) if (d && typeof d === "object" && "evidenceIds" in d) (d as { evidenceIds: unknown }).evidenceIds = follow((d as { evidenceIds: unknown }).evidenceIds);
+  }
+  return { value: r, changed };
+}
+
+/** Failing field path with array indexes folded; for label-like fields also the offending value (never free text). */
+function schemaPath(path: PropertyKey[], value: unknown): string {
+  const folded = path.join(".").replace(/\.\d+(\.|$)/g, ".#$1");
+  const last = String(path.at(-1));
+  if (!["id", "source", "confidence", "size", "location", "status", "dimension", "imageTextLegibility"].includes(last)) return folded;
+  let at: unknown = value;
+  for (const k of path) at = at && typeof at === "object" ? (at as Record<PropertyKey, unknown>)[k] : undefined;
+  const shown = typeof at === "string" ? at.slice(0, 16) : at === undefined ? "missing" : typeof at;
+  return `${folded}=${shown}`;
+}
 
 /** Neutralise anything in a transcript that could close or forge our delimiters. */
 function fence(s: string): string {
