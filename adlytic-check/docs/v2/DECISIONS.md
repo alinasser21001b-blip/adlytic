@@ -88,3 +88,29 @@ Kept off: `SHOW_QUALITY_INDEX` (index |Δ| between runs of the same case: mean 5
 `ANALYZER_VERSION` to `v1` and `VISION_MODEL` to `claude-haiku-4-5`; stored V2 reports stay
 readable either way. The readiness probe now pings the configured model, so a model the account
 cannot use (as `claude-sonnet-5-5`, E-013) turns readiness red instead of failing checks.
+
+**D-016 — Prompt caching on (`PROMPT_CACHE=true`).** The rule base moved into a second, fixed
+system block; tools (both, fixed order) + system ≈ 6,960 tokens are identical for every check and
+read from the cache at ~0.1× the input price. Measured on the same 46 cases: input-token
+equivalents per check −56 % to −64 %, output unchanged, p50 not worse. The pre-registered quality
+gate failed on the first pair and passed on a replicate; pooled differences go both ways within
+noise (EVALUATION.md, cycle 13). Default 5-minute TTL: a check hours after the previous one pays
+the 1.25× write premium (~+8 % per check without the index); the 1-hour TTL (2× write) would cost
+more at low traffic. Rollback: `PROMPT_CACHE=false` restores the original layout byte for byte.
+
+**D-017 — Quality index shown, as the mean of two independent ratings (`SHOW_QUALITY_INDEX=true`,
+`INDEX_SECOND_OPINION=true`).** Offline study: fewer levels make it less stable; averaging two
+ratings met every pre-registered gate (mean |Δ| 3.9 ≤ 4, 97 % within 10, AUC 1.00). The second
+rating is a short levels-only call that reuses the cached prefix; the report's verdicts keep the
+main call's levels; a failed or skipped second rating falls back to one rating. The meter says it
+is an average of two ratings and can move a few points; a re-check reports an index change only
+when it exceeds 10 points (97 % of same-ad repeats stay within 10). Cost: about the same as before
+caching when checks come in bursts, up to ~+31 % when checks are hours apart (assumed 1:5 price
+ratio). Human review of the ranking (B4) still pending. Rollback: either flag to `false`.
+
+**D-018 — Re-check is computed by the server, not the model.** A re-check compares the new report
+with the owner's earlier V2 report: a fix counts as applied when the dimension it targeted is now
+strong (or rose), partly when it rose but still needs work, not yet when unchanged. No extra
+provider call; the parent is loaded with the same ownership clause as reading a report; the public
+share page never shows it. Rejected: asking the model whether each fix was applied (cost, and it
+would grade its own advice).

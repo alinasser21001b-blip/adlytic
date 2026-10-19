@@ -319,6 +319,8 @@ export interface RecheckComparison {
   dimensions: RecheckDimension[];
   copyChanged: boolean;
   usedSuggestedCopy: boolean;
+  /** Only when both reports show the index. */
+  index?: { before: number; after: number };
 }
 
 export interface TimelineEntry {

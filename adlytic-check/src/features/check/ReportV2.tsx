@@ -15,6 +15,9 @@ interface Props {
   onRecheck?: () => void;
 }
 
+/** Measured: 97 % of repeated checks of the same ad stay within 10 points (EVALUATION.md, cycle 13). */
+const INDEX_NOISE = 10;
+
 const OUTCOME_AR: Record<RecheckComparison["fixes"][number]["outcome"], string> = {
   applied: "طُبّق",
   partly: "تحسّن جزئياً",
@@ -112,7 +115,7 @@ export function ReportV2({ report: r, previewUrl, shareActive, onNewCheck, onDel
       </section>
 
       {/* 4. Index — only when the flag allows it */}
-      {r.index.shown && r.index.value !== null && <IndexMeter value={r.index.value} measured={r.index.measured} applicable={r.index.applicable} />}
+      {r.index.shown && r.index.value !== null && <IndexMeter value={r.index.value} measured={r.index.measured} applicable={r.index.applicable} samples={r.index.samples ?? 1} />}
 
       {/* 5. Before / after copy */}
       <section className="card reveal" aria-labelledby="copy-title">
@@ -323,7 +326,7 @@ function CopyButton({ text, label, small, reportId }: { text: string; label: str
 }
 
 /** The liquid meter: a droplet filled to the index, with what was actually measured. */
-function IndexMeter({ value, measured, applicable }: { value: number; measured: number; applicable: number }) {
+function IndexMeter({ value, measured, applicable, samples }: { value: number; measured: number; applicable: number; samples: number }) {
   const level = 100 - value;
   return (
     <section className="card index reveal" aria-labelledby="index-title">
@@ -346,6 +349,7 @@ function IndexMeter({ value, measured, applicable }: { value: number; measured: 
         <p className="meta">
           محسوب من {measured} من {applicable} جوانب أمكن قياسها. يقيس وضوح المحتوى فقط، ولا يتنبأ بالمبيعات أو بأداء الإعلان.
         </p>
+        {samples === 2 && <p className="meta">متوسط تقييمين مستقلين؛ قد يختلف بضع نقاط بين فحصين لنفس الإعلان.</p>}
       </div>
     </section>
   );
@@ -381,6 +385,13 @@ function RecheckSection({ c }: { c: RecheckComparison }) {
             </li>
           ))}
         </ul>
+      )}
+      {c.index && (
+        <p className="meta">
+          {Math.abs(c.index.after - c.index.before) >= INDEX_NOISE
+            ? `مؤشر الوضوح: ${c.index.before} ← ${c.index.after}`
+            : `مؤشر الوضوح تقريباً كما هو (${c.index.before} ← ${c.index.after})؛ الفرق ضمن التفاوت المعتاد بين فحصين.`}
+        </p>
       )}
       {c.usedSuggestedCopy && <p className="meta">استخدمت النص المقترح من الفحص السابق.</p>}
       {!c.copyChanged && <p className="meta">نص الإعلان لم يتغير عن الفحص السابق.</p>}

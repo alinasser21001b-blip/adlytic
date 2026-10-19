@@ -66,6 +66,7 @@ async function main() {
     ENVIRONMENT: "development", ANTHROPIC_API_KEY: "test-key-not-real", PROVIDER_BASE_URL: MOCK,
     TURNSTILE_SECRET_KEY: "test", TURNSTILE_SITE_KEY: "1x00000000000000000000AA", TURNSTILE_VERIFY_URL: `${MOCK}/siteverify`,
     IP_HASH_SECRET: "t", BUILD_ID: "browser-test", LINK_TEST_ORIGIN: MOCK, ANALYZER_VERSION: "v1",
+    PROMPT_CACHE: "false", INDEX_SECOND_OPINION: "false", SHOW_QUALITY_INDEX: "false",
   };
   const wr = spawn("npx", ["wrangler", "dev", "--port", String(PORT), "--ip", "127.0.0.1", "--persist-to", dir, "--inspector-port", "9399", "--show-interactive-dev-session=false", ...Object.entries(vars).flatMap(([k, v]) => ["--var", `${k}:${v}`])], { env, stdio: "ignore", detached: true });
   // Second Worker: Analyzer V2 + Google accounts (fake IdP) + ZainCash (fake gateway).

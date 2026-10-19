@@ -172,3 +172,22 @@ Each cycle: problem → hypothesis → change → test → result.
   (fixed, documented).
 - **Result:** round 4 meets the release bar on held-out cases → D-015: production runs V2 on
   haiku-5-5; index and video stay off with measured reasons.
+
+## Cycle 13 — Cost per check, a stable index, re-check (2026-10-19)
+- **Problems:** every check re-sent ~7k identical tokens; the index moved ~5 points (max 15)
+  between two runs of the same ad; owners had no way to see whether a fix worked.
+- **Hypotheses → changes:** (1) a stable prefix can be cached → rule base in a fixed second system
+  block, both tools always offered in fixed order, request names rule ids only (`PROMPT_CACHE`);
+  (2) index noise is adjacent-level flips, not calibration → offline study first (fewer levels:
+  worse), then the mean of two ratings via a short levels-only call reusing the cached prefix
+  (`INDEX_SECOND_OPINION`); (3) a fix's effect is visible in its dimension → server-side re-check
+  comparison (migration 0005: cache tokens, parent_id).
+- **Test:** gates written before measuring; A/B + replicate on the real provider (EVALUATION.md);
+  unit tests for the cached layout (identical bytes across ads), second rating (averaged / hidden /
+  failed), comparison rules; 5 re-check integration tests (incl. another owner's id); browser
+  re-check journey at 390/1440.
+- **Found on the way:** the first caching A/B looked worse on CTA/offer; the replicate and the
+  per-case view showed the flips were known borderline cases — reported as inconclusive-then-pass
+  rather than relaxing the gate.
+- **Result:** caching on (−56–64 % input per check); index shown (mean |Δ| 3.9, AUC 1.00); re-check
+  live after deploy.

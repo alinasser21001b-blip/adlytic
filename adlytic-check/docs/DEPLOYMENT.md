@@ -30,7 +30,9 @@
 | `MAX_NEW_SESSIONS_PER_DAY` | `3000` | سقف إنشاء جلسات مجهولة جديدة يومياً |
 | `BUILD_ID` | `dev` | يُستبدل بـ commit عند `npm run deploy` ويظهر في `/api/health` |
 | `ANALYZER_VERSION` | `v2` | المحلل المبني على الأدلة (D-015). `v1` للرجوع مع `VISION_MODEL=claude-haiku-4-5`. التقارير القديمة تبقى مقروءة في الحالتين |
-| `SHOW_QUALITY_INDEX` | `false` | إظهار المؤشر المحسوب في الخادم (V2 فقط) |
+| `SHOW_QUALITY_INDEX` | `true` | إظهار المؤشر المحسوب في الخادم (V2 فقط، D-017) |
+| `INDEX_SECOND_OPINION` | `true` | تقييم ثانٍ قصير للمستويات يُحسب متوسطه في المؤشر (فقط حين يظهر المؤشر)؛ استدعاء إضافي صغير لكل فحص |
+| `PROMPT_CACHE` | `true` | قاعدة القواعد في كتلة نظام ثابتة تُخزَّن مؤقتاً لدى المزوّد (D-016)؛ `false` يعيد الترتيب القديم حرفياً |
 | `ACCOUNTS_ENABLED` | `false` | تسجيل الدخول عبر Google وحصة 2 + 1 كل 24 ساعة بحد أقصى 2. يحتاج سرّي Google |
 | `PAYMENTS_ENABLED` | `false` | الشراء عبر زين كاش. يحتاج الحسابات وسرّي زين كاش |
 | `ZAINCASH_ENV` | `uat` | `uat` بيئة الاختبار، `production` للدفع الحقيقي |
@@ -153,6 +155,8 @@ curl -s -o /dev/null -w '%{http_code}\n' https://…/s/xxxxxxxxxxxxxxxxxxxxxxxxx
 | `VIDEO_ENABLED` | الفيديو يُرفض قبل أي إنفاق؛ الصور والنص مستمرة |
 | `ACCOUNTS_ENABLED` | عودة لحصة الزائر المجهول؛ الحسابات وأرصدتها محفوظة في D1 |
 | `ANALYZER_VERSION=v1` (+ `VISION_MODEL=claude-haiku-4-5`) | الرجوع للمحلل الأول؛ تقارير V2 السابقة تبقى مقروءة |
+| `SHOW_QUALITY_INDEX` أو `INDEX_SECOND_OPINION` | إخفاء المؤشر و/أو إلغاء الاستدعاء الثاني (يخفض تكلفة الفحص) |
+| `PROMPT_CACHE` | إلغاء التخزين المؤقت؛ الطلب يعود كما كان قبل D-016 |
 
 `/api/health` يعرض `capabilities` لكل قدرة (بدون قيم سرية). إن رفض المزوّد الطلبات لسبب
 فوترة يتوقف التحليل تلقائياً 15 دقيقة (503 `ANALYSIS_DISABLED`) وتُعاد الوحدة.

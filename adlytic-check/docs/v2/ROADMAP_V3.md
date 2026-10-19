@@ -9,7 +9,7 @@ its gate. Section 0 is in progress; the rest is not started.
 |---|---|---|---|
 | 0.1 | ✅ Done — 4 real-provider rounds (EVALUATION.md, E-013/E-014) | met except index stability and one legibility case (D-015) | — |
 | 0.2 | ✅ Switched with `VISION_MODEL=claude-haiku-5-5` (D-015); owner's live check worked (E-017) | met | — |
-| 0.3 | `SHOW_QUALITY_INDEX=true` only if the index is stable (today run-to-run Δ mean 5.4, max 15 points — not yet) and a human agrees it ranks ads sensibly | 0.4 + a stability fix (e.g. average two calls, or fewer levels) | — |
+| 0.3 | ✅ Index shown (D-017): mean of two ratings, mean Δ 3.9, AUC 1.00 | human agreement still to record (0.4) | — |
 | 0.4 | Human quality review of the 18 held-out cases (sheet in EVALUATION.md) | — | B4: a reviewer |
 | 0.5 | `VIDEO_ENABLED=true` after video fixtures pass and Whisper is measured on Iraqi Arabic speech (word error rate on a small labelled, consented set) | WER and coverage reported | a small set of consented, labelled Iraqi speech samples |
 | 0.6 | Google login live (`ACCOUNTS_ENABLED=true`) | first real login verified, guest → account move verified | B1: OAuth client |
@@ -17,10 +17,9 @@ its gate. Section 0 is in progress; the rest is not started.
 
 ## 1. Quality
 
-- **Prompt caching** for the system prompt + rules block (stable prefix). Expected: lower input
-  cost per check; measure cost and latency before/after on the same fixtures.
-- **"Check again" flow:** link a re-check to the previous report and show which fixes were
-  applied (diff of verdicts), without new facts.
+- ✅ **Prompt caching** (D-016) and ✅ **re-check** (D-018) — cycle 13.
+- **Production cache hit rate:** cache tokens are now stored per check (`cache_read_tokens`,
+  `cache_write_tokens`); review after a week of real traffic and reconsider the TTL.
 - **Bigger, real benchmark:** add consented real ads (with owner permission and redaction) to the
   synthetic set; keep the truth-based scorer.
 - **Retrieval:** only revisit if the KB grows past ~40 rules (today the applicability filter

@@ -137,6 +137,61 @@ Caveat: the anchors were tuned on this benchmark (dev and held-out together) —
 follows a KB rule's own wording/examples, and the held-out split is reported separately, but a
 fresh set of real ads is still needed (ROADMAP_V3 §1).
 
+## Cycle 13 — prompt caching, index stability (2026-10-19; gates fixed in PLAN.md before measuring)
+
+### Index stability — offline study on existing repeats (no spend)
+68 repeated pairs from rounds 1–4. Fewer levels make the index **less** stable (each disagreement
+becomes a bigger jump): bands 0-1/2/3-4 mean |Δ| 8.2, status-only 11.0, current level/4 5.5. The
+current formula already ranks clean ads above flawed ones (AUC 0.97–1.0, ICC 0.87). Noise comes
+from adjacent-level flips on borderline cases (cta 2↔3 and legibility 2↔3 dominate), which prompt
+wording cannot remove → candidate: the mean of two independent ratings.
+
+### Prompt caching A/B — same 46 cases, V2 · haiku-5-5 (runs 39335261185 and 39336452134)
+
+| Run | Completed | Input-token equivalent / check¹ | Output / check | p50 / p90 | CTA | Offer | Legibility | Invented / PII / prediction |
+|---|---|---|---|---|---|---|---|---|
+| Cache off (production) | 46/46 | 9,095 | 2,716 | 10.6 / 12.0 s | 26/26 | 28/30 | 42/46 | 0 / 0 / 0 |
+| Cache on | 46/46 | **3,246** | 2,669 | 10.4 / 12.3 s | 23/26 | 24/30 | 45/46 | 0 / 0 / 0 |
+| Replicate · cache off | 46/46 | 9,428 | 2,826 | 10.7 / 18.3 s | 24/26 | 28/30 | 42/46 | 0 / 0 / 0 |
+| Replicate · cache on | 45/46² | **4,186** | 2,889 | 10.3 / 17.9 s | 22/25 | 27/30 | 43/45 | 0 / 0 / 0 |
+
+¹ `input + 1.25·cache_write + 0.1·cache_read` — `input` is the uncached remainder only. The cached
+prefix (tools + system + rule base) is ~6,960 tokens; the per-check remainder (ad text, rule ids,
+image) ~2,350. ² f19: `overloaded_error` from the provider on a repair call — unrelated to caching.
+
+Gate: the first pair failed "within 2 cases" on CTA (−3) and offer (−4); the replicate passed
+(CTA −2, offer −1, legibility +1). Pooled: CTA 50/52 off vs 70/77 on (3 cache-on main calls incl.
+the second-rating run), offer 56/60 vs 79/90, legibility 84/92 vs 133/137, readability 17/20 vs
+30/30 — differences in both directions, none clearly beyond run-to-run noise. Every flipped case is
+a known borderline case that also flips without caching (f30/f46 CTA; f21/f44 drawings on offer).
+**Decision: caching adopted** (D-016).
+
+### Index with a levels-only second rating (run 39335261185, job 2: cache on, 30 repeated cases)
+
+| On the same 30 repeated cases | Single rating | Mean of two ratings | Gate |
+|---|---|---|---|
+| Mean change between two runs of the same ad | 4.6 | **3.9** | ≤ 4 ✓ |
+| Pairs within 10 points | 93 % | **97 %** | ≥ 90 % ✓ |
+| Largest change | 17 | 11 | — |
+| Clean ads ranked above flawed (AUC, 5 vs 25) | — | **1.00** | ≥ 0.9 ✓ |
+| Reliability (ICC) | — | 0.94 | — |
+
+76 second ratings, 76 ok; verdict agreement between repeats 0.90; quality as above (CTA 25/26,
+offer 28/30, legibility 45/46, 0 invented). Cost: +1 short call per check (input ≈ 3k
+equivalent thanks to the cached prefix, output ≈ 150–450 tokens); p50 12.3 s vs 10.4 s.
+**Decision: index shown** (D-017). Human review of the ranking is still pending (B4).
+
+### Cost per check, relative (assumes output costs 5× input, as for haiku-4-5; haiku-5-5 price unverified)
+| Configuration | Checks ≤ 5 min apart (cache warm) | Checks hours apart (every main call writes the cache) |
+|---|---|---|
+| Before (no cache, no index) | 100 % | 100 % |
+| Cache only | **≈ 73–79 %** | ≈ 108 % |
+| Cache + shown index (second rating) | ≈ 100 % | ≈ 131 % |
+| No cache + shown index (both calls pay full input) | ≈ 150 % | ≈ 150 % |
+
+The second rating always reads the prefix the main call just wrote, so with the index on caching
+saves money at any traffic level.
+
 ## Retrieval (offline, `npx tsx eval/retrieval.ts`, labels = `relevantRules` on 46 fixtures)
 
 | Strategy | Rules sent | Recall (all) | P@5 | nDCG@5 | P@8 | nDCG@8 |

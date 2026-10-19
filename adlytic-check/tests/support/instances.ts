@@ -16,6 +16,10 @@ const base = {
   BUILD_ID: "test",
   // V1 stays tested explicitly: it is the rollback path (production runs V2).
   ANALYZER_VERSION: "v1",
+  // Production turns these on (D-016, D-017); tests opt in per instance.
+  PROMPT_CACHE: "false",
+  INDEX_SECOND_OPINION: "false",
+  SHOW_QUALITY_INDEX: "false",
 };
 
 // V2 analyzer + Google accounts + credits, with a 4-second "day" and a short lease.
@@ -50,6 +54,8 @@ export const INSTANCES = {
   accounts: { port: 8805, vars: accountsVars },
   // Kill switch: new purchases off, gateway credentials still present.
   paymentsOff: { port: 8806, vars: { ...accountsVars, PAYMENTS_ENABLED: "false" } },
+  // Production analysis settings: cached prefix, two ratings, index shown.
+  indexed: { port: 8807, vars: { ...accountsVars, PROMPT_CACHE: "true", INDEX_SECOND_OPINION: "true", SHOW_QUALITY_INDEX: "true" } },
 } as const;
 
 export type InstanceName = keyof typeof INSTANCES;

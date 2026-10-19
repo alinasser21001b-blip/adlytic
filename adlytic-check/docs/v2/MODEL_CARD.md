@@ -24,7 +24,7 @@ Meta's algorithm (research S01, S02).
 - Iraqi-dialect speech recognition quality is **not measured** (no Arabic TTS for fixtures; the
   eval feeds ground-truth transcripts).
 - Video analysis sees ≤10 sampled frames, never the whole video; the report says so.
-- Quality index: hidden (`SHOW_QUALITY_INDEX=false`) — measured run-to-run |Δ| mean 5.4, max 15 points.
+- Quality index: shown since cycle 13 as the mean of two independent ratings (second, levels-only call); run-to-run change mean 3.9, max 11 points, 97 % within 10; ranks clean above flawed fixtures (AUC 1.00). Human review pending.
 - Human quality review: **pending**.
 
 ## Data

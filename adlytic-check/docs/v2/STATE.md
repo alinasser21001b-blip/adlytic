@@ -12,7 +12,7 @@ H — Launch: V2 analysis live; accounts, payments and Meta import wait on owner
 | Last verified build | `cb8205d` (E-016) — Analyzer V2 on `claude-haiku-5-5` |
 | D1 migrations | 0001–0004 applied remotely (additive only) |
 | Readiness | `ready: true` since 20:06 UTC (E-012) — B0 resolved by the owner's top-up |
-| Flags | `ANALYZER_VERSION=v2` + `VISION_MODEL=claude-haiku-5-5` (D-015), `SHOW_QUALITY_INDEX=false`, `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |
+| Flags | `ANALYZER_VERSION=v2` + `VISION_MODEL=claude-haiku-5-5` (D-015), `PROMPT_CACHE=true` (D-016), `SHOW_QUALITY_INDEX=true` + `INDEX_SECOND_OPINION=true` (D-017), `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |
 
 ## Capability status
 Vocabulary: IMPLEMENTED · TESTED (automated, local + CI) · LIVE_VERIFIED (observed on the
@@ -23,7 +23,9 @@ production URL) · BLOCKED (owner action named in BLOCKERS.md).
 | Core analysis (V1) | rollback path, TESTED | replaced live by V2 (D-015): V1 on haiku-4-5 surfaced a phone number and prediction language on held-out cases (E-013) |
 | Research registry + rules KB | IMPLEMENTED | 22 registry entries (S01–S21 + INT-PH internal), 18 rules; no fabricated sources (server registry check) |
 | Analyzer V2 | LIVE_VERIFIED (D-015; E-016 health + model probe; E-017 owner's real check on the live site); real-provider eval E-014 (round 4: 46/46, 0 invented facts) | real model output also rendered in the browser suite (E-015) |
-| Quality index | IMPLEMENTED, TESTED; hidden | server-computed; `SHOW_QUALITY_INDEX=false` until stable |
+| Quality index | TESTED; shown from cycle 13 (D-017) | mean of two ratings: run-to-run mean Δ 3.9, 97 % within 10, AUC 1.00; human review pending (B4) |
+| Prompt caching | TESTED; on from cycle 13 (D-016) | input per check −56–64 % on the benchmark |
+| Re-check | IMPLEMENTED, TESTED (integration + browser) | server-side comparison, no extra provider call (D-018) |
 | Retrieval eval | TESTED (offline) | recall 1.0, P@5 0.326 / nDCG@5 0.475 vs baseline 0.235 / 0.410 |
 | Google identity | IMPLEMENTED, TESTED (mock IdP) | **BLOCKED (B1)**; live `/api/auth/google/start` says unavailable |
 | Quota 2 + 1/24 h, cap 2 | IMPLEMENTED, TESTED (incl. concurrency) | applies once accounts are on |

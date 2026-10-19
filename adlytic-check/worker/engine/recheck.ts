@@ -74,5 +74,8 @@ export function compareReports(parent: AnalysisReportV2, child: V2Core, newCopy:
     dimensions,
     copyChanged,
     usedSuggestedCopy,
+    ...(parent.index.shown && child.index.shown && parent.index.value !== null && child.index.value !== null
+      ? { index: { before: parent.index.value, after: child.index.value } }
+      : {}),
   };
 }

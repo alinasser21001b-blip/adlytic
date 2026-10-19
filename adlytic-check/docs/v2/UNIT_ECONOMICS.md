@@ -16,6 +16,17 @@ reports $0.10 / $0.50 for `claude-haiku-5-5`; not verified on Anthropic's page, 
 
 Conservative planning figure: **~$0.02 (≈ 26 IQD) per check**, repairs included.
 
+### Measured after prompt caching and the second rating (cycle 13, V2 · `claude-haiku-5-5`)
+| Configuration | Input-token equivalent / check | Output tokens / check |
+|---|---|---|
+| No cache, no index (before) | 9.1k–9.4k | 2.7k–2.8k |
+| Cache, no index | 3.2k–4.2k | 2.7k–2.9k |
+| Cache + shown index (2 calls) | 7.1k (warm) – ~14.1k (cold write) | ~3.1k |
+
+At haiku-4-5 prices ($1 / $5 per million) the live configuration would be ≈ $0.023 (warm) to
+≈ $0.030 (cold) per check (≈ 30–39 IQD) — still far below the 500 IQD price. haiku-5-5's own price
+is not verified here; read the actual figure in the Anthropic Console → Usage.
+
 ## Free tier
 2 checks on activation, +1 per 24 h, cap 2 → at most ~31 free checks per account per month,
 ≈ $0.62 (≈ 810 IQD) if fully used. The service-wide ceiling `MAX_PROVIDER_CALLS_PER_DAY=100`
