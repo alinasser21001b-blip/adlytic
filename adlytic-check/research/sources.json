@@ -1,0 +1,518 @@
+{
+ "registryVersion": "2026-10-19.1",
+ "sources": [
+  {
+   "sourceId": "S01",
+   "title": "Meta Andromeda: Supercharging Advantage+ automation with the next-gen personalized ads retrieval engine",
+   "publisher": "Engineering at Meta",
+   "authors": [
+    "Chonglin Sun",
+    "Nancy Yu",
+    "Haiyu Lu",
+    "Liang Wang",
+    "Yunchen Pu",
+    "Gaoxiang Liu",
+    "Neeraj Bhatia",
+    "GP Musumeci"
+   ],
+   "url": "https://engineering.fb.com/2024/12/02/production-engineering/meta-andromeda-advantage-automation-next-gen-personalized-ads-retrieval-engine/",
+   "evidenceType": "engineering_description",
+   "access": "full_text",
+   "publishedAt": "2024-12-02",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "intro: retrieval selects from tens of millions of candidates to a few thousand",
+    "Challenges and opportunities…: generative-AI creative tools expected to grow the number of ad creatives significantly"
+   ],
+   "keyFindings": [
+    "Andromeda is the retrieval stage of Meta's multi-stage ads recommendation system; ranking models decide the final ads.",
+    "Meta expects the number of ad creatives to grow significantly because of generative-AI creative tools."
+   ],
+   "limitations": [
+    "Describes infrastructure, not creative guidelines; gives no rule about what a good creative looks like.",
+    "Says nothing about how a single small advertiser's creative is scored."
+   ],
+   "productUse": "Context only. Forbids any claim that Adlytic Check knows or predicts how Andromeda treats an ad."
+  },
+  {
+   "sourceId": "S02",
+   "title": "A Comparison of Approaches to Advertising Measurement: Evidence from Big Field Experiments at Facebook",
+   "publisher": "Marketing Science (INFORMS)",
+   "authors": [
+    "Brett R. Gordon",
+    "Florian Zettelmeyer",
+    "Neha Bhargava",
+    "Dan Chapsky"
+   ],
+   "url": "https://www.kellogg.northwestern.edu/faculty/gordon_b/files/fb_comparison.pdf",
+   "doi": "10.1287/mksc.2018.1135",
+   "evidenceType": "peer_reviewed_experiment",
+   "access": "full_text",
+   "publishedAt": "2019",
+   "publishedAtPrecision": "year",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Abstract",
+    "1 Introduction"
+   ],
+   "keyFindings": [
+    "15 US advertising RCTs at Facebook (500M user-experiment observations, 1.6B impressions).",
+    "Observational methods often fail to reproduce the experimental effects, even with extensive demographic and behavioural controls."
+   ],
+   "limitations": [
+    "US campaigns from 2015; measures campaign effects, not creative quality.",
+    "Read: abstract and introduction of the author-hosted 2018 manuscript, not the typeset journal article."
+   ],
+   "productUse": "Basis for the hard rule that a content review cannot predict sales/CTR, and for recommending a randomized A/B test when the owner wants to know which version works."
+  },
+  {
+   "sourceId": "S03",
+   "title": "Capture Attention with Updated Features for Video Ads",
+   "publisher": "Meta for Business (Facebook business news)",
+   "url": "https://www.facebook.com/business/news/updated-features-for-video-ads",
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "paragraph on mobile feed viewing without sound"
+   ],
+   "keyFindings": [
+    "Most video ads in mobile feed are viewed without sound, so the message should be expressed visually.",
+    "Captions, logos and products help communicate the message in silence."
+   ],
+   "limitations": [
+    "Publisher blocks automated fetching (HTTP 400 from CI); only a search excerpt was read.",
+    "Older post; publication date not verified; Reels audio habits may differ."
+   ],
+   "productUse": "Video rule: the core message must be understandable with sound off (on-screen text/captions)."
+  },
+  {
+   "sourceId": "S04",
+   "title": "Reels ad safe zones (Meta Ads Guide, as reported by third-party spec guides)",
+   "publisher": "Meta (reported by adsuploader.com, firstpier.com, adnabu.com)",
+   "url": "https://adsuploader.com/blog/meta-ads-safe-zones",
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "verification": "unverified_secondary",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Reels 9:16 margins"
+   ],
+   "keyFindings": [
+    "Most frequently reported guidance for 9:16 Reels ads: keep text, logos and key elements out of roughly the top 14%, bottom 35% and ~6% of each side.",
+    "Secondary sources disagree on the bottom margin (20%–40%) and recommend Meta's safe-zone preview in Ads Manager."
+   ],
+   "limitations": [
+    "Meta's own page could not be read; numbers differ between guides; treat as a heuristic only."
+   ],
+   "productUse": "Inference-only rule for vertical (9:16) media: warn that text near the bottom may be covered, and point to the Ads Manager preview as the authority."
+  },
+  {
+   "sourceId": "S05",
+   "title": "Meta's former 20% image-text rule and current recommendation",
+   "publisher": "Social Media Today; Jon Loomer Digital (reporting Meta Help Center wording)",
+   "url": "https://socialmediatoday.com/news/facebooks-removing-its-restrictions-on-text-content-in-facebook-ad-images/585705",
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "verification": "unverified_secondary",
+   "publishedAt": "2020",
+   "publishedAtPrecision": "year",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "report of the 2020 policy change"
+   ],
+   "keyFindings": [
+    "Meta stopped penalizing ads with more image text in delivery (2020).",
+    "Help Center wording still recommends keeping image text light (\"less than 20%\")."
+   ],
+   "limitations": [
+    "A recommendation, not an enforced rule; current Help Center wording not verified first-hand."
+   ],
+   "productUse": "Weak-evidence rule: crowded text is flagged for readability, never as a delivery penalty."
+  },
+  {
+   "sourceId": "S06",
+   "title": "Meta Experiments: A/B test and Conversion Lift (Ads Manager)",
+   "publisher": "Meta (reported by Jon Loomer Digital; Triple Whale)",
+   "url": "https://www.jonloomer.com/how-to-create-an-a-b-test-in-meta-experiments/",
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "verification": "unverified_secondary",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Experiments tool: A/B test with 2–5 variations",
+    "Conversion Lift: randomized test vs control holdout"
+   ],
+   "keyFindings": [
+    "Ads Manager's Experiments tool runs A/B tests between 2–5 variations.",
+    "Conversion Lift compares a test group with a randomized control group that is not shown the ads."
+   ],
+   "limitations": [
+    "Meta Help Center pages block automated fetching; descriptions come from practitioners."
+   ],
+   "productUse": "When owners ask which variant is better, recommend testing the alternate openings with Meta's A/B test instead of trusting a predicted winner."
+  },
+  {
+   "sourceId": "S07",
+   "title": "YouTube ABCDs: Video ad best practices",
+   "publisher": "Think with Google",
+   "url": "https://business.google.com/en-all/think/future-of-marketing/youtube-video-ad-creative/",
+   "evidenceType": "vendor_experiment",
+   "access": "full_text",
+   "publishedAt": "2022-04-19",
+   "modifiedAt": "2026-01-20",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "intro: collaboration with Ipsos; Nielsen and Kantar as independent reviewers",
+    "\"On average, the ABCDs deliver a 30% lift in short-term sales likelihood and a 17% lift in long-term brand contribution\""
+   ],
+   "keyFindings": [
+    "Four principles: Attention/Attract, Branding/Brand, Connection/Connect, Direction/Direct (ask for action).",
+    "Vendor-reported association with short-term sales likelihood (Google/Kantar)."
+   ],
+   "limitations": [
+    "Vendor research on YouTube, not Meta; correlational association reported by the platform owner."
+   ],
+   "productUse": "Supports the opening (attention), brand presence and clear call-to-action dimensions as checks — never as performance promises."
+  },
+  {
+   "sourceId": "S08",
+   "title": "Attention Capture and Transfer in Advertising: Brand, Pictorial, and Text-Size Effects",
+   "publisher": "Journal of Marketing 68(2):36–50",
+   "authors": [
+    "Rik Pieters",
+    "Michel Wedel"
+   ],
+   "url": "https://www.scinapse.io/papers/2147156975",
+   "evidenceType": "observational_study",
+   "access": "search_excerpt",
+   "publishedAt": "2004-04",
+   "publishedAtPrecision": "month",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Abstract (via indexing service and University of Michigan press release)"
+   ],
+   "keyFindings": [
+    "Eye-tracking of 3,600+ consumers on 1,363 print ads: pictorial captures attention regardless of size; attention to text depends on text surface size."
+   ],
+   "limitations": [
+    "Print magazines, 2004; later studies did not always replicate the size interactions (Frontiers in Psychology 2013 review)."
+   ],
+   "productUse": "Supports: product picture is the first thing seen; key words must be large enough to be read."
+  },
+  {
+   "sourceId": "S09",
+   "title": "Moment-to-Moment Optimal Branding in TV Commercials: Preventing Avoidance by Pulsing",
+   "publisher": "Marketing Science 29(5):783–804",
+   "authors": [
+    "Thales Teixeira",
+    "Michel Wedel",
+    "Rik Pieters"
+   ],
+   "url": "https://pubsonline.informs.org/doi/fpi/10.1287/mksc.1100.0567",
+   "doi": "10.1287/mksc.1100.0567",
+   "evidenceType": "peer_reviewed_experiment",
+   "access": "search_excerpt",
+   "publishedAt": "2010",
+   "publishedAtPrecision": "year",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Abstract"
+   ],
+   "keyFindings": [
+    "31 commercials, ~2,000 participants: dispersed attention predicts zapping; brief, repeated brand appearances (pulsing) reduced avoidance versus one long brand exposure."
+   ],
+   "limitations": [
+    "TV commercials, not mobile feeds; effect sizes reported in trade press were not verified."
+   ],
+   "productUse": "Video: suggest showing the shop/brand briefly more than once rather than one long logo slate (inference)."
+  },
+  {
+   "sourceId": "S10",
+   "title": "Web Content Accessibility Guidelines (WCAG) 2.2 — 1.4.3 Contrast (Minimum)",
+   "publisher": "W3C",
+   "url": "https://www.w3.org/TR/WCAG22/",
+   "evidenceType": "official_guidance",
+   "access": "full_text",
+   "publishedAt": "2023-10-05",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "1.4.3 Contrast (Minimum): 4.5:1 for text, 3:1 for large-scale text"
+   ],
+   "keyFindings": [
+    "Text needs a contrast ratio of at least 4.5:1 (3:1 for large text) to be readable by people with moderately low vision."
+   ],
+   "limitations": [
+    "Written for web text, not ad images; the model estimates contrast visually and cannot measure it exactly."
+   ],
+   "productUse": "Legibility rule: low contrast between text and background is a readability problem (inference from the image)."
+  },
+  {
+   "sourceId": "S11",
+   "title": "Cloudflare Workers — Limits",
+   "publisher": "Cloudflare Docs",
+   "url": "https://developers.cloudflare.com/workers/platform/limits/",
+   "evidenceType": "engineering_description",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Account plan limits (CPU 10 ms Free / up to 5 min Paid; memory 128 MB; subrequests 50 Free)",
+    "Request body size by Cloudflare plan (100 MB Free/Pro)"
+   ],
+   "keyFindings": [
+    "Workers have 128 MB memory and, on the Free plan, 10 ms CPU per request — unsuitable for video decoding."
+   ],
+   "limitations": [
+    "Limits change; re-check before scaling."
+   ],
+   "productUse": "Architecture: no ffmpeg/decoding in the Worker; video frames and audio are extracted in the browser."
+  },
+  {
+   "sourceId": "S12",
+   "title": "Workers AI — whisper-large-v3-turbo model page and Workers AI pricing",
+   "publisher": "Cloudflare Docs",
+   "url": "https://developers.cloudflare.com/workers-ai/models/whisper-large-v3-turbo/",
+   "evidenceType": "engineering_description",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Model info: $0.000513 per audio minute; parameters language, vad_filter, no_speech_threshold",
+    "Pricing: 10,000 Neurons/day free on Free and Paid plans; $0.011 / 1,000 Neurons"
+   ],
+   "keyFindings": [
+    "Speech recognition with segment timestamps is available as a Worker binding.",
+    "A 60-second clip costs about $0.0005."
+   ],
+   "limitations": [
+    "Arabic dialect accuracy not documented; must be measured on fixtures."
+   ],
+   "productUse": "Video audio transcription (speech_transcribed / no_audio / silence / unavailable)."
+  },
+  {
+   "sourceId": "S13",
+   "title": "Cloudflare Queues limits, Workflows limits, Containers pricing",
+   "publisher": "Cloudflare Docs",
+   "url": "https://developers.cloudflare.com/queues/platform/limits/",
+   "relatedUrls": [
+    "https://developers.cloudflare.com/workflows/reference/limits/",
+    "https://developers.cloudflare.com/containers/platform/pricing/"
+   ],
+   "evidenceType": "engineering_description",
+   "access": "full_text",
+   "publishedAt": "2026-04-21",
+   "modifiedAt": "2026-10-05",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Queues: 128 KB message, 15 min consumer wall time",
+    "Workflows: 1 MiB step result / event payload; Free plan 10 ms CPU per step",
+    "Containers: Workers Paid only (no Free tier)"
+   ],
+   "keyFindings": [
+    "Containers (the only place ffmpeg could run) require Workers Paid; Queue messages are capped at 128 KB, so media must live elsewhere."
+   ],
+   "limitations": [
+    "Account plan of this deployment is not visible from the session."
+   ],
+   "productUse": "Decision D-006: avoid Containers for V2 video; keep the synchronous path within one request."
+  },
+  {
+   "sourceId": "S14",
+   "title": "R2 presigned URLs",
+   "publisher": "Cloudflare Docs",
+   "url": "https://developers.cloudflare.com/r2/api/s3/presigned-urls/",
+   "evidenceType": "engineering_description",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "presigned PUT/GET with expiry"
+   ],
+   "keyFindings": [
+    "Presigned URLs grant time-limited upload/download without making a bucket public."
+   ],
+   "limitations": [
+    "Requires S3 API credentials stored as Worker secrets."
+   ],
+   "productUse": "Roadmap option for larger uploads; not needed while frames are extracted client-side."
+  },
+  {
+   "sourceId": "S15",
+   "title": "OpenID Connect (Google Identity)",
+   "publisher": "Google for Developers",
+   "url": "https://developers.google.com/identity/openid-connect/openid-connect",
+   "evidenceType": "official_guidance",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Create an anti-forgery state token",
+    "Validating an ID token (iss, aud, exp, nonce)",
+    "email_verified claim"
+   ],
+   "keyFindings": [
+    "Use a state token against CSRF; validate iss/aud/exp; use sub as the stable user identifier."
+   ],
+   "limitations": [],
+   "productUse": "Identity: Google OIDC with state, nonce and PKCE; account key = issuer + sub."
+  },
+  {
+   "sourceId": "S16",
+   "title": "RFC 9700 — Best Current Practice for OAuth 2.0 Security",
+   "publisher": "IETF",
+   "url": "https://www.rfc-editor.org/rfc/rfc9700.txt",
+   "evidenceType": "official_guidance",
+   "access": "full_text",
+   "publishedAt": "2025-01",
+   "publishedAtPrecision": "month",
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "2.1.1 Authorization Code Grant (PKCE, CSRF)",
+    "4.1 Insufficient Redirect URI Validation (exact string matching)"
+   ],
+   "keyFindings": [
+    "Clients use PKCE; redirect URIs are matched exactly; one-time CSRF protection via state or PKCE."
+   ],
+   "limitations": [],
+   "productUse": "Identity implementation checklist."
+  },
+  {
+   "sourceId": "S17",
+   "title": "Server-Side Request Forgery Prevention Cheat Sheet",
+   "publisher": "OWASP Cheat Sheet Series",
+   "url": "https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html",
+   "evidenceType": "official_guidance",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Case 2: application can send requests to any external IP/domain — validate resolved IPs, block private/link-local/IPv6 mapped ranges, disable redirect following, DNS rebinding"
+   ],
+   "keyFindings": [
+    "Validate the destination after DNS resolution, re-check on every redirect, and block internal ranges in IPv4 and IPv6."
+   ],
+   "limitations": [],
+   "productUse": "Direct-file link import controls."
+  },
+  {
+   "sourceId": "S18",
+   "title": "ZainCash Payment Gateway API Documentation v2",
+   "publisher": "ZainCash",
+   "url": "https://docs.zaincash.iq/",
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "POST /oauth2/token (client credentials)",
+    "POST /api/v2/payment-gateway/transaction/init",
+    "GET /api/v2/payment-gateway/transaction/inquiry/{transactionId} (scope payment:read)",
+    "Redirect with JWT token to successUrl/failureUrl",
+    "Webhook: source of truth, production only, registered by the business team",
+    "UAT base URL https://pg-api-uat.zaincash.iq"
+   ],
+   "keyFindings": [
+    "v2 uses OAuth2 client credentials; webhook is the source of truth; inquiry is the fallback; webhook is not available in UAT."
+   ],
+   "limitations": [
+    "Site returns a Cloudflare challenge to automated fetches (403 from CI); webhook signature scheme and minimum amount not confirmed."
+   ],
+   "productUse": "Payment adapter design; anything unconfirmed is verified by inquiry, never trusted from the redirect."
+  },
+  {
+   "sourceId": "S19",
+   "title": "ZainCash business wallets — fees table",
+   "publisher": "ZainCash",
+   "url": "https://zaincash.iq/business-wallets",
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "Merchant payment gateway fee by wallet type"
+   ],
+   "keyFindings": [
+    "Small Projects wallet: 1% with a minimum of 500 IQD per gateway payment (30M IQD monthly limit).",
+    "Merchant and Company/NGO wallets: 0.6% with a minimum of 150 IQD."
+   ],
+   "limitations": [
+    "Page blocks automated fetching; search indexer reported the page as ~621 days old; negotiated terms may differ."
+   ],
+   "productUse": "Unit economics: a single 500 IQD purchase is uneconomic on a Small Projects wallet; bundles are shown explicitly."
+  },
+  {
+   "sourceId": "S20",
+   "title": "Instagram Platform: oEmbed, Meta oEmbed Read feature, Business Discovery",
+   "publisher": "Meta for Developers",
+   "url": "https://developers.facebook.com/docs/instagram-platform/oembed",
+   "relatedUrls": [
+    "https://developers.facebook.com/docs/features-reference/meta-oembed-read",
+    "https://developers.facebook.com/docs/instagram-platform/instagram-api-with-facebook-login/business-discovery"
+   ],
+   "evidenceType": "official_guidance",
+   "access": "search_excerpt",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "oEmbed: App Access Token server-side; Meta oEmbed Read requires App Review",
+    "oEmbed Read: thumbnail_url/author fields deprecated (Nov 3 2025)",
+    "Business Discovery: Facebook User token with instagram_basic, instagram_manage_insights, pages_read_engagement; only Business/Creator accounts"
+   ],
+   "keyFindings": [
+    "Official access to another account's post media requires an approved Meta app and user authorization; oEmbed no longer returns thumbnails."
+   ],
+   "limitations": [
+    "developers.facebook.com blocks automated fetching (400 from CI); a June 2026 tokenless-oEmbed change is reported only by a secondary blog and is unverified."
+   ],
+   "productUse": "Link support matrix: Instagram/Facebook links are AUTH_REQUIRED or UNSUPPORTED; no scraping."
+  },
+  {
+   "sourceId": "S21",
+   "title": "MDN — BaseAudioContext.decodeAudioData() and HTMLVideoElement.requestVideoFrameCallback()",
+   "publisher": "MDN Web Docs",
+   "url": "https://developer.mozilla.org/en-US/docs/Web/API/BaseAudioContext/decodeAudioData",
+   "relatedUrls": [
+    "https://developer.mozilla.org/en-US/docs/Web/API/HTMLVideoElement/requestVideoFrameCallback"
+   ],
+   "evidenceType": "engineering_description",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "decodeAudioData: decodes audio from a media file's ArrayBuffer",
+    "requestVideoFrameCallback: per-frame callback with mediaTime"
+   ],
+   "keyFindings": [
+    "Browsers can decode a video's audio track and draw frames to a canvas without server-side ffmpeg."
+   ],
+   "limitations": [
+    "Codec support differs by browser; must be tested in Chromium and WebKit."
+   ],
+   "productUse": "Client-side video frame and audio extraction."
+  },
+  {
+   "sourceId": "INT-PH",
+   "title": "Adlytic product hypotheses (internal, not external evidence)",
+   "publisher": "Adlytic",
+   "url": null,
+   "evidenceType": "product_hypothesis",
+   "access": "full_text",
+   "publishedAt": null,
+   "retrievedAt": "2026-10-19",
+   "sections": [
+    "industry checklists of commonly missing details; Iraqi messaging-first ordering habits"
+   ],
+   "keyFindings": [
+    "Hypothesis: shop owners selling through Instagram/WhatsApp lose orders when price, sizes or ordering method are missing."
+   ],
+   "limitations": [
+    "Not externally validated; labelled as hypothesis wherever used."
+   ],
+   "productUse": "Missing-details suggestions only, never presented as research findings."
+  }
+ ]
+}

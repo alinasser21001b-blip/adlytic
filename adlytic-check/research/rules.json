@@ -1,0 +1,1039 @@
+{
+ "knowledgeVersion": "kb-2026-10-19.1",
+ "rubricVersion": "rubric-1",
+ "levels": {
+  "0": "غائب أو مضلل",
+  "1": "ضعيف جداً",
+  "2": "موجود لكن يحتاج تحسيناً واضحاً",
+  "3": "جيد مع ملاحظة بسيطة",
+  "4": "واضح تماماً"
+ },
+ "dimensions": [
+  {
+   "id": "offer_clarity",
+   "labelAr": "وضوح ما يُباع",
+   "weight": 3,
+   "media": [
+    "image",
+    "video",
+    "text"
+   ]
+  },
+  {
+   "id": "cta",
+   "labelAr": "طريقة الطلب",
+   "weight": 3,
+   "media": [
+    "image",
+    "video",
+    "text"
+   ]
+  },
+  {
+   "id": "opening",
+   "labelAr": "الافتتاحية",
+   "weight": 2,
+   "media": [
+    "image",
+    "video",
+    "text"
+   ]
+  },
+  {
+   "id": "legibility",
+   "labelAr": "قراءة النص على الهاتف",
+   "weight": 2,
+   "media": [
+    "image",
+    "video"
+   ]
+  },
+  {
+   "id": "consistency",
+   "labelAr": "تطابق الصورة والنص",
+   "weight": 2,
+   "media": [
+    "image",
+    "video"
+   ]
+  },
+  {
+   "id": "sound_off",
+   "labelAr": "الفهم بدون صوت",
+   "weight": 2,
+   "media": [
+    "video"
+   ]
+  },
+  {
+   "id": "details",
+   "labelAr": "المعلومات الأساسية",
+   "weight": 1,
+   "media": [
+    "image",
+    "video",
+    "text"
+   ]
+  },
+  {
+   "id": "safe_zone",
+   "labelAr": "مساحة آمنة في الإطار العمودي",
+   "weight": 1,
+   "media": [
+    "image",
+    "video"
+   ]
+  },
+  {
+   "id": "brand",
+   "labelAr": "ظهور اسم المتجر",
+   "weight": 1,
+   "media": [
+    "image",
+    "video"
+   ]
+  }
+ ],
+ "rules": [
+  {
+   "ruleId": "R-OFFER-01",
+   "version": 1,
+   "dimension": "offer_clarity",
+   "principleAr": "يجب أن يفهم المشاهد ما الذي يُباع من أول نظرة: المنتج ظاهر بوضوح وله اسم أو وصف قصير.",
+   "sources": [
+    {
+     "sourceId": "S08",
+     "section": "pictorial captures attention regardless of size"
+    },
+    {
+     "sourceId": "S07",
+     "section": "Connection: focus the message"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "moderate",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": "Is the sold item visible and named? Cite the element.",
+   "tags": [
+    "منتج",
+    "وضوح",
+    "ماذا تبيع",
+    "product",
+    "what is sold",
+    "صورة المنتج"
+   ],
+   "examples": [
+    "صورة كنبة واضحة مع عنوان «كنبة زاوية مخمل»"
+   ],
+   "counterexamples": [
+    "صورة جو عام بلا منتج ونص «تشكيلة جديدة»"
+   ],
+   "ambiguous": [
+    "منتج ظاهر لكن غير مسمّى وفئته واضحة من الشكل"
+   ]
+  },
+  {
+   "ruleId": "R-OFFER-02",
+   "version": 1,
+   "dimension": "offer_clarity",
+   "principleAr": "رسالة رئيسية واحدة أوضح من عدة عروض ورسائل متزاحمة في الإعلان نفسه.",
+   "sources": [
+    {
+     "sourceId": "S07",
+     "section": "Connection: focus the message"
+    },
+    {
+     "sourceId": "S05",
+     "section": "keep image text light"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "weak",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "ازدحام",
+    "عروض كثيرة",
+    "رسالة واحدة",
+    "clutter",
+    "multiple offers"
+   ],
+   "examples": [
+    "إعلان يعرض منتجاً واحداً وعرضاً واحداً"
+   ],
+   "counterexamples": [
+    "إعلان فيه خمسة منتجات وثلاثة أسعار وعرضان"
+   ],
+   "ambiguous": [
+    "منتج واحد بعدة ألوان معروضة معاً"
+   ]
+  },
+  {
+   "ruleId": "R-OPEN-01",
+   "version": 1,
+   "dimension": "opening",
+   "principleAr": "السطر الأول من النص يعطي سبباً واضحاً لإكمال القراءة (المنتج أو الفائدة أو العرض)، لا تحية عامة.",
+   "sources": [
+    {
+     "sourceId": "S07",
+     "section": "Attention: hook viewers early"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "text",
+     "image",
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "moderate",
+   "unknownWhen": null,
+   "notApplicableWhen": "No ad text and no text in the image.",
+   "checkHint": null,
+   "tags": [
+    "افتتاحية",
+    "السطر الأول",
+    "hook",
+    "opening line",
+    "بداية النص"
+   ],
+   "examples": [
+    "«كنبة زاوية تكفي ٧ أشخاص — توصيل لكل بغداد»"
+   ],
+   "counterexamples": [
+    "«مرحبا بكم في صفحتنا»"
+   ],
+   "ambiguous": [
+    "سؤال للمشاهد قد يجذب أو لا"
+   ]
+  },
+  {
+   "ruleId": "R-OPEN-02",
+   "version": 1,
+   "dimension": "opening",
+   "principleAr": "في الفيديو: يظهر المنتج أو العرض خلال أول ثانيتين تقريباً.",
+   "sources": [
+    {
+     "sourceId": "S07",
+     "section": "Attention: hook viewers early"
+    },
+    {
+     "sourceId": "S03",
+     "section": "capture attention quickly in feed"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "moderate",
+   "unknownWhen": "No frame sampled in the first 2 seconds.",
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "أول ثانيتين",
+    "بداية الفيديو",
+    "first seconds",
+    "video hook"
+   ],
+   "examples": [
+    "أول لقطة (0.0 ث) تُظهر المنتج مع اسمه"
+   ],
+   "counterexamples": [
+    "أول 5 ثوانٍ شعار متحرك فقط"
+   ],
+   "ambiguous": [
+    "لقطة يد تفتح علبة قبل ظهور المنتج"
+   ]
+  },
+  {
+   "ruleId": "R-LEG-01",
+   "version": 1,
+   "dimension": "legibility",
+   "principleAr": "الكلمات المهمة (اسم المنتج، السعر، طريقة الطلب) يجب أن تكون كبيرة بما يكفي لتُقرأ على شاشة الهاتف.",
+   "sources": [
+    {
+     "sourceId": "S08",
+     "section": "attention to text depends on text surface size"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "moderate",
+   "unknownWhen": null,
+   "notApplicableWhen": "Image or frames contain no text.",
+   "checkHint": null,
+   "tags": [
+    "خط صغير",
+    "حجم النص",
+    "قراءة على الهاتف",
+    "small text",
+    "font size"
+   ],
+   "examples": [
+    "السعر بخط عريض يشغل عرضاً واضحاً"
+   ],
+   "counterexamples": [
+    "السعر في سطر صغير أسفل الصورة"
+   ],
+   "ambiguous": [
+    "نص متوسط الحجم على خلفية مزدحمة"
+   ]
+  },
+  {
+   "ruleId": "R-LEG-02",
+   "version": 1,
+   "dimension": "legibility",
+   "principleAr": "تباين كافٍ بين لون النص وخلفيته؛ النص الفاتح على خلفية فاتحة يصعب قراءته.",
+   "sources": [
+    {
+     "sourceId": "S10",
+     "section": "1.4.3 Contrast (Minimum) 4.5:1, 3:1 large text"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "moderate",
+   "unknownWhen": null,
+   "notApplicableWhen": "Image or frames contain no text.",
+   "checkHint": null,
+   "tags": [
+    "تباين",
+    "لون النص",
+    "contrast",
+    "خلفية"
+   ],
+   "examples": [
+    "نص أبيض على خلفية داكنة"
+   ],
+   "counterexamples": [
+    "نص رمادي فاتح على خلفية بيج"
+   ],
+   "ambiguous": [
+    "نص على صورة متعددة الألوان"
+   ]
+  },
+  {
+   "ruleId": "R-LEG-03",
+   "version": 1,
+   "dimension": "legibility",
+   "principleAr": "تقليل كمية النص داخل الصورة يسهّل القراءة؛ التفاصيل الطويلة مكانها نص المنشور.",
+   "sources": [
+    {
+     "sourceId": "S05",
+     "section": "recommendation to keep image text light; no delivery penalty since 2020"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "weak",
+   "unknownWhen": null,
+   "notApplicableWhen": "Image contains no text.",
+   "checkHint": null,
+   "tags": [
+    "نص كثير",
+    "كثافة النص",
+    "text density",
+    "20%"
+   ],
+   "examples": [
+    "عنوان وسعر وزر فقط على الصورة"
+   ],
+   "counterexamples": [
+    "فقرة كاملة من المواصفات على الصورة"
+   ],
+   "ambiguous": [
+    "قائمة مقاسات قصيرة"
+   ]
+  },
+  {
+   "ruleId": "R-CTA-01",
+   "version": 1,
+   "dimension": "cta",
+   "principleAr": "يجب أن يعرف المشاهد بالضبط كيف يطلب أو يتواصل، وبما يناسب هدف الإعلان (رسالة، طلب، زيارة).",
+   "sources": [
+    {
+     "sourceId": "S07",
+     "section": "Direction: ask for action"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "moderate",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "طريقة الطلب",
+    "تواصل",
+    "واتساب",
+    "راسلنا",
+    "call to action",
+    "CTA",
+    "اطلب"
+   ],
+   "examples": [
+    "«راسلنا على الخاص واكتب المقاس»"
+   ],
+   "counterexamples": [
+    "لا يوجد أي ذكر لطريقة الطلب"
+   ],
+   "ambiguous": [
+    "«التفاصيل بالخاص» بدون ذكر ما المطلوب كتابته"
+   ]
+  },
+  {
+   "ruleId": "R-SAFE-01",
+   "version": 1,
+   "dimension": "safe_zone",
+   "principleAr": "في الإعلانات العمودية 9:16 أبعد النص المهم وزر الطلب عن أعلى الإطار وأسفله؛ واجهة المنصة قد تغطيها. تحقّق من المعاينة في مدير الإعلانات.",
+   "sources": [
+    {
+     "sourceId": "S04",
+     "section": "Reels margins ~14% top / ~35% bottom (secondary, values vary)"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video"
+    ],
+    "placement": [
+     "vertical"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "weak",
+   "unknownWhen": null,
+   "notApplicableWhen": "Media is not vertical (~9:16).",
+   "checkHint": null,
+   "tags": [
+    "أسفل الصورة",
+    "ريلز",
+    "ستوري",
+    "safe zone",
+    "9:16",
+    "عمودي"
+   ],
+   "examples": [
+    "السعر في منتصف الإطار"
+   ],
+   "counterexamples": [
+    "رقم الهاتف في آخر 10% من الإطار"
+   ],
+   "ambiguous": [
+    "نص في الثلث السفلي بالضبط"
+   ]
+  },
+  {
+   "ruleId": "R-CONS-01",
+   "version": 1,
+   "dimension": "consistency",
+   "principleAr": "السعر والعرض واسم المنتج يجب أن تكون متطابقة بين الصورة والنص؛ أي تعارض يربك المشتري.",
+   "sources": [
+    {
+     "sourceId": "INT-PH",
+     "section": "logical consistency; not externally measured"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "hypothesis",
+   "unknownWhen": null,
+   "notApplicableWhen": "Only one of image or text was submitted.",
+   "checkHint": null,
+   "tags": [
+    "تعارض",
+    "سعر مختلف",
+    "تطابق",
+    "conflict",
+    "mismatch"
+   ],
+   "examples": [
+    "الصورة والنص يذكران 25,000 دينار"
+   ],
+   "counterexamples": [
+    "الصورة 25,000 والنص 30,000"
+   ],
+   "ambiguous": [
+    "الصورة تذكر سعراً والنص لا يذكر أي سعر"
+   ]
+  },
+  {
+   "ruleId": "R-DET-01",
+   "version": 1,
+   "dimension": "details",
+   "principleAr": "اقتراح التفاصيل التي يسأل عنها المشترون عادةً في هذا المجال (السعر، المقاسات، منطقة التوصيل…) — كاقتراح فقط وليس كحقيقة.",
+   "sources": [
+    {
+     "sourceId": "INT-PH",
+     "section": "industry checklists"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "hypothesis",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "معلومات ناقصة",
+    "مقاسات",
+    "توصيل",
+    "سعر",
+    "missing details"
+   ],
+   "examples": [
+    "ملابس بلا مقاسات → اقتراح إضافة المقاسات إن كانت معروفة"
+   ],
+   "counterexamples": [
+    "اختراع مقاسات أو سعر"
+   ],
+   "ambiguous": [
+    "سعر غير مذكور عمداً لأن البيع بالخاص"
+   ]
+  },
+  {
+   "ruleId": "R-SOUND-01",
+   "version": 1,
+   "dimension": "sound_off",
+   "principleAr": "في الفيديو: يجب أن تُفهم الرسالة الأساسية بدون صوت (نص على الشاشة أو ترجمة)، لأن كثيراً من المشاهدة تكون بلا صوت.",
+   "sources": [
+    {
+     "sourceId": "S03",
+     "section": "most mobile feed video viewed without sound; use captions/products"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "moderate",
+   "unknownWhen": "Audio could not be analysed.",
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "بدون صوت",
+    "ترجمة",
+    "captions",
+    "sound off",
+    "نص على الشاشة"
+   ],
+   "examples": [
+    "الكلام المنطوق مكتوب على الشاشة"
+   ],
+   "counterexamples": [
+    "كل المعلومات في التعليق الصوتي فقط"
+   ],
+   "ambiguous": [
+    "موسيقى فقط ومنتج واضح بلا كلام"
+   ]
+  },
+  {
+   "ruleId": "R-BRAND-01",
+   "version": 1,
+   "dimension": "brand",
+   "principleAr": "اسم المتجر أو شعاره يظهر بوضوح؛ في الفيديو الأفضل ظهوره قصيراً أكثر من مرة بدل لقطة طويلة واحدة.",
+   "sources": [
+    {
+     "sourceId": "S07",
+     "section": "Branding: brand early and often"
+    },
+    {
+     "sourceId": "S09",
+     "section": "brand pulsing reduced avoidance in TV ads"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "inference",
+   "evidenceStrength": "weak",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "اسم المتجر",
+    "شعار",
+    "brand",
+    "logo",
+    "هوية"
+   ],
+   "examples": [
+    "اسم المتجر صغير في الزاوية ويظهر في البداية والنهاية"
+   ],
+   "counterexamples": [
+    "لا يظهر اسم المتجر أبداً"
+   ],
+   "ambiguous": [
+    "اسم المتجر في نص المنشور فقط"
+   ]
+  },
+  {
+   "ruleId": "G-NOPRED-01",
+   "version": 1,
+   "dimension": "guard",
+   "principleAr": "لا يمكن لمراجعة المحتوى أن تتنبأ بالمبيعات أو عدد الطلبات أو تكلفة النتيجة؛ حتى الطرق الإحصائية المتقدمة تخطئ بدون تجربة عشوائية.",
+   "sources": [
+    {
+     "sourceId": "S02",
+     "section": "observational methods often fail to reproduce RCT effects"
+    },
+    {
+     "sourceId": "S01",
+     "section": "ranking/retrieval is internal to Meta"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "not_judgeable",
+   "evidenceStrength": "strong",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "توقع",
+    "مبيعات",
+    "نتائج",
+    "prediction",
+    "ROAS",
+    "CTR"
+   ],
+   "examples": [
+    "«هذه مراجعة لوضوح المحتوى فقط»"
+   ],
+   "counterexamples": [
+    "«هذا الإعلان سيجلب 50 طلباً»"
+   ],
+   "ambiguous": []
+  },
+  {
+   "ruleId": "G-TEST-01",
+   "version": 1,
+   "dimension": "guard",
+   "principleAr": "لمعرفة أي نسخة أفضل فعلياً: جرّب الافتتاحيات البديلة في اختبار A/B من مدير الإعلانات بدل الاعتماد على تخمين.",
+   "sources": [
+    {
+     "sourceId": "S06",
+     "section": "Experiments: A/B test 2–5 variations"
+    },
+    {
+     "sourceId": "S02",
+     "section": "randomized experiments as ground truth"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "not_judgeable",
+   "evidenceStrength": "moderate",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "اختبار",
+    "A/B",
+    "تجربة",
+    "نسخ بديلة"
+   ],
+   "examples": [
+    "«جرّب الافتتاحيتين في اختبار A/B»"
+   ],
+   "counterexamples": [
+    "«النسخة الثانية ستنجح أكثر»"
+   ],
+   "ambiguous": []
+  },
+  {
+   "ruleId": "G-ALGO-01",
+   "version": 1,
+   "dimension": "guard",
+   "principleAr": "لا نقول شيئاً عن خوارزمية ميتا أو كيف ستوزّع الإعلان؛ هذه أنظمة داخلية لا نراها.",
+   "sources": [
+    {
+     "sourceId": "S01",
+     "section": "Andromeda is Meta's internal retrieval stage"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "not_judgeable",
+   "evidenceStrength": "strong",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "خوارزمية",
+    "Andromeda",
+    "الوصول",
+    "algorithm"
+   ],
+   "examples": [
+    "«لا يمكننا معرفة كيف ستوزّع ميتا الإعلان»"
+   ],
+   "counterexamples": [
+    "«الخوارزمية ستفضل إعلانك»"
+   ],
+   "ambiguous": []
+  },
+  {
+   "ruleId": "G-FACT-01",
+   "version": 1,
+   "dimension": "guard",
+   "principleAr": "النص المقترح لا يضيف أي سعر أو خصم أو ضمان أو توصيل مجاني أو مهلة لم يذكرها صاحب المتجر أو تظهر بوضوح في الصورة.",
+   "sources": [
+    {
+     "sourceId": "INT-PH",
+     "section": "trust requirement; enforced in code"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "any"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "hypothesis",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "سعر",
+    "خصم",
+    "مجاني",
+    "ضمان",
+    "حقائق"
+   ],
+   "examples": [
+    "إعادة صياغة السعر المذكور نفسه"
+   ],
+   "counterexamples": [
+    "إضافة «توصيل مجاني» غير مذكور"
+   ],
+   "ambiguous": []
+  },
+  {
+   "ruleId": "G-HEALTH-01",
+   "version": 1,
+   "dimension": "guard",
+   "principleAr": "في منتجات التجميل والعناية: لا وعود علاجية أو طبية في النص المقترح.",
+   "sources": [
+    {
+     "sourceId": "INT-PH",
+     "section": "conservative claim policy; Meta health-claims policy not reviewed in this cycle"
+    }
+   ],
+   "applicability": {
+    "media": [
+     "image",
+     "video",
+     "text"
+    ],
+    "placement": [
+     "any"
+    ],
+    "objectives": [
+     "messages",
+     "orders",
+     "visits",
+     "awareness"
+    ],
+    "industries": [
+     "beauty"
+    ]
+   },
+   "judgeability": "detectable",
+   "evidenceStrength": "hypothesis",
+   "unknownWhen": null,
+   "notApplicableWhen": null,
+   "checkHint": null,
+   "tags": [
+    "علاج",
+    "طبي",
+    "يشفي",
+    "beauty",
+    "medical claims"
+   ],
+   "examples": [
+    "«كريم مرطب للبشرة الجافة»"
+   ],
+   "counterexamples": [
+    "«يعالج حب الشباب نهائياً»"
+   ],
+   "ambiguous": []
+  }
+ ]
+}
