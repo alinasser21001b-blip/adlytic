@@ -45,6 +45,20 @@ Wrangler، فتشغيل `npm run db:migrate:remote` لاحقاً لن يعيد �
 بدون أي من هذه الأسرار تعمل الصفحة لكن التحليل **مغلق** (فشل مغلق)، و`/api/health`
 يُظهر `ready: false` مع السبب.
 
+## الطريق الأسرع: GitHub Actions (بدون جهاز)
+الملف `.github/workflows/adlytic-check-deploy.yml` يعمل عند كل push على الفرع
+`claude/save-for-reuse-djv4h8` يمس `adlytic-check/`، أو يدوياً من تبويب Actions.
+يشغّل الاختبارات الـ37، يطبق الهجرات، ينشر، يضبط الأسرار المتوفرة، ثم يفحص
+الرابط الحي ويكتبه في ملخص التشغيل.
+
+في GitHub ← Settings ← Secrets and variables ← Actions أضف:
+- **Secret** `CLOUDFLARE_API_TOKEN` (مطلوب): Cloudflare ← Account API tokens ← Create Token ← قالب **Edit Cloudflare Workers** + أضف **D1: Edit**، مقيّد بهذا الحساب فقط.
+- **Secret** `CLOUDFLARE_ACCOUNT_ID` (اختياري إذا كان التوكن لحساب واحد).
+- **Secret** `ANTHROPIC_API_KEY` و`TURNSTILE_SECRET_KEY`، و**Variable** `TURNSTILE_SITE_KEY` — لتفعيل التحليل. بدونها ينشر الموقع لكن التحليل مغلق.
+
+`IP_HASH_SECRET` يُولَّد تلقائياً في أول نشر. بعد إضافة الأسرار: Actions ←
+«Adlytic Check — deploy» ← Re-run.
+
 ## خطوات النشر (من جهاز صاحب الحساب)
 
 ```bash
