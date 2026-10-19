@@ -267,6 +267,10 @@ jobs:
     name: Analysis readiness
     needs: deploy
     runs-on: ubuntu-latest
+    # No checkout here: curl + node only, so run from the workspace root, not adlytic-check/.
+    defaults:
+      run:
+        working-directory: .
     steps:
       - name: Can the provider account be billed? (1-token probe, error class only)
         env:
