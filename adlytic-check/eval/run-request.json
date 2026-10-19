@@ -1,0 +1,9 @@
+{
+ "engine": "v1",
+ "split": "all",
+ "model": "claude-haiku-4-5",
+ "maxCalls": 120,
+ "concurrency": 4,
+ "repeatIds": ["f01", "f06", "f11", "f14", "f17", "f20", "f23", "f29", "f36", "f41", "f43", "f45"],
+ "note": "Baseline: V1 engine unchanged, production model and timeout"
+}

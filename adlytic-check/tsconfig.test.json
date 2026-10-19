@@ -9,5 +9,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["tests/**/*.ts", "vitest.config.ts", "worker/worker-configuration.d.ts"]
+  "include": ["tests/**/*.ts", "eval/**/*.ts", "vitest.config.ts", "worker/worker-configuration.d.ts"]
 }

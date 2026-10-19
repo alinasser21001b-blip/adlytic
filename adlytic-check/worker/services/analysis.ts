@@ -1,29 +1,21 @@
-import { z } from "zod";
 import {
   analysisInputSchema,
   LIMITS,
-  providerReportSchema,
   type AnalysisInput,
   type AnalysisMode,
   type AnalysisReport,
-  type ErrorCode,
   type ProviderReport,
 } from "../../shared/schemas";
 import { config, HttpError, QUOTA_WINDOW_MS, randomToken, readBodyLimited, sha256Hex, utcDay, type Config, type Ctx } from "../lib";
-import { buildUserText, SYSTEM_PROMPT, TOOL_NAME } from "../prompts/ad-review";
-import { anthropicProvider, type VisionProvider } from "../providers/vision";
+import type { EngineHooks, EngineOutcome, EngineTelemetry } from "../engine/types";
+import { runV1 } from "../engine/v1";
+import { anthropicProvider } from "../providers/vision";
 import { validateImage, type ImageMime } from "../validation/image";
 import { recordEvent } from "./events";
-import { enforceMode, factSource, findUnsupportedClaims, improvedCopyText, leaksScaffolding, sanitizeShareTips, stripUnsupported } from "./guards";
+import { sanitizeShareTips } from "./guards";
 import { requireVisitor } from "./session";
 import { verifyTurnstile } from "./turnstile";
 
-const TOOL_SCHEMA = (() => {
-  const s = z.toJSONSchema(providerReportSchema) as Record<string, unknown>;
-  delete s["$schema"];
-  return s;
-})();
-const TOOL_DESCRIPTION = "Submit the complete ad clarity review. Call exactly once with every field filled.";
 const STRIP_NOTE = "حذفنا من النص المقترح جملة تضمنت رقماً أو عرضاً لم تذكره أنت — أضفه بنفسك فقط إذا كان صحيحاً.";
 const CONTENT_ONLY_NOTE = "هذه مراجعة لوضوح المحتوى فقط، ولا تتنبأ بعدد الطلبات أو المبيعات.";
 
@@ -38,7 +30,25 @@ interface AnalysisRow {
   deleted_at: number | null;
 }
 
-type Outcome = { ok: true; report: ProviderReport; stripped: boolean } | { ok: false; code: ErrorCode; reason: string };
+type Outcome = EngineOutcome<ProviderReport>;
+const EMPTY_TELEMETRY: EngineTelemetry = { calls: 0, repairs: [], inputTokens: 0, outputTokens: 0, model: null, stripped: false };
+
+/** Every real provider call is counted against the service-wide daily ceiling and on the row. */
+function providerHooks(db: D1Database, id: string, cfg: Config): EngineHooks {
+  return {
+    async beforeCall() {
+      const slot = await takeProviderSlot(db, cfg.maxProviderCallsPerDay);
+      if (slot) await db.prepare("UPDATE analyses SET provider_calls = provider_calls + 1, model = ?2 WHERE id = ?1").bind(id, cfg.model).run();
+      return slot;
+    },
+    async afterCall(u) {
+      await db
+        .prepare("UPDATE analyses SET model = ?2, input_tokens = ?3, output_tokens = ?4 WHERE id = ?1")
+        .bind(id, u.model, u.inputTokens, u.outputTokens)
+        .run();
+    },
+  };
+}
 
 export async function handleCheck(c: Ctx): Promise<Response> {
   const cfg = config(c.env);
@@ -125,9 +135,18 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   const started = Date.now();
   const apiKey = c.env.ANTHROPIC_API_KEY;
   const outcome: Outcome = apiKey
-    ? await analyse(c, cfg, anthropicProvider({ apiKey, model: cfg.model, baseURL: cfg.providerBaseUrl }), id, input, mode, image)
-    : { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "provider_not_configured" };
+    ? await runV1({
+        input,
+        mode,
+        image,
+        provider: anthropicProvider({ apiKey, model: cfg.model, baseURL: cfg.providerBaseUrl }),
+        timeoutMs: cfg.providerTimeoutMs,
+        maxOutputTokens: cfg.maxOutputTokens,
+        hooks: providerHooks(db, id, cfg),
+      })
+    : { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "provider_not_configured", telemetry: EMPTY_TELEMETRY };
   const latency = Date.now() - started;
+  if (outcome.telemetry.repairs.length) console.log(`[check] repairs=${outcome.telemetry.repairs.join(",")} calls=${outcome.telemetry.calls}`);
 
   if (!outcome.ok) {
     // Releasing the reservation returns the visitor's quota; provider calls stay counted in daily_usage.
@@ -142,7 +161,7 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     });
   }
 
-  const report = buildReport(id, mode, input, now, now + cfg.retentionMs, outcome.report, outcome.stripped);
+  const report = buildReport(id, mode, input, now, now + cfg.retentionMs, outcome.report, outcome.telemetry.stripped);
   // 6. Publish only if THIS request still owns a live reservation.
   const done = await db
     .prepare(
@@ -158,102 +177,6 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   }
   c.executionCtx.waitUntil(recordEvent(db, "check_completed", visitorId, id, { mode, latencyMs: latency }));
   return c.json(report, 200, { "Cache-Control": "no-store" });
-}
-
-async function analyse(
-  c: Ctx,
-  cfg: Config,
-  provider: VisionProvider,
-  id: string,
-  input: AnalysisInput,
-  mode: AnalysisMode,
-  image: { mime: ImageMime; bytes: Uint8Array } | undefined,
-): Promise<Outcome> {
-  const db = c.env.DB;
-  const deadline = Date.now() + cfg.providerTimeoutMs;
-  const baseText = buildUserText({ mode, industry: input.industry, goal: input.goal, adCopy: input.adCopy, audience: input.audience, additionalContext: input.additionalContext });
-  let repairNote = "";
-  let lastValid: ProviderReport | null = null;
-  let inTok = 0;
-  let outTok = 0;
-
-  for (let attempt = 0; attempt < 2; attempt++) {
-    // A repair needs a real slice of the budget (15 s of the default 45 s).
-    if (attempt > 0 && deadline - Date.now() < cfg.providerTimeoutMs / 3) break;
-    let slot: boolean;
-    try {
-      slot = await takeProviderSlot(db, cfg.maxProviderCallsPerDay);
-    } catch (err) {
-      console.error("[check] cannot verify daily ceiling — failing closed:", err instanceof Error ? err.message : err);
-      return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "ceiling_unverifiable" };
-    }
-    if (!slot) {
-      return attempt === 0
-        ? { ok: false, code: "SERVICE_DAILY_LIMIT", reason: "service_daily_limit" }
-        : lastValid
-          ? finishWithStrip(lastValid, input)
-          : { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "repair_blocked_by_ceiling" };
-    }
-    await db.prepare("UPDATE analyses SET provider_calls = provider_calls + 1, model = ?2 WHERE id = ?1").bind(id, provider.model).run();
-
-    const res = await provider.review({
-      system: SYSTEM_PROMPT,
-      userText: repairNote ? `${baseText}\n\n${repairNote}` : baseText,
-      image,
-      toolName: TOOL_NAME,
-      toolDescription: TOOL_DESCRIPTION,
-      toolSchema: TOOL_SCHEMA,
-      maxTokens: cfg.maxOutputTokens,
-      deadline,
-    });
-    if (!res.ok) {
-      console.warn(`[check] provider failure=${res.failure} status=${res.status ?? "-"} attempt=${attempt + 1}`);
-      if (lastValid) return finishWithStrip(lastValid, input);
-      return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: `provider_${res.failure}` };
-    }
-    inTok += res.inputTokens ?? 0;
-    outTok += res.outputTokens ?? 0;
-    await db
-      .prepare("UPDATE analyses SET model = ?2, input_tokens = ?3, output_tokens = ?4 WHERE id = ?1")
-      .bind(id, res.model, inTok, outTok)
-      .run();
-    console.log(`[check] model=${res.model} attempt=${attempt + 1} stop=${res.stopReason} in=${res.inputTokens} out=${res.outputTokens}`);
-
-    const v = providerReportSchema.safeParse(res.toolInput);
-    if (!v.success) {
-      const errs = v.error.issues.slice(0, 8).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
-      repairNote = `A previous attempt was rejected because the report did not match the required structure (${errs}). Call ${TOOL_NAME} again with a complete, valid report and keep every field concise.`;
-      continue;
-    }
-    const r = enforceMode(v.data, mode);
-    if (leaksScaffolding(r)) {
-      repairNote = `A previous attempt was rejected because it echoed internal instructions or tool names. Review the ad only and call ${TOOL_NAME} again.`;
-      continue;
-    }
-    const offenders = findUnsupportedClaims(improvedCopyText(r), factSource(input, r));
-    if (offenders.length === 0) return { ok: true, report: r, stripped: false };
-    lastValid = r;
-    repairNote = `A previous attempt was rejected because improvedCopy introduced facts the owner never supplied (${offenders.join(", ")}). Rewrite improvedCopy using only the owner's facts; put missing details in missingInformation instead.`;
-  }
-  return lastValid ? finishWithStrip(lastValid, input) : { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "invalid_provider_output" };
-}
-
-/** Last resort for invented facts: drop the offending sentences rather than publish them. */
-function finishWithStrip(r: ProviderReport, input: AnalysisInput): Outcome {
-  const source = factSource(input, r);
-  const offenders = findUnsupportedClaims(improvedCopyText(r), source);
-  if (offenders.length === 0) return { ok: true, report: r, stripped: false };
-  const c = r.improvedCopy;
-  const cleaned = {
-    opening: stripUnsupported(c.opening, offenders, source),
-    body: stripUnsupported(c.body, offenders, source),
-    headline: stripUnsupported(c.headline, offenders, source),
-    callToAction: stripUnsupported(c.callToAction, offenders, source),
-  };
-  if (!cleaned.opening || !cleaned.body || !cleaned.callToAction) {
-    return { ok: false, code: "ANALYSIS_UNAVAILABLE", reason: "unsupported_claims_unrecoverable" };
-  }
-  return { ok: true, report: { ...r, improvedCopy: { ...cleaned, headline: cleaned.headline || cleaned.opening.slice(0, 120) } }, stripped: true };
 }
 
 function buildReport(id: string, mode: AnalysisMode, input: AnalysisInput, createdAt: number, expiresAt: number, r: ProviderReport, stripped: boolean): AnalysisReport {

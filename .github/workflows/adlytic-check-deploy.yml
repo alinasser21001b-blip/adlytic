@@ -26,6 +26,7 @@ on:
       - 'adlytic-check/**'
       - '!adlytic-check/docs/**'
       - '!adlytic-check/research/**'
+      - '!adlytic-check/eval/**'
       - '!adlytic-check/**/*.md'
       - '.github/workflows/adlytic-check-deploy.yml'
   pull_request:
@@ -33,6 +34,7 @@ on:
       - 'adlytic-check/**'
       - '!adlytic-check/docs/**'
       - '!adlytic-check/research/**'
+      - '!adlytic-check/eval/**'
       - '!adlytic-check/**/*.md'
       - '.github/workflows/adlytic-check-deploy.yml'
   workflow_dispatch:

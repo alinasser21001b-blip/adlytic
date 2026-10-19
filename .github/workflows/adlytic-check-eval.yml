@@ -1,0 +1,52 @@
+# Adlytic Check — real-provider benchmark on SYNTHETIC fixtures only.
+# Runs when eval/run-request.json changes. The request file caps provider calls
+# (maxCalls); the job also has a hard timeout. Logs are public (public repo):
+# they contain only synthetic fixture content, scores and aggregate numbers —
+# never secrets or real user data.
+name: Adlytic Check — eval
+
+on:
+  push:
+    branches: [claude/save-for-reuse-djv4h8]
+    paths:
+      - 'adlytic-check/eval/run-request.json'
+
+concurrency:
+  group: adlytic-check-eval
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: adlytic-check
+    defaults:
+      run:
+        working-directory: adlytic-check
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: adlytic-check/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Check provider key is present (name only)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "::error::ANTHROPIC_API_KEY secret is not available to this job"; exit 1; fi
+          echo "ANTHROPIC_API_KEY: present"
+      - name: Run benchmark
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: npx tsx eval/run.ts eval/run-request.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eval-results
+          path: adlytic-check/eval/out/
+          retention-days: 14
