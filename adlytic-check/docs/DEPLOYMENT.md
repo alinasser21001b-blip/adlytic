@@ -2,20 +2,15 @@
 
 ## الموارد
 
-| المورد | الحالة | المعرّف |
-|---|---|---|
-| D1 `adlytic-check-db` | **أُنشئ وطُبّقت عليه الهجرة 0001** (EEUR، النسخة الأساسية في FRA) | `28ec9cd8-ab1e-4ff4-9f2a-e81724642830` (في `wrangler.jsonc`) |
-| Worker `adlytic-check` | **لم يُنشر بعد** — انظر «العائق» أدناه | — |
-| Turnstile widget | **لم يُنشأ بعد** — يُنشأ من لوحة Cloudflare | — |
+| المورد | الحالة |
+|---|---|
+| Worker `adlytic-check` | **منشور**: https://adlytic-check.i6900612.workers.dev — يُنشر من GitHub Actions |
+| D1 `adlytic-check-db` | `28ec9cd8-ab1e-4ff4-9f2a-e81724642830` (EEUR/FRA)، الهجرة 0001 مطبقة ومسجلة |
+| Turnstile widget `adlytic-check` | أُنشئ تلقائياً للنطاق `adlytic-check.i6900612.workers.dev` فقط، mode managed. site key العام: `0x4AAAAAAFbw7mW6jomUvNdo` |
+| أسرار الـWorker | `TURNSTILE_SECRET_KEY` و`IP_HASH_SECRET` مضبوطان. `ANTHROPIC_API_KEY` **غير مضاف بعد** — التحليل مغلق |
 
-الهجرة طُبّقت عبر موصِّل Cloudflare، وسُجّلت في جدول `d1_migrations` بنفس صيغة
-Wrangler، فتشغيل `npm run db:migrate:remote` لاحقاً لن يعيد تطبيقها.
-
-## العائق الذي منع النشر من جلسة البناء
-بيئة جلسة Claude التي بنت المشروع تحجب `api.cloudflare.com` في سياسة الشبكة،
-ولا يوجد فيها `CLOUDFLARE_API_TOKEN`. موصِّل Cloudflare المتاح يستطيع إنشاء D1
-وتنفيذ SQL لكنه لا يملك أداة لرفع Worker. لذلك النشر خطوة واحدة متبقية تتطلب
-مصادقة صاحب الحساب.
+جلسة Claude التي بنت المشروع لا تصل إلى `api.cloudflare.com` (سياسة الشبكة)، لذلك
+النشر يجري حصراً عبر GitHub Actions بالتوكن المحفوظ كسر في المستودع.
 
 ## المتغيرات (غير سرية، في `wrangler.jsonc`)
 
