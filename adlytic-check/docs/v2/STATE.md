@@ -9,7 +9,7 @@ H — Launch (all build phases A–G implemented; release blocked on owner actio
 | Item | Value |
 |---|---|
 | URL | https://adlytic-check.i6900612.workers.dev (unchanged) |
-| Last verified build | `dc08f3f` (E-007); later commits deploy on push and are recorded in EVIDENCE.md |
+| Last verified build | `8d341aa` (E-010) |
 | D1 migrations | 0001–0004 applied remotely (additive only) |
 | Readiness | `ready: false` — `providerUsable` false because the provider account has no credit (B0) |
 | Flags | `ANALYZER_VERSION=v1`, `SHOW_QUALITY_INDEX=false`, `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |

@@ -79,6 +79,12 @@ for target in "https://169.254.169.254/latest/meta-data/" "https://127.0.0.1/" "
 done
 r=$(link "$URL/api/health"); jget "$r" '.reason' | grep -q '^blocked:' || fail "link import fetched the Worker itself: $r"
 r=$(link "https://www.instagram.com/p/abc123/"); [ "$(jget "$r" '.state')" = AUTH_REQUIRED ] || fail "Instagram link not AUTH_REQUIRED: $r"
+# A real public image (a synthetic fixture of this repo, pinned to the commit) goes through DNS check, fetch and sniffing.
+if [ -n "${GITHUB_SHA:-}" ] && [ -n "${GITHUB_REPOSITORY:-}" ]; then
+  img="https://raw.githubusercontent.com/$GITHUB_REPOSITORY/$GITHUB_SHA/adlytic-check/eval/fixtures/img/f01.jpg"
+  h=$(curl -s -D - -o /dev/null -X POST -H "Origin: $URL" -H "Cookie: ac_sid=$S" -H 'content-type: application/json' -d "{\"url\":\"$img\"}" "$URL/api/import-link" | tr -d '\r')
+  echo "$h" | head -1 | grep -q ' 200' && echo "$h" | grep -qi '^x-link-state: SUPPORTED' && echo "$h" | grep -qi '^content-type: image/jpeg' || fail "public image link was not imported: $(echo "$h" | head -1)"
+fi
 cat=$(curl -fsS "$URL/api/payments/catalog")
 [ "$(jget "$cat" '.unitPriceIQD')" = 500 ] && [ "$(jget "$cat" '.priceVersion')" = "iqd-500@1" ] || fail "catalog price is not 500 IQD @ iqd-500@1: $cat"
 [ "$(jget "$cat" '.paymentsEnabled')" = "$(jget "$health" '.capabilities.payments.ready')" ] || fail "catalog and health disagree on payments"
@@ -96,7 +102,7 @@ sum "- URL: $URL"
 sum "- Build serving: \`$build\`"
 sum "- Routing, CSP, JSON 404, share 404, HttpOnly+Secure+SameSite session cookie, Origin enforcement"
 sum "- Owner-only report access on live Worker + D1 (owner 200 no-store · other visitor 404 · anonymous 401 · foreign share/delete refused)"
-sum "- Link import refuses metadata/loopback/mapped-private/localhost/self targets before connecting; Instagram → AUTH_REQUIRED"
+sum "- Link import refuses metadata/loopback/mapped-private/localhost/self targets before connecting; Instagram → AUTH_REQUIRED; a public image link is imported (SUPPORTED)"
 sum "- Catalog 500 IQD @ iqd-500@1; login and payments honest about their state"
 sum "- Capabilities: \`$caps\`"
 sum "- Analysis readiness (reported by the next job): \`$(jget "$health" '.readiness')\`"
