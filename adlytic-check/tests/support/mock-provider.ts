@@ -72,6 +72,8 @@ const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64").replace
 /** Fake ZainCash v2 gateway state. */
 const zcTx = new Map<string, { amount: number; ref: string; successUrl: string; failureUrl: string; status: string; paidAmount?: number }>();
 
+let nextSub: string | null = null;
+
 /** Fake Google IdP state: authorization codes waiting to be exchanged. */
 const codes = new Map<string, { sub: string; nonce: string; challenge: string; redirectUri: string; clientId: string }>();
 
@@ -105,9 +107,17 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
 
     // ── Fake Google OIDC ──
     const u = new URL(req.url ?? "/", "http://mock");
+    if (u.pathname === "/__idp/next-sub" && req.method === "POST") {
+      nextSub = body.toString("utf8").trim() || null;
+      return send(200, { ok: true });
+    }
     if (u.pathname === "/o/oauth2/v2/auth") {
-      // The test adds &sub=… to choose the account; "deny" simulates the user cancelling.
+      // The test adds &sub=… (or sets /__idp/next-sub) to choose the account; "deny" simulates a cancel.
       const p = u.searchParams;
+      if (!p.get("sub") && nextSub) {
+        p.set("sub", nextSub);
+        nextSub = null;
+      }
       const redirect = new URL(p.get("redirect_uri")!);
       if (p.get("sub") === "deny") {
         redirect.searchParams.set("error", "access_denied");

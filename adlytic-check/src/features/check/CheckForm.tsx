@@ -1,14 +1,17 @@
 import { useEffect, useId, useRef, useState, type DragEvent } from "react";
 import { GOALS, INDUSTRIES, LIMITS, type Goal, type Industry } from "../../../shared/constants";
-import type { AnalysisReport, SessionInfo } from "../../../shared/schemas";
+import type { AnyAnalysisReport, SessionInfo } from "../../../shared/schemas";
 import { t } from "../../i18n/ar";
+import { fmtIQD, fmtWhen, loginHref, type Me } from "../account/api";
+import { BuyChecks } from "../account/Purchase";
 import { ApiFailure, newIdempotencyKey, submitCheck, type CheckPhase } from "./api";
 import { ImageRejected, prepareImage } from "./image";
 import { Turnstile, type TurnstileHandle } from "./Turnstile";
 
 interface Props {
   session: SessionInfo;
-  onDone: (report: AnalysisReport, previewUrl: string | null) => void;
+  me: Me | null;
+  onDone: (report: AnyAnalysisReport, previewUrl: string | null) => void;
   onQuotaChanged: () => void;
 }
 
@@ -16,9 +19,11 @@ interface FormError {
   message: string;
   retryable: boolean;
   offerTextOnly: boolean;
+  /** Account mode: what the owner can do next. */
+  next?: "login" | "consent" | "buy";
 }
 
-export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
+export function CheckForm({ session, me, onDone, onQuotaChanged }: Props) {
   const ids = { copy: useId(), copyHint: useId(), industry: useId(), audience: useId(), context: useId(), image: useId(), imageHint: useId() };
   const [image, setImage] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -33,8 +38,24 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
   const [token, setToken] = useState<string | null>(null);
   const [turnstileBroken, setTurnstileBroken] = useState(false);
   const [phase, setPhase] = useState<CheckPhase | null>(null);
+  const [uploaded, setUploaded] = useState(0);
+  const [elapsed, setElapsed] = useState(0);
   const [error, setError] = useState<FormError | null>(null);
   const keyRef = useRef<string | null>(null);
+  const tokenRef = useRef<string | null>(null);
+  tokenRef.current = token;
+
+  function waitForToken(ms: number): Promise<string | null> {
+    return new Promise((resolve) => {
+      const until = Date.now() + ms;
+      const tick = () => {
+        if (tokenRef.current) return resolve(tokenRef.current);
+        if (Date.now() > until) return resolve(null);
+        setTimeout(tick, 150);
+      };
+      tick();
+    });
+  }
   const turnstile = useRef<TurnstileHandle>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const formRef = useRef<HTMLFormElement>(null);
@@ -77,7 +98,7 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
     void acceptFile(e.dataTransfer.files?.[0]);
   }
 
-  async function submit(opts: { textOnly?: boolean } = {}) {
+  async function submit(opts: { textOnly?: boolean; paid?: boolean } = {}) {
     setError(null);
     const sendImage = opts.textOnly ? null : image;
     if (!sendImage && !adCopy.trim()) {
@@ -88,7 +109,9 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
       setError({ message: "اختر مجال عملك.", retryable: false, offerTextOnly: false });
       return;
     }
-    if (!token) {
+    // A reset widget re-issues its token within a moment; wait for it rather than failing.
+    const tk = tokenRef.current ?? (turnstileBroken ? null : await waitForToken(6000));
+    if (!tk) {
       setError({ message: turnstileBroken ? t.verifyFailed : t.verifying, retryable: false, offerTextOnly: false });
       return;
     }
@@ -106,10 +129,16 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
     fd.append("audience", audience.trim());
     fd.append("additionalContext", context.trim());
     fd.append("idempotencyKey", keyRef.current);
-    fd.append("turnstileToken", token);
+    fd.append("turnstileToken", tk);
+    if (opts.paid && me?.balance) {
+      // Explicit consent: one paid unit at the price the owner was shown.
+      fd.append("credit", "paid");
+      fd.append("priceVersion", me.balance.priceVersion);
+    }
 
     try {
-      const report = await submitCheck(fd, setPhase);
+      setUploaded(0);
+      const report = await submitCheck(fd, setPhase, undefined, setUploaded);
       keyRef.current = null;
       onDone(report, sendImage ? previewUrl : null);
     } catch (e) {
@@ -122,6 +151,7 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
         message,
         retryable: lostInTransit || f.retryable || f.code === "VERIFICATION_FAILED" || f.code === "REQUEST_IN_PROGRESS",
         offerTextOnly: Boolean(sendImage) && Boolean(adCopy.trim()) && f.code === "ANALYSIS_UNAVAILABLE",
+        next: f.code === "LOGIN_REQUIRED" ? "login" : f.code === "PAID_CONSENT_REQUIRED" ? "consent" : f.code === "FREE_QUOTA_EXHAUSTED" || f.code === "INSUFFICIENT_CREDITS" ? "buy" : undefined,
       });
       onQuotaChanged();
     } finally {
@@ -130,10 +160,28 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
     }
   }
 
+  // Honest progress: real upload fraction, then elapsed seconds — never an invented percentage.
+  useEffect(() => {
+    if (phase !== "analysing") return setElapsed(0);
+    const started = Date.now();
+    const timer = setInterval(() => setElapsed(Math.floor((Date.now() - started) / 1000)), 1000);
+    return () => clearInterval(timer);
+  }, [phase]);
+
   const busy = phase !== null || preparing;
+  const accountsMode = session.accounts.enabled;
+  const loggedIn = Boolean(me?.user);
+  const balance = me?.balance ?? null;
   const quota = session.quota;
-  const noQuota = quota.remaining <= 0;
-  const disabled = busy || !session.analysisAvailable || noQuota;
+  const noQuota = accountsMode ? false : quota.remaining <= 0;
+  const disabled = busy || !session.analysisAvailable || noQuota || (accountsMode && !loggedIn);
+  const quotaText = !session.analysisAvailable
+    ? t.serviceNotReady
+    : accountsMode
+      ? balance
+        ? `فحوصك المجانية: ${balance.freeAvailable} من 2${balance.freeAvailable < 2 && balance.nextRefillAt ? ` · فحص جديد ${fmtWhen(balance.nextRefillAt)}` : ""}${balance.paidAvailable ? ` · مدفوعة: ${balance.paidAvailable}` : ""}`
+        : "سجّل الدخول لتحصل على فحصين مجانيين، ثم فحص جديد كل 24 ساعة."
+      : `${t.quotaLine(quota.remaining, quota.limit)}${noQuota && quota.resetsAt ? " " + t.quotaReset(fmtDate(quota.resetsAt)) : ""}`;
 
   return (
     <form
@@ -148,6 +196,14 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
       }}
     >
       <h2 id="form-title">{t.formTitle}</h2>
+      {accountsMode && !loggedIn && session.accounts.loginAvailable && (
+        <div className="login-callout">
+          <p>سجّل الدخول بحساب Google لتحصل على فحصين مجانيين، ثم فحص جديد كل 24 ساعة. لا نحفظ بريدك أو اسمك.</p>
+          <a className="btn primary small" href={loginHref("/")}>
+            تسجيل الدخول عبر Google
+          </a>
+        </div>
+      )}
 
       <div className="field">
         <span className="label" id={ids.image}>{t.imageLabel}</span>
@@ -295,7 +351,18 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
                 {t.textOnlyInstead}
               </button>
             )}
+            {error.next === "login" && (
+              <a className="btn primary small" href={loginHref("/")}>
+                تسجيل الدخول عبر Google
+              </a>
+            )}
+            {error.next === "consent" && balance && (
+              <button type="button" className="btn primary small" onClick={() => void submit({ paid: true })} disabled={busy}>
+                استخدم فحصاً مدفوعاً ({fmtIQD(balance.unitPriceIQD)} من رصيدك)
+              </button>
+            )}
           </div>
+          {error.next === "buy" && <BuyChecks />}
         </div>
       )}
 
@@ -303,13 +370,20 @@ export function CheckForm({ session, onDone, onQuotaChanged }: Props) {
         {phase === "uploading" ? t.uploading : phase === "analysing" ? "جارٍ التحليل…" : t.submit}
       </button>
 
+      {phase && (
+        <div className={`progress ${phase}`} aria-hidden="true">
+          <span className="progress-fill" style={phase === "uploading" ? { inlineSize: `${Math.max(4, Math.round(uploaded * 100))}%` } : undefined} />
+        </div>
+      )}
       <p className="status" role="status" aria-live="polite">
-        {phase === "uploading" ? t.uploading : phase === "analysing" ? t.analysing : ""}
+        {phase === "uploading"
+          ? `${t.uploading} ${Math.round(uploaded * 100)}٪`
+          : phase === "analysing"
+            ? `${t.analysing} (${elapsed} ث)`
+            : ""}
       </p>
       <p className="quota" id="quota-line">
-        {!session.analysisAvailable
-          ? t.serviceNotReady
-          : `${t.quotaLine(quota.remaining, quota.limit)}${noQuota && quota.resetsAt ? " " + t.quotaReset(fmtDate(quota.resetsAt)) : ""}`}
+        {quotaText}
       </p>
     </form>
   );

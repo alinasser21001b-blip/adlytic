@@ -67,3 +67,26 @@ Each cycle: problem → hypothesis → change → test → result.
   allowlist for V2. Total 70/70.
 - **Result:** IMPLEMENTED + TESTED. LIVE blocked by B1 (Google client).
 
+
+## Cycle 6 — CI readiness fix (owner report) + real provider probe (2026-10-19)
+- **Problem (reported by the owner):** `analysis-readiness` has no checkout but inherited
+  `working-directory: adlytic-check`; bash failed to start, so the provider probe never ran.
+- **Change:** job-level `defaults.run.working-directory: .` (actionlint clean).
+- **Test:** run 39304728437 on `c6038f8`.
+- **Result:** probe ran and returned `HTTP 400 (invalid_request_error: credit_balance_too_low)`
+  — key present (masked), account cannot be billed. Test and Deploy jobs green; migrations
+  0002/0003 applied in production D1. Blocker B0 confirmed by the probe itself.
+
+## Cycle 7 — Liquid Professional UI, accounts and payments in the browser (2026-10-19)
+- **Change:** new token set (river-mist palette, glass surfaces, Readex Pro display face, 10 KB),
+  slow liquid backdrop and a liquid-lens edge on the top fix (all off under reduced motion);
+  V2 report in the required order; before/after copy with A/B alternates; evidence chips;
+  sources with access level; droplet index meter (hidden unless `SHOW_QUALITY_INDEX`); account
+  bar, login callout, honest progress (real upload %, elapsed seconds), paid-consent button with
+  the price, ZainCash bundles with the reason the single check is withheld, payment banner,
+  "my reports" list (`GET /api/reports`, owner-only).
+- **Test:** 77 Chromium checks incl. a full journey (fake Google login → V2 report → free units
+  used → bundle purchase through the fake gateway → consented paid check) at 390 and 1440, no
+  overflow at 360/390/768/1440; WebKit added to CI. JS 84 KB gzip, CSS 5.3 KB gzip.
+- **Bug found by the journey:** after a 409 the form failed instantly while Turnstile was
+  re-issuing its token; the form now waits up to 6 s for a fresh token.

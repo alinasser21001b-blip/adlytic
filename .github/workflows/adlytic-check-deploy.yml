@@ -68,10 +68,14 @@ jobs:
         run: npm run build
       - name: Unit + integration (real wrangler dev + local D1, provider double)
         run: npm test
-      - name: Browser (Chromium at 390/768/1440)
+      - name: Browser (Chromium — V1 at 390/768/1440, overflow 360–1440, V2 + accounts + payment journey)
         run: |
           npx playwright install --with-deps chromium
           npm run test:browser
+      - name: Browser (WebKit — same checks)
+        run: |
+          npx playwright install --with-deps webkit
+          BROWSER=webkit npm run test:browser
       - name: Screenshots
         if: always()
         uses: actions/upload-artifact@v4

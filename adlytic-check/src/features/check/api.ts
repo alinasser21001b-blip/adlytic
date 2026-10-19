@@ -1,4 +1,4 @@
-import type { AnalysisReport, ApiError, ClientEventName, SessionInfo, ShareInfo } from "../../../shared/schemas";
+import type { AnyAnalysisReport, ApiError, ClientEventName, SessionInfo, ShareInfo } from "../../../shared/schemas";
 
 export class ApiFailure extends Error {
   constructor(
@@ -29,7 +29,8 @@ async function json<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 export const api = {
   session: () => json<SessionInfo>("/api/session", { method: "POST" }),
-  report: (id: string) => json<{ report: AnalysisReport; share: { active: boolean; createdAt?: string } }>(`/api/reports/${encodeURIComponent(id)}`),
+  report: (id: string) => json<{ report: AnyAnalysisReport; share: { active: boolean; createdAt?: string } }>(`/api/reports/${encodeURIComponent(id)}`),
+  reports: () => json<{ reports: Array<{ id: string; mode: string; createdAt: string; title: string }> }>("/api/reports"),
   createShare: (id: string) => json<ShareInfo>(`/api/reports/${encodeURIComponent(id)}/share`, { method: "POST" }),
   async revokeShare(id: string) {
     const res = await fetch(`/api/reports/${encodeURIComponent(id)}/share`, { method: "DELETE", credentials: "same-origin" });
@@ -56,7 +57,7 @@ export type CheckPhase = "uploading" | "analysing";
  * POST /api/check via XHR so upload completion is observable: the UI switches
  * from "uploading" to "analysing" only when the browser reports the body sent.
  */
-export function submitCheck(form: FormData, onPhase: (p: CheckPhase) => void, timeoutMs = 90_000): Promise<AnalysisReport> {
+export function submitCheck(form: FormData, onPhase: (p: CheckPhase) => void, timeoutMs = 90_000, onUpload?: (fraction: number) => void): Promise<AnyAnalysisReport> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", "/api/check");
@@ -64,6 +65,9 @@ export function submitCheck(form: FormData, onPhase: (p: CheckPhase) => void, ti
     xhr.timeout = timeoutMs;
     xhr.responseType = "text";
     onPhase("uploading");
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable && onUpload) onUpload(e.loaded / e.total);
+    };
     xhr.upload.onload = () => onPhase("analysing");
     xhr.onload = () => {
       let body: unknown = null;
@@ -72,7 +76,7 @@ export function submitCheck(form: FormData, onPhase: (p: CheckPhase) => void, ti
       } catch {
         body = null;
       }
-      if (xhr.status === 200 && body) return resolve(body as AnalysisReport);
+      if (xhr.status === 200 && body) return resolve(body as AnyAnalysisReport);
       const err = (body as ApiError | null)?.error;
       reject(
         err

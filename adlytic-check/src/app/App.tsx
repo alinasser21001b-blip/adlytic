@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
-import type { AnalysisReport, SessionInfo } from "../../shared/schemas";
+import type { AnyAnalysisReport, SessionInfo } from "../../shared/schemas";
+import { AccountBar } from "../features/account/AccountBar";
+import { accountApi, type Me } from "../features/account/api";
+import { PaymentBanner } from "../features/account/Purchase";
 import { api, ApiFailure } from "../features/check/api";
-import { CheckForm } from "../features/check/CheckForm";
+import { CheckForm, fmtDate } from "../features/check/CheckForm";
+import { ReportV2 } from "../features/check/ReportV2";
 import { ResultView } from "../features/check/ResultView";
 import { t } from "../i18n/ar";
 import { PrivacyPage, TermsPage } from "./Legal";
@@ -20,7 +24,9 @@ export function App() {
   const [route, setRoute] = useState<Route>(() => parseRoute(location.pathname));
   const [session, setSession] = useState<SessionInfo | null>(null);
   const [sessionError, setSessionError] = useState<string | null>(null);
-  const [result, setResult] = useState<{ report: AnalysisReport; previewUrl: string | null; shareActive: boolean } | null>(null);
+  const [result, setResult] = useState<{ report: AnyAnalysisReport; previewUrl: string | null; shareActive: boolean } | null>(null);
+  const [me, setMe] = useState<Me | null>(null);
+  const [recent, setRecent] = useState<Array<{ id: string; mode: string; createdAt: string; title: string }>>([]);
   const [reportState, setReportState] = useState<"idle" | "loading" | "gone">("idle");
 
   const refreshSession = useCallback(() => {
@@ -29,6 +35,8 @@ export function App() {
       .then((s) => {
         setSession(s);
         setSessionError(null);
+        if (s.accounts.enabled) accountApi.me().then(setMe).catch(() => setMe(null));
+        api.reports().then((r) => setRecent(r.reports)).catch(() => setRecent([]));
       })
       .catch((e) => setSessionError(e instanceof ApiFailure ? e.message : "تعذّر الاتصال بالخدمة. حدّث الصفحة."));
   }, []);
@@ -59,7 +67,7 @@ export function App() {
     window.scrollTo({ top: 0 });
   }
 
-  function onDone(report: AnalysisReport, previewUrl: string | null) {
+  function onDone(report: AnyAnalysisReport, previewUrl: string | null) {
     setResult({ report, previewUrl, shareActive: false });
     history.pushState(null, "", `/r/${report.id}`);
     setRoute({ name: "report", id: report.id });
@@ -86,12 +94,27 @@ export function App() {
           <span className="logo-mark" aria-hidden="true" />
           {t.brand}
         </a>
+        <AccountBar session={session} me={me} onChanged={refreshSession} />
       </header>
+      <PaymentBanner onSettled={refreshSession} />
       <main id="main" tabIndex={-1}>
         {route.name === "privacy" && <PrivacyPage />}
         {route.name === "terms" && <TermsPage />}
         {route.name === "report" &&
           (result && result.report.id === route.id ? (
+            result.report.schemaVersion === "2" ? (
+              <ReportV2
+                report={result.report}
+                previewUrl={result.previewUrl}
+                shareActive={result.shareActive}
+                onNewCheck={newCheck}
+                onDeleted={() => {
+                  setResult(null);
+                  refreshSession();
+                  go("/");
+                }}
+              />
+            ) : (
             <ResultView
               report={result.report}
               previewUrl={result.previewUrl}
@@ -99,9 +122,11 @@ export function App() {
               onNewCheck={newCheck}
               onDeleted={() => {
                 setResult(null);
+                refreshSession();
                 go("/");
               }}
             />
+            )
           ) : (
             <div className="card center">
               <p role="status">{reportState === "gone" ? t.reportGone : t.loadingReport}</p>
@@ -140,7 +165,22 @@ export function App() {
                   {sessionError}
                 </p>
               )}
-              {session ? <CheckForm session={session} onDone={onDone} onQuotaChanged={refreshSession} /> : !sessionError && <div className="card skeleton" aria-hidden="true" />}
+              {session ? <CheckForm session={session} me={me} onDone={onDone} onQuotaChanged={refreshSession} /> : !sessionError && <div className="card skeleton" aria-hidden="true" />}
+              {recent.length > 0 && (
+                <section className="history" aria-labelledby="history-title">
+                  <h2 id="history-title">تقاريرك الأخيرة</h2>
+                  <ul>
+                    {recent.map((h) => (
+                      <li key={h.id}>
+                        <a href={`/r/${h.id}`} onClick={(e) => (e.preventDefault(), go(`/r/${h.id}`))}>
+                          {h.title || "تقرير"}
+                        </a>
+                        <span className="meta">{fmtDate(h.createdAt)}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              )}
             </div>
           </div>
         )}

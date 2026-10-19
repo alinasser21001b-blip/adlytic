@@ -113,3 +113,27 @@ export async function findSharedView(db: D1Database, token: string): Promise<Pub
 function v2Axis(s: DimensionStatus | undefined): AssessmentStatus {
   return s === "strong" || s === "needs_improvement" ? s : "not_assessed";
 }
+
+/** GET /api/reports — the caller's live reports (account, or this guest browser), newest first. */
+export async function listReports(c: Ctx): Promise<Response> {
+  const [visitorId, user] = await Promise.all([currentVisitor(c), currentUser(c)]);
+  if (!visitorId && !user) return c.json({ reports: [] }, 200, { "Cache-Control": "no-store" });
+  const rows = await c.env.DB.prepare(
+    `SELECT id, mode, created_at, report_json FROM analyses
+     WHERE status = 'completed' AND deleted_at IS NULL AND expires_at > ?1
+       AND ((?2 IS NOT NULL AND user_id = ?2) OR (user_id IS NULL AND ?3 IS NOT NULL AND visitor_id = ?3))
+     ORDER BY created_at DESC LIMIT 10`,
+  )
+    .bind(Date.now(), user?.id ?? null, visitorId)
+    .all<{ id: string; mode: string; created_at: number; report_json: string | null }>();
+  const reports = rows.results.map((r) => {
+    let title = "";
+    try {
+      title = (JSON.parse(r.report_json ?? "{}") as { perceivedMessage?: string }).perceivedMessage ?? "";
+    } catch {
+      title = "";
+    }
+    return { id: r.id, mode: r.mode, createdAt: new Date(r.created_at).toISOString(), title: title.slice(0, 120) };
+  });
+  return c.json({ reports }, 200, { "Cache-Control": "no-store" });
+}

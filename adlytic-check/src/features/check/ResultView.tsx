@@ -14,7 +14,7 @@ interface Props {
 
 const AXES = ["hook", "messageClarity", "visualReadability", "callToAction"] as const;
 
-async function copyText(text: string): Promise<boolean> {
+export async function copyText(text: string): Promise<boolean> {
   try {
     await navigator.clipboard.writeText(text);
     return true;
@@ -214,7 +214,7 @@ function Axis({ label, item }: { label: string; item: AssessmentItem }) {
   );
 }
 
-function SharePanel({ reportId, initiallyActive }: { reportId: string; initiallyActive: boolean }) {
+export function SharePanel({ reportId, initiallyActive }: { reportId: string; initiallyActive: boolean }) {
   const [url, setUrl] = useState<string | null>(null);
   const [active, setActive] = useState(initiallyActive);
   const [msg, setMsg] = useState("");

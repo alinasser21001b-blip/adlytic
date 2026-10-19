@@ -3,7 +3,7 @@ import { config, errorJson, HttpError, type AppEnv, type Bindings } from "./lib"
 import { renderShareNotFound, renderSharePage, SHARE_HEADERS } from "./routes/share-page";
 import { handleCheck } from "./services/analysis";
 import { handleClientEvent, providerBlocked } from "./services/events";
-import { createShare, deleteReport, findSharedView, getReport, revokeShare } from "./services/reports";
+import { createShare, deleteReport, findSharedView, getReport, listReports, revokeShare } from "./services/reports";
 import { currentUser, finishGoogleLogin, logout, requireUser, startGoogleLogin } from "./services/auth";
 import { balanceOf, sweepExpiredStatements } from "./services/credits";
 import { catalogView, createOrder, getOrder, paymentReturn, paymentWebhook, reconcilePayments } from "./services/payments";
@@ -93,6 +93,7 @@ app.get("/api/payments/return", paymentReturn);
 app.post("/api/payments/zaincash/webhook", paymentWebhook);
 
 app.post("/api/check", handleCheck);
+app.get("/api/reports", listReports);
 app.get("/api/reports/:id", getReport);
 app.post("/api/reports/:id/share", createShare);
 app.delete("/api/reports/:id/share", revokeShare);
