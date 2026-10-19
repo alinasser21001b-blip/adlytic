@@ -242,6 +242,6 @@ export function adminSurfaceNav(active: AdminSurface): string {
     return `<div class="nav-label" title="${section.question}">${section.label}</div>\n${items}`;
   }).join('\n');
   return `${sections}
-<div class="nav-label">&nbsp;</div>
+<div class="nav-label">${' '}</div>
       <a class="nav-item" href="/dashboard">⌂ العودة للتطبيق</a>`;
 }
