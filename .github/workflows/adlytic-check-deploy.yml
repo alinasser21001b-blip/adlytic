@@ -246,6 +246,18 @@ jobs:
     needs: deploy
     runs-on: ubuntu-latest
     steps:
+      - name: Can the provider account be billed? (1-token probe, error class only)
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -z "$ANTHROPIC_API_KEY" ]; then echo "probe skipped: ANTHROPIC_API_KEY not visible to this job"; exit 0; fi
+          code=$(curl -sS -o /tmp/probe.json -w '%{http_code}' https://api.anthropic.com/v1/messages \
+            -H "x-api-key: $ANTHROPIC_API_KEY" -H "anthropic-version: 2023-06-01" -H "content-type: application/json" \
+            -d '{"model":"claude-haiku-4-5","max_tokens":1,"messages":[{"role":"user","content":"ping"}]}')
+          if [ "$code" = "200" ]; then echo "provider account: OK"; exit 0; fi
+          kind=$(node -e 'try{const e=require("/tmp/probe.json").error||{};const m=String(e.message||"");console.log(`${e.type||"unknown"}:${/credit balance/i.test(m)?"credit_balance_too_low":/usage limit|spend limit|reached your/i.test(m)?"usage_limit_reached":"other"}`)}catch{console.log("unparseable")}')
+          echo "::error title=Provider account not usable::HTTP $code ($kind). Top up or raise limits in the Anthropic console (Billing / Limits); no key or content is printed."
+          exit 1
       - name: Is the analysis service fully configured?
         working-directory: .
         env:
@@ -260,6 +272,7 @@ jobs:
               providerConfigured: "add the ANTHROPIC_API_KEY secret and re-run",
               turnstileConfigured: "give the token Account → Turnstile → Edit (or set TURNSTILE_SITE_KEY + TURNSTILE_SECRET_KEY) and re-run",
               abuseHashConfigured: "IP_HASH_SECRET missing — re-run the deploy job",
+              providerUsable: "the provider refused a live check for billing (credit balance or usage limit) — top up the Anthropic account; readiness recovers 15 min after the last refusal",
             };
             const missing = Object.keys(fix).filter((k) => !r[k]);
             if (h.ready && missing.length === 0) { console.log("analysis service READY"); process.exit(0); }

@@ -1,7 +1,8 @@
 import type { AnyAnalysisReport, AssessmentStatus, DimensionStatus, PublicShareView, ShareInfo } from "../../shared/schemas";
 import { HttpError, randomToken, sha256Hex, type Ctx } from "../lib";
 import { recordEvent } from "./events";
-import { requireVisitor } from "./session";
+import { currentUser } from "./auth";
+import { currentVisitor } from "./session";
 
 interface OwnedRow {
   id: string;
@@ -14,14 +15,18 @@ interface OwnedRow {
  * Owner-only lookup. A report that is missing, someone else's, deleted, or
  * expired all produce the SAME 404 — a caller cannot learn which.
  */
-async function ownedLiveReport(c: Ctx, id: string): Promise<{ visitorId: string; row: OwnedRow }> {
-  const visitorId = await requireVisitor(c);
+async function ownedLiveReport(c: Ctx, id: string): Promise<{ visitorId: string | null; row: OwnedRow }> {
+  const [visitorId, user] = await Promise.all([currentVisitor(c), currentUser(c)]);
+  if (!visitorId && !user) throw new HttpError(401, "SESSION_REQUIRED");
   if (!/^[A-Za-z0-9_-]{8,64}$/.test(id)) throw new HttpError(404, "REPORT_NOT_FOUND");
+  // Owner = the account that holds the report, or — for a report no account holds yet —
+  // the guest browser that created it. Everyone else gets the same 404.
   const row = await c.env.DB.prepare(
     `SELECT id, report_json, share_token_hash, share_created_at FROM analyses
-     WHERE id = ?1 AND visitor_id = ?2 AND status = 'completed' AND deleted_at IS NULL AND expires_at > ?3`,
+     WHERE id = ?1 AND status = 'completed' AND deleted_at IS NULL AND expires_at > ?2
+       AND ((?3 IS NOT NULL AND user_id = ?3) OR (user_id IS NULL AND ?4 IS NOT NULL AND visitor_id = ?4))`,
   )
-    .bind(id, visitorId, Date.now())
+    .bind(id, Date.now(), user?.id ?? null, visitorId)
     .first<OwnedRow>();
   if (!row || !row.report_json) throw new HttpError(404, "REPORT_NOT_FOUND");
   return { visitorId, row };

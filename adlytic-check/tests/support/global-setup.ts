@@ -1,4 +1,5 @@
 import { spawn, spawnSync, type ChildProcess } from "node:child_process";
+import type { TestProject } from "vitest/node";
 import { existsSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -32,7 +33,13 @@ async function assertPortFree(port: number) {
   throw new Error(`port ${port} is already in use; stop the leftover wrangler/workerd process first`);
 }
 
-export default async function setup() {
+declare module "vitest" {
+  export interface ProvidedContext {
+    d1Dirs: Record<string, string>;
+  }
+}
+
+export default async function setup(project: TestProject) {
   const env = { ...process.env, WRANGLER_SEND_METRICS: "false", NO_COLOR: "1" };
   for (const inst of Object.values(INSTANCES)) await assertPortFree(inst.port);
   if (!existsSync("dist/index.html")) {
@@ -40,6 +47,7 @@ export default async function setup() {
     if (b.status !== 0) throw new Error("vite build failed");
   }
   const mock = await startMock(MOCK_PORT);
+  const d1Dirs: Record<string, string> = {};
 
   let inspector = 9310;
   await Promise.all(
@@ -47,6 +55,7 @@ export default async function setup() {
       const inst = INSTANCES[name];
       const dir = mkdtempSync(join(tmpdir(), `ac-${name}-`));
       dirs.push(dir);
+      d1Dirs[name] = dir;
       const mig = spawnSync("npx", ["wrangler", "d1", "migrations", "apply", "adlytic-check-db", "--local", "--persist-to", dir], { env, encoding: "utf8" });
       if (mig.status !== 0) throw new Error(`migrations failed for ${name}: ${mig.stderr}`);
       const varArgs = Object.entries(inst.vars).flatMap(([k, v]) => ["--var", `${k}:${v}`]);
@@ -64,6 +73,8 @@ export default async function setup() {
       await waitFor(`${urlOf(name)}/api/health`, 90_000);
     }),
   );
+
+  project.provide("d1Dirs", d1Dirs);
 
   return async () => {
     for (const p of procs) {

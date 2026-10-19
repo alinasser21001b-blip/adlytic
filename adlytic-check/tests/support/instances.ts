@@ -22,6 +22,22 @@ export const INSTANCES = {
   short: { port: 8803, vars: { ...base, RESERVATION_TTL_SECONDS: "3", PROVIDER_TIMEOUT_MS: "20000", REPORT_RETENTION_DAYS: "0.00006" } },
   // Production must ignore the test-double URLs and fail closed.
   production: { port: 8804, vars: { ...base, ENVIRONMENT: "production" } },
+  // V2 analyzer + Google accounts + credits, with a 4-second "day" and a short lease.
+  accounts: {
+    port: 8805,
+    vars: {
+      ...base,
+      ANALYZER_VERSION: "v2",
+      ACCOUNTS_ENABLED: "true",
+      GOOGLE_CLIENT_ID: "test-google-client",
+      GOOGLE_CLIENT_SECRET: "test-google-secret",
+      GOOGLE_AUTH_URL: `${MOCK}/o/oauth2/v2/auth`,
+      GOOGLE_TOKEN_URL: `${MOCK}/token`,
+      FREE_REFILL_MS: "4000",
+      RESERVATION_TTL_SECONDS: "6",
+      PROVIDER_TIMEOUT_MS: "20000",
+    },
+  },
 } as const;
 
 export type InstanceName = keyof typeof INSTANCES;

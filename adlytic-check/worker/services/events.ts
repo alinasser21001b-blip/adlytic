@@ -2,7 +2,7 @@ import { clientEventSchema } from "../../shared/schemas";
 import { HttpError, takeRateSlot, type Ctx } from "../lib";
 import { requireVisitor } from "./session";
 
-export type ServerEventName = "check_started" | "check_completed" | "check_failed" | "share_created" | "share_revoked";
+export type ServerEventName = "check_started" | "check_completed" | "check_failed" | "share_created" | "share_revoked" | "login_completed" | "payment_started" | "payment_completed" | "provider_blocked";
 
 type Props = Record<string, string | number | boolean>;
 
@@ -42,4 +42,19 @@ export async function handleClientEvent(c: Ctx): Promise<Response> {
   }
   await recordEvent(c.env.DB, parsed.data.name, visitorId, parsed.data.analysisId ?? null);
   return c.body(null, 204);
+}
+
+const BLOCK_WINDOW_MS = 15 * 60_000;
+
+/** True when the provider refused for billing reasons recently (credit or usage limit). */
+export async function providerBlocked(db: D1Database, now = Date.now()): Promise<boolean> {
+  try {
+    const row = await db
+      .prepare("SELECT MAX(created_at) AS at FROM product_events WHERE name = 'provider_blocked' AND created_at > ?1")
+      .bind(now - BLOCK_WINDOW_MS)
+      .first<{ at: number | null }>();
+    return row?.at != null;
+  } catch {
+    return false;
+  }
 }

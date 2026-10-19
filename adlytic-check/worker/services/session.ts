@@ -1,5 +1,7 @@
 import { getCookie, setCookie } from "hono/cookie";
 import type { SessionInfo } from "../../shared/schemas";
+import { currentUser } from "./auth";
+import { providerBlocked } from "./events";
 import { clientIp, config, hmacHex, HttpError, QUOTA_WINDOW_MS, randomToken, sha256Hex, takeRateSlot, utcDay, type Ctx } from "../lib";
 
 const COOKIE = "ac_sid";
@@ -84,6 +86,13 @@ export async function sessionInfo(c: Ctx, visitorId: string): Promise<SessionInf
       resetsAt: q.resetsAtMs != null ? new Date(q.resetsAtMs).toISOString() : null,
     },
     turnstileSiteKey: c.env.TURNSTILE_SITE_KEY ?? "",
-    analysisAvailable: cfg.analysisEnabled && Boolean(c.env.ANTHROPIC_API_KEY) && Boolean(c.env.TURNSTILE_SECRET_KEY && c.env.TURNSTILE_SITE_KEY),
+    analysisAvailable:
+      cfg.analysisEnabled && Boolean(c.env.ANTHROPIC_API_KEY) && Boolean(c.env.TURNSTILE_SECRET_KEY && c.env.TURNSTILE_SITE_KEY) && !(await providerBlocked(c.env.DB)),
+    accounts: {
+      enabled: cfg.accountsEnabled,
+      loginAvailable: cfg.accountsEnabled && Boolean(c.env.GOOGLE_CLIENT_ID && c.env.GOOGLE_CLIENT_SECRET),
+      loggedIn: Boolean(await currentUser(c)),
+      paymentsEnabled: cfg.paymentsEnabled,
+    },
   };
 }

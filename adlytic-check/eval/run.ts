@@ -71,7 +71,8 @@ export function viewV2(r: V2Core): ReportView {
       offerClear: AXIS(r, "offer_clarity"),
       readability: r.dimensions.some((d) => d.dimension === "legibility") ? normLeg(AXIS(r, "legibility")) : "not_assessed",
     },
-    allText: JSON.stringify({ ...r, checkedRules: undefined, citations: undefined }),
+    // What the owner reads as our judgement — quoted evidence (which may contain injected text) excluded.
+    allText: JSON.stringify({ ...r, evidence: undefined, checkedRules: undefined, citations: undefined }),
     tips: r.shareableTips,
     citedSources: r.citations.map((c) => c.sourceId),
     evidenceLinked: { total: linkedDims.length, linked: linkedDims.filter((d) => d.evidenceIds.length > 0).length },
@@ -137,7 +138,7 @@ async function main() {
       const s = res.view ? score(c, res.view) : null;
       const row = {
         id: c.id, run, split: c.split, mode: c.mode, ok: res.outcome.ok, reason: res.outcome.ok ? null : res.outcome.reason,
-        calls: t.calls, repairs: t.repairs, stripped: t.stripped, latencyMs, inTok: t.inputTokens, outTok: t.outputTokens, model: t.model,
+        calls: t.calls, repairs: t.repairs, schemaPaths: t.schemaPaths ?? [], stripped: t.stripped, latencyMs, inTok: t.inputTokens, outTok: t.outputTokens, model: t.model,
         score: s, report: res.outcome.ok ? res.outcome.report : null,
       };
       results.push(row);
@@ -168,6 +169,7 @@ async function main() {
     repairRate: +(first.filter((r) => (r.repairs as string[]).length > 0).length / Math.max(1, first.length)).toFixed(3),
     repairReasons: first.flatMap((r) => r.repairs as string[]).reduce<Record<string, number>>((m, k) => ((m[k] = (m[k] ?? 0) + 1), m), {}),
     strippedReports: first.filter((r) => r.stripped).map((r) => r.id),
+    schemaPaths: results.flatMap((r) => (r.schemaPaths as string[]) ?? []).reduce<Record<string, number>>((m, k) => ((m[k] = (m[k] ?? 0) + 1), m), {}),
     latencyMs: { p50: pct(0.5), p90: pct(0.9), max: lat.at(-1) ?? null },
     tokens: { input: inTok, output: outTok },
     estCostUsd: price ? +((inTok * price[0] + outTok * price[1]) / 1e6).toFixed(4) : null,

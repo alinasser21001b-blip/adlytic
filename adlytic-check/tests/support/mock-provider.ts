@@ -4,6 +4,7 @@
  * PROVIDER_BASE_URL / TURNSTILE_VERIFY_URL (honoured only outside production)
  * at this server. Behaviour is selected by a marker inside the ad text.
  */
+import { createHash } from "node:crypto";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 
 export function goodReport(overrides: Record<string, unknown> = {}) {
@@ -38,6 +39,39 @@ export function goodReport(overrides: Record<string, unknown> = {}) {
   };
 }
 
+export function goodReportV2(overrides: Record<string, unknown> = {}) {
+  return {
+    evidence: [
+      { id: "T1", source: "visible_text", text: "كنبة مخمل", location: "top", size: "large", confidence: "high" },
+      { id: "V1", source: "visual_observation", text: "كنبة بنية في وسط الصورة", location: "middle", confidence: "high" },
+    ],
+    imageTextLegibility: "clear",
+    summary: "الإعلان يوضح المنتج لكن طريقة الطلب ناقصة.",
+    perceivedMessage: "كنبة مخمل للبيع.",
+    dimensions: [
+      { dimension: "offer_clarity", status: "strong", level: 4, evidenceIds: ["T1", "V1"], ruleIds: ["R-OFFER-01"], observation: "المنتج ظاهر ومسمّى." },
+      { dimension: "cta", status: "needs_improvement", level: 1, evidenceIds: ["U1"], ruleIds: ["R-CTA-01"], observation: "لا توجد طريقة طلب واضحة." },
+      { dimension: "opening", status: "strong", level: 3, evidenceIds: ["U1"], ruleIds: ["R-OPEN-01"], observation: "السطر الأول يذكر المنتج." },
+      { dimension: "legibility", status: "strong", level: 4, evidenceIds: ["T1"], ruleIds: ["R-LEG-01"], observation: "النص كبير وواضح." },
+    ],
+    fixes: [{ dimension: "cta", change: "أضف «راسلنا على الخاص» في آخر النص.", why: "حتى يعرف المشتري الخطوة التالية.", evidenceIds: ["U1"], ruleIds: ["R-CTA-01"] }],
+    actionSteps: ["أضف طريقة الطلب في آخر النص."],
+    improvedCopy: { opening: "كنبة مخمل تريّح جلستك.", body: "متوفرة بأكثر من لون.", headline: "كنبة مخمل", callToAction: "راسلنا على الخاص" },
+    alternateOpenings: ["تبحث عن كنبة مريحة لصالتك؟"],
+    alternateCallsToAction: ["اكتب لنا «كنبة» بالخاص"],
+    missingInformation: ["أضف المقاسات إذا كانت معروفة."],
+    limitations: [],
+    shareableTips: ["اجعل طريقة الطلب واضحة في آخر النص."],
+    confidence: "high",
+    ...overrides,
+  };
+}
+
+const b64url = (b: Buffer | string) => Buffer.from(b).toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+
+/** Fake Google IdP state: authorization codes waiting to be exchanged. */
+const codes = new Map<string, { sub: string; nonce: string; challenge: string; redirectUri: string; clientId: string }>();
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function readBody(req: IncomingMessage): Promise<Buffer> {
@@ -63,6 +97,40 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
 
     if (req.url === "/__state") return send(200, state);
 
+    // ── Fake Google OIDC ──
+    const u = new URL(req.url ?? "/", "http://mock");
+    if (u.pathname === "/o/oauth2/v2/auth") {
+      // The test adds &sub=… to choose the account; "deny" simulates the user cancelling.
+      const p = u.searchParams;
+      const redirect = new URL(p.get("redirect_uri")!);
+      if (p.get("sub") === "deny") {
+        redirect.searchParams.set("error", "access_denied");
+      } else {
+        const code = `code_${Math.random().toString(36).slice(2)}`;
+        codes.set(code, { sub: p.get("sub") ?? "user-a", nonce: p.get("nonce") ?? "", challenge: p.get("code_challenge") ?? "", redirectUri: p.get("redirect_uri")!, clientId: p.get("client_id")! });
+        redirect.searchParams.set("code", code);
+      }
+      redirect.searchParams.set("state", p.get("state") ?? "");
+      res.writeHead(302, { location: redirect.toString() });
+      return res.end();
+    }
+    if (u.pathname === "/token" && req.method === "POST") {
+      const f = new URLSearchParams(body.toString("utf8"));
+      const entry = codes.get(f.get("code") ?? "");
+      codes.delete(f.get("code") ?? "");
+      if (!entry || f.get("client_secret") !== "test-google-secret" || f.get("redirect_uri") !== entry.redirectUri) return send(400, { error: "invalid_grant" });
+      const challenge = b64url(createHash("sha256").update(f.get("code_verifier") ?? "").digest());
+      if (challenge !== entry.challenge) return send(400, { error: "invalid_grant", error_description: "PKCE" });
+      const now = Math.floor(Date.now() / 1000);
+      const claims: Record<string, unknown> = { iss: "https://accounts.google.com", aud: entry.clientId, sub: entry.sub, iat: now, exp: now + 3600, nonce: entry.nonce };
+      if (entry.sub === "wrong-aud") claims.aud = "someone-else";
+      if (entry.sub === "wrong-nonce") claims.nonce = "not-the-nonce";
+      if (entry.sub === "expired") claims.exp = now - 3600;
+      if (entry.sub === "wrong-iss") claims.iss = "https://evil.example";
+      const idToken = `${b64url(JSON.stringify({ alg: "RS256", typ: "JWT" }))}.${b64url(JSON.stringify(claims))}.sig`;
+      return send(200, { access_token: "at", id_token: idToken, expires_in: 3600, token_type: "Bearer" });
+    }
+
     if (req.url === "/siteverify") {
       state.siteverifyCalls++;
       const form = await new Request("http://x", { method: "POST", headers: { "content-type": String(req.headers["content-type"]) }, body: new Uint8Array(body) }).formData();
@@ -83,8 +151,12 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
       const slow = text.match(/\[\[MOCK:slow:(\d+)\]\]/);
       if (slow) await sleep(Number(slow[1]));
 
-      let input: unknown = goodReport();
+      const v2 = payload.tools?.[0]?.name === "submit_ad_review_v2";
+      let input: unknown = v2 ? goodReportV2() : goodReport();
       if (text.includes("[[MOCK:500]]")) return send(500, { type: "error", error: { type: "api_error", message: "upstream boom" } });
+      if (text.includes("[[MOCK:credit]]")) {
+        return send(400, { type: "error", error: { type: "invalid_request_error", message: "Your credit balance is too low to access the Anthropic API." } });
+      }
       if (text.includes("[[MOCK:timeout]]")) {
         await sleep(30_000);
         return send(500, {});
@@ -106,7 +178,7 @@ export function startMock(port: number): Promise<{ server: Server; state: MockSt
         type: "message",
         role: "assistant",
         model: payload.model,
-        content: [{ type: "tool_use", id: `toolu_${state.calls}`, name: "submit_ad_review", input }],
+        content: [{ type: "tool_use", id: `toolu_${state.calls}`, name: v2 ? "submit_ad_review_v2" : "submit_ad_review", input }],
         stop_reason: "tool_use",
         stop_sequence: null,
         usage: { input_tokens: 1500, output_tokens: 900 },

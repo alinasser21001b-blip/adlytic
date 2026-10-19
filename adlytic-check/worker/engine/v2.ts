@@ -116,6 +116,7 @@ export async function runV2(req: EngineRequest & { showIndex?: boolean }): Promi
     const v = providerReportV2Schema.safeParse(res.toolInput);
     if (!v.success) {
       t.repairs.push("schema");
+      t.schemaPaths = [...(t.schemaPaths ?? []), ...v.error.issues.slice(0, 3).map((i) => i.path.join(".").replace(/\.\d+\./g, ".#."))];
       const errs = v.error.issues.slice(0, 8).map((i) => `${i.path.join(".")}: ${i.message}`).join("; ");
       repairNote = `A previous attempt was rejected because the report did not match the required structure (${errs}). Call ${TOOL_NAME_V2} again with a complete, valid report and keep every field short.`;
       continue;
@@ -181,6 +182,9 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
   }
   const evidence = [...ctx.serverEvidence, ...modelEvidence];
   const evIds = new Set(evidence.map((e) => e.id));
+  // Text-only: anything the model "saw" can only have come from the owner's text.
+  const droppedToOwner = !ctx.image && evIds.has("U1");
+  const linkIds = (ids: string[]) => [...new Set(ids.map((id) => (!evIds.has(id) && droppedToOwner && /^[TV]/.test(id) ? "U1" : id)).filter((id) => evIds.has(id)))];
   const ruleIds = new Set(ctx.rules.map((r) => r.ruleId));
 
   // 2. Dimensions: fixed order, every applicable dimension present, links verified.
@@ -188,7 +192,7 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
   const dimensions: DimensionResult[] = ctx.appDims.map((d) => {
     const m = byDim.get(d.id);
     if (!m) return { dimension: d.id, labelAr: d.labelAr, weight: d.weight, status: "unknown", level: null, evidenceIds: [], ruleIds: [], observation: UNKNOWN_OBS };
-    const ev = m.evidenceIds.filter((id) => evIds.has(id));
+    const ev = linkIds(m.evidenceIds);
     const rl = m.ruleIds.filter((id) => ruleIds.has(id) && (ruleById(id)?.dimension === d.id || ruleById(id)?.dimension === "guard"));
     if (m.ruleIds.length !== rl.length && !repairs.includes("unknown_rule")) repairs.push("unknown_rule");
     let status = m.status;
@@ -228,7 +232,7 @@ export function assemble(raw: ProviderReportV2, ctx: Ctx, repairs: RepairReason[
   // 4. Fixes: real problems only, linked to evidence, ordered by rubric weight.
   const weight = new Map(ctx.appDims.map((d) => [d.id, d.weight]));
   const fixes: FixResult[] = raw.fixes
-    .map((f) => ({ ...f, evidenceIds: f.evidenceIds.filter((id) => evIds.has(id)), ruleIds: f.ruleIds.filter((id) => ruleIds.has(id)) }))
+    .map((f) => ({ ...f, evidenceIds: linkIds(f.evidenceIds), ruleIds: f.ruleIds.filter((id) => ruleIds.has(id)) }))
     .filter((f) => weight.has(f.dimension) && f.evidenceIds.length > 0)
     .map((f) => ({ dimension: f.dimension, labelAr: ctx.appDims.find((d) => d.id === f.dimension)!.labelAr, change: f.change, why: f.why, evidenceIds: f.evidenceIds, ruleIds: f.ruleIds }));
   if (conflict && !fixes.some((f) => f.dimension === "consistency")) {

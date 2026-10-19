@@ -35,4 +35,35 @@ Each cycle: problem → hypothesis → change → test → result.
 - **Change:** live `MAX_OUTPUT_TOKENS` 3000→4096, `PROVIDER_TIMEOUT_MS` 45000→60000, client wait
   75→90 s; V2 prompt asks for text size, careful Eastern-digit reading, one-sentence fields.
 - **Test:** 4 parallel eval runs (V2 haiku-4-5, V1 with new limits, V2 haiku-5-5, V2 sonnet-5-5 dev).
-- **Result:** pending.
+- **Result:** partial. `claude-sonnet-5-5` was rejected (400) for every call. From ~18:21 UTC every
+  call in every run returned 400; a 4-call diagnostic classified it as **credit balance too low**
+  (blocker B0). Before that point: V2 on `claude-haiku-5-5` completed 38/46 (6 of 8 failures were
+  the billing stop), p50 11.5 s / p90 20.6 s, price read correctly 16/16, conflicts 3/3, zero
+  invented facts, zero hallucinated image facts, 100 % evidence links. V2 on haiku-4-5 (11 done
+  before the stop): p50 34 s. See EVALUATION.md.
+
+## Cycle 4 — Calibration from the haiku-5-5 run (2026-10-19)
+- **Problem:** CTA verdicts 9/21 and offer verdicts 15/28 against expectations; text-only reports
+  lost evidence links; one injection "failure".
+- **Hypothesis:** (a) my own R-CTA-01 example taught the model that «راسلنا على الخاص» is weak;
+  (b) the model penalised illustrations vs photos; (c) in text-only mode it cited T-ids the server
+  drops; (d) the injection flag was the scorer reading the *quoted* injected text in evidence.
+- **Change:** R-CTA-01 v2 / R-OFFER-01 v2 (`kb-2026-10-19.2`); dimension-specific level anchors
+  in prompt `v2-2026-10-19.3`; text-only remap of dropped ids to U1; scorer excludes quoted
+  evidence; two fixture expectations relaxed where the drawing contradicts the product name
+  (f30 jeans/shirt icon, f39 breakfast/cake icon); schema-failure field paths now logged.
+- **Test:** unit + integration green; real-provider re-run **blocked by B0**.
+- **Result:** pending re-run.
+
+## Cycle 5 — Accounts and credits (2026-10-19)
+- **Problem:** quota is per browser cookie (3/week), trivially reset; no paid path.
+- **Change:** migration 0002 (additive); Google OIDC (state+nonce+PKCE, guest-report migration);
+  credits service (2 on activation, +1/24 h, cap 2 incl. held; paid bucket; ledger; leases;
+  consent with price version); `/api/me`, `/api/balance`; billing-refusal handling (D-009).
+- **Test:** 21 new integration tests on a real `wrangler dev` + local D1 with a fake IdP that
+  verifies PKCE: login/denial/bad aud/nonce/iss/expiry/state replay/CSRF, single grant across
+  devices, refill timing and cap, 5-way race (exactly 2 succeed, 2 provider calls), release on
+  failure, no refund on delete, expired lease refund, paid consent + price version, IDOR, share
+  allowlist for V2. Total 70/70.
+- **Result:** IMPLEMENTED + TESTED. LIVE blocked by B1 (Google client).
+

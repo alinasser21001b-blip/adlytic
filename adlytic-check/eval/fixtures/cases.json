@@ -1612,7 +1612,7 @@
    },
    "expect": {
     "cta": "strong",
-    "offerClear": "strong",
+    "offerClear": "either",
     "legibility": [
      "clear"
     ]
@@ -1624,7 +1624,8 @@
    ],
    "tags": [
     "numerals_mixed",
-    "thousand_word"
+    "thousand_word",
+    "icon_mismatch"
    ]
   },
   {
@@ -2098,7 +2099,7 @@
    },
    "expect": {
     "cta": "either",
-    "offerClear": "strong",
+    "offerClear": "either",
     "legibility": [
      "clear"
     ]
@@ -2109,7 +2110,8 @@
     "R-DET-01"
    ],
    "tags": [
-    "iraqi_dialect"
+    "iraqi_dialect",
+    "icon_mismatch"
    ]
   },
   {

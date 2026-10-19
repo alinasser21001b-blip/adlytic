@@ -34,6 +34,8 @@ export interface EngineTelemetry {
   outputTokens: number;
   model: string | null;
   stripped: boolean;
+  /** For schema repairs: the first failing field paths (no content). */
+  schemaPaths?: string[];
 }
 
 export type EngineOutcome<R> =

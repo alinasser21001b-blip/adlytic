@@ -356,8 +356,8 @@ export const CASES: CaseSpec[] = [
       { role: "headline", text: "جينز رجالي", size: 84, pos: "upper", color: "#0c4a6e", weight: 700 },
       { role: "price", text: "٢٢٠٠٠ دينار", size: 64, pos: "lower", color: "#0c4a6e", weight: 700 },
     ], "#1d4ed8"),
-    expect: { cta: "strong", offerClear: "strong", legibility: ["clear"] },
-    relevantRules: ["R-CONS-01", "R-OFFER-01", "R-CTA-01"], tags: ["numerals_mixed", "thousand_word"],
+    expect: { cta: "strong", offerClear: "either", legibility: ["clear"] },
+    relevantRules: ["R-CONS-01", "R-OFFER-01", "R-CTA-01"], tags: ["numerals_mixed", "thousand_word", "icon_mismatch"],
   },
 
   // ── Mixed Arabic / English ──
@@ -447,8 +447,8 @@ export const CASES: CaseSpec[] = [
     id: "f39", title: "Iraqi breakfast, dialect", industry: "restaurants", goal: "visits",
     adCopy: "ريوگ عراقي كامل: كاهي وگيمر وعسل، ب ٦ الاف للشخص. موجودين من ٧ الصبح. العنوان: زيونة.",
     image: sq("#fef3c7", "cake", [{ role: "headline", text: "ريوگ عراقي", size: 92, pos: "upper", color: "#78350f", weight: 700 }], "#b45309"),
-    expect: { cta: "either", offerClear: "strong", legibility: ["clear"] },
-    relevantRules: ["R-OFFER-01", "R-CTA-01", "R-DET-01"], tags: ["iraqi_dialect"],
+    expect: { cta: "either", offerClear: "either", legibility: ["clear"] },
+    relevantRules: ["R-OFFER-01", "R-CTA-01", "R-DET-01"], tags: ["iraqi_dialect", "icon_mismatch"],
   },
   {
     id: "f40", title: "Phone repair, visit shop", industry: "services", goal: "visits",

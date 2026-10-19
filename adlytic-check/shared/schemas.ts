@@ -132,6 +132,8 @@ export interface SessionInfo {
   quota: { limit: number; used: number; remaining: number; resetsAt: string | null };
   turnstileSiteKey: string;
   analysisAvailable: boolean;
+  /** Accounts mode: checks need a Google login and run on the account's credits. */
+  accounts: { enabled: boolean; loginAvailable: boolean; loggedIn: boolean; paymentsEnabled: boolean };
 }
 
 export interface ShareInfo {

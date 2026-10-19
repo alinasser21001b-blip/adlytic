@@ -1,3 +1,4 @@
+import { spawnSync } from "node:child_process";
 import { MOCK } from "./instances";
 
 export const TINY_JPEG = Buffer.from(
@@ -20,17 +21,35 @@ export interface CheckFields {
 }
 
 export class Client {
-  cookie = "";
+  jar = new Map<string, string>();
   constructor(public base: string) {}
 
-  headers(extra: Record<string, string> = {}): Record<string, string> {
-    return { Origin: this.base, ...(this.cookie ? { Cookie: this.cookie } : {}), ...extra };
+  /** All cookies as one Cookie header value. */
+  get cookie(): string {
+    return [...this.jar].map(([k, v]) => `${k}=${v}`).join("; ");
   }
 
-  private capture(res: Response) {
-    const set = res.headers.get("set-cookie");
-    if (set) this.cookie = set.split(";")[0]!;
+  headers(extra: Record<string, string> = {}): Record<string, string> {
+    return { Origin: this.base, ...(this.jar.size ? { Cookie: this.cookie } : {}), ...extra };
+  }
+
+  capture(res: Response) {
+    for (const set of res.headers.getSetCookie()) {
+      const [pair, ...attrs] = set.split(";");
+      const i = pair!.indexOf("=");
+      const name = pair!.slice(0, i).trim();
+      const value = pair!.slice(i + 1).trim();
+      const expired = attrs.some((a) => /max-age=0/i.test(a.trim()) || /expires=thu, 01 jan 1970/i.test(a.trim()));
+      if (expired || !value) this.jar.delete(name);
+      else this.jar.set(name, value);
+    }
     return res;
+  }
+
+  /** GET without following redirects (for the login dance). */
+  async nav(url: string) {
+    const res = this.capture(await fetch(url.startsWith("http") ? url : `${this.base}${url}`, { headers: this.headers(), redirect: "manual" }));
+    return { status: res.status, location: res.headers.get("location") ?? "" };
   }
 
   async session() {
@@ -51,8 +70,11 @@ export class Client {
     return fd;
   }
 
-  async check(f: CheckFields) {
-    const res = await fetch(`${this.base}/api/check`, { method: "POST", headers: this.headers(), body: this.form(f) });
+  async check(f: CheckFields & { credit?: string; priceVersion?: string }) {
+    const fd = this.form(f);
+    if (f.credit) fd.append("credit", f.credit);
+    if (f.priceVersion) fd.append("priceVersion", f.priceVersion);
+    const res = await fetch(`${this.base}/api/check`, { method: "POST", headers: this.headers(), body: fd });
     const text = await res.text();
     let body: any = null;
     try {
@@ -64,11 +86,13 @@ export class Client {
   }
 
   async req(method: string, path: string, body?: unknown) {
-    const res = await fetch(`${this.base}${path}`, {
-      method,
-      headers: this.headers(body !== undefined ? { "Content-Type": "application/json" } : {}),
-      body: body !== undefined ? JSON.stringify(body) : undefined,
-    });
+    const res = this.capture(
+      await fetch(`${this.base}${path}`, {
+        method,
+        headers: this.headers(body !== undefined ? { "Content-Type": "application/json" } : {}),
+        body: body !== undefined ? JSON.stringify(body) : undefined,
+      }),
+    );
     const text = await res.text();
     let parsed: any = text;
     try {
@@ -85,3 +109,25 @@ export async function mockState(): Promise<{ calls: number; last: any; siteverif
 }
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Run SQL directly against an instance's local D1 (test setup only). */
+export function d1(dir: string, sql: string): any[] {
+  const r = spawnSync("npx", ["wrangler", "d1", "execute", "adlytic-check-db", "--local", "--persist-to", dir, "--json", "--command", sql], {
+    encoding: "utf8",
+    env: { ...process.env, WRANGLER_SEND_METRICS: "false", NO_COLOR: "1" },
+  });
+  if (r.status !== 0) throw new Error(`d1 execute failed: ${r.stderr || r.stdout}`);
+  return JSON.parse(r.stdout)[0]?.results ?? [];
+}
+
+/** Full Google login through the fake IdP. Returns the final redirect target. */
+export async function login(c: Client, sub: string, returnTo = "/"): Promise<string> {
+  if (!c.jar.has("ac_sid")) await c.session();
+  const start = await c.nav(`/api/auth/google/start?returnTo=${encodeURIComponent(returnTo)}`);
+  if (start.status !== 302) throw new Error(`start: ${start.status}`);
+  const idp = new URL(start.location);
+  idp.searchParams.set("sub", sub);
+  const back = await fetch(idp, { redirect: "manual" });
+  const cb = await c.nav(back.headers.get("location")!);
+  return cb.location;
+}

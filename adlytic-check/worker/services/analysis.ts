@@ -16,6 +16,9 @@ import { anthropicProvider } from "../providers/vision";
 import { validateImage, type ImageMime } from "../validation/image";
 import { recordEvent } from "./events";
 import { sanitizeShareTips } from "./guards";
+import { PRICE_VERSION } from "../../shared/credits";
+import { currentUser, requireUser, type CurrentUser } from "./auth";
+import { balanceOf, consume, release, reserve } from "./credits";
 import { requireVisitor } from "./session";
 import { verifyTurnstile } from "./turnstile";
 
@@ -31,6 +34,8 @@ interface AnalysisRow {
   report_json: string | null;
   error_code: string | null;
   deleted_at: number | null;
+  user_id: string | null;
+  credit_bucket: string | null;
 }
 
 type Outcome = EngineOutcome<ProviderReport> | EngineOutcome<V2Core>;
@@ -57,6 +62,8 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   const cfg = config(c.env);
   if (!cfg.analysisEnabled) throw new HttpError(503, "ANALYSIS_DISABLED", { retryable: false });
   const visitorId = await requireVisitor(c);
+  // With accounts on, checks run on the account's credits; guests keep the V1 weekly quota otherwise.
+  const user: CurrentUser | null = cfg.accountsEnabled ? await requireUser(c) : null;
   const db = c.env.DB;
 
   // 1. Bounded body read + strict field validation, before anything costs money.
@@ -84,6 +91,9 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   });
   if (!parsed.success) throw new HttpError(400, "INVALID_INPUT");
   const input = parsed.data;
+  const creditField = field("credit") ?? "free";
+  if (creditField !== "free" && creditField !== "paid") throw new HttpError(400, "INVALID_INPUT");
+  const priceVersion = field("priceVersion") ?? null;
 
   let image: { mime: ImageMime; bytes: Uint8Array } | undefined;
   const file = form.get("image");
@@ -105,10 +115,34 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   // 3. Bot protection for a NEW operation only (a replay's token was already spent).
   await verifyTurnstile(c, input.turnstileToken, input.idempotencyKey);
 
-  // 4. Atomic quota reservation: one conditional INSERT, evaluated serially by D1.
+  // 4. Atomic reservation. Accounts: one D1 batch settles expired leases, applies
+  //    refills and takes a unit from the chosen bucket. Guests: one conditional INSERT.
   const now = Date.now();
   const id = randomToken(12);
-  const reserve = await db
+  if (user) {
+    if (creditField === "paid" && priceVersion !== PRICE_VERSION) throw new HttpError(409, "PRICE_CHANGED", { retryable: false });
+    const r = await reserve(
+      db,
+      { id, visitorId, userId: user.id, idempotencyKey: input.idempotencyKey, inputHash, mode, industry: input.industry, goal: input.goal, now, leaseUntil: now + cfg.reservationTtlMs, expiresAt: now + cfg.retentionMs },
+      creditField,
+      cfg.freeRefillMs,
+      creditField === "paid" ? PRICE_VERSION : null,
+    );
+    if (!r.ok) {
+      if (r.reason === "duplicate") {
+        const raced = await findByKey(db, visitorId, input.idempotencyKey);
+        if (raced) return replay(c, raced, inputHash);
+        throw new HttpError(409, "REQUEST_IN_PROGRESS", { retryAfter: 5, retryable: true });
+      }
+      if (r.reason === "no_paid_units") throw new HttpError(402, "INSUFFICIENT_CREDITS", { retryable: false });
+      const b = await balanceOf(db, user.id, now, cfg.freeRefillMs);
+      // Never spend a paid unit silently: ask for consent when one exists.
+      if (b.paidAvailable > 0) throw new HttpError(409, "PAID_CONSENT_REQUIRED", { retryable: false });
+      const retryAfter = b.nextRefillAt ? Math.max(60, Math.ceil((Date.parse(b.nextRefillAt) - now) / 1000)) : 3600;
+      throw new HttpError(429, "FREE_QUOTA_EXHAUSTED", { retryAfter, retryable: false });
+    }
+  } else {
+  const reserveRes = await db
     .prepare(
       `INSERT OR IGNORE INTO analyses
          (id, visitor_id, idempotency_key, input_hash, status, mode, industry, goal, created_at, reservation_expires_at, expires_at)
@@ -119,7 +153,7 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     )
     .bind(id, visitorId, input.idempotencyKey, inputHash, mode, input.industry, input.goal, now, now + cfg.reservationTtlMs, now + cfg.retentionMs, now - QUOTA_WINDOW_MS, cfg.weeklyLimit)
     .run();
-  if (reserve.meta.changes !== 1) {
+  if (reserveRes.meta.changes !== 1) {
     const raced = await findByKey(db, visitorId, input.idempotencyKey);
     if (raced) return replay(c, raced, inputHash);
     const oldest = await db
@@ -131,6 +165,7 @@ export async function handleCheck(c: Ctx): Promise<Response> {
       .first<{ oldest: number | null }>();
     const retryAfter = oldest?.oldest ? Math.max(60, Math.ceil((oldest.oldest + QUOTA_WINDOW_MS - now) / 1000)) : 3600;
     throw new HttpError(429, "QUOTA_EXCEEDED", { retryAfter, retryable: false });
+  }
   }
   c.executionCtx.waitUntil(recordEvent(db, "check_started", visitorId, id, { mode, industry: input.industry, goal: input.goal }));
 
@@ -157,12 +192,19 @@ export async function handleCheck(c: Ctx): Promise<Response> {
   if (outcome.telemetry.repairs.length) console.log(`[check] repairs=${outcome.telemetry.repairs.join(",")} calls=${outcome.telemetry.calls}`);
 
   if (!outcome.ok) {
-    // Releasing the reservation returns the visitor's quota; provider calls stay counted in daily_usage.
-    await db
-      .prepare(`UPDATE analyses SET status = 'failed', error_code = ?2, latency_ms = ?3 WHERE id = ?1 AND status = 'pending'`)
-      .bind(id, outcome.reason, latency)
-      .run();
-    c.executionCtx.waitUntil(recordEvent(db, "check_failed", visitorId, id, { reason: outcome.reason, latencyMs: latency }));
+    // Releasing the reservation returns the unit; provider calls stay counted in daily_usage.
+    if (user) await release(db, user.id, id, outcome.reason.slice(0, 120), latency, Date.now(), cfg.freeRefillMs);
+    else
+      await db
+        .prepare(`UPDATE analyses SET status = 'failed', error_code = ?2, latency_ms = ?3 WHERE id = ?1 AND status = 'pending'`)
+        .bind(id, outcome.reason.slice(0, 120), latency)
+        .run();
+    c.executionCtx.waitUntil(recordEvent(db, "check_failed", visitorId, id, { reason: outcome.reason.slice(0, 120), latencyMs: latency }));
+    // Billing refusals will not clear by retrying: pause analysis honestly and flag health.
+    if (/credit_balance_too_low|usage_limit_reached/.test(outcome.reason)) {
+      c.executionCtx.waitUntil(recordEvent(db, "provider_blocked", null, id, { reason: outcome.reason.slice(0, 120) }));
+      throw new HttpError(503, "ANALYSIS_DISABLED", { retryable: false });
+    }
     throw new HttpError(outcome.code === "SERVICE_DAILY_LIMIT" ? 429 : 503, outcome.code, {
       retryable: outcome.code === "ANALYSIS_UNAVAILABLE",
       ...(outcome.code === "SERVICE_DAILY_LIMIT" ? { retryAfter: secondsToNextUtcDay() } : {}),
@@ -173,16 +215,21 @@ export async function handleCheck(c: Ctx): Promise<Response> {
     "schemaVersion" in outcome.report
       ? buildReportV2(id, mode, input, now, now + cfg.retentionMs, outcome.report as V2Core)
       : buildReport(id, mode, input, now, now + cfg.retentionMs, outcome.report as ProviderReport, outcome.telemetry.stripped);
-  // 6. Publish only if THIS request still owns a live reservation.
-  const done = await db
-    .prepare(
-      `UPDATE analyses SET status = 'completed', report_json = ?2, completed_at = ?3, latency_ms = ?4
-       WHERE id = ?1 AND status = 'pending' AND reservation_expires_at > ?3`,
-    )
-    .bind(id, JSON.stringify(report), Date.now(), latency)
-    .run();
-  if (done.meta.changes !== 1) {
-    await db.prepare(`UPDATE analyses SET status = 'failed', error_code = 'reservation_expired' WHERE id = ?1 AND status = 'pending'`).bind(id).run();
+  // 6. Publish only if THIS request still owns a live reservation (that is when the unit is spent).
+  const published = user
+    ? await consume(db, user.id, id, JSON.stringify(report), latency, Date.now(), cfg.freeRefillMs)
+    : (
+        await db
+          .prepare(
+            `UPDATE analyses SET status = 'completed', report_json = ?2, completed_at = ?3, latency_ms = ?4
+             WHERE id = ?1 AND status = 'pending' AND reservation_expires_at > ?3`,
+          )
+          .bind(id, JSON.stringify(report), Date.now(), latency)
+          .run()
+      ).meta.changes === 1;
+  if (!published) {
+    if (user) await release(db, user.id, id, "reservation_expired", latency, Date.now(), cfg.freeRefillMs);
+    else await db.prepare(`UPDATE analyses SET status = 'failed', error_code = 'reservation_expired' WHERE id = ?1 AND status = 'pending'`).bind(id).run();
     c.executionCtx.waitUntil(recordEvent(db, "check_failed", visitorId, id, { reason: "reservation_expired", latencyMs: latency }));
     throw new HttpError(503, "ANALYSIS_UNAVAILABLE", { retryable: true });
   }
@@ -237,7 +284,7 @@ async function takeProviderSlot(db: D1Database, max: number): Promise<boolean> {
 async function findByKey(db: D1Database, visitorId: string, key: string): Promise<AnalysisRow | null> {
   return db
     .prepare(
-      `SELECT id, input_hash, status, reservation_expires_at, expires_at, report_json, error_code, deleted_at
+      `SELECT id, input_hash, status, reservation_expires_at, expires_at, report_json, error_code, deleted_at, user_id, credit_bucket
        FROM analyses WHERE visitor_id = ?1 AND idempotency_key = ?2`,
     )
     .bind(visitorId, key)
@@ -254,6 +301,10 @@ async function replay(c: Ctx, row: AnalysisRow, inputHash: string): Promise<Resp
   if (row.status === "pending") {
     if (row.reservation_expires_at > now) throw new HttpError(409, "REQUEST_IN_PROGRESS", { retryAfter: 5, retryable: true });
     // Stale reservation: settle it so the old in-flight request can no longer publish.
+    if (row.user_id && row.credit_bucket) {
+      await release(c.env.DB, row.user_id, row.id, "reservation_expired", null, now, config(c.env).freeRefillMs);
+      throw new HttpError(503, "ANALYSIS_UNAVAILABLE", { retryable: true });
+    }
     await c.env.DB.prepare(
       `UPDATE analyses SET status = 'failed', error_code = 'reservation_expired' WHERE id = ?1 AND status = 'pending' AND reservation_expires_at <= ?2`,
     )
