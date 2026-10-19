@@ -1,6 +1,47 @@
 {
  "runs": [
-  {"engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 130, "concurrency": 4, "repeatIds": ["f03", "f05", "f08", "f10", "f13", "f15", "f18", "f20", "f23", "f25", "f28", "f30", "f33", "f35", "f38", "f40", "f43", "f45"], "note": "V2 prompt v2-2026-10-19.5 (CTA/brand/safe-zone/video-opening anchors) + pre-validation tidy-up: all 46 + held-out repeated"},
-  {"suite": "video", "engine": "v2", "model": "claude-haiku-5-5", "split": "all", "maxCalls": 35, "concurrency": 3, "repeatIds": ["v01", "v05", "v06", "v10"], "note": "Video suite after the same changes"}
+  {
+   "engine": "v2",
+   "model": "claude-haiku-5-5",
+   "split": "all",
+   "maxCalls": 130,
+   "concurrency": 4,
+   "repeatIds": [
+    "f03",
+    "f05",
+    "f08",
+    "f10",
+    "f13",
+    "f15",
+    "f18",
+    "f20",
+    "f23",
+    "f25",
+    "f28",
+    "f30",
+    "f33",
+    "f35",
+    "f38",
+    "f40",
+    "f43",
+    "f45"
+   ],
+   "note": "V2 prompt v2-2026-10-19.6 + kb-2026-10-19.3 (video opening = frames only) + double-encoding decode + fixed safe-zone scoring: all 46 + held-out repeated"
+  },
+  {
+   "suite": "video",
+   "engine": "v2",
+   "model": "claude-haiku-5-5",
+   "split": "all",
+   "maxCalls": 35,
+   "concurrency": 3,
+   "repeatIds": [
+    "v01",
+    "v05",
+    "v06",
+    "v10"
+   ],
+   "note": "Video suite after the same changes"
+  }
  ]
 }

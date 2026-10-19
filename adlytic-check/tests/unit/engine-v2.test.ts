@@ -240,3 +240,21 @@ describe("pre-validation tidy-up", () => {
     if (out.ok) expect(out.telemetry.tidied).toBeGreaterThan(0);
   });
 });
+
+describe("double-encoded fields and video-only opening", () => {
+  it("decodes a structured field encoded twice, once, and only for structured fields", () => {
+    const raw = { ...base(), confidence: '"high"', imageTextLegibility: '["partially_legible"]', missingInformation: '["المقاس"]', summary: '"كنبة" واضحة' };
+    const v = tidyProviderOutput(raw).value as ProviderReportV2;
+    expect(v.confidence).toBe("high");
+    expect(v.imageTextLegibility).toBe("partially_legible");
+    expect(v.missingInformation).toEqual(["المقاس"]);
+    expect(v.summary).toBe('"كنبة" واضحة'); // free text is never decoded
+  });
+
+  it("a video's opening is judged by its frames: the first-text-line rule is not sent", () => {
+    const ids = (media: Array<"text" | "image" | "video">) => applicableRules({ media, vertical: true, objective: "orders", industry: "furniture" }).map((r) => r.ruleId);
+    expect(ids(["video", "text"])).toContain("R-OPEN-02");
+    expect(ids(["video", "text"])).not.toContain("R-OPEN-01");
+    expect(ids(["image", "text"])).toContain("R-OPEN-01");
+  });
+});

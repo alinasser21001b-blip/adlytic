@@ -171,6 +171,8 @@ const MODEL_EVIDENCE_ID = /^[TVA]\d{1,2}$/;
 const SERVER_EVIDENCE_ID = /^[UM]\d{1,2}$/i;
 const ID_PREFIX: Record<string, string> = { visible_text: "T", visual_observation: "V", audio_transcript: "A" };
 const SIZES = new Set(["large", "medium", "small", "tiny"]);
+const LABEL_FIELDS = new Set(["imageTextLegibility", "confidence"]);
+const STRUCTURED_FIELDS = ["evidence", "dimensions", "fixes", "actionSteps", "improvedCopy", "alternateOpenings", "alternateCallsToAction", "missingInformation", "limitations", "shareableTips", ...LABEL_FIELDS];
 const CONFIDENCES = new Set(["high", "medium", "low"]);
 
 /**
@@ -179,12 +181,26 @@ const CONFIDENCES = new Set(["high", "medium", "low"]);
  * the server already holds it; other off-pattern evidence ids are renumbered by
  * kind and every reference follows; an unknown optional `size` is removed; an
  * unknown evidence confidence becomes "low" (low-confidence text never feeds
- * the copy). No text is changed.
+ * the copy); a structured field JSON-encoded twice is decoded once. No text is
+ * changed.
  */
 export function tidyProviderOutput(raw: unknown): { value: unknown; changed: number } {
-  if (!raw || typeof raw !== "object" || !Array.isArray((raw as { evidence?: unknown }).evidence)) return { value: raw, changed: 0 };
-  const r = structuredClone(raw) as { evidence: unknown[]; dimensions?: unknown; fixes?: unknown };
+  if (!raw || typeof raw !== "object") return { value: raw, changed: 0 };
+  const r = structuredClone(raw) as Record<string, unknown> & { evidence: unknown[]; dimensions?: unknown; fixes?: unknown };
   let changed = 0;
+  // Structured fields sometimes arrive JSON-encoded once more ('"high"', '["a","b"]'): decode one layer.
+  for (const key of STRUCTURED_FIELDS) {
+    const v = r[key];
+    if (typeof v !== "string" || !/^\s*[[{"]/.test(v)) continue;
+    try {
+      let parsed: unknown = JSON.parse(v);
+      if (LABEL_FIELDS.has(key) && Array.isArray(parsed) && parsed.length === 1) parsed = parsed[0];
+      if (LABEL_FIELDS.has(key) ? typeof parsed === "string" : typeof parsed === "object" && parsed !== null) (r[key] = parsed), changed++;
+    } catch {
+      /* not JSON — leave it to validation */
+    }
+  }
+  if (!Array.isArray(r.evidence)) return { value: r, changed };
   const rename = new Map<string, string>();
   const used = new Set<string>();
   const kept: Array<Record<string, unknown>> = [];

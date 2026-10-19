@@ -80,6 +80,7 @@ export function viewV2(r: V2Core): ReportView {
     citedSources: r.citations.map((c) => c.sourceId),
     evidenceLinked: { total: linkedDims.length, linked: linkedDims.filter((d) => d.evidenceIds.length > 0).length },
     index: r.index.value,
+    safeZone: AXIS(r, "safe_zone"),
   };
 }
 

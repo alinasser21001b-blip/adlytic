@@ -57,8 +57,54 @@ the Arabic comma «،» and «٫» are thousands separators; a negated disclaime
 «راسلنا على الخاص» as vague, and penalised illustrations vs photos); prompt v2-2026-10-19.3+ and
 KB `kb-2026-10-19.2` address both. Evidence links 100 % and zero unknown sources in every V2 run.
 
-**Not yet measured (blocked by B0):** the calibrated V2 prompt; consistency of the index across
-repeated runs; video fixtures (v01–v13); held-out-only scores.
+Measured after the top-up — see the next section.
+
+## After the credit top-up (2026-10-19, run 39315476685, prompt `v2-2026-10-19.4`)
+
+All four image/text runs and the video suite finished; every call within its cap. Cost reported
+only where the model price is known to the runner (haiku-4-5).
+
+**Held-out only (18 cases, first run of each case)** — the fair comparison:
+
+| | V1 · haiku-4-5 (live config) | V2 · haiku-4-5 | V2 · haiku-5-5 |
+|---|---|---|---|
+| Completed | 18/18 | 11/18 (7 schema failures) | 16/18 |
+| p50 / p90 latency | 28.6 s / 58.2 s | 31.4 s / 57.5 s | **11.8 s / 22.3 s** |
+| Invented commercial facts | 0 | 0 | 0 |
+| Phone number surfaced (PII) | **1 (f45)** | 0 | 0 |
+| Prediction language | **1 (f25)** | 0 | 0 |
+| Image "facts" not in the image | 8 cases | 3 | 1 |
+| Price read from image | 6/7 | 4/5 | **7/7** |
+| Price conflict noticed | 0/1 | – | 1/1 |
+| Offer verdict | 8/12 | 8/8 | 11/12 |
+| CTA verdict | 7/11 | 4/6 | 5/9 |
+| Legibility class | 18/18 | 9/11 | 11/16 |
+| Cases needing a repair call | 3 | 10 | 9 |
+
+**V2 · haiku-5-5 on all 46 (+18 repeats):** 43/46, p50 11.7 s, 0 invented facts, 0 PII, 0 prediction,
+prices 19/19, conflicts 3/3, injection 2/2, safe zone 2/2, offer 27/30, CTA 13/24, legibility
+33/43, evidence linked 100 %, 0 unknown sources. Repairs 48 % — 29 of the failing paths were
+`evidence.#.id`. Repeat agreement 0.82; index |Δ| between runs of the same case: mean 6.4, max 13
+→ **the index is not stable enough to show** (gate σ ≤ 5).
+
+**CTA misses are one pattern:** in 11/11 the model rated «راسلنا/اطلب بالخاص» as level 2 because
+"the app is not named" — on a Meta ad the buyer replies in the app showing the ad, and R-CTA-01's
+own example marks it clear.
+
+**Video suite (13 synthetic videos, V2 · haiku-5-5):** 13/13, p50 21.9 s, 0 invented facts, audio
+status 13/13, coverage statement 13/13, timeline 12/13, sound-off 4/4, conflict 1/1, injection 1/1,
+opening 3/5, safe zone 1/2, brand 1/2; repeat index |Δ| 2/5/0/7. Misses: opening judged by the
+text's first line instead of the first frames (v01) or penalised for an illustration (v07); a store
+name at the top edge flagged as a safe-zone problem (v01); a store name shown at start and end rated
+weak (v11, which is R-BRAND-01's own positive example).
+
+**`claude-sonnet-5-5`:** `400 invalid_request_error: model_not_available` — the account has no
+access to this model; not a billing problem.
+
+**Decision:** keep `ANALYZER_VERSION=v1` live until the recalibrated prompt is measured. V1 on the
+live model surfaced a phone number and used prediction language on held-out cases, so V2 on
+haiku-5-5 is the target once its repair rate and CTA calibration are fixed (prompt
+`v2-2026-10-19.5` + pre-validation tidy-up, measured next).
 
 ## Retrieval (offline, `npx tsx eval/retrieval.ts`, labels = `relevantRules` on 46 fixtures)
 

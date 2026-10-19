@@ -9,9 +9,9 @@ H — Launch (all build phases A–G implemented; release blocked on owner actio
 | Item | Value |
 |---|---|
 | URL | https://adlytic-check.i6900612.workers.dev (unchanged) |
-| Last verified build | `8d341aa` (E-010) |
+| Last verified build | `dd0100c` (E-012) |
 | D1 migrations | 0001–0004 applied remotely (additive only) |
-| Readiness | `ready: false` — `providerUsable` false because the provider account has no credit (B0) |
+| Readiness | `ready: true` since 20:06 UTC (E-012) — B0 resolved by the owner's top-up |
 | Flags | `ANALYZER_VERSION=v1`, `SHOW_QUALITY_INDEX=false`, `ACCOUNTS_ENABLED=false`, `PAYMENTS_ENABLED=false`, `VIDEO_ENABLED=false` |
 
 ## Capability status
@@ -20,17 +20,17 @@ production URL) · BLOCKED (owner action named in BLOCKERS.md).
 
 | Capability | Status | Notes |
 |---|---|---|
-| Core analysis (V1) | LIVE_VERIFIED earlier (E-001); **BLOCKED now (B0)** | live checks answer «التحليل متوقف مؤقتاً» and refund the unit |
+| Core analysis (V1) | LIVE (ready, billing probe OK — E-011/E-012); last person-run live check E-001 | V1 on haiku-4-5 surfaced a phone number and prediction language on held-out cases (E-013) — reason to move to V2 |
 | Research registry + rules KB | IMPLEMENTED | 22 registry entries (S01–S21 + INT-PH internal), 18 rules; no fabricated sources (server registry check) |
-| Analyzer V2 | IMPLEMENTED, TESTED; real-provider eval partial (E-003) | behind `ANALYZER_VERSION`; calibrated prompt not yet measured (B0) |
+| Analyzer V2 | IMPLEMENTED, TESTED; real-provider eval E-013 (43/46, 0 invented facts) | behind `ANALYZER_VERSION`; recalibration `v2-2026-10-19.5` being measured |
 | Quality index | IMPLEMENTED, TESTED; hidden | server-computed; `SHOW_QUALITY_INDEX=false` until stable |
 | Retrieval eval | TESTED (offline) | recall 1.0, P@5 0.326 / nDCG@5 0.475 vs baseline 0.235 / 0.410 |
 | Google identity | IMPLEMENTED, TESTED (mock IdP) | **BLOCKED (B1)**; live `/api/auth/google/start` says unavailable |
 | Quota 2 + 1/24 h, cap 2 | IMPLEMENTED, TESTED (incl. concurrency) | applies once accounts are on |
 | Paid checks (500 IQD) | IMPLEMENTED, TESTED (mock gateway); live catalog verified | **BLOCKED (B2)** |
-| Liquid Professional UI | LIVE (deployed); TESTED in Chromium + WebKit | live UI smoke at 360–1440 runs in every deploy from cycle 10 |
-| Video (frames + audio) | IMPLEMENTED, TESTED; Workers AI binding deployed | `VIDEO_ENABLED=false`; real eval BLOCKED (B0) |
-| Direct link import | IMPLEMENTED, TESTED; live SSRF refusals verified from cycle 10 | |
+| Liquid Professional UI | LIVE_VERIFIED (E-010: real browser on the production URL at 360–1440); TESTED in Chromium + WebKit | |
+| Video (frames + audio) | IMPLEMENTED, TESTED; real-provider eval 13/13 (E-013); Workers AI binding live | `VIDEO_ENABLED=false`; Whisper accuracy on Iraqi speech unmeasured |
+| Direct link import | LIVE_VERIFIED (E-010, E-012: internal targets refused, public image imported) | |
 | Meta import | BLOCKED (B3) | Instagram/Facebook links answer AUTH_REQUIRED |
 | Human quality review | pending (B4) | |
 

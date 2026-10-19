@@ -16,7 +16,7 @@ export interface Rule {
   dimension: DimensionId | "guard";
   principleAr: string;
   sources: Array<{ sourceId: string; section: string }>;
-  applicability: { media: Media[]; placement: Array<"any" | "vertical">; objectives: string[]; industries: string[] };
+  applicability: { media: Media[]; excludeMedia?: Media[]; placement: Array<"any" | "vertical">; objectives: string[]; industries: string[] };
   judgeability: Judgeability;
   evidenceStrength: Strength;
   unknownWhen: string | null;
@@ -68,11 +68,12 @@ export interface RetrievalContext {
   query: string;
 }
 
-/** Deterministic applicability filter: media, placement, objective, industry. */
+/** Deterministic applicability filter: media (and media that rule out a rule), placement, objective, industry. */
 export function applicableRules(ctx: Omit<RetrievalContext, "query">): Rule[] {
   return RULES.filter((r) => {
     const a = r.applicability;
     if (!a.media.some((m) => ctx.media.includes(m))) return false;
+    if (a.excludeMedia?.some((m) => ctx.media.includes(m))) return false;
     if (!a.placement.includes("any") && !(a.placement.includes("vertical") && ctx.vertical)) return false;
     if (!a.objectives.includes(ctx.objective)) return false;
     if (!a.industries.includes("any") && !a.industries.includes(ctx.industry)) return false;

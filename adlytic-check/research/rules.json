@@ -1,5 +1,5 @@
 {
- "knowledgeVersion": "kb-2026-10-19.2",
+ "knowledgeVersion": "kb-2026-10-19.3",
  "rubricVersion": "rubric-1",
  "levels": {
   "0": "غائب أو مضلل",
@@ -211,7 +211,7 @@
   },
   {
    "ruleId": "R-OPEN-01",
-   "version": 1,
+   "version": 2,
    "dimension": "opening",
    "principleAr": "السطر الأول من النص يعطي سبباً واضحاً لإكمال القراءة (المنتج أو الفائدة أو العرض)، لا تحية عامة.",
    "sources": [
@@ -224,6 +224,9 @@
     "media": [
      "text",
      "image",
+     "video"
+    ],
+    "excludeMedia": [
      "video"
     ],
     "placement": [
@@ -242,7 +245,7 @@
    "judgeability": "inference",
    "evidenceStrength": "moderate",
    "unknownWhen": null,
-   "notApplicableWhen": "No ad text and no text in the image.",
+   "notApplicableWhen": "No ad text and no text in the image. Video ads: the opening is judged by the first frames (R-OPEN-02).",
    "checkHint": null,
    "tags": [
     "افتتاحية",
