@@ -246,15 +246,30 @@ export type Step = { readonly state: AppState; readonly effects: readonly Effect
  * asked the store for them. */
 export { GRAPH, isBuilt, NOT_YET_BUILT, NOT_DRAWN } from "../screens/graph.js";
 
-/** A cold start: a guest on Today, with nothing in flight. The district is not
- *  state — it arrives with `Authority` on every dispatch, because it is a fact
- *  about the account rather than a fact about the screen. */
+/**
+ * A cold start: a guest, with nothing in flight.
+ *
+ * On F1 rather than S1, and the difference matters. E1 sends a guest to the
+ * GUEST HOME, whose purpose is «let a stranger search and browse with no
+ * account»; E3 is not built and F1 is the guest-accessible root that does
+ * exactly that job. S1 is «authenticated, scoped to the active subject», and
+ * its own teaching empty leads to R1 — so starting a guest there would make
+ * the first tap in the product a sign-in ask, which is the wall §3.1 forbids.
+ * The tab bar keeps Today one tap away, and taking that tap IS an action that
+ * needs an account, which is when §3.1 says to ask.
+ *
+ * An authenticated patient reaches S1 the way the Blueprint draws it: E8's
+ * «خلص» completes onboarding onto Today.
+ *
+ * The district is not state — it arrives with `Authority` on every dispatch,
+ * because it is a fact about the account rather than a fact about the screen.
+ */
 export function initial(): AppState {
   return {
     session: guest(),
     onboarding: NO_ONBOARDING,
     savingProfile: false,
-    screen: "S1",
+    screen: "F1",
     history: [],
     search: Search.idle(),
     draft: null,

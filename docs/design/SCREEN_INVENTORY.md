@@ -9,8 +9,8 @@
 | --- | --- |
 | Blueprint v3 Phase 0 screens | 133 |
 | With an engineering contract | 22 |
-| Rendered and photographed | 17 |
-| Distinct states rendered | 44 |
+| Rendered and photographed | 18 |
+| Distinct states rendered | 51 |
 | NOT IMPLEMENTED | 111 |
 | Exits declared but BLOCKED | 9 |
 
@@ -53,8 +53,17 @@ Two words appear throughout and mean exactly one thing each:
 | `offline` | whether the content is read-only, and how old it is | read-only: yes · shows age: yes |
 | `error` | what failed, whether the user's work survived, and one thing to press | “ما كدرنا نحدّث الصفحة” · work preserved: yes · action: **أعد المحاولة** → S1 |
 
-Blueprint declares: `empty · quiet · loading · offline · stale`. **No state has been rendered — the designer works from this contract alone.**
+Blueprint declares: `empty · quiet · loading · offline · stale`. 7 state(s) rendered and photographed.
 
+**Rendered states** (see `review/index.html` for the screenshots):
+
+- `S1-new` — **empty · teaching**. §22's first empty, and the highest-attention moment in the product: a brand-new account is TAUGHT what this screen will carry, and the one action is worded for a first time rather than a hundredth. The generic «أطلب دواء» is deliberately absent — two controls to one destination on the emptiest screen would be the app repeating itself.
+- `S1-quiet` — **empty · quiet**. §22's second empty, and the opposite screen: a well-managed patient on an ordinary day is REASSURED, not taught. It carries no state action at all — offering one would invent urgency nobody has — so the standing «أطلب دواء» is what a thumb finds.
+- `S1-held` — **ready · a live hold**. The one thing that needs the patient today, stated as information rather than as a card-sized button: the pharmacy, the expiry and the time left are all readable by a screen reader instead of being swallowed by a single card label (TD-12). The code stays on V2 — one place to keep honest when a hold lapses.
+- `S1-last` — **ready · nearly expired**. The same hold, near its end. The countdown changes colour as it becomes urgent instead of staying calm to the last minute, on the screen a patient glances at before deciding whether to walk.
+- `S1-cached` — **offline**. S1's offline rule — active reservations from cache, age-labelled. The hold still renders because a patient without a signal still has to reach the counter; the countdown says plainly that it is the last thing we were told.
+- `S1-failed` — **error**. §23 — what failed, that nothing was lost, and one thing to press. The hold stays on screen behind the failure: a refresh that could not happen is no reason to take away what we already knew.
+- `S1-loading` — **loading**. A skeleton shaped like what is coming, so Today does not jump when it arrives.
 
 #### Required interactions
 
@@ -102,7 +111,7 @@ Declared. The skeleton must match the shape of the content that follows — the 
 
 #### Existing implementation notes
 
-Not yet rendered. The contract exists; no pixels do. The designer is designing this from scratch.
+Rendered. The two empties are one component distinguished by the contract's own `isSuccess`, which is what §22 asks for: the teaching empty keeps its more specific «أطلب أول دواء» and the quiet one falls through to the standing «أطلب دواء», because a calm day is still a day you can ask for a medicine on. A live hold is drawn as information with one named control rather than as a card-sized button, and the pickup CODE stays on V2 — one place to keep honest when a hold lapses. What Today cannot yet know is registered as TD-27.
 
 #### FIXED by the Blueprint — design may not change these
 
@@ -112,9 +121,9 @@ Not yet rendered. The contract exists; no pixels do. The designer is designing t
 
 #### OPEN to the designer
 
-- Everything about how a live reservation appears here — this screen is the patient's home and a held reservation is the most important thing it can carry.
-- Whether the quiet state uses an illustration, a typographic treatment, or nothing at all.
-- How the two empties differ visually while remaining the same component.
+- Whether the quiet state should carry an illustration. It currently carries none — no screen in this product does, and inventing one here would make Today the only illustrated screen.
+- Whether a hold should be a whole-card tap. It is not: a pressable card is ONE accessibility element, so the pharmacy, the expiry and the time left would stop being spoken (TD-12). The tap is a named control instead, which needs a designer's eye on its weight.
+- What Today shows when a subject other than self is active, and where the dispense history sits — both are declared exits (S2, V8) with no screen yet.
 
 
 ---

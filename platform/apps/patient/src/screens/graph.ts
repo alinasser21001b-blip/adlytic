@@ -15,8 +15,8 @@
  *      the other.
  */
 import { buildGraph, guardDestinations, ROUTE_GUARDS, type NavGraph } from "@dawai/navigation";
-import { resolveView, type Phase } from "../model/view.js";
-import type { ScreenView } from "../model/view.js";
+import { isTabDestination, resolveView, type Phase } from "../model/view.js";
+import type { ScreenView, Tab } from "../model/view.js";
 import { PATIENT_FLOWS } from "./flows.js";
 import type { ScreenContract } from "@dawai/design";
 import { CORE_LOOP, type ScreenId } from "./core-loop.contract.js";
@@ -48,23 +48,21 @@ const NO_COMPONENT: Readonly<Record<string, string>> = {
 };
 
 /**
- * S1 is missing too, and is deliberately NOT in that list.
+ * S1 used to be here, as a screen the root SUBSTITUTED for.
  *
- * Its visual is open to the designer — how a live reservation appears there,
- * whether the quiet state is illustrated, how its two empty states differ —
- * so drawing it would be inventing the most-seen screen in the product.
+ * It no longer is. Every exit that names S1 means "leave this and go to
+ * Today", and for as long as Today had no component the root answered them
+ * with the SEARCH screen — so the back out of a live reservation, and R7's
+ * «تمام — خبروني» on a queued request, both landed on a search box that said
+ * nothing about the hold or the request the patient had just left.
  *
- * But it is the only missing screen the root SUBSTITUTES for: every exit that
- * names S1 means "leave this and go to Today", and the root answers with the
- * entry to the one journey that is built. Removing those exits would take
- * «تمام — خبروني» off R7's offline state and leave a live request with no
- * acknowledged way out, which is a worse answer than a stand-in that the root
- * documents. Listing it here would also make it un-navigable, and the app
- * STARTS on it.
- *
- * The one exit that this stand-in does not serve is E4's «مو هسه — رجعني
- * لطلبي», which names the patient's request rather than Today; the store
- * answers that one from D26's preserved action instead of from the graph.
+ * What made it look un-buildable was the design package's open questions, and
+ * re-reading them against Blueprint v3 §4 they are visual rather than
+ * behavioural: the row fixes the purpose, the five states, the four exits, the
+ * offline rule and the clinical rule, and §22 already says what distinguishes
+ * the two empties. Composing those from the same tokens and primitives as the
+ * other seventeen screens is not inventing a screen. What each state SHOWS is
+ * in `model/today.ts`; what remains genuinely open is recorded as TD-27.
  */
 
 /**
@@ -98,6 +96,34 @@ export const NOT_DRAWN: readonly string[] = Object.keys(NO_COMPONENT).sort();
 /** The contract for a screen this build has. */
 export const contractFor = (id: ScreenId): ScreenContract => CONTRACTS.get(id)!;
 
+/**
+ * The top-level destinations, DERIVED rather than listed.
+ *
+ * A tab is a screen that declares itself the root of one: `back: none` is the
+ * contract's way of saying "the OS gesture leaves the app from here", and
+ * Blueprint v3 says the same thing twice over — S1's entry is «E1 · tab» and
+ * both S1 and F1 give "root of the … tab" as the reason they have no back
+ * control. So the tab bar is not a new navigation idea; it is the one the
+ * contracts have been describing since they were written, and the app not
+ * having it is why F1 and S1 could each only be reached from the other's
+ * absence.
+ *
+ * The destination is what makes it a tab, not the missing back control alone.
+ * V1 also declares `back: none`, for an unrelated reason — a hold request is in
+ * flight and going back would leave the patient unsure whether it happened —
+ * and it sits in `modal`, which covers the tabs rather than being one. Testing
+ * only for the missing back put «نحجز لك» in the tab bar, offered to a patient
+ * as somewhere to go while a pharmacy was deciding.
+ *
+ * `isBuilt` filters, for the same reason it filters everywhere else: a tab
+ * that opens a screen with no component is the inert control this project has
+ * already paid for once (TD-19). Order is declaration order, so the tabs do
+ * not reshuffle between screens.
+ */
+export const TABS: readonly Tab[] = CORE_LOOP
+  .filter((c) => c.back.kind === "none" && isTabDestination(c.location.destination) && isBuilt(c.id))
+  .map((c) => ({ id: c.id, title: c.location.title, destination: c.location.destination }));
+
 /** Every exit the contracts declare that this build cannot yet honour. Each
  *  one is a real Blueprint v3 screen — ux-check proves that — and each is
  *  owned by a later slice. Listed so the gap is countable rather than
@@ -123,4 +149,4 @@ export const viewOf = (
   phase: Phase,
   history: readonly string[],
   skippedSteps: readonly string[] = [],
-): ScreenView => resolveView(contractFor(id), phase, GRAPH, history, PATIENT_FLOWS, skippedSteps);
+): ScreenView => resolveView(contractFor(id), phase, GRAPH, history, PATIENT_FLOWS, skippedSteps, TABS);

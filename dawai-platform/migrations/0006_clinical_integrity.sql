@@ -22,6 +22,13 @@ CREATE UNIQUE INDEX IF NOT EXISTS attention_events_dedupe_idx
 -- A severe safety alert must not be able to expire on a timer: the whole point
 -- of SEV_ALERT is that it clears only when its cause is resolved. Without this,
 -- setting expires_at would route around the 409 that blocks dismissal.
+-- Dropped first because Postgres has no ADD CONSTRAINT IF NOT EXISTS, and this
+-- was the ONE statement in seven migration files that could not survive being
+-- applied twice. It did not have to be: the ledger that prevents that is fixed
+-- (see rowCountOf in db/client.ts), and a migration that fails a re-run is a
+-- boot failure waiting for the next thing that goes wrong with the ledger.
+ALTER TABLE attention_events
+  DROP CONSTRAINT IF EXISTS attention_sev_never_expires;
 ALTER TABLE attention_events
   ADD CONSTRAINT attention_sev_never_expires
   CHECK (priority <> 'SEV_ALERT' OR expires_at IS NULL);

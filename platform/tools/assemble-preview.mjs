@@ -24,15 +24,38 @@ if (!existsSync(`${OUT}/apps/patient/web/index.html`)) {
   process.exit(1);
 }
 
-cpSync("../dawai-site", `${OUT}/design`, { recursive: true });
-// The one exception: the prototype ships a service worker, and a worker served
-// from this origin could claim scope over the APP and keep serving stale
-// copies of it. The prototype renders fine without it; the app must never be
-// behind a cache this deploy cannot invalidate.
-rmSync(`${OUT}/design/sw.js`, { force: true });
-// The prototype's own netlify.toml is config, not content.
-rmSync(`${OUT}/design/netlify.toml`, { force: true });
+/**
+ * The two extras are SIBLINGS of this directory, and a host that builds from a
+ * subdirectory does not have them.
+ *
+ * Netlify sets `base = "platform"` but still checks out the whole repository,
+ * so both are there. Railway's Root Directory does not work that way: it makes
+ * the subdirectory the build context, and `../dawai-site` simply does not
+ * exist. Failing there would fail the DEPLOY over two extras, and shipping the
+ * app without saying they are missing is how the prototype vanished from the
+ * preview URL the first time. So it carries what it has and says what it did.
+ */
+const carried = ["/ (app)"];
 
-cpSync("../review", `${OUT}/review`, { recursive: true });
+if (existsSync("../dawai-site")) {
+  cpSync("../dawai-site", `${OUT}/design`, { recursive: true });
+  // The one exception: the prototype ships a service worker, and a worker served
+  // from this origin could claim scope over the APP and keep serving stale
+  // copies of it. The prototype renders fine without it; the app must never be
+  // behind a cache this deploy cannot invalidate.
+  rmSync(`${OUT}/design/sw.js`, { force: true });
+  // The prototype's own netlify.toml is config, not content.
+  rmSync(`${OUT}/design/netlify.toml`, { force: true });
+  carried.push("/design/ (prototype)");
+} else {
+  console.log("assemble-preview: ../dawai-site is not in this build context — the design prototype is NOT in this deploy");
+}
 
-console.log("preview assembled: / (app) · /design/ (prototype) · /review/ (gallery)");
+if (existsSync("../review")) {
+  cpSync("../review", `${OUT}/review`, { recursive: true });
+  carried.push("/review/ (gallery)");
+} else {
+  console.log("assemble-preview: ../review is not in this build context — the screen gallery is NOT in this deploy");
+}
+
+console.log(`preview assembled: ${carried.join(" · ")}`);

@@ -76,11 +76,11 @@ export const SCREEN_NOTES = {
       "One primary action: أطلب دواء.",
     ],
     open: [
-      "Everything about how a live reservation appears here — this screen is the patient's home and a held reservation is the most important thing it can carry.",
-      "Whether the quiet state uses an illustration, a typographic treatment, or nothing at all.",
-      "How the two empties differ visually while remaining the same component.",
+      "Whether the quiet state should carry an illustration. It currently carries none — no screen in this product does, and inventing one here would make Today the only illustrated screen.",
+      "Whether a hold should be a whole-card tap. It is not: a pressable card is ONE accessibility element, so the pharmacy, the expiry and the time left would stop being spoken (TD-12). The tap is a named control instead, which needs a designer's eye on its weight.",
+      "What Today shows when a subject other than self is active, and where the dispense history sits — both are declared exits (S2, V8) with no screen yet.",
     ],
-    notes: "Not yet rendered. The contract exists; no pixels do. The designer is designing this from scratch.",
+    notes: "Rendered. The two empties are one component distinguished by the contract's own `isSuccess`, which is what §22 asks for: the teaching empty keeps its more specific «أطلب أول دواء» and the quiet one falls through to the standing «أطلب دواء», because a calm day is still a day you can ask for a medicine on. A live hold is drawn as information with one named control rather than as a card-sized button, and the pickup CODE stays on V2 — one place to keep honest when a hold lapses. What Today cannot yet know is registered as TD-27.",
   },
   E4: {
     goal: "Understand why this app wants my phone number before I give it.",
@@ -553,7 +553,7 @@ export const COMPONENT_NOTES = {
 
 /** Components the build needs and does not have. */
 export const MISSING_COMPONENTS = [
-  ["TabBar", "S1, F1 and all eight declared destinations", "No top-level navigation exists. S1 and F1 declare 'root of a tab' and there are no tabs."],
+  ["TabBar (icons, badges)", "the six destinations this build has no root for", "TabBar exists and the frame draws it from the view, so «اليوم» and «ابحث» are reachable from each other for the first time. What is NOT designed: an ICON set — the tabs are words, because the only glyph in this product is the header's «‹» and two invented pictograms would be two things to learn — and a badge, so `inbox` still cannot show pending work. The other six destinations have no built root to be a tab of."],
   ["Sheet / modal chrome", "R1, R4, R5, R7 (destination: modal)", "Modals render as full screens; the 'temporary and layered above' signal is absent."],
   ["TextField (states)", "F1/F2 search, and 28 form screens in Entry and Account", "SearchField exists as a real component, but no focus, error or disabled state is designed — so 28 form screens still have nothing to build against."],
   ["PhotoViewer", "R3", "PhotoFrame renders a labelled frame, deliberately, because no photograph is ever captured (TD-9). Nothing displays, zooms or retakes a real image."],

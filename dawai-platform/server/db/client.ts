@@ -51,7 +51,7 @@ function wrapPglite(client: PGlite): Database {
         const result = await connection.query<T>(text, params);
         return {
           rows: result.rows,
-          rowCount: result.affectedRows ?? result.rows.length,
+          rowCount: rowCountOf(result),
         };
       });
     },
@@ -101,6 +101,30 @@ function wrapPostgres(client: ReturnType<typeof postgres>): Database {
       await client.end();
     },
   };
+}
+
+/**
+ * How many rows a PGlite result represents.
+ *
+ * `affectedRows ?? rows.length` looks right and is wrong: PGlite returns
+ * `affectedRows: 0` for a SELECT rather than leaving it undefined, so `??`
+ * never falls through and EVERY read reported a row count of zero.
+ *
+ * That is not cosmetic. `migrateDatabase` decides whether a migration has
+ * already run with `applied.rowCount > 0`, which was therefore always false —
+ * so every migration re-ran on every boot, and the one statement in them that
+ * Postgres cannot express idempotently (`ALTER TABLE ... ADD CONSTRAINT`, in
+ * 0006) failed with «constraint already exists». The observable effect is that
+ * the app started once and never again: the sequence the README gives for a
+ * first run — `npm run db:migrate` then `npm run dev` — crashed on the second
+ * of the two commands.
+ *
+ * Rows first, because a result that carried rows is a read and its count is
+ * how many it carried; `affectedRows` is the answer only for a write, which
+ * returns none.
+ */
+function rowCountOf(result: { rows: unknown[]; affectedRows?: number }): number {
+  return result.rows.length > 0 ? result.rows.length : result.affectedRows ?? 0;
 }
 
 async function splitSqlStatements(sql: string): Promise<string[]> {

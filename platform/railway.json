@@ -1,0 +1,23 @@
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "NIXPACKS",
+    "buildCommand": "npm ci && npm run build:web && node tools/assemble-preview.mjs",
+    "watchPatterns": [
+      "apps/**",
+      "packages/**",
+      "tools/**",
+      "package.json",
+      "package-lock.json",
+      "railway.json"
+    ]
+  },
+  "deploy": {
+    "startCommand": "node tools/serve.mjs",
+    "healthcheckPath": "/healthz",
+    "healthcheckTimeout": 60,
+    "restartPolicyType": "ON_FAILURE",
+    "restartPolicyMaxRetries": 5,
+    "numReplicas": 1
+  }
+}

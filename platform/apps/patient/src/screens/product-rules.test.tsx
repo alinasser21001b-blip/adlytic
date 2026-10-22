@@ -152,9 +152,12 @@ describe.each(SHOTS.map((s) => [s.id, s] as const))("%s", (_id, shot) => {
  * failure mode the gallery exists to make impossible.
  */
 describe("a screen-owned success empty is actually said", () => {
-  // Screens with no photographed state are unbuilt — S1 and R13 today — and
-  // are tracked as documented gaps rather than failed here. This rule is about
-  // words disappearing from a screen that EXISTS.
+  // Screens with no photographed state are unbuilt — R13 today, since S1 was
+  // built — and are tracked as documented gaps rather than failed here. This
+  // rule is about words disappearing from a screen that EXISTS, which is what
+  // it caught the moment S1 arrived: `StateBlock` renders nothing for a
+  // success empty by design, so Today's «كل شي تمام» existed in the contract
+  // and appeared on no screen until the screen said it itself.
   const successEmpties = CORE_LOOP
     .flatMap((c) => c.states
       .filter((st) => st.kind === "empty" && st.isSuccess)

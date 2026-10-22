@@ -28,6 +28,8 @@ import * as Onboarding from "./model/onboarding.js";
 import { DISTRICTS } from "./data/districts.js";
 import { sayRedirect } from "./ui/refusal.js";
 import * as Offers from "./model/offers.js";
+import * as Today from "./model/today.js";
+import { TodayScreen } from "./screens/TodayScreen.jsx";
 import { Label } from "./ui/kit.jsx";
 import { instant } from "@dawai/domain";
 import { perform as performEffect, type Ports } from "./infra/perform.js";
@@ -102,10 +104,10 @@ export type Runtime = Ports & {
  *
  * Named rather than inferred, because "does this screen show time" is a fact
  * about what each one renders and inferring it would mean guessing. E6 counts
- * the resend down, R7 counts the reply window, V2 counts the hold, and F1/F2
- * label how old a cached result is.
+ * the resend down, R7 counts the reply window, V2 counts the hold, S1 counts
+ * the same hold on the home screen, and F1/F2 label how old a cached result is.
  */
-const SHOWS_TIME: ReadonlySet<string> = new Set(["F1", "F2", "E6", "R7", "V2"]);
+const SHOWS_TIME: ReadonlySet<string> = new Set(["S1", "F1", "F2", "E6", "R7", "V2"]);
 
 /**
  * The current time, kept current.
@@ -254,6 +256,20 @@ export function App({ rt }: { rt: Runtime }) {
   const onAction = (to: string) => { if (isBuilt(to)) send({ kind: "open", screen: to }); };
 
   switch (state.screen) {
+    case "S1":
+      return (
+        <TodayScreen
+          t={t}
+          /* Everything Today can honestly say, from the one record this build
+             holds. The Blueprint also gives S1 the dispense history and the
+             active subject, and neither has a port — so Today shows what it
+             has rather than a shape with nothing in it (TD-27). */
+          today={Today.fromReservation(state.reservation)}
+          history={state.history} now={now}
+          onBack={onBack} onAction={onAction}
+        />
+      );
+
     case "F1":
     case "F2":
       return (
@@ -470,14 +486,29 @@ export function App({ rt }: { rt: Runtime }) {
       ) : <Placeholder t={t} />;
 
     default:
-      // S1 and the rest of the loop arrive with their slices. Until then the
-      // root renders the entry to the one journey that IS built, rather than a
-      // blank screen or a screen pretending to be Today.
+      /**
+       * Unreachable, and landing somewhere real rather than nowhere.
+       *
+       * Every path that sets `screen` goes through `isBuilt` — `open` checks
+       * it, `redirect` checks it, and `back` can only resolve to a screen the
+       * patient has already been on — so a value with no case above is a
+       * defect in this file rather than a state a patient can produce. It used
+       * to draw the SEARCH screen, which is how R1's «لمن؟» replaced a
+       * patient's request with a search box (TD-19): a wrong screen that looks
+       * right is worse than an obvious failure.
+       *
+       * What prevents that recurring is not this branch, which cannot tell a
+       * new screen from a typo — it is `renders every screen it says it can
+       * draw` in journey.test.tsx, which fails the build for exactly this
+       * mistake. This branch only decides where a patient stands if that gate
+       * is ever wrong, and Today is the honest answer: it is the app's home,
+       * and it states what is true of the patient rather than inventing an
+       * activity for them.
+       */
       return (
-        <FindScreen
-          t={t} search={state.search} history={state.history} now={now}
-          onType={(raw) => send({ kind: "typed", raw })}
-          onAdd={(hit) => send({ kind: "addItem", hit })}
+        <TodayScreen
+          t={t} today={Today.fromReservation(state.reservation)}
+          history={state.history} now={now}
           onBack={onBack} onAction={onAction}
         />
       );

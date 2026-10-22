@@ -122,6 +122,15 @@ async function open() {
   await d.press("أرسل الرمز");
   await d.type("123456");
   await d.press("تأكيد");
+  // TD-18 — verification carries on into the name and the district, and only
+  // then does D26 replay the request. This walk stopped at «تأكيد» and pressed
+  // «أرسل الطلب» while standing on E7, so it had been timing out since that
+  // change landed: the one script that exercises D27 has not run in a browser
+  // for as long as the behaviour it checks has existed.
+  await d.type("أم علي");
+  await d.press("كمّل");
+  await d.press("اختر الكرادة");
+  await d.press("خلص");
   await d.show("confirm, online");
 
   await d.context.setOffline(true);
