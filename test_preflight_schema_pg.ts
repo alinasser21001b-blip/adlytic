@@ -16,6 +16,12 @@
 //      row, behind, equal-count wrong history, ahead, dropped column, dropped table, checksum
 //      edited in _prisma_migrations, a migration FILE edited after apply, CRLF checkout,
 //      rolled-back-and-reapplied, duplicates against a dropped unique index)
+//    · SHAPE: a column type changed (bigint → integer / text / numeric, date → timestamp, timestamp → timestamptz), a default dropped,
+//      an enum value dropped or renamed or the enum type dropped, a UNIQUE index dropped / made non-unique / made partial, a PRIMARY KEY or
+//      a FOREIGN KEY dropped or given other actions: every one of those printed GO before the shape check, with every name still present;
+//      and states that are healthy (renamed index, extra index / column / enum value, columns in another order) stay GO
+//    · scripts/ops/expected-schema.json is byte for byte what `prisma migrate deploy` of this checkout produces on an empty database
+//    · a pg_dump / pg_restore round trip of a database keeps it GO
 //    · its state is the same word /api/health's probeReadiness returns for the same database
 //    · the checksum it computes equals the one `prisma migrate deploy` stored, for all rows
 //    · READ-ONLY: every table's content AND xmin are identical before and after every run,
@@ -233,6 +239,15 @@ async function main() {
     const hashes = Object.fromEntries(SHIPPED.map((n) => [n, P.sha256Variants(readFileSync(path.join(MIG_DIR, n, 'migration.sql'))).sha256]));
     check('the module\'s own sha256Variants().sha256 agrees for every shipped file', SHIPPED.every((n) => hashes[n] === stored.find((r) => r.n === n)?.c));
 
+    // The committed expected-schema.json must be exactly what a real migration of THIS checkout produces.
+    const tsxBin = path.join(ROOT, 'node_modules', '.bin', 'tsx');
+    const gen = spawnSync(tsxBin, [path.join(ROOT, 'scripts', 'ops', 'schema-snapshot.ts')], { cwd: ROOT, env: { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '', DATABASE_URL: dbUrl(mig) }, encoding: 'utf8', timeout: 60_000 });
+    const committed = readFileSync(path.join(ROOT, 'scripts', 'ops', 'expected-schema.json'), 'utf8').replace(/\r\n/g, '\n');   // a CRLF checkout is the same file
+    check('schema-snapshot.ts on the freshly migrated database exits 0', gen.status === 0, { status: gen.status, err: gen.stderr.slice(0, 300) });
+    check('scripts/ops/expected-schema.json is byte for byte what `prisma migrate deploy` of this checkout produces (a stale snapshot fails here)', gen.status === 0 && `${gen.stdout.trimEnd()}\n` === committed, { generatedBytes: gen.stdout.length, committedBytes: committed.length });
+    const genOnHeal = spawnSync(tsxBin, [path.join(ROOT, 'scripts', 'ops', 'schema-snapshot.ts')], { cwd: ROOT, env: { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '', DATABASE_URL: dbUrl('adlytic_repro_ops_t_migrated') }, encoding: 'utf8', timeout: 60_000 });
+    check('the generator is read-only and reproducible (a second run prints the same document)', genOnHeal.status === 0 && genOnHeal.stdout === gen.stdout, genOnHeal.stderr.slice(0, 200));
+
     const r0 = await pf(mig, ['--counts']);
     check('a database migrated by prisma migrate deploy → GO, exit 0', r0.code === 0 && r0.json?.verdict === 'GO', { code: r0.code, checks: r0.json?.checks?.map((c: any) => `${c.id}:${c.status}`) });
     check(`…identities PASS ${SHIPPED.length}/${SHIPPED.length} and checksums PASS ${SHIPPED.length}/${SHIPPED.length}`, status(r0, 'identities') === 'PASS' && status(r0, 'checksums') === 'PASS' && new RegExp(`${SHIPPED.length}/${SHIPPED.length}`).test(checkOf(r0, 'checksums')?.reason ?? ''), r0.json?.checks);
@@ -242,7 +257,7 @@ async function main() {
     console.log('\n── 1. one database per state (each from the template) ──');
     await scenario('healthy', null, [], async (r) => {
       check('healthy (from the template) → GO, exit 0', r.code === 0 && r.json.verdict === 'GO' && r.json.state === 'ok', { code: r.code, state: r.json?.state, checks: r.json?.checks?.map((c: any) => `${c.id}:${c.status}:${c.reason.slice(0, 70)}`) });
-      check('…every schema check PASS (identities, checksums, tables, columns)', ['identities', 'checksums', 'tables', 'columns'].every((id) => status(r, id) === 'PASS'), r.json?.checks);
+      check('…every schema check PASS (identities, checksums, tables, columns, shape)', ['identities', 'checksums', 'tables', 'columns', 'shape'].every((id) => status(r, id) === 'PASS'), r.json?.checks);
       check('…restore_point and size are informational PASS', status(r, 'restore_point') === 'PASS' && status(r, 'size') === 'PASS');
       check('…the 10 largest tables are listed (names and sizes only)', checkOf(r, 'size')?.details?.length > 0 && checkOf(r, 'size').details.length <= 10, checkOf(r, 'size'));
       check('…volume is NOT_RUN and non-gating without --volume-bytes', status(r, 'volume') === 'NOT_RUN' && checkOf(r, 'volume').gating === false);
@@ -322,6 +337,59 @@ async function main() {
       check('…and the run is still GO', r.code === 0, r.code);
     });
 
+    // ── shape: what the name-based checks could not see ────────────────────
+    console.log('\n── 1b. SHAPE: every state below printed GO before the shape check existed ──');
+    const shapeBlock = (id: string, setup: (c: PgClient) => Promise<void>, expectIn: RegExp, label: string) =>
+      scenario(id, setup, [], (r) => {
+        check(`${label} → NO-GO, exit 1, shape FAIL`, r.code === 1 && r.json.verdict === 'NO-GO' && status(r, 'shape') === 'FAIL', { code: r.code, shape: checkOf(r, 'shape') });
+        check(`…the finding is named: ${expectIn.source.slice(0, 50)}`, expectIn.test(detailsOf(r, 'shape')), detailsOf(r, 'shape'));
+        check('…and every NAME-based check is PASS, /api/health says "ok": only the shape check can see it', ['identities', 'checksums', 'tables', 'columns'].every((x) => status(r, x) === 'PASS') && r.json.state === 'ok', r.json?.checks?.map((c: any) => `${c.id}:${c.status}`));
+      });
+    await shapeBlock('typeint', async (c) => { await c.query('alter table daily_stats alter column spend type integer'); }, /daily_stats\.spend: type is integer, expected bigint/, 'daily_stats.spend bigint → integer');
+    await shapeBlock('typetext', async (c) => { await c.query('alter table daily_stats alter column spend type text using spend::text'); }, /daily_stats\.spend: type is text, expected bigint/, 'daily_stats.spend bigint → text');
+    await shapeBlock('typenum', async (c) => { await c.query('alter table daily_stats alter column spend type numeric(10,2)'); }, /daily_stats\.spend: type is numeric\(10,2\), expected bigint/, 'daily_stats.spend bigint → numeric(10,2)');
+    await shapeBlock('typedate', async (c) => { await c.query('alter table daily_stats alter column date type timestamp'); }, /daily_stats\.date: type is timestamp without time zone, expected date/, 'daily_stats.date date → timestamp');
+    await shapeBlock('typetz', async (c) => { await c.query('alter table ad_accounts alter column created_at type timestamptz'); }, /ad_accounts\.created_at: type is timestamp with time zone/, 'ad_accounts.created_at timestamp(3) → timestamptz');
+    await shapeBlock('typeprec', async (c) => { await c.query('alter table ad_accounts alter column created_at type timestamp(6)'); }, /ad_accounts\.created_at: type is timestamp\(6\) without time zone/, 'ad_accounts.created_at timestamp(3) → timestamp(6)');
+    await shapeBlock('defaultdrop', async (c) => { await c.query('alter table daily_stats alter column spend drop default'); }, /daily_stats\.spend: the default is gone/, 'daily_stats.spend DEFAULT dropped');
+    await shapeBlock('notnulladd', async (c) => { await c.query(`update campaigns set objective = coalesce(objective, 'x')`); await c.query('alter table campaigns alter column objective set not null'); }, /campaigns\.objective: NOT NULL/, 'campaigns.objective (optional in the model) made NOT NULL');
+    await shapeBlock('enumvalue', async (c) => {
+      await c.query('alter table detected_issues alter column severity type text using severity::text');
+      await c.query('drop type "Severity"'); await c.query(`create type "Severity" as enum ('LOW','MEDIUM','HIGH')`);
+      await c.query('alter table detected_issues alter column severity type "Severity" using severity::"Severity"');
+    }, /Severity: value\(s\) absent: CRITICAL/, 'enum "Severity" without CRITICAL (type and column recreated)');
+    await shapeBlock('enumrename', async (c) => { await c.query(`alter type "Severity" rename value 'CRITICAL' to 'SEVERE'`); }, /Severity: value\(s\) absent: CRITICAL/, 'enum value CRITICAL renamed');
+    await shapeBlock('enumtype', async (c) => { await c.query('alter table detected_issues alter column severity type text using severity::text'); await c.query('drop type "Severity"'); }, /Severity: the type is absent/, 'enum type "Severity" dropped, column left as text');
+    await shapeBlock('uniqdrop', async (c) => { await c.query('drop index ad_accounts_platform_external_account_id_key'); }, /ad_accounts: UNIQUE \(platform,external_account_id\)/, 'UNIQUE (platform, external_account_id) dropped');
+    await shapeBlock('uniqplain', async (c) => { await c.query('drop index ad_accounts_platform_external_account_id_key'); await c.query('create index ad_accounts_platform_external_account_id_key on ad_accounts(platform, external_account_id)'); }, /ad_accounts: UNIQUE \(platform,external_account_id\)/, 'UNIQUE index replaced by a plain index (same name, same columns)');
+    await shapeBlock('uniqpartial', async (c) => { await c.query('drop index ad_accounts_platform_external_account_id_key'); await c.query('create unique index ad_accounts_platform_external_account_id_key on ad_accounts(platform, external_account_id) where name is not null'); }, /ad_accounts: UNIQUE \(platform,external_account_id\)/, 'UNIQUE index made partial');
+    await shapeBlock('pkdrop', async (c) => { const n = (await c.query(`select conname from pg_constraint where conrelid = 'platform_settings'::regclass and contype = 'p'`)).rows[0].conname as string; await c.query(`alter table platform_settings drop constraint ${pgMod.escapeIdentifier(n)}`); }, /platform_settings: PRIMARY KEY/, 'PRIMARY KEY of platform_settings dropped');
+    await shapeBlock('fkdrop', async (c) => { await c.query('alter table campaigns drop constraint campaigns_ad_account_id_fkey'); }, /campaigns: foreign key ad_account_id -> ad_accounts\(id\)/, 'FOREIGN KEY campaigns.ad_account_id dropped');
+    await shapeBlock('fkaction', async (c) => { await c.query('alter table campaigns drop constraint campaigns_ad_account_id_fkey'); await c.query('alter table campaigns add constraint campaigns_ad_account_id_fkey foreign key (ad_account_id) references ad_accounts(id) on delete no action on update cascade'); }, /campaigns: foreign key ad_account_id -> ad_accounts\(id\) ON DELETE CASCADE/, 'FOREIGN KEY campaigns.ad_account_id with ON DELETE NO ACTION instead of CASCADE');
+
+    // non-blocking differences
+    await scenario('notnulldrop', async (c) => { await c.query('alter table daily_stats alter column spend drop not null'); }, [], (r) => {
+      check('NOT NULL dropped → GO with a shape WARN naming the column (reads work until a NULL appears)', r.code === 0 && status(r, 'shape') === 'WARN' && /daily_stats\.spend: nullable/.test(detailsOf(r, 'shape')), { code: r.code, shape: checkOf(r, 'shape') });
+    });
+    await scenario('plainixdrop', async (c) => { await c.query('drop index campaigns_ad_account_id_idx'); }, [], (r) => {
+      check('a plain (non-unique) index dropped → GO with a shape WARN (slower queries only)', r.code === 0 && status(r, 'shape') === 'WARN' && /campaigns: index \(ad_account_id\)/.test(detailsOf(r, 'shape')), { code: r.code, shape: checkOf(r, 'shape') });
+    });
+    await scenario('tableview', async (c) => { await c.query('alter table campaigns rename to campaigns_old'); await c.query('create view campaigns as select * from campaigns_old'); }, [], (r) => {
+      check('a table replaced by a view → NO-GO (tables FAIL names it); its own shape is not evaluated, and the foreign keys that now point at the renamed table are reported by the shape check', r.code === 1 && status(r, 'tables') === 'FAIL' && detailsOf(r, 'tables').includes('campaigns') && status(r, 'shape') !== 'PASS', r.json?.checks?.map((c: any) => `${c.id}:${c.status}`));
+    });
+
+    // healthy databases that differ from the template and must stay GO (no false NO-GO)
+    console.log('\n── 1c. healthy differences stay GO ──');
+    const stayGo = (id: string, setup: (c: PgClient) => Promise<void>, label: string) =>
+      scenario(id, setup, [], (r) => { check(`${label} → GO, shape PASS`, r.code === 0 && status(r, 'shape') === 'PASS', { code: r.code, shape: checkOf(r, 'shape') }); });
+    await stayGo('ixrename', async (c) => { await c.query('alter index ad_accounts_workspace_id_idx rename to some_other_name'); await c.query('alter index ad_accounts_platform_external_account_id_key rename to ad_accounts_uq'); }, 'an index and a unique index under other names (same definitions)');
+    await stayGo('fkrename', async (c) => { await c.query('alter table campaigns rename constraint campaigns_ad_account_id_fkey to some_fk_name'); }, 'a foreign key under another name');
+    await stayGo('extraix', async (c) => { await c.query('create index zz_extra_idx on users(email, name)'); await c.query('create unique index zz_extra_uq on users(lower(email))'); }, 'extra indexes (one unique, one on an expression)');
+    await stayGo('extracol', async (c) => { await c.query('alter table campaigns add column zz_extra text'); await c.query('create table zz_extra_table (id int primary key)'); }, 'an extra column and an extra table');
+    await stayGo('enumextra', async (c) => { await c.query(`alter type "Severity" add value 'EXTRA'`); await c.query(`create type "ZzExtra" as enum ('A')`); }, 'an extra enum value and an extra enum type');
+    await stayGo('colorder', async (c) => { await c.query('alter table campaigns drop column objective'); await c.query('alter table campaigns add column objective text'); }, 'a column re-added at the END of its table (another column order)');
+    await stayGo('extradefault', async (c) => { await c.query(`alter table campaigns alter column name set default 'x'`); }, 'a default the model does not have');
+
     await scenario('nocolumn', async (c) => { await c.query('alter table users drop column email'); }, [], (r) => {
       check('a dropped column (every identity applied, every table present) → NO-GO, state missing', r.code === 1 && r.json.state === 'missing', { code: r.code, state: r.json?.state });
       check('…users.email is named, identities and tables are PASS', detailsOf(r, 'columns').includes('users.email') && status(r, 'identities') === 'PASS' && status(r, 'tables') === 'PASS', r.json?.checks?.map((c: any) => `${c.id}:${c.status}`));
@@ -358,6 +426,8 @@ async function main() {
       cpSync(path.join(ROOT, 'scripts', 'ops', 'preflight-schema.ts'), path.join(scratch, 'scripts', 'ops', 'preflight-schema.ts'));
       cpSync(path.join(ROOT, 'src', 'lib', 'dbHealth.ts'), path.join(scratch, 'src', 'lib', 'dbHealth.ts'));
       cpSync(path.join(ROOT, 'src', 'lib', 'pgSsl.ts'), path.join(scratch, 'src', 'lib', 'pgSsl.ts'));
+      cpSync(path.join(ROOT, 'scripts', 'ops', 'schema-shape.ts'), path.join(scratch, 'scripts', 'ops', 'schema-shape.ts'));
+      cpSync(path.join(ROOT, 'scripts', 'ops', 'expected-schema.json'), path.join(scratch, 'scripts', 'ops', 'expected-schema.json'));
       cpSync(path.join(ROOT, 'prisma'), path.join(scratch, 'prisma'), { recursive: true });
       cpSync(path.join(ROOT, 'prisma.config.ts'), path.join(scratch, 'prisma.config.ts'));
       cpSync(path.join(ROOT, 'package.json'), path.join(scratch, 'package.json'));
@@ -422,11 +492,33 @@ async function main() {
     await withDb(mig, (c) => c.query(`update users set name = name where email = 'tenant-a@repro.invalid'`));
     check('positive control: the same snapshot method detects an UPDATE that changes no value (xmin moves)', !sameSnapshot(ctl, await snapshot(mig)) && diffTables(ctl, await snapshot(mig)).includes('users'), diffTables(ctl, await snapshot(mig)));
 
+    // ── a pg_dump / pg_restore round trip keeps the database GO (the runbook's restore point) ──
+    console.log('\n── 3b. pg_dump -Fc → pg_restore --exit-on-error --single-transaction → preflight ──');
+    const dumpFile = path.join(mkdtempSync(path.join(process.env['PREFLIGHT_TMPDIR'] ?? tmpdir(), 'adlytic_preflight_dump_')), 'restore_point.dump');
+    const pgEnv = { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '' };
+    const dump = spawnSync('pg_dump', ['--format=custom', '--no-owner', '--no-privileges', `--file=${dumpFile}`, dbUrl(mig)], { env: pgEnv, encoding: 'utf8', timeout: 120_000 });
+    check('pg_dump --format=custom exits 0 (pg_dump is installed)', dump.status === 0, { status: dump.status, err: `${dump.stderr}`.slice(0, 200), error: dump.error?.message });
+    if (dump.status === 0) {
+      const RT = 'adlytic_repro_ops_t_roundtrip';
+      await createDb(RT);
+      const restore = spawnSync('pg_restore', ['--exit-on-error', '--single-transaction', '--no-owner', '--no-privileges', `--dbname=${dbUrl(RT)}`, dumpFile], { env: pgEnv, encoding: 'utf8', timeout: 120_000 });
+      check('pg_restore --exit-on-error --single-transaction exits 0', restore.status === 0, { status: restore.status, err: `${restore.stderr}`.slice(0, 300) });
+      // createDb(RT) without a template made an EMPTY database, so the restore above went into an empty database
+      const rr = await pf(RT, ['--counts']);
+      check('the restored copy → GO, exit 0, every schema check PASS including shape', rr.code === 0 && ['identities', 'checksums', 'tables', 'columns', 'shape'].every((x) => status(rr, x) === 'PASS'), { code: rr.code, checks: rr.json?.checks?.map((c: any) => `${c.id}:${c.status}`) });
+      check('…with the same counts as the source (aggregates only)', JSON.stringify(rr.json?.counts?.rows) === JSON.stringify(rc.json?.counts?.rows) && rr.json?.counts?.orphans?.rows === S.orphanRows, { restored: rr.json?.counts?.rows, source: rc.json?.counts?.rows });
+      await dropDb(RT);
+    }
+    rmSync(path.dirname(dumpFile), { recursive: true, force: true });
+
     // ── duplicates against a missing unique index ──────────────────────────
     console.log('\n── 4. duplicates against a dropped unique index ──');
     // Duplicates are proved on the seeded database (it has ad accounts and campaigns).
+    let droppedIndexDef = '';
     await withDb(mig, async (c) => {
-      const ix = (await c.query(`select indexname from pg_indexes where schemaname = 'public' and tablename = 'campaigns' and indexdef ilike '%unique%' and indexdef ilike '%external_campaign_id%'`)).rows[0]?.indexname as string;
+      const row = (await c.query(`select indexname, indexdef from pg_indexes where schemaname = 'public' and tablename = 'campaigns' and indexdef ilike '%unique%' and indexdef ilike '%external_campaign_id%'`)).rows[0] as { indexname: string; indexdef: string };
+      droppedIndexDef = row.indexdef;
+      const ix = row.indexname;
       await c.query(`drop index "${ix}"`);
       await c.query(`insert into campaigns (id, ad_account_id, external_campaign_id, name, updated_at) select 'dup_' || id, ad_account_id, external_campaign_id, name, now() from campaigns limit 2`);
     });
@@ -434,7 +526,10 @@ async function main() {
     check('duplicate campaigns against a dropped unique index → NO-GO, exit 1, counts.duplicates FAIL and gating', rd.code === 1 && status(rd, 'counts.duplicates') === 'FAIL' && checkOf(rd, 'counts.duplicates').gating === true, { code: rd.code, dup: checkOf(rd, 'counts.duplicates') });
     check('…the schema checks themselves are still PASS: only the duplicates block', ['identities', 'checksums', 'tables', 'columns'].every((id) => status(rd, id) === 'PASS'));
     check('…2 duplicate groups, 2 extra rows reported (aggregates)', rd.json?.counts?.duplicates?.campaigns?.groups === 2 && rd.json.counts.duplicates.campaigns.extra === 2, rd.json?.counts?.duplicates?.campaigns);
+    check('…and WITHOUT --counts the dropped unique index alone is already a NO-GO (shape FAIL), duplicates or not', (await pf(mig)).code === 1 && status(await pf(mig), 'shape') === 'FAIL', status(await pf(mig), 'shape'));
     await withDb(mig, (c) => c.query(`delete from campaigns where id like 'dup\\_%'`));
+    await withDb(mig, (c) => c.query(droppedIndexDef));      // put the index back: later sections need a healthy database
+    check('with the duplicates removed and the unique index recreated → GO again', (await pf(mig)).code === 0, (await pf(mig)).code);
 
     // ── volume ─────────────────────────────────────────────────────────────
     console.log('\n── 5. --volume-bytes ──');
@@ -501,7 +596,7 @@ async function main() {
       await locker.query('LOCK TABLE users IN ACCESS EXCLUSIVE MODE');
       const locked = await pf(mig, ['--counts']);
       check('with users locked the run FINISHES within 8 s (lock_timeout 2 s), it does not queue behind the writer', locked.ms < 8000, locked.ms);
-      check('…the schema checks (catalog only) are unaffected: PASS', ['identities', 'checksums', 'tables', 'columns'].every((id) => status(locked, id) === 'PASS'), locked.json?.checks?.map((c: any) => `${c.id}:${c.status}`));
+      check('…the schema checks (catalog only, shape included: no statement of it opens a user table or its indexes) are unaffected: PASS', ['identities', 'checksums', 'tables', 'columns', 'shape'].every((id) => status(locked, id) === 'PASS'), locked.json?.checks?.map((c: any) => `${c.id}:${c.status}`));
       check('…the count that needed the lock is NOT_RUN with the reason lock_timeout, and the verdict is NO-GO (a requested check that did not run)', locked.code === 1 && detailsOf(locked, 'counts.unread').includes('lock_timeout'), { code: locked.code, unread: detailsOf(locked, 'counts.unread') });
     } finally { await locker.query('ROLLBACK').catch(() => undefined); await locker.end(); }
     const afterLock = await pf(mig);

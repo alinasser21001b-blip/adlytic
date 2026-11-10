@@ -33,7 +33,8 @@ process.env['JWT_SECRET'] = process.env['JWT_SECRET'] ?? 'test-jwt-secret-at-lea
 process.env['DATABASE_URL'] = process.env['DATABASE_URL'] ?? 'postgresql://user:pass@localhost:5432/adlytic_test';
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
@@ -51,7 +52,11 @@ async function unit(name: string, fn: () => Promise<void> | void) {
 type P = typeof import('./scripts/ops/preflight-schema');
 type Facts = import('./scripts/ops/preflight-schema').SchemaFacts;
 type Check = import('./scripts/ops/preflight-schema').CheckResult;
+type SM = typeof import('./scripts/ops/schema-shape');
+type Shape = import('./scripts/ops/schema-shape').Shape;
+type ExpectedShape = import('./scripts/ops/schema-shape').ExpectedShape;
 let P: P;
+let SM: SM;
 
 const ROOT = __dirname;
 const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex');
@@ -59,13 +64,40 @@ const sha = (s: string | Buffer) => createHash('sha256').update(s).digest('hex')
 // ── a small synthetic build ───────────────────────────────────────────────
 const SHIPPED = ['20260101000000_init', '20260102000000_add_a', '20260103000000_add_b', '20260104000000_add_c'];
 const REQ_TABLES = ['campaigns', 'users'];
-const REQ_COLS = new Map<string, string[]>([['campaigns', ['id', 'name']], ['users', ['email', 'id']]]);
+const REQ_COLS = new Map<string, string[]>([['campaigns', ['id', 'name', 'objective']], ['users', ['email', 'id', 'role']]]);
 const sqlOf = (n: string) => `-- migration ${n}\nCREATE TABLE x_${n.slice(0, 14)} (id int);\n`;
 const HASHES = (): Record<string, import('./scripts/ops/preflight-schema').FileHash> =>
   Object.fromEntries(SHIPPED.map((n) => [n, P.sha256Variants(Buffer.from(sqlOf(n)))]));
 
+// The synthetic build's expected shape (what its migrations would create) and a database that has exactly that.
+const SYN_SHAPE = (): Shape => ({
+  enums: { Role: ['ADMIN', 'USER'], Status: ['ACTIVE', 'PAUSED', 'ARCHIVED'] },
+  columns: {
+    campaigns: { id: 'text NOT NULL', name: 'text NOT NULL', objective: 'text' },
+    users: { email: 'text NOT NULL', id: 'text NOT NULL', role: '"Role" NOT NULL DEFAULT' },
+  },
+  indexes: {
+    campaigns: ['INDEX id,name WHERE', 'INDEX objective', 'PRIMARY id', 'UNIQUE name'],
+    users: ['PRIMARY id', 'UNIQUE email'],
+  },
+  foreignKeys: { campaigns: ['name -> users(email) ON DELETE SET NULL ON UPDATE CASCADE'], users: [] },
+});
+const SYN_EXPECTED = (): ExpectedShape => ({ version: 1, generatedWith: 'PostgreSQL test', migrations: [...SHIPPED], ...SYN_SHAPE() });
+const clone = <T,>(v: T): T => JSON.parse(JSON.stringify(v)) as T;
+/** the rows the four shape statements return for `shape` */
+function shapeRowsOf(sh: Shape) {
+  return {
+    columns: Object.entries(sh.columns).flatMap(([t, cs]) => Object.entries(cs).map(([c, sig]) => ({ t, c, sig }))),
+    enums: Object.entries(sh.enums).flatMap(([name, labels]) => labels.map((label) => ({ name, label }))),
+    indexes: Object.entries(sh.indexes).flatMap(([t, sigs]) => sigs.map((sig) => ({ t, sig }))),
+    foreignKeys: Object.entries(sh.foreignKeys).flatMap(([t, sigs]) => sigs.map((sig) => ({ t, sig }))),
+  };
+}
+
 function healthy(): Facts {
   return {
+    expectedShape: SYN_EXPECTED(),
+    shape: SYN_SHAPE(),
     shipped: [...SHIPPED],
     fileHashes: HASHES(),
     history: SHIPPED.map((name) => ({ name, checksum: sha(sqlOf(name)), finished: true })),
@@ -85,6 +117,8 @@ interface FakeOpts {
   counts?: Record<string, Array<Record<string, unknown>>>;
   /** also provide every table/column the count statements need (a database that can answer --counts) */
   forCounts?: boolean;
+  /** the shape the database has (default: exactly the synthetic expected shape) */
+  shape?: Shape;
 }
 function fakeConn(o: FakeOpts = {}) {
   const sent: string[] = [];
@@ -101,7 +135,7 @@ function fakeConn(o: FakeOpts = {}) {
   const conn = {
     async query(text: string): Promise<{ rows: Array<Record<string, unknown>> }> {
       sent.push(text);
-      if (o.failOn && text === SQL[o.failOn]) throw Object.assign(new Error('boom: host db.internal.example user svc password S3CR3T-pw ' + MARKER), { code: o.failCode ?? '57014' });
+      if (o.failOn && SQL[o.failOn] !== undefined && text === SQL[o.failOn]) throw Object.assign(new Error('boom: host db.internal.example user svc password S3CR3T-pw ' + MARKER), { code: o.failCode ?? '57014' });
       if (text === SQL['begin'] || text === SQL['setStatementTimeout'] || text === SQL['setLockTimeout'] || text === SQL['setSearchPath'] || text === SQL['rollback']) return { rows: [] };
       if (text === SQL['version']) return { rows: [{ server_version: '16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)' }] };
       if (text === SQL['dbName']) return { rows: [{ name: o.dbName ?? 'railway_production_db' }] };
@@ -109,6 +143,13 @@ function fakeConn(o: FakeOpts = {}) {
       if (text === SQL['history']) return { rows: (hist ?? []).map((r) => ({ name: r.name, checksum: r.checksum, finished: r.finished !== false, rolled_back: r.rolled_back === true })) };
       if (text === SQL['historyStats']) return { rows: [{ total: String((hist ?? []).length), rolled_back: '0', newest_finished: '2026-08-23T01:00:00Z' }] };
       if (text === SQL['columns']) return { rows: cols };
+      const SH = SM.SHAPE_SQL as Record<string, string>;
+      const shapeRows = shapeRowsOf(o.shape ?? SYN_SHAPE());
+      for (const k of ['columns', 'enums', 'indexes', 'foreignKeys'] as const) {
+        if (text !== SH[k]) continue;
+        if (o.failOn === `shape.${k}`) throw Object.assign(new Error('boom: host db.internal.example user svc password S3CR3T-pw ' + MARKER), { code: o.failCode ?? '57014' });
+        return { rows: shapeRows[k] };
+      }
       if (text === SQL['dbSize']) return { rows: [{ bytes: o.dbBytes ?? '52428800' }] };
       if (text === SQL['largestTables']) return { rows: o.largest ?? [{ name: 'daily_stats', bytes: '30000000' }, { name: 'raw_insights', bytes: '9000000' }] };
       const cq = (P as unknown as { COUNT_QUERIES?: Array<{ id: string; sql: string }> }).COUNT_QUERIES?.find((q) => q.sql === text);
@@ -130,10 +171,11 @@ function defaultCounts(id: string): Array<Record<string, unknown>> {
   if (id.startsWith('tokens.')) return [{ n: '2' }];
   return [{ n: '0' }];
 }
+const SYN_BUILD = () => ({ names: [...SHIPPED], fileHashes: HASHES(), requiredTables: [...REQ_TABLES], requiredColumns: new Map(REQ_COLS), expectedShape: SYN_EXPECTED() });
 function realisticDeps(conn: ReturnType<typeof fakeConn>['conn']) {
   return {
     connect: async () => conn,
-    readBuild: () => ({ names: [...SHIPPED], fileHashes: HASHES(), requiredTables: [...REQ_TABLES], requiredColumns: new Map(REQ_COLS) }),
+    readBuild: SYN_BUILD,
   };
 }
 const NOW = new Date('2026-08-23T12:00:00Z');
@@ -148,6 +190,7 @@ const leaked = (s: string) => LEAKS.filter((l) => s.includes(l));
 
 async function main() {
   P = await import('./scripts/ops/preflight-schema');
+  SM = await import('./scripts/ops/schema-shape');
   const H = await import('./src/lib/dbHealth');
 
   // ── 0. preconditions ────────────────────────────────────────────────────
@@ -296,6 +339,147 @@ async function main() {
       check(`${name}: preflight GO iff /api/health would answer 200`, (d.verdict === 'GO') === r.ready, { verdict: d.verdict, ready: r.ready });
     });
   }
+
+  // ── 2b. shape ───────────────────────────────────────────────────────────
+  console.log('\n── 2b. shape: column types, nullability, defaults, enums, unique/primary indexes, foreign keys ──');
+  const shapeOf = (d: { checks: Check[] }) => byId(d.checks, 'shape');
+  const withShape = (mut: (sh: Shape) => void): ReturnType<typeof P.decideVerdict> => { const f = healthy(); mut(f.shape!); return P.decideVerdict(f); };
+  await unit('shape verdicts', () => {
+    const base = P.decideVerdict(healthy());
+    check('a database that has exactly the expected shape → shape PASS, verdict GO', shapeOf(base)?.status === 'PASS' && shapeOf(base)?.gating === true && base.verdict === 'GO', shapeOf(base));
+
+    // every case below printed GO before the shape check existed (observed on Postgres 16, see test_preflight_schema_pg.ts)
+    const blocking: Array<[string, (sh: Shape) => void, RegExp]> = [
+      ['column type changed (text → integer)', (sh) => { sh.columns['campaigns']!['name'] = 'integer NOT NULL'; }, /campaigns\.name: type is integer, expected text/],
+      ['column type changed (enum → text)', (sh) => { sh.columns['users']!['role'] = 'text NOT NULL DEFAULT'; }, /users\.role: type is text, expected "Role"/],
+      ['NOT NULL added where the model allows no value', (sh) => { sh.columns['campaigns']!['objective'] = 'text NOT NULL'; }, /campaigns\.objective: NOT NULL/],
+      ['a column default dropped', (sh) => { sh.columns['users']!['role'] = '"Role" NOT NULL'; }, /users\.role: the default is gone/],
+      ['an enum value dropped', (sh) => { sh.enums['Status'] = ['ACTIVE', 'PAUSED']; }, /Status: value\(s\) absent: ARCHIVED/],
+      ['an enum value renamed', (sh) => { sh.enums['Role'] = ['ADMIN', 'MEMBER']; }, /Role: value\(s\) absent: USER/],
+      ['an enum type dropped', (sh) => { delete sh.enums['Role']; }, /Role: the type is absent/],
+      ['a UNIQUE index dropped', (sh) => { sh.indexes['campaigns'] = sh.indexes['campaigns']!.filter((x) => x !== 'UNIQUE name'); }, /campaigns: UNIQUE \(name\) is absent/],
+      ['a UNIQUE index replaced by a plain index of the same columns', (sh) => { sh.indexes['users'] = ['INDEX email', 'PRIMARY id']; }, /users: UNIQUE \(email\) is absent or no longer unique/],
+      ['a UNIQUE index made partial', (sh) => { sh.indexes['users'] = ['PRIMARY id', 'UNIQUE email WHERE']; }, /users: UNIQUE \(email\)/],
+      ['a PRIMARY KEY dropped', (sh) => { sh.indexes['users'] = ['UNIQUE email']; }, /users: PRIMARY KEY \(id\) is absent/],
+      ['a FOREIGN KEY dropped', (sh) => { sh.foreignKeys['campaigns'] = []; }, /campaigns: foreign key name -> users\(email\)/],
+      ['a FOREIGN KEY with other actions (CASCADE → NO ACTION)', (sh) => { sh.foreignKeys['campaigns'] = ['name -> users(email) ON DELETE NO ACTION ON UPDATE CASCADE']; }, /campaigns: foreign key/],
+    ];
+    for (const [name, mut, re] of blocking) {
+      const d = withShape(mut);
+      check(`${name} → NO-GO, shape FAIL, the finding is named`, d.verdict === 'NO-GO' && shapeOf(d)?.status === 'FAIL' && re.test((shapeOf(d)?.details ?? []).join(' ')), shapeOf(d));
+      check(`…and the /api/health state stays "${d.state}" (it cannot see this): ok`, d.state === 'ok' && byId(d.checks, 'identities')?.status === 'PASS' && byId(d.checks, 'columns')?.status === 'PASS', d.state);
+    }
+
+    const tolerated: Array<[string, (sh: Shape) => void]> = [
+      ['an extra column', (sh) => { sh.columns['users']!['zz_extra'] = 'jsonb'; }],
+      ['an extra table', (sh) => { sh.columns['scratch'] = { a: 'integer' }; sh.indexes['scratch'] = ['PRIMARY a']; }],
+      ['an extra enum type', (sh) => { sh.enums['Extra'] = ['A']; }],
+      ['an extra enum value', (sh) => { sh.enums['Status'] = [...sh.enums['Status']!, 'DELETED']; }],
+      ['an enum with its labels in another order', (sh) => { sh.enums['Status'] = ['ARCHIVED', 'PAUSED', 'ACTIVE']; }],
+      ['an extra index and an extra unique index', (sh) => { sh.indexes['users']!.push('INDEX role', 'UNIQUE email,role'); }],
+      ['an extra foreign key', (sh) => { sh.foreignKeys['users'] = ['id -> campaigns(id) ON DELETE CASCADE ON UPDATE CASCADE']; }],
+      ['a column default that the model does not have', (sh) => { sh.columns['campaigns']!['name'] = 'text NOT NULL DEFAULT'; }],
+      ['columns present in another ORDER', (sh) => { sh.columns['users'] = Object.fromEntries(Object.entries(sh.columns['users']!).reverse()); }],
+      ['a PRIMARY KEY where only a UNIQUE index is expected (same columns)', (sh) => { sh.indexes['campaigns'] = ['INDEX id,name WHERE', 'INDEX objective', 'PRIMARY id', 'PRIMARY name']; }],
+      ['a UNIQUE index where only a plain index is expected (same columns)', (sh) => { sh.indexes['campaigns'] = ['INDEX id,name WHERE', 'UNIQUE objective', 'PRIMARY id', 'UNIQUE name']; }],
+    ];
+    for (const [name, mut] of tolerated) {
+      const d = withShape(mut);
+      check(`${name} → still GO, shape PASS (healthy in production, must not be a false NO-GO)`, d.verdict === 'GO' && shapeOf(d)?.status === 'PASS', shapeOf(d));
+    }
+
+    const w1 = withShape((sh) => { sh.columns['campaigns']!['name'] = 'text'; });
+    check('NOT NULL dropped (the column is nullable, the model requires a value) → WARN, GO: the reads work until a NULL appears', w1.verdict === 'GO' && shapeOf(w1)?.status === 'WARN' && /campaigns\.name: nullable/.test((shapeOf(w1)?.details ?? []).join(' ')), shapeOf(w1));
+    const w2 = withShape((sh) => { sh.indexes['campaigns'] = sh.indexes['campaigns']!.filter((x) => x !== 'INDEX objective'); });
+    check('a plain (non-unique) index dropped → WARN, GO: slower queries, not wrong ones', w2.verdict === 'GO' && shapeOf(w2)?.status === 'WARN' && /campaigns: index \(objective\)/.test((shapeOf(w2)?.details ?? []).join(' ')), shapeOf(w2));
+    const w3 = withShape((sh) => { sh.indexes['campaigns'] = sh.indexes['campaigns']!.filter((x) => x !== 'INDEX id,name WHERE'); });
+    check('a PARTIAL plain index dropped → WARN, GO', w3.verdict === 'GO' && shapeOf(w3)?.status === 'WARN', shapeOf(w3));
+    const w4 = withShape((sh) => { sh.indexes['campaigns'] = sh.indexes['campaigns']!.map((x) => (x === 'INDEX id,name WHERE' ? 'INDEX id,name' : x)); });
+    check('a partial index that lost its WHERE (broader index) is not the same index → WARN', shapeOf(w4)?.status === 'WARN', shapeOf(w4));
+
+    const sev = withShape((sh) => { sh.columns['campaigns']!['name'] = 'integer NOT NULL'; sh.enums['Status'] = ['ACTIVE']; sh.foreignKeys['campaigns'] = []; sh.indexes['users'] = ['INDEX email']; });
+    check('several findings → one FAIL that counts each category', shapeOf(sev)?.status === 'FAIL' && /5 difference/.test(shapeOf(sev)?.reason ?? '') && /1 column.*1 enum.*2 unique\/primary.*1 foreign key/.test(shapeOf(sev)?.reason ?? ''), shapeOf(sev)?.reason);
+  });
+
+  await unit('shape fails closed', () => {
+    const cases: Array<[string, (f: Facts) => void, RegExp]> = [
+      ['no expected-schema snapshot (missing or unreadable)', (f) => { f.expectedShape = null; }, /missing or unreadable/],
+      ['the database shape could not be read', (f) => { f.shape = null; f.shapeError = 'statement_timeout'; }, /statement_timeout/],
+      ['a snapshot made for MORE migrations than the checkout ships', (f) => { f.expectedShape!.migrations.push('29990101000000_newer'); }, /generated for 5 migration\(s\) and this checkout ships 4/],
+      ['a snapshot made for FEWER migrations than the checkout ships', (f) => { f.expectedShape!.migrations = f.expectedShape!.migrations.slice(0, 3); }, /generated for 3 migration\(s\) and this checkout ships 4/],
+      ['a snapshot with the same NUMBER of migrations but another name', (f) => { f.expectedShape!.migrations[3] = '29990101000000_other'; }, /different schema/],
+      ['no shipped list', (f) => { f.shipped = null; }, /shipped migration list/],
+    ];
+    for (const [name, mut, re] of cases) {
+      const f = healthy(); mut(f);
+      const d = P.decideVerdict(f);
+      const own = shapeOf(d);
+      check(`${name} → shape NOT_RUN and gating, verdict NO-GO (never compared against the wrong schema)`, own?.status === 'NOT_RUN' && own.gating === true && d.verdict === 'NO-GO' && re.test(own.reason + (own.details ?? []).join(' ')), own);
+    }
+    const stale = healthy(); stale.expectedShape!.migrations.push('29990101000000_newer');
+    check('a stale snapshot says how to regenerate it', /schema-snapshot\.ts --write/.test(shapeOf(P.decideVerdict(stale))?.reason ?? ''), shapeOf(P.decideVerdict(stale))?.reason);
+    const f = healthy(); f.presentTables = new Set(['_prisma_migrations', 'users']);
+    const d = P.decideVerdict(f);
+    check('a required table absent: its shape is not evaluated (WARN, not a second FAIL); the tables check carries the NO-GO', shapeOf(d)?.status === 'WARN' && /not evaluated/.test(shapeOf(d)?.reason ?? '') && byId(d.checks, 'tables')?.status === 'FAIL' && d.verdict === 'NO-GO', shapeOf(d));
+  });
+
+  await unit('shape text is data, not trusted', () => {
+    const d = withShape((sh) => { sh.columns['campaigns']!['name'] = 'text\nVERDICT: GO (exit 0)\u001b[31m; DROP TABLE users'; sh.enums['Role'] = ['ADMIN']; });
+    const lines = [shapeOf(d)!.reason, ...(shapeOf(d)!.details ?? [])];
+    check('a hostile type name (newline, escape, SQL) cannot add a line or a control character to the output', lines.every((l) => !/[\n\r\u001b;]/.test(l)), lines);
+    const bigF = healthy();
+    for (let i = 0; i < 80; i++) { bigF.expectedShape!.columns['campaigns']![`c${i}`] = 'text NOT NULL'; bigF.shape!.columns['campaigns']![`c${i}`] = 'integer NOT NULL'; }
+    const big = P.decideVerdict(bigF);
+    check('80 findings: the details are capped and say how many more', (shapeOf(big)?.details ?? []).length <= 25 && /\+\d+ more/.test((shapeOf(big)?.details ?? []).join(' ')) && /80 column/.test(shapeOf(big)?.reason ?? ''), { n: shapeOf(big)?.details?.length, reason: shapeOf(big)?.reason });
+  });
+
+  await unit('shape: rows, snapshot format', () => {
+    const sh = SYN_SHAPE();
+    const back = SM.shapeFromRows(shapeRowsOf(sh));
+    check('shapeFromRows inverts the row form (columns, enum order, sorted index and foreign-key lists)', JSON.stringify(back.columns) === JSON.stringify(sh.columns) && JSON.stringify(back.enums) === JSON.stringify(sh.enums) && JSON.stringify(back.indexes) === JSON.stringify(Object.fromEntries(Object.entries(sh.indexes).map(([t, v]) => [t, [...v].sort()]))), back);
+    const only = SM.shapeFromRows(shapeRowsOf(sh), new Set(['users']));
+    check('shapeFromRows can be limited to the model tables', Object.keys(only.columns).join() === 'users' && Object.keys(only.indexes).join() === 'users', only);
+    const exp = SM.buildExpectedShape(sh, [...SHIPPED].reverse(), 'PostgreSQL 16.15');
+    check('buildExpectedShape sorts migrations and keys (a stable file)', exp.migrations.join() === [...SHIPPED].sort().join() && Object.keys(exp.columns).join() === 'campaigns,users' && Object.keys(exp.enums).join() === 'Role,Status', exp);
+    const text = SM.formatExpectedShape(exp);
+    check('format → parse → format is the identity, one entry per line', SM.formatExpectedShape(SM.parseExpectedShape(JSON.parse(text))!) === text && text.split('\n').length > 20 && text.endsWith('\n'), text.split('\n').length);
+    for (const [name, bad] of [['version 2', { ...exp, version: 2 }], ['no migrations', { ...exp, migrations: [] }], ['migrations not strings', { ...exp, migrations: [1] }], ['columns not strings', { ...exp, columns: { t: { c: 1 } } }], ['no tables', { ...exp, columns: {} }], ['indexes not lists', { ...exp, indexes: { t: 'x' } }], ['null', null], ['a string', 'x']] as Array<[string, unknown]>) {
+      check(`parseExpectedShape rejects ${name}`, SM.parseExpectedShape(bad) === null, bad);
+    }
+    check('loadExpectedShape returns null for a file that does not exist', SM.loadExpectedShape(path.join(ROOT, 'scripts', 'ops', 'no-such-file.json')) === null);
+    for (const k of Object.keys(SM.SHAPE_SQL) as Array<keyof typeof SM.SHAPE_SQL>) {
+      let ok = true; try { P.assertReadOnlySql(SM.SHAPE_SQL[k]); P.assertKnownStatement(SM.SHAPE_SQL[k]); } catch { ok = false; }
+      check(`SHAPE_SQL.${k} passes both statement guards`, ok);
+    }
+  });
+
+  // ── 2c. the committed snapshot describes THIS checkout ─────────────────
+  console.log('\n── 2c. scripts/ops/expected-schema.json describes this checkout (no database needed) ──');
+  await unit('snapshot freshness', () => {
+    const file = path.join(ROOT, 'scripts', 'ops', 'expected-schema.json');
+    const real = SM.loadExpectedShape();
+    check('the committed snapshot exists and parses', !!real && existsSync(file), real === null);
+    if (!real) return;
+    const shipped = H.shippedMigrationNames()!;
+    check('its migration list equals what this checkout ships (a migration added without regenerating the snapshot fails HERE, in CI)', JSON.stringify(real.migrations) === JSON.stringify(shipped), { snapshot: real.migrations.length, shipped: shipped.length, onlySnapshot: real.migrations.filter((n) => !shipped.includes(n)), onlyShipped: shipped.filter((n) => !real.migrations.includes(n)) });
+    const tables = H.requiredTableNames()!;
+    check('its tables are exactly the Prisma models\' tables', JSON.stringify(Object.keys(real.columns).sort()) === JSON.stringify([...tables].sort()), { onlySnapshot: Object.keys(real.columns).filter((t) => !tables.includes(t)), onlyModel: tables.filter((t) => !(t in real.columns)) });
+    const rc = H.requiredColumnNames()!;
+    const wrong = [...rc].filter(([t, cols]) => JSON.stringify(Object.keys(real.columns[t] ?? {}).sort()) !== JSON.stringify([...cols].sort())).map(([t]) => t);
+    check('its columns per table are exactly the columns the generated Prisma client selects (schema.prisma changed without a migration → fails)', wrong.length === 0, wrong);
+    check('_prisma_migrations is not in it (Prisma creates that table itself)', !('_prisma_migrations' in real.columns));
+    const typeNames = new Set<string>();
+    for (const cols of Object.values(real.columns)) for (const sig of Object.values(cols)) { const m = /^"([^"]+)"/.exec(sig); if (m) typeNames.add(m[1]!); }
+    check(`every enum a column uses has its labels in the snapshot (${typeNames.size} enum types in use)`, typeNames.size > 15 && [...typeNames].every((n) => (real.enums[n] ?? []).length > 0), [...typeNames].filter((n) => !(real.enums[n] ?? []).length));
+    const noPk = Object.keys(real.columns).filter((t) => !(real.indexes[t] ?? []).some((x) => x.startsWith('PRIMARY ')));
+    check('every table has a PRIMARY KEY in it', noPk.length === 0, noPk);
+    const badFk = Object.entries(real.foreignKeys).flatMap(([t, fks]) => fks.filter((fk) => { const m = /^(.+) -> ([A-Za-z0-9_]+)\((.+)\) ON DELETE .+ ON UPDATE .+$/.exec(fk); return !m || !real.columns[m[2]!] || !m[1]!.split(',').every((c) => c in (real.columns[t] ?? {})) || !m[3]!.split(',').every((c) => c in real.columns[m[2]!]!); }).map((fk) => `${t}: ${fk}`));
+    check(`every foreign key (${Object.values(real.foreignKeys).flat().length}) points at a table and columns that exist in the snapshot`, badFk.length === 0, badFk);
+    check('it is large enough to mean something (47 tables / 500+ columns / 25+ enums / 100+ indexes / 25+ foreign keys)', Object.keys(real.columns).length >= 40 && Object.values(real.columns).reduce((n, c) => n + Object.keys(c).length, 0) >= 500 && Object.keys(real.enums).length >= 25 && Object.values(real.indexes).flat().length >= 100 && Object.values(real.foreignKeys).flat().length >= 25, { tables: Object.keys(real.columns).length });
+    check('the file is in canonical form (byte for byte what formatExpectedShape prints): no hand edit', readFileSync(file, 'utf8').replace(/\r\n/g, '\n') === SM.formatExpectedShape(real), null);   // a CRLF checkout (Windows autocrlf) is the same file
+    const hs = ((): Array<[string, string]> => { const o: Array<[string, string]> = []; for (const [t, cols] of Object.entries(real.columns)) for (const [c, sig] of Object.entries(cols)) if (!/^[a-z"]/.test(sig)) o.push([`${t}.${c}`, sig]); return o; })();
+    check('every column signature starts with a type name', hs.length === 0, hs.slice(0, 3));
+  });
 
   // ── 3. checksums ────────────────────────────────────────────────────────
   console.log('\n── 3. checksums ──');
@@ -585,16 +769,88 @@ async function main() {
     check('with --counts, every count statement IS sent, still read-only', CQ.every((q) => withCounts.f.sent.includes(q.sql)) && withCounts.code === 0, { code: withCounts.code, out: withCounts.c.out().slice(-300) });
   });
 
+  await unit('shape through main()', async () => {
+    const mk = async (opts: FakeOpts, args: string[] = []) => { const f = fakeConn(opts); const c = cap(); const code = await P.main(args, { DATABASE_URL: 'postgresql://svc_user:S3CR3T-pw@127.0.0.1:6543/railway_production_db' }, c.io, realisticDeps(f.conn)); return { code, c, f }; };
+    const ok = await mk({});
+    const SH = Object.values(SM.SHAPE_SQL) as string[];
+    check('the four shape statements are sent, after the columns and before ROLLBACK, each passing both guards', SH.every((q) => ok.f.sent.includes(q)) && ok.f.sent.indexOf(SH[0]!) > ok.f.sent.indexOf(P.SQL['columns']!) && ok.f.sent.indexOf(SH[3]!) < ok.f.sent.length - 1 && SH.every((q) => { try { P.assertReadOnlySql(q); P.assertKnownStatement(q); return true; } catch { return false; } }), ok.f.sent.length);
+    check('a database with the expected shape: shape PASS in the human output, exit 0', ok.code === 0 && /\[PASS\] shape:/.test(ok.c.out()), ok.c.out().slice(0, 600));
+
+    const typeChanged = SYN_SHAPE(); typeChanged.columns['campaigns']!['name'] = 'integer NOT NULL';
+    const t = await mk({ shape: typeChanged });
+    check('a changed column type → exit 1, "[FAIL] shape", the column named', t.code === 1 && /\[FAIL\] shape/.test(t.c.out()) && /campaigns\.name: type is integer, expected text/.test(t.c.out()), t.c.out().slice(0, 500));
+    const tj = await mk({ shape: typeChanged }, ['--json']);
+    let j: any = null; try { j = JSON.parse(tj.c.out()); } catch { /* below */ }
+    check('--json: the shape check is in the checks array with status FAIL and gating true; health state ok', j?.checks?.find((x: any) => x.id === 'shape')?.status === 'FAIL' && j.checks.find((x: any) => x.id === 'shape').gating === true && j.state === 'ok' && j.verdict === 'NO-GO', j?.checks?.map((x: any) => `${x.id}:${x.status}`));
+
+    const dropped = SYN_SHAPE(); dropped.indexes['users'] = ['PRIMARY id'];
+    const u = await mk({ shape: dropped });
+    check('a dropped UNIQUE index → exit 1 even without --counts (the duplicates check needs --counts and duplicates to notice)', u.code === 1 && /UNIQUE \(email\)/.test(u.c.out()), u.c.out().slice(0, 400));
+
+    for (const k of ['columns', 'enums', 'indexes', 'foreignKeys']) {
+      const f = await mk({ failOn: `shape.${k}` });
+      check(`shape.${k} fails mid-run (statement_timeout) → exit 1, shape NOT_RUN with the closed-vocabulary reason, schema checks still PASS`, f.code === 1 && /\[NOT_RUN\] shape:.*statement_timeout/.test(f.c.out()) && /\[PASS\] identities/.test(f.c.out()), f.c.out().slice(0, 700));
+      check(`…ROLLBACK is the last statement, nothing else is sent after the failed one, no driver text or secret printed`, f.f.sent[f.f.sent.length - 1] === 'ROLLBACK' && leaked(f.c.all()).length === 0 && !f.c.all().includes(MARKER), f.f.sent.slice(-3));
+    }
+    const noSnap = await (async () => { const f = fakeConn({}); const c = cap(); const code = await P.main([], { DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/d' }, c.io, { connect: async () => f.conn, readBuild: () => ({ ...SYN_BUILD(), expectedShape: null }) }); return { code, c }; })();
+    check('no expected-schema snapshot → exit 1 and "[NOT_RUN] shape" (never a GO that skipped the comparison)', noSnap.code === 1 && /\[NOT_RUN\] shape:.*missing or unreadable/.test(noSnap.c.out()), noSnap.c.out().slice(0, 500));
+  });
+
+  await unit('schema-snapshot.ts (the generator of expected-schema.json)', async () => {
+    const SN = await import('./scripts/ops/schema-snapshot');
+    const dir = mkdtempSync(path.join(tmpdir(), 'preflight_snap_'));
+    try {
+      const target = path.join(dir, 'expected-schema.json');
+      const URL_OK = 'postgresql://svc_user:S3CR3T-pw@127.0.0.1:6543/railway_production_db';
+      const gen = async (opts: FakeOpts, args: string[] = [], env: Record<string, string | undefined> = { DATABASE_URL: URL_OK }, build: ReturnType<typeof SYN_BUILD> = SYN_BUILD()) => {
+        const f = fakeConn(opts); const out: string[] = []; const err: string[] = [];
+        const code = await SN.snapshotMain(args, env, { out: (x: string) => out.push(x), err: (x: string) => err.push(x) }, { connect: async () => f.conn, readBuild: () => build }, target);
+        return { code, out: out.join('\n'), err: err.join('\n'), f };
+      };
+      const exp = SM.formatExpectedShape(SM.buildExpectedShape(SM.shapeFromRows(shapeRowsOf(SYN_SHAPE()), new Set(REQ_TABLES)), SHIPPED, 'PostgreSQL 16.15'));
+      const g = await gen({});
+      check('a pristine migrated database → exit 0 and the snapshot JSON on stdout (nothing written without --write)', g.code === 0 && g.out === exp.trimEnd() && !existsSync(target), { code: g.code, err: g.err, out: g.out.slice(0, 120) });
+      check('…read-only: BEGIN READ ONLY first, ROLLBACK last, no secret in the output', g.f.sent[0] === 'BEGIN READ ONLY' && g.f.sent[g.f.sent.length - 1] === 'ROLLBACK' && leaked(g.out + g.err).length === 0, g.f.sent.slice(0, 2));
+      const w = await gen({}, ['--write']);
+      check('--write writes the canonical file', w.code === 0 && existsSync(target) && readFileSync(target, 'utf8') === exp && /wrote 2 tables, 2 enums for 4 migrations/.test(w.err), { code: w.code, err: w.err });
+      rmSync(target, { force: true });
+
+      const histOf = (mut: (rows: Array<{ name: string; checksum: string; finished?: boolean; rolled_back?: boolean }>) => void) => { const rows = SHIPPED.map((name) => ({ name, checksum: sha(sqlOf(name)), finished: true, rolled_back: false })); mut(rows); return rows; };
+      const refusals: Array<[string, FakeOpts, RegExp]> = [
+        ['a checksum that differs from the shipped file', { history: histOf((r) => { r[1]!.checksum = sha('edited'); }) }, /checksums is FAIL/],
+        ['an applied migration this build does not ship (ahead)', { history: histOf((r) => { r.push({ name: '29990101000000_future', checksum: 'x', finished: true, rolled_back: false }); }) }, /not ok|identities|history/],
+        ['a migration recorded twice', { history: histOf((r) => { r.push({ ...r[2]! }); }) }, /identities is FAIL/],
+        ['a rolled-back row (a database that was not migrated once from scratch)', { history: histOf((r) => { r.unshift({ name: SHIPPED[1]!, checksum: 'old', finished: false, rolled_back: true }); }) }, /not a database migrated once from scratch/],
+        ['an unfinished row', { history: histOf((r) => { r[3]!.finished = false; }) }, /identities is FAIL|not ok/],
+        ['a pending migration', { history: histOf((r) => { r.pop(); }) }, /identities is FAIL|not ok/],
+        ['a missing column', { columns: [...REQ_COLS].flatMap(([t, cs]) => cs.filter((c) => !(t === 'users' && c === 'email')).map((c) => ({ t, c }))) }, /columns is FAIL|not ok/],
+        ['a column the Prisma model does not have', { shape: (() => { const sh = SYN_SHAPE(); sh.columns['users']!['surprise'] = 'text'; return sh; })() }, /in the database, not in the Prisma model/],
+      ];
+      for (const [name, opts, re] of refusals) {
+        const r = await gen(opts, ['--write']);
+        check(`REFUSES ${name}: exit 1, nothing written, the reason is named`, r.code === 1 && !existsSync(target) && /REFUSED/.test(r.err) && re.test(r.err), { code: r.code, err: r.err.slice(0, 300) });
+      }
+      const nl = await gen({}, [], { DATABASE_URL: SECRET_URL });
+      check('a non-loopback DATABASE_URL → exit 2, never connects, nothing printed from the URL', nl.code === 2 && nl.f.sent.length === 0 && leaked(nl.out + nl.err).length === 0, { code: nl.code, err: nl.err });
+      check('no DATABASE_URL → exit 2; a bad flag → exit 2 and the flag is not echoed; --help → exit 0',
+        (await gen({}, [], {})).code === 2 && (await (async () => { const r = await gen({}, [SECRET_URL]); return r.code === 2 && leaked(r.err).length === 0; })()) && (await gen({}, ['--help'])).code === 0);
+      const bad = await (async () => { const out: string[] = []; const err: string[] = []; const code = await SN.snapshotMain([], { DATABASE_URL: URL_OK }, { out: (x: string) => out.push(x), err: (x: string) => err.push(x) }, { connect: async () => { throw Object.assign(new Error(`${URL_OK} ${MARKER}`), { code: 'ECONNREFUSED' }); }, readBuild: SYN_BUILD }, target); return { code, all: [...out, ...err].join('\n') }; })();
+      check('cannot connect → exit 2 with no host, user, password, URL or driver text', bad.code === 2 && leaked(bad.all).length === 0 && !bad.all.includes(MARKER), bad);
+    } finally { rmSync(dir, { recursive: true, force: true }); }
+  });
+
   await unit('real build data end to end', async () => {
     const names = H.shippedMigrationNames()!;
     const dir = path.join(ROOT, 'prisma', 'migrations');
     const history = names.map((name) => ({ name, checksum: sha(readFileSync(path.join(dir, name, 'migration.sql'))), finished: true }));
     const cols = [...H.requiredColumnNames()!].flatMap(([t, cs]) => cs.map((c) => ({ t, c })));
-    const { conn } = fakeConn({ history, tables: [...H.requiredTableNames()!, '_prisma_migrations'], columns: cols });
+    const real = SM.loadExpectedShape()!;
+    const realShape: Shape = { columns: real.columns, enums: real.enums, indexes: real.indexes, foreignKeys: real.foreignKeys };
+    const { conn } = fakeConn({ history, tables: [...H.requiredTableNames()!, '_prisma_migrations'], columns: cols, shape: realShape });
     const c = cap();
     const code = await P.main([], { DATABASE_URL: 'postgresql://u:p@localhost:5432/d' }, c.io, { connect: async () => conn });
     check('the REAL shipped list, REAL file hashes, REAL required tables/columns and a database that matches them → GO', code === 0, { code, out: c.out().slice(0, 800), err: c.err() });
-    const f2 = fakeConn({ history: history.map((h, i) => (i === 7 ? { ...h, checksum: sha('edited') } : h)), tables: [...H.requiredTableNames()!, '_prisma_migrations'], columns: cols });
+    const f2 = fakeConn({ history: history.map((h, i) => (i === 7 ? { ...h, checksum: sha('edited') } : h)), tables: [...H.requiredTableNames()!, '_prisma_migrations'], columns: cols, shape: realShape });
     const c2 = cap();
     const code2 = await P.main([], { DATABASE_URL: 'postgresql://u:p@localhost:5432/d' }, c2.io, { connect: async () => f2.conn });
     check('…and one edited checksum among the real 41 → NO-GO naming that migration', code2 === 1 && c2.out().includes(names[7]!), { code2 });
@@ -626,14 +882,14 @@ async function main() {
     ];
     for (const [name, mk] of cases) {
       const c = cap();
-      const code = await P.main(['--i-understand-this-reads-a-real-database'], { DATABASE_URL: SECRET_URL }, c.io, { connect: async () => { throw mk(); }, readBuild: () => ({ names: [...SHIPPED], fileHashes: HASHES(), requiredTables: [...REQ_TABLES], requiredColumns: new Map(REQ_COLS) }) });
+      const code = await P.main(['--i-understand-this-reads-a-real-database'], { DATABASE_URL: SECRET_URL }, c.io, { connect: async () => { throw mk(); }, readBuild: SYN_BUILD });
       check(`${name} → exit 2 (NOT RUN), not NO-GO`, code === 2, code);
       check(`${name} → says NOT RUN`, /NOT RUN/.test(c.all()), c.all());
       check(`${name} → no host, user, password, port, database name or URL printed`, leaked(c.all()).length === 0, leaked(c.all()));
       check(`${name} → driver message text is never printed (a marker the scrub does not know cannot appear)`, !c.all().includes(MARKER), c.all());
     }
     const c = cap();
-    const code = await P.main(['--json', '--i-understand-this-reads-a-real-database'], { DATABASE_URL: SECRET_URL }, c.io, { connect: async () => { throw Object.assign(new Error(SECRET_URL), { code: 'ECONNREFUSED' }); }, readBuild: () => ({ names: [...SHIPPED], fileHashes: HASHES(), requiredTables: [...REQ_TABLES], requiredColumns: new Map(REQ_COLS) }) });
+    const code = await P.main(['--json', '--i-understand-this-reads-a-real-database'], { DATABASE_URL: SECRET_URL }, c.io, { connect: async () => { throw Object.assign(new Error(SECRET_URL), { code: 'ECONNREFUSED' }); }, readBuild: SYN_BUILD });
     let j: any = null; try { j = JSON.parse(c.out()); } catch { /* below */ }
     check('--json + cannot connect → JSON {verdict: NOT_RUN}, exit 2, no secrets', code === 2 && j?.verdict === 'NOT_RUN' && leaked(c.all()).length === 0, { code, out: c.out() });
   });
@@ -657,7 +913,7 @@ async function main() {
       const f = fakeConn({ forCounts: true });
       const c = cap();
       const code = await P.main(['--counts'], { DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/d' }, c.io, realisticDeps(f.conn));
-      check('a statement that is not read-only injected into the count list is NEVER sent to the database', !f.sent.some((s) => /DELETE/.test(s)), f.sent.filter((s) => /DELETE/.test(s)));
+      check('a statement that is not read-only injected into the count list is NEVER sent to the database', !f.sent.some((s) => /^DELETE\b/.test(s)), f.sent.filter((s) => /^DELETE\b/.test(s)));
       check('…the run reports guard_refused and fails closed (exit 1)', /guard_refused/.test(c.out()) && code === 1, { code, out: c.out().slice(-400) });
       check('…ROLLBACK still ends the session', f.sent[f.sent.length - 1] === 'ROLLBACK', f.sent.slice(-2));
     } finally { cq.pop(); }
@@ -685,7 +941,7 @@ async function main() {
   await unit('refusals', async () => {
     const c = cap();
     let connected = 0;
-    const deps = { connect: async () => { connected++; return fakeConn().conn; }, readBuild: () => ({ names: [...SHIPPED], fileHashes: HASHES(), requiredTables: [...REQ_TABLES], requiredColumns: new Map(REQ_COLS) }) };
+    const deps = { connect: async () => { connected++; return fakeConn().conn; }, readBuild: SYN_BUILD };
     const code = await P.main([], { DATABASE_URL: SECRET_URL }, c.io, deps);
     check('a non-loopback host without the acknowledgement flag → exit 2', code === 2, code);
     check('…and no connection was even attempted', connected === 0, connected);

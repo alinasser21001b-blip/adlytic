@@ -19,6 +19,10 @@
 //                 invisible to both. This is the one check the health gate cannot make.
 //    tables       every Prisma model's table exists in schema public
 //    columns      every scalar/enum column of those models exists
+//    shape        column types / nullability / defaults, enum values, UNIQUE and PRIMARY KEY indexes and foreign keys
+//                 equal what this checkout's migrations create (scripts/ops/expected-schema.json, see schema-shape.ts).
+//                 Names alone are not enough: a bigint turned into text, a dropped unique index or a dropped enum value
+//                 all kept every name and printed GO before this check existed.
 //    restore_point / size / volume   row count and newest finished_at of _prisma_migrations,
 //                 pg_database_size, the 10 largest tables, percent of --volume-bytes used
 //    counts       with --counts: aggregates only (never an id, never a customer value)
@@ -59,6 +63,8 @@ import {
 } from '../../src/lib/dbHealth';
 import type { ReadinessState } from '../../src/lib/dbHealth';
 import { pgSslFor } from '../../src/lib/pgSsl';
+import { SHAPE_SQL, compareShape, loadExpectedShape, shapeFromRows } from './schema-shape';
+import type { ExpectedShape, Shape, ShapeRows } from './schema-shape';
 
 // ── vocabulary ───────────────────────────────────────────────────────────
 
@@ -94,6 +100,12 @@ export interface SchemaFacts {
   presentTables: ReadonlySet<string> | string[];
   /** table → columns present (schema public). null = could not be read. */
   presentColumns: ReadonlyMap<string, ReadonlySet<string>> | null;
+  /** What this checkout's migrations create (scripts/ops/expected-schema.json). null = missing / unreadable → fail closed. */
+  expectedShape: ExpectedShape | null;
+  /** Column types, enums, indexes and foreign keys the database has. null = could not be read. */
+  shape: Shape | null;
+  /** Why `shape` is null (closed vocabulary). */
+  shapeError?: string | null;
 }
 
 export interface SchemaDecision {
@@ -317,7 +329,10 @@ export function decideVerdict(f: SchemaFacts): SchemaDecision {
     }
   }
 
-  const checks = [identity, checksum, tablesCheck, columnsCheck];
+  // ── shape: column types, nullability, defaults, enums, unique/primary indexes, foreign keys ──
+  const shapeCheck = compareShape({ expected: f.expectedShape, actual: f.shape, actualError: f.shapeError ?? null, shipped: f.shipped, presentTables: present });
+
+  const checks = [identity, checksum, tablesCheck, columnsCheck, shapeCheck];
   return { verdict: combineVerdict(checks), state, checks };
 }
 
@@ -529,11 +544,11 @@ export function assertReadOnlySql(sql: string): void {
 }
 
 /**
- * The statements this tool defines, fixed at load time: every SQL.* constant and every count statement. The denylist above is
+ * The statements this tool defines, fixed at load time: every SQL.* constant, every SHAPE_SQL statement and every count statement. The denylist above is
  * NOT exhaustive for SELECT (pg_stat_reset(), pg_logical_emit_message() and any user-defined function pass it, and a READ ONLY
  * transaction does not forbid the first two: observed on Postgres 16), so what is sent must also be EXACTLY one of these.
  */
-const KNOWN_STATEMENTS: ReadonlySet<string> = new Set<string>([...Object.values(SQL), ...COUNT_QUERIES.map((q) => q.sql)]);
+const KNOWN_STATEMENTS: ReadonlySet<string> = new Set<string>([...Object.values(SQL), ...Object.values(SHAPE_SQL), ...COUNT_QUERIES.map((q) => q.sql)]);
 
 /** Throws unless `sql` is byte-for-byte one of the statements defined in this file. */
 export function assertKnownStatement(sql: string): void {
@@ -599,6 +614,8 @@ export interface BuildInfo {
   fileHashes: Record<string, FileHash> | null;
   requiredTables: string[] | null;
   requiredColumns: ReadonlyMap<string, string[]> | null;
+  /** scripts/ops/expected-schema.json, parsed. null = missing / malformed. */
+  expectedShape: ExpectedShape | null;
 }
 export interface Deps { connect: (cfg: ConnectConfig) => Promise<DbConn>; readBuild: () => BuildInfo }
 export interface Io { out: (s: string) => void; err: (s: string) => void; now?: () => Date }
@@ -618,10 +635,10 @@ export function readBuildFromCheckout(): BuildInfo {
       } catch { /* next candidate */ }
     }
   }
-  return { names, fileHashes, requiredTables: requiredTableNames(), requiredColumns: requiredColumnNames() };
+  return { names, fileHashes, requiredTables: requiredTableNames(), requiredColumns: requiredColumnNames(), expectedShape: loadExpectedShape() };
 }
 
-async function defaultConnect(cfg: ConnectConfig): Promise<DbConn> {
+export async function defaultConnect(cfg: ConnectConfig): Promise<DbConn> {
   const pg = (await import('pg')).default;
   const client = new pg.Client({
     host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, database: cfg.database,
@@ -663,13 +680,15 @@ function connectErrorText(err: unknown): string {
 
 // ── collection ───────────────────────────────────────────────────────────
 
-interface Collected {
+export interface Collected {
   server: string;
   database: string;
   tables: Set<string> | null;
   history: HistoryRow[] | null | undefined;      // null = the table does not exist; undefined = not read
   historyStats: { total: number; rolledBack: number; newestFinished: string | null } | null;
   columns: Map<string, Set<string>> | null;
+  shapeRows: ShapeRows | null;
+  shapeError: string | null;
   dbBytes: number | null;
   largest: Array<{ name: string; bytes: number }> | null;
   counts: CountsData | null;
@@ -712,14 +731,14 @@ function parseCount(c: CountsData, q: CountQuery, rows: Array<Record<string, unk
 }
 
 /** Runs every read inside ONE read-only transaction and always ends with ROLLBACK. */
-async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
+export async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
   const send = async (text: string): Promise<Array<Record<string, unknown>>> => {
     assertKnownStatement(text);          // exact match against what this file defines
     assertReadOnlySql(text);             // and the denylist, independently
     return (await conn.query(text)).rows;
   };
   const out: Collected = {
-    server: '?', database: '', tables: null, history: undefined, historyStats: null, columns: null, dbBytes: null, largest: null,
+    server: '?', database: '', tables: null, history: undefined, historyStats: null, columns: null, shapeRows: null, shapeError: null, dbBytes: null, largest: null,
     counts: wantCounts ? emptyCounts() : null, schemaError: null, sizeError: null, connectionLost: false,
   };
   await send(SQL.begin);
@@ -755,6 +774,11 @@ async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
       out.columns = new Map();
       for (const r of colRows) { const t = String(r['t']); const s = out.columns.get(t) ?? new Set<string>(); s.add(String(r['c'])); out.columns.set(t, s); }
     }
+
+    const shapeRows = await step(async (): Promise<ShapeRows> => ({
+      columns: await send(SHAPE_SQL.columns), enums: await send(SHAPE_SQL.enums), indexes: await send(SHAPE_SQL.indexes), foreignKeys: await send(SHAPE_SQL.foreignKeys),
+    }), (r) => { out.shapeError = out.shapeError ?? r; });
+    if (shapeRows) out.shapeRows = shapeRows;
 
     const size = await step(() => send(SQL.dbSize), (r) => { out.sizeError = r; });
     if (size) out.dbBytes = toInt((size[0] ?? {})['bytes']);
@@ -797,11 +821,12 @@ function buildReport(col: Collected, build: BuildInfo, args: { counts: boolean; 
   let state: ReadinessState = 'unknown';
   if (col.schemaError || !col.tables) {
     const why = `the catalog could not be read (${col.schemaError ?? 'unknown'})`;
-    for (const id of ['identities', 'checksums', 'tables', 'columns']) checks.push(notRun(id, why));
+    for (const id of ['identities', 'checksums', 'tables', 'columns', 'shape']) checks.push(notRun(id, why));
   } else {
     const d = decideVerdict({
       shipped: build.names, fileHashes: build.fileHashes, history: col.history === undefined ? null : col.history,
       requiredTables: build.requiredTables, requiredColumns: build.requiredColumns, presentTables: col.tables, presentColumns: col.columns,
+      expectedShape: build.expectedShape, shape: col.shapeRows ? shapeFromRows(col.shapeRows) : null, shapeError: col.shapeError,
     });
     state = d.state;
     checks.push(...d.checks);

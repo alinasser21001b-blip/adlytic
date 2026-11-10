@@ -1,0 +1,1173 @@
+{
+ "version": 1,
+ "generatedWith": "PostgreSQL 16.15",
+ "migrations": [
+  "20260616013256_phase1_init",
+  "20260618000000_add_token_version",
+  "20260620000000_add_unique_issue_recommendation",
+  "20260620000001_add_country_code",
+  "20260620000002_add_v5_intelligence_tables",
+  "20260620214427_add_recommendation_log",
+  "20260620230449_v1_1_5_outcome_memory",
+  "20260621233941_add_campaign_brain_snapshot",
+  "20260622002003_add_brain_narration",
+  "20260622220000_add_subscriptions_and_payments",
+  "20260623120000_add_sync_jobs",
+  "20260623152743_enrich_metrics",
+  "20260624000000_add_ad_creatives_phase5",
+  "20260624010000_add_breakdown_stats",
+  "20260625020614_add_meta_connection",
+  "20260625030000_add_oauth_state",
+  "20260626000000_add_campaign_history_snapshot",
+  "20260627120000_learning_insight_lookup_index",
+  "20260628120000_add_campaign_history_rollup",
+  "20260628130000_rollup_objective_not_null",
+  "20260628140000_add_user_activation",
+  "20260630120000_add_horizontal_scaling_indexes",
+  "20260630130000_add_meta_audit_log",
+  "20260704180000_ai_agent_v2_foundation",
+  "20260705102619_add_adset_learning_phase",
+  "20260707030000_arabic_default_locale",
+  "20260710120000_add_platform_settings",
+  "20260710140000_add_support_tickets",
+  "20260711100000_add_meta_effective_status",
+  "20260716030000_add_ad_relevance_rankings",
+  "20260716120000_add_ads_creative_health_index",
+  "20260718150000_add_adset_destination_type",
+  "20260718170000_add_smart_refresh_engine",
+  "20260724000000_add_connection_orchestrator",
+  "20260808120000_add_daily_stat_link_clicks",
+  "20260808140000_add_daily_stat_landing_page_views",
+  "20260809210000_add_campaign_messaging_cta_ads",
+  "20260810090000_add_token_key_version",
+  "20260810150000_add_meta_account_status",
+  "20260822120000_add_period_insights",
+  "20260823010000_add_meta_usage_telemetry"
+ ],
+ "enums": {
+  "AiMessageRole": [
+   "USER",
+   "ASSISTANT",
+   "TOOL",
+   "SYSTEM"
+  ],
+  "AiPersonality": [
+   "DIRECT",
+   "ENCOURAGING",
+   "PROFESSIONAL"
+  ],
+  "AiSignalType": [
+   "RECOMMENDATION_ACCEPTED",
+   "RECOMMENDATION_DISMISSED",
+   "ALERT_TAPPED",
+   "ALERT_IGNORED",
+   "BRIEF_READ",
+   "BRIEF_SKIPPED",
+   "MESSAGE_HELPFUL",
+   "MESSAGE_UNHELPFUL",
+   "DWELL_TIME",
+   "CITATION_CLICKED",
+   "ONBOARDING_STARTED",
+   "ANOMALY_SILENCED"
+  ],
+  "AiTerseness": [
+   "TERSE",
+   "BALANCED",
+   "DETAILED"
+  ],
+  "CampaignHistoryWindowKey": [
+   "ALL_TIME",
+   "LAST_90D",
+   "LAST_30D"
+  ],
+  "ConnectionProvider": [
+   "META",
+   "GOOGLE_ADS",
+   "TIKTOK"
+  ],
+  "EntityStatus": [
+   "ACTIVE",
+   "PAUSED",
+   "ARCHIVED",
+   "DELETED"
+  ],
+  "EntityType": [
+   "ACCOUNT",
+   "CAMPAIGN",
+   "AD_SET",
+   "AD"
+  ],
+  "IssueCode": [
+   "LOW_CTR",
+   "HIGH_CPM",
+   "HIGH_FREQUENCY",
+   "AUDIENCE_FATIGUE",
+   "DECLINING_RESULTS",
+   "BUDGET_BURNING_FAST",
+   "LOW_REACH",
+   "RISING_COST_PER_RESULT",
+   "STALLED_DELIVERY"
+  ],
+  "Locale": [
+   "EN",
+   "AR"
+  ],
+  "MessageSenderType": [
+   "USER",
+   "ADMIN"
+  ],
+  "MetaAuditEvent": [
+   "CONNECTED",
+   "DISCONNECTED",
+   "TOKEN_EXPIRED",
+   "RECONNECT_REQUIRED"
+  ],
+  "MetaConnectionStatus": [
+   "ACTIVE",
+   "REVOKED",
+   "NEEDS_REGRANT"
+  ],
+  "MetaTokenSource": [
+   "USER_OAUTH",
+   "SYSTEM_USER",
+   "DIRECT_TOKEN",
+   "MANUAL"
+  ],
+  "MetaTokenType": [
+   "LONG_LIVED_USER",
+   "SYSTEM_USER",
+   "DIRECT"
+  ],
+  "OnboardingEventKind": [
+   "STATE_CHANGE",
+   "STEP_EXECUTED",
+   "STEP_VERIFIED",
+   "RECONCILED",
+   "CAPABILITY_CHANGE",
+   "ERROR",
+   "NOTE"
+  ],
+  "OnboardingState": [
+   "REQUEST_CREATED",
+   "WAITING_EXTERNAL_ACTION",
+   "CONNECTING",
+   "VERIFYING",
+   "SYNCING",
+   "READY",
+   "BLOCKED",
+   "FAILED"
+  ],
+  "PaymentEventSource": [
+   "STRIPE",
+   "WHATSAPP_MANUAL"
+  ],
+  "PaymentEventType": [
+   "ACTIVATED",
+   "RENEWED",
+   "CANCELED",
+   "EXPIRED",
+   "REFUNDED",
+   "UPGRADED",
+   "DOWNGRADED"
+  ],
+  "PaymentMethod": [
+   "STRIPE_CARD",
+   "WHATSAPP_MANUAL"
+  ],
+  "Platform": [
+   "META"
+  ],
+  "RecommendationPriority": [
+   "LOW",
+   "MEDIUM",
+   "HIGH",
+   "CRITICAL"
+  ],
+  "RecommendationSource": [
+   "V1_RULES",
+   "V5_INTELLIGENCE",
+   "AI_AGENT"
+  ],
+  "Severity": [
+   "LOW",
+   "MEDIUM",
+   "HIGH",
+   "CRITICAL"
+  ],
+  "SubscriptionStatus": [
+   "INACTIVE",
+   "ACTIVE",
+   "PAST_DUE",
+   "CANCELED"
+  ],
+  "SubscriptionTier": [
+   "FREE",
+   "PREMIUM"
+  ],
+  "SyncJobStatus": [
+   "PENDING",
+   "PROCESSING",
+   "COMPLETED",
+   "FAILED"
+  ],
+  "TicketCategory": [
+   "BUG",
+   "FEATURE_REQUEST",
+   "QUESTION",
+   "PAYMENT",
+   "GENERAL"
+  ],
+  "TicketPriority": [
+   "LOW",
+   "NORMAL",
+   "HIGH",
+   "URGENT"
+  ],
+  "TicketStatus": [
+   "OPEN",
+   "AWAITING_CUSTOMER",
+   "RESOLVED",
+   "CLOSED"
+  ],
+  "UserActionStatus": [
+   "PENDING",
+   "EXECUTED",
+   "IGNORED"
+  ],
+  "WorkspaceRole": [
+   "OWNER",
+   "MANAGER",
+   "VIEWER"
+  ]
+ },
+ "columns": {
+  "ad_accounts": {
+   "access_token_encrypted": "text",
+   "access_token_key_version": "integer",
+   "connection_id": "text",
+   "country_code": "character varying(2)",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "currency": "text NOT NULL",
+   "currency_minor_factor": "integer NOT NULL DEFAULT",
+   "external_account_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "last_synced_at": "timestamp(3) without time zone",
+   "lifetime_spend_minor": "bigint NOT NULL DEFAULT",
+   "lifetime_synced_at": "timestamp(3) without time zone",
+   "meta_account_status": "integer",
+   "meta_disable_reason": "integer",
+   "name": "text NOT NULL",
+   "platform": "\"Platform\" NOT NULL DEFAULT",
+   "status": "\"EntityStatus\" NOT NULL DEFAULT",
+   "timezone": "text NOT NULL DEFAULT",
+   "token_expires_at": "timestamp(3) without time zone",
+   "token_source": "\"MetaTokenSource\" NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "ad_creatives": {
+   "ad_account_id": "text NOT NULL",
+   "call_to_action_type": "text",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "description": "text",
+   "external_creative_id": "text NOT NULL",
+   "headline": "text",
+   "id": "text NOT NULL",
+   "image_hash": "text",
+   "name": "text",
+   "primary_text": "text",
+   "raw": "jsonb NOT NULL",
+   "thumbnail_url": "text",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "video_id": "text"
+  },
+  "ad_sets": {
+   "campaign_id": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "daily_budget": "bigint",
+   "destination_type": "text",
+   "external_adset_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "learning_phase_status": "text",
+   "name": "text NOT NULL",
+   "optimization_goal": "text",
+   "status": "\"EntityStatus\" NOT NULL DEFAULT",
+   "targeting_json": "jsonb",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "ads": {
+   "ad_set_id": "text NOT NULL",
+   "conversion_ranking": "text",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "creative_id": "text",
+   "creative_json": "jsonb",
+   "engagement_ranking": "text",
+   "external_ad_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "name": "text NOT NULL",
+   "quality_ranking": "text",
+   "rankings_synced_at": "timestamp(3) without time zone",
+   "status": "\"EntityStatus\" NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "ai_anomaly_states": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "days_anomalous": "integer NOT NULL DEFAULT",
+   "direction": "text NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "first_detected_at": "timestamp(3) without time zone NOT NULL",
+   "id": "text NOT NULL",
+   "last_detected_at": "timestamp(3) without time zone NOT NULL",
+   "merchant_response": "text",
+   "metric": "text NOT NULL",
+   "total_alerts": "integer NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "ai_conversations": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "is_proactive": "boolean NOT NULL DEFAULT",
+   "locale": "\"Locale\" NOT NULL DEFAULT",
+   "title": "text",
+   "trigger_type": "text",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "user_id": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "ai_messages": {
+   "content": "text NOT NULL",
+   "conversation_id": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "latency_ms": "integer",
+   "model": "text",
+   "role": "\"AiMessageRole\" NOT NULL",
+   "tokens_in": "integer",
+   "tokens_out": "integer",
+   "tool_calls_json": "jsonb",
+   "tool_results_json": "jsonb"
+  },
+  "ai_signals": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "metadata": "jsonb",
+   "signal_type": "\"AiSignalType\" NOT NULL",
+   "target_id": "text NOT NULL",
+   "target_type": "text NOT NULL",
+   "user_id": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "breakdown_stats": {
+   "breakdown_key": "text NOT NULL",
+   "breakdown_value": "text NOT NULL",
+   "clicks": "bigint NOT NULL DEFAULT",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "date": "date NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "id": "text NOT NULL",
+   "impressions": "bigint NOT NULL DEFAULT",
+   "messages": "bigint NOT NULL DEFAULT",
+   "spend": "bigint NOT NULL DEFAULT"
+  },
+  "campaign_brain_snapshots": {
+   "action": "text NOT NULL",
+   "campaign_id": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "external_campaign_id": "text NOT NULL",
+   "final_score": "integer NOT NULL",
+   "id": "text NOT NULL",
+   "narration_generated_at": "timestamp(3) without time zone",
+   "narration_json": "jsonb",
+   "pattern_signature": "text NOT NULL",
+   "payload": "jsonb NOT NULL",
+   "priority": "text NOT NULL",
+   "tick_date": "date NOT NULL",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "campaign_history_rollups": {
+   "avg_cost_per_msg_minor": "bigint",
+   "avg_roas": "double precision",
+   "campaign_count": "integer NOT NULL",
+   "computed_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "currency": "text",
+   "currency_minor_factor": "integer",
+   "id": "text NOT NULL",
+   "objective": "text NOT NULL",
+   "total_messages": "bigint NOT NULL",
+   "total_purchases": "bigint NOT NULL",
+   "total_revenue_minor": "bigint NOT NULL",
+   "total_spend_minor": "bigint NOT NULL",
+   "weighted_roas": "double precision",
+   "window_key": "\"CampaignHistoryWindowKey\" NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "campaign_history_snapshots": {
+   "ad_account_id": "text NOT NULL",
+   "breakdown_json": "jsonb",
+   "campaign_id": "text NOT NULL",
+   "clicks": "bigint NOT NULL",
+   "creative_json": "jsonb",
+   "currency": "text NOT NULL",
+   "currency_minor_factor": "integer NOT NULL",
+   "ended_at": "timestamp(3) without time zone",
+   "external_campaign_id": "text NOT NULL",
+   "final_brain_json": "jsonb",
+   "final_roas": "double precision",
+   "final_status": "text NOT NULL",
+   "frozen_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "impressions": "bigint NOT NULL",
+   "leads": "bigint NOT NULL",
+   "lifetime_spend_minor": "bigint NOT NULL",
+   "messages": "bigint NOT NULL",
+   "name": "text NOT NULL",
+   "objective": "text",
+   "purchases": "bigint NOT NULL",
+   "reach": "bigint NOT NULL",
+   "revenue_minor": "bigint NOT NULL",
+   "started_at": "timestamp(3) without time zone",
+   "workspace_id": "text NOT NULL"
+  },
+  "campaign_intelligence_reports": {
+   "ad_account_id": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "date": "date NOT NULL",
+   "health_score": "double precision NOT NULL",
+   "id": "text NOT NULL",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "campaign_issues": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "entity_id": "text NOT NULL",
+   "evidence": "text[] NOT NULL",
+   "id": "text NOT NULL",
+   "issue_code": "text NOT NULL",
+   "report_id": "text NOT NULL",
+   "severity": "text NOT NULL",
+   "strength": "double precision NOT NULL"
+  },
+  "campaign_recommendations": {
+   "action_code": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "entity_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "priority": "text NOT NULL",
+   "report_id": "text NOT NULL",
+   "strength": "double precision NOT NULL",
+   "text": "text NOT NULL"
+  },
+  "campaign_signals": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "entity_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "report_id": "text NOT NULL",
+   "signal_type": "text NOT NULL",
+   "signal_value": "double precision NOT NULL",
+   "signal_weight": "double precision NOT NULL"
+  },
+  "campaigns": {
+   "ad_account_id": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "daily_budget": "bigint",
+   "external_campaign_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "lifetime_budget": "bigint",
+   "messaging_cta_ads": "integer NOT NULL DEFAULT",
+   "meta_effective_status": "text",
+   "name": "text NOT NULL",
+   "objective": "text",
+   "status": "\"EntityStatus\" NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "connection_onboardings": {
+   "attempts": "integer NOT NULL DEFAULT",
+   "blocked_requirement": "text",
+   "capabilities_json": "jsonb",
+   "completed_at": "timestamp(3) without time zone",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "current_step_id": "text",
+   "external_account_id": "text NOT NULL",
+   "id": "text NOT NULL",
+   "last_checked_at": "timestamp(3) without time zone",
+   "last_error": "text",
+   "linked_ad_account_id": "text",
+   "next_check_at": "timestamp(3) without time zone",
+   "plan_json": "jsonb",
+   "provider": "\"ConnectionProvider\" NOT NULL DEFAULT",
+   "state": "\"OnboardingState\" NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "waiting_since": "timestamp(3) without time zone",
+   "workspace_id": "text NOT NULL"
+  },
+  "daily_stats": {
+   "clicks": "bigint NOT NULL DEFAULT",
+   "conversions": "bigint NOT NULL DEFAULT",
+   "cost_per_message": "double precision",
+   "cpc": "double precision",
+   "cpm": "double precision",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "ctr": "double precision",
+   "date": "date NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "frequency": "double precision",
+   "id": "text NOT NULL",
+   "impressions": "bigint NOT NULL DEFAULT",
+   "landing_page_views": "bigint NOT NULL DEFAULT",
+   "leads": "bigint NOT NULL DEFAULT",
+   "link_clicks": "bigint NOT NULL DEFAULT",
+   "messages": "bigint NOT NULL DEFAULT",
+   "purchases": "bigint NOT NULL DEFAULT",
+   "reach": "bigint NOT NULL DEFAULT",
+   "revenue_minor": "bigint NOT NULL DEFAULT",
+   "roas": "double precision",
+   "spend": "bigint NOT NULL DEFAULT",
+   "unique_clicks": "bigint NOT NULL DEFAULT",
+   "unique_ctr": "double precision"
+  },
+  "detected_issues": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "date": "date NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "evidence_json": "jsonb NOT NULL",
+   "id": "text NOT NULL",
+   "issue_code": "\"IssueCode\" NOT NULL",
+   "severity": "\"Severity\" NOT NULL"
+  },
+  "health_scores": {
+   "algorithm_version": "integer NOT NULL DEFAULT",
+   "breakdown_json": "jsonb NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "date": "date NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "id": "text NOT NULL",
+   "score": "integer NOT NULL"
+  },
+  "industry_profiles": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "knowledge_json": "jsonb NOT NULL",
+   "name": "text NOT NULL",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "knowledge_rules": {
+   "causes_json": "jsonb NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "industry_profile_id": "text",
+   "issue_code": "\"IssueCode\" NOT NULL",
+   "locale": "\"Locale\" NOT NULL",
+   "recommendations_json": "jsonb NOT NULL",
+   "title": "text NOT NULL",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "meta_audit_logs": {
+   "actor_user_id": "text",
+   "ad_account_id": "text",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "detail": "text",
+   "event": "\"MetaAuditEvent\" NOT NULL",
+   "external_account_id": "text",
+   "id": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "meta_connections": {
+   "access_token_encrypted": "text",
+   "access_token_key_version": "integer",
+   "business_id": "text NOT NULL",
+   "business_name": "text",
+   "config_id": "text",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "granted_asset_ids": "text[]",
+   "granted_scopes": "text[]",
+   "id": "text NOT NULL",
+   "last_validated_at": "timestamp(3) without time zone",
+   "status": "\"MetaConnectionStatus\" NOT NULL DEFAULT",
+   "system_user_id": "text",
+   "token_expires_at": "timestamp(3) without time zone",
+   "token_type": "\"MetaTokenType\" NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "meta_usage_daily": {
+   "date": "date NOT NULL",
+   "errorByCategory": "jsonb NOT NULL DEFAULT",
+   "errorCount": "integer NOT NULL DEFAULT",
+   "successCount": "integer NOT NULL DEFAULT",
+   "updatedAt": "timestamp(3) without time zone NOT NULL"
+  },
+  "meta_usage_outcomes": {
+   "at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "category": "text",
+   "id": "bigint NOT NULL DEFAULT",
+   "ok": "boolean NOT NULL"
+  },
+  "meta_usage_state": {
+   "adAccountUsage": "jsonb",
+   "appUsage": "jsonb",
+   "businessUseCase": "jsonb",
+   "id": "text NOT NULL DEFAULT",
+   "latestObservedAt": "timestamp(3) without time zone",
+   "measurementStartedAt": "timestamp(3) without time zone NOT NULL DEFAULT"
+  },
+  "metric_trends": {
+   "cpm_trend": "double precision",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "ctr_trend": "double precision",
+   "date": "date NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "frequency_trend": "double precision",
+   "id": "text NOT NULL",
+   "results_trend": "double precision",
+   "spend_trend": "double precision",
+   "window_days": "integer NOT NULL DEFAULT"
+  },
+  "oauth_states": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "expires_at": "timestamp(3) without time zone NOT NULL",
+   "kind": "text NOT NULL DEFAULT",
+   "payload": "jsonb",
+   "state": "text NOT NULL",
+   "user_id": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "onboarding_events": {
+   "at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "data_json": "jsonb",
+   "from_state": "\"OnboardingState\"",
+   "id": "text NOT NULL",
+   "kind": "\"OnboardingEventKind\" NOT NULL",
+   "message": "text NOT NULL",
+   "onboarding_id": "text NOT NULL",
+   "step_id": "text",
+   "to_state": "\"OnboardingState\""
+  },
+  "payment_events": {
+   "amount_minor": "bigint",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "currency": "text",
+   "event_type": "\"PaymentEventType\" NOT NULL",
+   "external_ref": "text",
+   "id": "text NOT NULL",
+   "note": "text",
+   "source": "\"PaymentEventSource\" NOT NULL",
+   "tier_after": "\"SubscriptionTier\"",
+   "triggered_by": "text",
+   "workspace_id": "text NOT NULL"
+  },
+  "period_insights": {
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "fetched_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "frequency": "double precision",
+   "id": "text NOT NULL",
+   "impressions": "bigint",
+   "provenance": "text NOT NULL DEFAULT",
+   "reach": "bigint",
+   "since": "date NOT NULL",
+   "until": "date NOT NULL"
+  },
+  "platform_settings": {
+   "description": "text",
+   "group": "text NOT NULL DEFAULT",
+   "key": "text NOT NULL",
+   "label": "text",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "updated_by": "text",
+   "value": "text NOT NULL",
+   "value_type": "text NOT NULL DEFAULT"
+  },
+  "processed_stripe_events": {
+   "id": "text NOT NULL",
+   "processed_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "type": "text NOT NULL"
+  },
+  "raw_insights": {
+   "date": "date NOT NULL",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "fetched_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "raw_json": "jsonb NOT NULL"
+  },
+  "recommendation_executions": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "evaluated_at": "timestamp(3) without time zone",
+   "evaluation_version": "text",
+   "executed_at": "timestamp(3) without time zone",
+   "id": "text NOT NULL",
+   "metrics_snapshot": "jsonb NOT NULL",
+   "recommendation_id": "text NOT NULL",
+   "success_score": "double precision",
+   "user_action": "\"UserActionStatus\" NOT NULL DEFAULT",
+   "workspace_id": "text NOT NULL"
+  },
+  "recommendation_logs": {
+   "action_applied_at": "timestamp(3) without time zone",
+   "campaign_id": "text",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "generated_by": "\"RecommendationSource\" NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "is_successful": "boolean",
+   "metrics_snapshot": "jsonb NOT NULL",
+   "performance_delta": "double precision",
+   "user_action": "\"UserActionStatus\" NOT NULL DEFAULT",
+   "verdict": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "recommendations": {
+   "action_code": "text NOT NULL",
+   "ai_conversation_id": "text",
+   "ai_message_id": "text",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "date": "date NOT NULL",
+   "details_json": "jsonb",
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "id": "text NOT NULL",
+   "priority": "\"RecommendationPriority\" NOT NULL",
+   "reasoning_chain_json": "jsonb",
+   "source": "\"RecommendationSource\" NOT NULL DEFAULT",
+   "source_issues_json": "jsonb NOT NULL"
+  },
+  "refresh_logs": {
+   "ad_account_id": "text NOT NULL",
+   "component_durations": "jsonb NOT NULL",
+   "components_updated": "jsonb NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "duration_ms": "integer NOT NULL",
+   "errors": "jsonb NOT NULL",
+   "id": "text NOT NULL",
+   "skipped": "jsonb NOT NULL",
+   "source_event": "jsonb NOT NULL",
+   "trigger": "text NOT NULL"
+  },
+  "refresh_states": {
+   "entity_id": "text NOT NULL",
+   "entity_type": "\"EntityType\" NOT NULL",
+   "id": "text NOT NULL",
+   "is_dirty": "boolean NOT NULL DEFAULT",
+   "last_calculated_at": "timestamp(3) without time zone",
+   "last_meta_sync_at": "timestamp(3) without time zone",
+   "last_recommendation_execution_at": "timestamp(3) without time zone",
+   "last_user_change_at": "timestamp(3) without time zone",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "support_messages": {
+   "content": "text NOT NULL",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "is_internal": "boolean NOT NULL DEFAULT",
+   "read_at": "timestamp(3) without time zone",
+   "sender_id": "text NOT NULL",
+   "sender_type": "\"MessageSenderType\" NOT NULL",
+   "ticket_id": "text NOT NULL"
+  },
+  "support_tickets": {
+   "assigned_to": "text",
+   "category": "\"TicketCategory\" NOT NULL",
+   "closed_at": "timestamp(3) without time zone",
+   "closed_by": "text",
+   "context_json": "jsonb",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "is_pinned": "boolean NOT NULL DEFAULT",
+   "is_starred": "boolean NOT NULL DEFAULT",
+   "linked_entity_id": "text",
+   "linked_entity_type": "text",
+   "priority": "\"TicketPriority\" NOT NULL DEFAULT",
+   "status": "\"TicketStatus\" NOT NULL DEFAULT",
+   "subject": "text NOT NULL",
+   "updated_at": "timestamp(3) without time zone NOT NULL",
+   "user_id": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "sync_jobs": {
+   "ad_account_id": "text NOT NULL",
+   "chunks_done": "integer NOT NULL DEFAULT",
+   "chunks_total": "integer NOT NULL DEFAULT",
+   "completed_at": "timestamp(3) without time zone",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "cursor_date": "date",
+   "error": "text",
+   "id": "text NOT NULL",
+   "progress": "integer NOT NULL DEFAULT",
+   "rows_fetched": "integer NOT NULL DEFAULT",
+   "rows_upserted": "integer NOT NULL DEFAULT",
+   "started_at": "timestamp(3) without time zone",
+   "status": "\"SyncJobStatus\" NOT NULL DEFAULT",
+   "triggered_by": "text",
+   "window_days": "integer NOT NULL",
+   "window_since": "date NOT NULL",
+   "window_until": "date NOT NULL"
+  },
+  "users": {
+   "activated_at": "timestamp(3) without time zone",
+   "activated_by": "text",
+   "ai_currency_pref": "text",
+   "ai_dialect": "text",
+   "ai_locale": "\"Locale\"",
+   "ai_personality": "\"AiPersonality\" NOT NULL DEFAULT",
+   "ai_terseness": "\"AiTerseness\" NOT NULL DEFAULT",
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "email": "text NOT NULL",
+   "id": "text NOT NULL",
+   "is_active": "boolean NOT NULL DEFAULT",
+   "locale": "\"Locale\" NOT NULL DEFAULT",
+   "name": "text NOT NULL",
+   "password_hash": "text NOT NULL",
+   "token_version": "integer NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  },
+  "workspace_members": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "role": "\"WorkspaceRole\" NOT NULL DEFAULT",
+   "user_id": "text NOT NULL",
+   "workspace_id": "text NOT NULL"
+  },
+  "workspaces": {
+   "created_at": "timestamp(3) without time zone NOT NULL DEFAULT",
+   "id": "text NOT NULL",
+   "industry_profile_id": "text",
+   "name": "text NOT NULL",
+   "payment_method": "\"PaymentMethod\"",
+   "plan": "text NOT NULL DEFAULT",
+   "stripe_customer_id": "text",
+   "stripe_subscription_id": "text",
+   "subscription_expires_at": "timestamp(3) without time zone",
+   "subscription_status": "\"SubscriptionStatus\" NOT NULL DEFAULT",
+   "tier": "\"SubscriptionTier\" NOT NULL DEFAULT",
+   "updated_at": "timestamp(3) without time zone NOT NULL"
+  }
+ },
+ "indexes": {
+  "ad_accounts": [
+   "INDEX connection_id",
+   "INDEX status,last_synced_at",
+   "INDEX token_source,status,token_expires_at",
+   "INDEX workspace_id",
+   "PRIMARY id",
+   "UNIQUE platform,external_account_id"
+  ],
+  "ad_creatives": [
+   "INDEX ad_account_id",
+   "PRIMARY id",
+   "UNIQUE ad_account_id,external_creative_id"
+  ],
+  "ad_sets": [
+   "INDEX campaign_id",
+   "PRIMARY id",
+   "UNIQUE campaign_id,external_adset_id"
+  ],
+  "ads": [
+   "INDEX ad_set_id",
+   "INDEX creative_id",
+   "INDEX status,rankings_synced_at",
+   "PRIMARY id",
+   "UNIQUE ad_set_id,external_ad_id"
+  ],
+  "ai_anomaly_states": [
+   "INDEX workspace_id,last_detected_at",
+   "PRIMARY id",
+   "UNIQUE workspace_id,entity_type,entity_id,metric,direction"
+  ],
+  "ai_conversations": [
+   "INDEX user_id,updated_at",
+   "INDEX workspace_id,is_proactive,created_at",
+   "INDEX workspace_id,updated_at",
+   "PRIMARY id"
+  ],
+  "ai_messages": [
+   "INDEX conversation_id,created_at",
+   "PRIMARY id"
+  ],
+  "ai_signals": [
+   "INDEX target_type,target_id",
+   "INDEX user_id,signal_type,created_at",
+   "INDEX workspace_id,signal_type,created_at",
+   "PRIMARY id"
+  ],
+  "breakdown_stats": [
+   "INDEX entity_type,entity_id,breakdown_key,date",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,date,breakdown_key,breakdown_value"
+  ],
+  "campaign_brain_snapshots": [
+   "INDEX campaign_id WHERE",
+   "INDEX workspace_id,priority,action",
+   "INDEX workspace_id,tick_date",
+   "PRIMARY id",
+   "UNIQUE campaign_id,tick_date"
+  ],
+  "campaign_history_rollups": [
+   "INDEX workspace_id,window_key",
+   "PRIMARY id",
+   "UNIQUE workspace_id,objective,window_key"
+  ],
+  "campaign_history_snapshots": [
+   "INDEX workspace_id,ended_at",
+   "INDEX workspace_id,objective,final_roas",
+   "PRIMARY id",
+   "UNIQUE campaign_id"
+  ],
+  "campaign_intelligence_reports": [
+   "INDEX ad_account_id,date",
+   "PRIMARY id",
+   "UNIQUE ad_account_id,date"
+  ],
+  "campaign_issues": [
+   "INDEX entity_id",
+   "INDEX report_id",
+   "PRIMARY id"
+  ],
+  "campaign_recommendations": [
+   "INDEX entity_id",
+   "INDEX report_id",
+   "PRIMARY id"
+  ],
+  "campaign_signals": [
+   "INDEX entity_id",
+   "INDEX report_id",
+   "INDEX signal_type",
+   "PRIMARY id"
+  ],
+  "campaigns": [
+   "INDEX ad_account_id",
+   "PRIMARY id",
+   "UNIQUE ad_account_id,external_campaign_id"
+  ],
+  "connection_onboardings": [
+   "INDEX state,next_check_at",
+   "INDEX workspace_id",
+   "PRIMARY id",
+   "UNIQUE workspace_id,provider,external_account_id"
+  ],
+  "daily_stats": [
+   "INDEX entity_id,date",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,date"
+  ],
+  "detected_issues": [
+   "INDEX entity_type,entity_id,date",
+   "INDEX issue_code",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,date,issue_code"
+  ],
+  "health_scores": [
+   "INDEX entity_id,date",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,date,algorithm_version"
+  ],
+  "industry_profiles": [
+   "PRIMARY id",
+   "UNIQUE name"
+  ],
+  "knowledge_rules": [
+   "INDEX issue_code",
+   "PRIMARY id",
+   "UNIQUE issue_code,locale,industry_profile_id"
+  ],
+  "meta_audit_logs": [
+   "INDEX event,created_at",
+   "INDEX workspace_id,created_at",
+   "PRIMARY id"
+  ],
+  "meta_connections": [
+   "INDEX status",
+   "INDEX workspace_id",
+   "PRIMARY id",
+   "UNIQUE workspace_id,business_id"
+  ],
+  "meta_usage_daily": [
+   "PRIMARY date"
+  ],
+  "meta_usage_outcomes": [
+   "INDEX at",
+   "PRIMARY id"
+  ],
+  "meta_usage_state": [
+   "PRIMARY id"
+  ],
+  "metric_trends": [
+   "INDEX entity_id,date",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,date"
+  ],
+  "oauth_states": [
+   "INDEX expires_at",
+   "PRIMARY state"
+  ],
+  "onboarding_events": [
+   "INDEX onboarding_id,at",
+   "PRIMARY id"
+  ],
+  "payment_events": [
+   "INDEX source",
+   "INDEX workspace_id,created_at",
+   "PRIMARY id"
+  ],
+  "period_insights": [
+   "INDEX entity_id,since,until",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,since,until"
+  ],
+  "platform_settings": [
+   "INDEX group",
+   "PRIMARY key"
+  ],
+  "processed_stripe_events": [
+   "PRIMARY id"
+  ],
+  "raw_insights": [
+   "INDEX entity_type,entity_id,date",
+   "PRIMARY id"
+  ],
+  "recommendation_executions": [
+   "INDEX user_action,evaluated_at",
+   "INDEX workspace_id",
+   "PRIMARY id",
+   "UNIQUE recommendation_id"
+  ],
+  "recommendation_logs": [
+   "INDEX workspace_id",
+   "INDEX workspace_id,created_at",
+   "PRIMARY id"
+  ],
+  "recommendations": [
+   "INDEX entity_type,entity_id,date",
+   "INDEX priority",
+   "INDEX source,created_at",
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id,date,action_code"
+  ],
+  "refresh_logs": [
+   "INDEX ad_account_id,created_at",
+   "PRIMARY id"
+  ],
+  "refresh_states": [
+   "PRIMARY id",
+   "UNIQUE entity_type,entity_id"
+  ],
+  "support_messages": [
+   "INDEX sender_id",
+   "INDEX ticket_id,created_at",
+   "PRIMARY id"
+  ],
+  "support_tickets": [
+   "INDEX category,status",
+   "INDEX status,priority,updated_at",
+   "INDEX user_id,created_at",
+   "INDEX workspace_id,status,created_at",
+   "PRIMARY id"
+  ],
+  "sync_jobs": [
+   "INDEX ad_account_id,status",
+   "INDEX status",
+   "PRIMARY id"
+  ],
+  "users": [
+   "INDEX is_active",
+   "PRIMARY id",
+   "UNIQUE email"
+  ],
+  "workspace_members": [
+   "INDEX user_id",
+   "PRIMARY id",
+   "UNIQUE workspace_id,user_id"
+  ],
+  "workspaces": [
+   "INDEX industry_profile_id",
+   "INDEX subscription_expires_at",
+   "INDEX subscription_status",
+   "PRIMARY id",
+   "UNIQUE stripe_customer_id",
+   "UNIQUE stripe_subscription_id"
+  ]
+ },
+ "foreignKeys": {
+  "ad_accounts": [
+   "connection_id -> meta_connections(id) ON DELETE SET NULL ON UPDATE CASCADE",
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "ad_creatives": [
+   "ad_account_id -> ad_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "ad_sets": [
+   "campaign_id -> campaigns(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "ads": [
+   "ad_set_id -> ad_sets(id) ON DELETE CASCADE ON UPDATE CASCADE",
+   "creative_id -> ad_creatives(id) ON DELETE SET NULL ON UPDATE CASCADE"
+  ],
+  "ai_conversations": [
+   "user_id -> users(id) ON DELETE CASCADE ON UPDATE CASCADE",
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "ai_messages": [
+   "conversation_id -> ai_conversations(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "ai_signals": [
+   "user_id -> users(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "campaign_history_snapshots": [
+   "campaign_id -> campaigns(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "campaign_issues": [
+   "report_id -> campaign_intelligence_reports(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "campaign_recommendations": [
+   "report_id -> campaign_intelligence_reports(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "campaign_signals": [
+   "report_id -> campaign_intelligence_reports(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "campaigns": [
+   "ad_account_id -> ad_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "connection_onboardings": [
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "knowledge_rules": [
+   "industry_profile_id -> industry_profiles(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "meta_connections": [
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "onboarding_events": [
+   "onboarding_id -> connection_onboardings(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "payment_events": [
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "recommendation_executions": [
+   "recommendation_id -> recommendations(id) ON DELETE CASCADE ON UPDATE CASCADE",
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "support_messages": [
+   "sender_id -> users(id) ON DELETE CASCADE ON UPDATE CASCADE",
+   "ticket_id -> support_tickets(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "support_tickets": [
+   "user_id -> users(id) ON DELETE CASCADE ON UPDATE CASCADE",
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "sync_jobs": [
+   "ad_account_id -> ad_accounts(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "workspace_members": [
+   "user_id -> users(id) ON DELETE CASCADE ON UPDATE CASCADE",
+   "workspace_id -> workspaces(id) ON DELETE CASCADE ON UPDATE CASCADE"
+  ],
+  "workspaces": [
+   "industry_profile_id -> industry_profiles(id) ON DELETE SET NULL ON UPDATE CASCADE"
+  ]
+ }
+}
