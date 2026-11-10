@@ -262,7 +262,7 @@ async function main() {
   for (const d of [1, 2, 3]) await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_s1_${sfx}`, date: day(d), spend: 1n } });
   const snap = async () => (await pool.query(`select id, xmin::text as x from daily_stats order by id`)).rows.map((r) => `${r.id}:${r.x}`).join('|');
   const rep = await P.reportOrphanedCampaignStatsGlobal(prisma);
-  check('(setup) orphans are a small share of campaign stats — below the old 20% guard, so the old scheduler would have deleted them', rep.orphanRows === 3 && rep.orphanFraction > 0 && rep.orphanFraction < 0.2, rep);
+  check('(setup) orphans are a small share of campaign stats — below the old 20% guard, so the old scheduler would have deleted them', rep.orphanRows >= 3 && rep.orphanFraction > 0 && rep.orphanFraction < 0.2, rep);
   const before = await snap();
   const warns: string[] = [];
   const origWarn = console.warn; const origLog = console.log; const origErr = console.error;
@@ -271,13 +271,14 @@ async function main() {
   const after = await snap();
   const orphanLine = warns.find((w) => /ORPHANED campaign stats/.test(w)) ?? '';
   check('the sweep deleted NOTHING: every daily_stats row, with its xmin, is exactly as before', before === after && (await prisma.dailyStat.count({ where: { entityId: `orph_s1_${sfx}` } })) === 3, [before.length, after.length]);
-  check('…and it said so: REPORT ONLY, nothing deleted, with the counts (3 rows / 1 id) and the share', /REPORT ONLY/.test(orphanLine) && /nothing was deleted/.test(orphanLine) && /3 row\(s\) \/ 1 campaign id\(s\)/.test(orphanLine), orphanLine);
+  check('…and it said so: REPORT ONLY, nothing deleted, with the counts and the share', /REPORT ONLY/.test(orphanLine) && /nothing was deleted/.test(orphanLine) && orphanLine.includes(`${rep.orphanRows} row(s) / ${rep.orphanCampaignIds} campaign id(s)`), orphanLine);
   check('the sweep did not fail', !warns.some((w) => /^ERR /.test(w)), warns.filter((w) => /^ERR /.test(w)));
   let threw = false; try { await P.cleanupOrphanedCampaignStatsGlobal(prisma, undefined as never, { expectedRows: 3, batchId: HEXZ }); } catch { threw = true; }
   check('without a platform-admin authorisation the delete function refuses to run', threw);
   let threwSched = false; try { await P.cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'system-scheduler' } as never, { expectedRows: 3, batchId: HEXZ }); } catch { threwSched = true; }
   check('there is no scheduler principal any more: { kind: "system-scheduler" } is refused', threwSched && (await prisma.dailyStat.count({ where: { entityId: `orph_s1_${sfx}` } })) === 3);
 
+  await prisma.dailyStat.deleteMany({ where: { entityId: { in: [`orph_s1_${sfx}`, `orph_race_${sfx}`] } } });   // leave the database re-runnable
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect(); await pool.end();
   process.exit(fail > 0 ? 1 : 0);
