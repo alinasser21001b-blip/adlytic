@@ -13,7 +13,7 @@
 //    2. the GET handler cannot delete; the delete handler authorises and is scoped;
 //    3. the platform routes demand a platform administrator;
 //    4. nothing exports an orphan finder/deleter that lacks a workspace id;
-//    5. the scheduler / admin guard logic, with a fake client that records writes;
+//    5. the approval logic (explicit, bound to the dry-run batch), with a fake client; the scheduler only REPORTS;
 //    6. the page no longer asks a GET to delete.
 // ═════════════════════════════════════════════════════════════════════════
 
@@ -57,12 +57,22 @@ async function main() {
     .filter((f) => /from\s+['"][^'"]*\/platformOrphanCleanup['"]/.test(readFileSync(f, 'utf8')))
     .map((f) => path.relative(ROOT, f).replace(/\\/g, '/')).sort();
   check('only server.ts (platform-admin routes) and the scheduler import platformOrphanCleanup', JSON.stringify(importers) === JSON.stringify(['src/api/server.ts', 'src/workers/backgroundScheduler.ts']), importers);
-  const globalCallers = hs.filter((h) => /cleanupOrphanedCampaignStatsGlobal|countOrphanedCampaignStatsGlobal/.test(h.text));
+  const globalCallers = hs.filter((h) => /cleanupOrphanedCampaignStatsGlobal|describeOrphanBatchGlobal/.test(h.text));
   check('inside server.ts the global functions appear ONLY in /api/admin/ handlers', globalCallers.length === 2 && globalCallers.every((h) => h.route.startsWith('/api/admin/')), globalCallers.map((h) => `${h.verb} ${h.route}`));
   check('every one of those handlers demands a platform administrator (requirePlatformAdmin)', globalCallers.every((h) => /requirePlatformAdmin\(/.test(h.text)));
   check('and the only delete among them is a POST', globalCallers.filter((h) => /cleanupOrphanedCampaignStatsGlobal/.test(h.text)).every((h) => h.verb === 'post'));
+  const cleanupCallers = walk(path.join(ROOT, 'src')).filter((f) => /\bcleanupOrphanedCampaignStatsGlobal\s*\(/.test(code(readFileSync(f, 'utf8'))) && !/platformOrphanCleanup\.ts$/.test(f))
+    .map((f) => path.relative(ROOT, f).replace(/\\/g, '/'));
+  check('exactly ONE module calls the global delete: server.ts — and the scheduler is not among them', JSON.stringify(cleanupCallers) === JSON.stringify(['src/api/server.ts']), cleanupCallers);
   const sched = code(read('src/workers/backgroundScheduler.ts'));
-  check('the scheduler acts as the platform explicitly: { kind: \'system-scheduler\' }, and handles the refusal', /cleanupOrphanedCampaignStatsGlobal\(prisma,\s*\{\s*kind:\s*'system-scheduler'\s*\}\)/.test(sched) && /skipped_orphan_fraction/.test(sched));
+  const schedImport = /import\s*\{([^}]*)\}\s*from\s*['"][^'"]*\/platformOrphanCleanup['"]/.exec(sched);
+  check('the scheduler imports ONLY the read-only report from platformOrphanCleanup', !!schedImport && schedImport[1]!.split(',').map((x) => x.trim()).filter(Boolean).join() === 'reportOrphanedCampaignStatsGlobal', schedImport?.[1]);
+  check('the scheduler has no delete of orphans: no cleanup call, no scheduler principal, no raw/ORM delete of daily stats',
+    !/cleanupOrphanedCampaignStatsGlobal|deleteOwnedOrphaned|system-scheduler|skipped_orphan_fraction|maxOrphanFraction/.test(sched) && !/DELETE\s+FROM\s+daily_stats|dailyStat\.delete/i.test(sched) && !/\$executeRaw/.test(sched));
+  check('…it reports counts and says plainly that nothing was deleted', /reportOrphanedCampaignStatsGlobal\(prisma\)/.test(sched) && /REPORT ONLY/.test(read('src/workers/backgroundScheduler.ts')));
+  const plat = code(read('src/lib/platformOrphanCleanup.ts'));
+  check('platformOrphanCleanup knows no scheduler principal: the only PlatformAuthorization is a platform admin', /export type PlatformAuthorization = \{ kind: 'platform-admin'/.test(plat) && !/system-scheduler/.test(plat));
+  check('the global delete is ONE statement guarded by BOTH the batch digest and the row count', /b\.h = \$\{batchId\}/.test(plat) && /b\.n = \$\{expectedRows\}/.test(plat) && (plat.match(/DELETE FROM daily_stats/g) ?? []).length === 1);
   check('the removed global helpers are gone from every module', !walk(path.join(ROOT, 'src')).some((f) => /findGloballyOrphanedCampaignEntityIds|cleanupOrphanedCampaignStats\b/.test(code(readFileSync(f, 'utf8')))));
 
   // ── 2. the GET cannot delete; the POST authorises and is scoped ──────
@@ -98,42 +108,54 @@ async function main() {
   check('no `data-health?cleanup=true` in the page', !/data-health\?cleanup=true/.test(page));
   check('the button POSTs to …/data-health/cleanup', /data-health\/cleanup',\s*\{\s*method:\s*'POST'\s*\}/.test(page));
 
-  // ── 5. the guard logic, with a fake client that records writes ───────
-  console.log('\n── 5. platform cleanup guards (fake client) ──');
+  // ── 5. the approval logic, with a fake client that records every statement ──
+  console.log('\n── 5. platform cleanup: explicit approval bound to the dry-run batch (fake client) ──');
   const P = await import('./src/lib/platformOrphanCleanup');
-  const fake = (counts: { total: number; orphan_rows: number; orphan_ids: number }) => {
-    const writes: string[] = [];
+  const HEX = 'a'.repeat(64);
+  const OTHER = 'b'.repeat(64);
+  const fake = (o: { total?: number; orphan_rows?: number; orphan_ids?: number; stmtN?: number; stmtH?: string; deleted?: number } = {}) => {
+    const calls: string[] = [];
     const client = {
-      $queryRaw: async () => [counts],
-      $executeRaw: async () => { writes.push('delete'); return counts.orphan_rows; },
+      $queryRaw: async (strings: TemplateStringsArray) => {
+        const text = strings.join('?');
+        if (/DELETE FROM/.test(text)) { calls.push('delete'); return [{ deleted: o.deleted ?? 0, n: o.stmtN ?? 0, h: o.stmtH ?? '' }]; }
+        calls.push('read');
+        return [{ total: o.total ?? 100, orphan_rows: o.orphan_rows ?? 6, orphan_ids: o.orphan_ids ?? 2, batch_id: HEX }];
+      },
+      $executeRaw: async () => { calls.push('executeRaw'); return 0; },
     } as unknown as import('@prisma/client').PrismaClient;
-    return { client, writes };
+    return { client, calls };
   };
   const admin = { kind: 'platform-admin', userId: 'u', email: 'a@x' } as const;
-  let f = fake({ total: 100, orphan_rows: 6, orphan_ids: 2 });
-  let r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin);
-  check('admin without expectedRows: nothing is deleted', r.status === 'skipped_expected_rows_mismatch' && f.writes.length === 0, r.status);
-  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 5 });
-  check('admin with a stale number: nothing is deleted', r.status === 'skipped_expected_rows_mismatch' && f.writes.length === 0, r.status);
-  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6 });
-  check('admin with the right number: exactly one delete statement', r.status === 'deleted' && f.writes.length === 1 && r.rowsDeleted === 6, [r.status, f.writes]);
-  f = fake({ total: 100, orphan_rows: 90, orphan_ids: 9 });
-  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, { kind: 'system-scheduler' });
-  check('scheduler, 90% of campaign stats "orphaned" (a restored database with a missing campaigns table): REFUSED', r.status === 'skipped_orphan_fraction' && f.writes.length === 0, r);
-  f = fake({ total: 1000, orphan_rows: 50, orphan_ids: 5 });
-  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, { kind: 'system-scheduler' });
-  check('scheduler, 5%: deletes', r.status === 'deleted' && f.writes.length === 1, r.status);
-  f = fake({ total: 1000, orphan_rows: 0, orphan_ids: 0 });
-  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, { kind: 'system-scheduler' });
-  check('no orphans: no delete statement at all', r.status === 'deleted' && f.writes.length === 0);
-  f = fake({ total: 0, orphan_rows: 0, orphan_ids: 0 });
-  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, { kind: 'system-scheduler' });
-  check('an empty table is not an "all orphaned" emergency and not a delete', f.writes.length === 0);
+  let f = fake();
   let threw = 0;
-  for (const bad of [undefined, null, {}, { kind: 'tenant' }]) { try { await P.cleanupOrphanedCampaignStatsGlobal(f.client, bad as never); } catch { threw++; } }
-  check('anything that is not a PlatformAuthorization is refused', threw === 4, threw);
-  const counted = await P.countOrphanedCampaignStatsGlobal(fake({ total: 10, orphan_rows: 3, orphan_ids: 1 }).client);
-  check('the platform count is aggregate only: no ids in its shape', JSON.stringify(Object.keys(counted).sort()) === JSON.stringify(['campaignStatRows', 'orphanCampaignIds', 'orphanRows']), Object.keys(counted));
+  for (const bad of [undefined, null, {}, { kind: 'tenant' }, { kind: 'system-scheduler' }]) { try { await P.cleanupOrphanedCampaignStatsGlobal(f.client, bad as never, { expectedRows: 6, batchId: HEX }); } catch { threw++; } }
+  check('anything that is not a platform-admin authorisation — the old scheduler principal included — is refused, with no query at all', threw === 5 && f.calls.length === 0, [threw, f.calls]);
+  const badApprovals: unknown[] = [undefined, null, {}, { expectedRows: 6 }, { batchId: HEX }, { expectedRows: -1, batchId: HEX }, { expectedRows: 1.5, batchId: HEX }, { expectedRows: '6', batchId: HEX },
+    { expectedRows: 6, batchId: 'a'.repeat(63) }, { expectedRows: 6, batchId: 'A'.repeat(64) }, { expectedRows: 6, batchId: 'g'.repeat(64) }, { expectedRows: 6, batchId: 5 }, { expectedRows: 6, batchId: HEX + 'a' }];
+  threw = 0;
+  for (const bad of badApprovals) { try { await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, bad as never); } catch { threw++; } }
+  check('an approval without a plain integer expectedRows AND a 64-hex batchId is refused before any statement runs (13 malformed forms)', threw === badApprovals.length && f.calls.length === 0, [threw, f.calls]);
+
+  f = fake({ stmtN: 6, stmtH: HEX, deleted: 6 });
+  let r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('the approved batch (count and digest both equal): ONE delete statement, 6 rows', r.status === 'deleted' && r.rowsDeleted === 6 && f.calls.filter((c) => c === 'delete').length === 1, [r.status, f.calls]);
+  f = fake({ stmtN: 7, stmtH: OTHER, deleted: 0 });
+  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('the orphan count moved since the dry run: nothing deleted, status says so, a fresh dry run is returned', r.status === 'skipped_expected_rows_mismatch' && r.rowsDeleted === 0 && 'current' in r && r.current.batchId === HEX, r.status);
+  f = fake({ stmtN: 6, stmtH: OTHER, deleted: 0 });
+  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('SAME count, DIFFERENT rows (digest differs): nothing deleted — the approval names a batch, not a number', r.status === 'skipped_batch_mismatch' && r.rowsDeleted === 0, r.status);
+  f = fake({ stmtN: 0, stmtH: OTHER, deleted: 0, orphan_rows: 0 });
+  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 0, batchId: HEX });
+  check('"0 rows" approved against a batch that is not the empty one: nothing deleted', r.status === 'skipped_batch_mismatch' && r.rowsDeleted === 0, r.status);
+  check('no code path issues a delete outside the guarded statement ($executeRaw is never used)', !f.calls.includes('executeRaw'));
+  const rep = await P.reportOrphanedCampaignStatsGlobal(fake({ total: 10, orphan_rows: 3, orphan_ids: 1 }).client);
+  check('the scheduler report is aggregate only: no ids, no digest in its shape', JSON.stringify(Object.keys(rep).sort()) === JSON.stringify(['campaignStatRows', 'orphanCampaignIds', 'orphanFraction', 'orphanRows']), Object.keys(rep));
+  check('…and its fraction is orphans / all campaign stats (an empty table is 0, not an emergency)', Math.abs(rep.orphanFraction - 0.3) < 1e-9 && (await P.reportOrphanedCampaignStatsGlobal(fake({ total: 0, orphan_rows: 0, orphan_ids: 0 }).client)).orphanFraction === 0);
+  const dry = await P.describeOrphanBatchGlobal(fake().client);
+  check('the dry run shows counts, the fraction and a 64-hex batchId — and no ids', /^[0-9a-f]{64}$/.test(dry.batchId) && JSON.stringify(Object.keys(dry).sort()) === JSON.stringify(['batchId', 'campaignStatRows', 'orphanCampaignIds', 'orphanFraction', 'orphanRows']), Object.keys(dry));
+  check('the POST route demands BOTH numbers: expectedRows and batchId are parsed and the batch format is enforced', /ORPHAN_BATCH_ID_FORMAT/.test(code(read('src/api/server.ts'))) && /expectedRows === undefined \|\| batchId === undefined/.test(code(read('src/api/server.ts'))));
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);

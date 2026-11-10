@@ -13,7 +13,8 @@
 //  row no longer exists; its owner is only knowable from a record that outlives the
 //  campaign AND that a tenant cannot write: campaign_brain_snapshots. (A
 //  recommendation_log is NOT evidence: its campaign_id is client-supplied — see
-//  section 6.) Orphan groups:
+//  section 6.) The platform cleanup is an explicit dry run + approval bound to the exact
+//  batch (section 4), and the scheduler only reports (section 5). Orphan groups:
 //    a1     named by A's brain snapshot only        b1  named by B's brain snapshot only
 //    a3     named only by A's recommendation log    b2  named only by B's recommendation log
 //    c1     named by A's AND B's brain snapshots (ambiguous)      u1  named by nobody
@@ -191,40 +192,91 @@ async function main() {
   await prisma.dailyStat.deleteMany({ where: { entityId: oc } });
   // data-health window: w1 (A's, stats only 41-43 days old) was not listed above — see section 1 — and the platform report below counts what is left
 
-  // ── 4. the GLOBAL cleanup is platform-only ───────────────────────────
-  console.log('\n── 4. global orphan cleanup needs platform authorization ──');
+  // ── 4. the GLOBAL cleanup is platform-only, explicit, and bound to the dry-run batch ──
+  console.log('\n── 4. global orphan cleanup: platform authorization + approval bound to the exact dry-run batch ──');
+  const HEXZ = '0'.repeat(64);
   const g0 = await req('GET', '/api/admin/data-health/orphans');
   const g1 = await req('GET', '/api/admin/data-health/orphans', A.owner.token);
-  const p0 = await req('POST', '/api/admin/data-health/orphans/cleanup?expectedRows=1');
-  const p1 = await req('POST', '/api/admin/data-health/orphans/cleanup?expectedRows=1', A.owner.token);
-  check('no token → 401, a tenant owner → 403, on both the report and the cleanup', g0.status === 401 && g1.status === 403 && p0.status === 401 && p1.status === 403, [g0.status, g1.status, p0.status, p1.status]);
+  const p0 = await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=1&batchId=${HEXZ}`);
+  const p1 = await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=1&batchId=${HEXZ}`, A.owner.token);
+  check('no token → 401, a tenant owner → 403, on both the dry run and the cleanup', g0.status === 401 && g1.status === 403 && p0.status === 401 && p1.status === 403, [g0.status, g1.status, p0.status, p1.status]);
   check('…and the unattributed u1 is still there', (await rowsOf())['u1'] === 3);
-  const gAdmin = await req('GET', '/api/admin/data-health/orphans', admin.token);
-  check('the platform report is aggregate only: counts, never an id', gAdmin.status === 200 && typeof gAdmin.body?.orphanRows === 'number' && gAdmin.body.orphanRows >= 3 && !JSON.stringify(gAdmin.body).includes('orph_'), gAdmin.body);
-  const badCounts: Array<[string, number]> = [];
-  for (const bad of ['abc', '1e3', '-1', '1.5', '', '%20', '0x10']) badCounts.push([bad, (await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=${bad}`, admin.token)).status]);
-  check('expectedRows that is not a plain non-negative integer (abc, 1e3, -1, 1.5, empty, space, 0x10) → 400, nothing deleted', badCounts.every(([, st]) => st === 400) && (await rowsOf())['u1'] === 3, badCounts);
-  const noExpected = await req('POST', '/api/admin/data-health/orphans/cleanup', admin.token);
-  const wrong = await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=${gAdmin.body.orphanRows + 1}`, admin.token);
-  check('the admin must quote the row count they saw: missing → 400, a different number → 409; nothing deleted either time', noExpected.status === 400 && wrong.status === 409 && (await rowsOf())['u1'] === 3, [noExpected.status, wrong.status]);
-  const right = await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=${gAdmin.body.orphanRows}`, admin.token);
-  const r3 = await rowsOf();
-  check('with the right number the platform admin deletes every orphan, including the unattributed u1, the log-only a3/b2 and the forged-claim f2', right.status === 200 && right.body?.status === 'deleted' && right.body?.rowsDeleted === gAdmin.body.orphanRows && r3['u1'] === 0 && r3['a3'] === 0 && r3['b2'] === 0 && r3['f2'] === 0, [right.body, r3]);
-  check('live campaigns, the reborn r1 and everything else that is not an orphan survive the global delete', r3['r1'] === 3 && r3['liveA'] === 3 && r3['liveB'] === 3, r3);
+  const dry = async () => (await req('GET', '/api/admin/data-health/orphans', admin.token));
+  const gAdmin = await dry();
+  check('the dry run is aggregate only — counts, the share, a 64-hex batchId, never an id', gAdmin.status === 200 && gAdmin.body?.mode === 'dry-run' && typeof gAdmin.body?.orphanRows === 'number' && gAdmin.body.orphanRows >= 3 && /^[0-9a-f]{64}$/.test(gAdmin.body?.batchId ?? '') && typeof gAdmin.body?.orphanFraction === 'number' && !JSON.stringify(gAdmin.body).includes('orph_'), gAdmin.body);
+  check('the dry run is READ-ONLY and repeatable: the same rows give the same batchId', (await dry()).body?.batchId === gAdmin.body.batchId);
+  const post = (q: string) => req('POST', `/api/admin/data-health/orphans/cleanup${q}`, admin.token);
+  const badForms: Array<[string, number]> = [];
+  for (const q of [
+    '', `?expectedRows=${gAdmin.body.orphanRows}`, `?batchId=${gAdmin.body.batchId}`,
+    ...['abc', '1e3', '-1', '1.5', '', '%20', '0x10'].map((bad) => `?expectedRows=${bad}&batchId=${gAdmin.body.batchId}`),
+    ...['', 'abc', gAdmin.body.batchId.slice(1), gAdmin.body.batchId.toUpperCase(), gAdmin.body.batchId + '0', 'g'.repeat(64), '%20'].map((bad) => `?expectedRows=${gAdmin.body.orphanRows}&batchId=${bad}`),
+  ]) badForms.push([q, (await post(q)).status]);
+  check('an approval lacking either number, or with a malformed expectedRows / batchId (17 forms) → 400, nothing deleted', badForms.every(([, st]) => st === 400) && (await rowsOf())['u1'] === 3, badForms.filter(([, st]) => st !== 400));
+  const wrongRows = await post(`?expectedRows=${gAdmin.body.orphanRows + 1}&batchId=${gAdmin.body.batchId}`);
+  check('the right batch id but a different row count → 409 skipped_expected_rows_mismatch, nothing deleted', wrongRows.status === 409 && wrongRows.body?.status === 'skipped_expected_rows_mismatch' && wrongRows.body?.rowsDeleted === 0 && (await rowsOf())['u1'] === 3, [wrongRows.status, wrongRows.body?.status]);
+  const flipped = gAdmin.body.batchId.slice(0, 63) + (gAdmin.body.batchId.endsWith('0') ? '1' : '0');
+  const wrongBatch = await post(`?expectedRows=${gAdmin.body.orphanRows}&batchId=${flipped}`);
+  check('the right row count but a different batch id → 409 skipped_batch_mismatch, nothing deleted, and the answer is a fresh dry run', wrongBatch.status === 409 && wrongBatch.body?.status === 'skipped_batch_mismatch' && wrongBatch.body?.rowsDeleted === 0 && wrongBatch.body?.current?.batchId === gAdmin.body.batchId && (await rowsOf())['u1'] === 3, [wrongBatch.status, wrongBatch.body?.status]);
 
-  // ── 5. the scheduler's guard ─────────────────────────────────────────
-  console.log('\n── 5. the scheduler refuses an implausible orphan share ──');
+  // The approval names a BATCH, not a number: swap one orphan row for a different one — same count, different rows.
+  const victim = await prisma.dailyStat.findFirstOrThrow({ where: { entityType: EntityType.CAMPAIGN, entityId: ID.u1 }, orderBy: { date: 'asc' } });
+  await prisma.dailyStat.delete({ where: { id: victim.id } });
+  await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_swap_${sfx}`, date: day(9), spend: 3n } });
+  const swapped = await dry();
+  const beforeSwapRows = await rowsOf();
+  check('(setup) one orphan row replaced by another: the count is UNCHANGED but the batchId differs', swapped.body.orphanRows === gAdmin.body.orphanRows && swapped.body.batchId !== gAdmin.body.batchId, [swapped.body.orphanRows, gAdmin.body.orphanRows]);
+  const sameCountOldBatch = await post(`?expectedRows=${gAdmin.body.orphanRows}&batchId=${gAdmin.body.batchId}`);
+  const afterSwapRows = await rowsOf();
+  check('approving the OLD batch with the SAME count deletes NOTHING (409): a number alone cannot authorise different rows', sameCountOldBatch.status === 409 && sameCountOldBatch.body?.status === 'skipped_batch_mismatch' && JSON.stringify(beforeSwapRows) === JSON.stringify(afterSwapRows) && (await prisma.dailyStat.count({ where: { entityId: `orph_swap_${sfx}` } })) === 1, [sameCountOldBatch.status, sameCountOldBatch.body?.status]);
+
+  // A row that becomes an orphan after the dry run changes the batch.
+  const g2 = await dry();
+  await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_late_${sfx}`, date: day(8), spend: 3n } });
+  const lateOld = await post(`?expectedRows=${g2.body.orphanRows}&batchId=${g2.body.batchId}`);
+  check('an orphan that appeared after the dry run → the approved batch no longer exists: 409, nothing deleted', lateOld.status === 409 && (await prisma.dailyStat.count({ where: { entityId: `orph_late_${sfx}` } })) === 1 && (await rowsOf())['a3'] === 3, [lateOld.status, lateOld.body?.status]);
+
+  // Rows committed AFTER the statement's snapshot are not part of the approved batch and survive.
+  const g3 = await dry();
+  let racedStatus = 0;
+  await prisma.$transaction(async (tx) => {
+    await tx.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_race_${sfx}`, date: day(7), spend: 3n } }); // uncommitted: invisible to the POST's snapshot
+    racedStatus = (await post(`?expectedRows=${g3.body.orphanRows}&batchId=${g3.body.batchId}`)).status;
+  });
+  const afterRace = await rowsOf();
+  check('the approved batch is deleted in full (200) while an orphan committed after its snapshot is NOT in the batch and survives', racedStatus === 200 && afterRace['u1'] === 0 && (await prisma.dailyStat.count({ where: { entityId: `orph_race_${sfx}` } })) === 1 && (await prisma.dailyStat.count({ where: { entityId: `orph_swap_${sfx}` } })) === 0 && (await prisma.dailyStat.count({ where: { entityId: `orph_late_${sfx}` } })) === 0 && afterRace['a3'] === 0 && afterRace['b2'] === 0 && afterRace['f2'] === 0, [racedStatus, afterRace]);
+  check('live campaigns, the reborn r1 and everything else that is not an orphan survive the global delete', afterRace['r1'] === 3 && afterRace['liveA'] === 3 && afterRace['liveB'] === 3, afterRace);
+  const replayed = await post(`?expectedRows=${g3.body.orphanRows}&batchId=${g3.body.batchId}`);
+  check('an approval is single-use: replaying it → 409, nothing deleted (the late orphan survives)', replayed.status === 409 && (await prisma.dailyStat.count({ where: { entityId: `orph_race_${sfx}` } })) === 1, [replay.status]);
+  const g4 = await dry();
+  const final = await post(`?expectedRows=${g4.body.orphanRows}&batchId=${g4.body.batchId}`);
+  check('a fresh dry run approved: 200 deleted, exactly the rows the dry run counted, and the table has no orphans left', final.status === 200 && final.body?.status === 'deleted' && final.body?.rowsDeleted === g4.body.orphanRows && (await dry()).body.orphanRows === 0, [final.status, final.body]);
+
+  // ── 5. the scheduler REPORTS; it never deletes ───────────────────────
+  console.log('\n── 5. the scheduled integrity sweep reports orphans and deletes nothing ──');
+  const { runIntegritySweep } = await import('./src/workers/backgroundScheduler');
   const P = await import('./src/lib/platformOrphanCleanup');
+  // Plenty of live statistics so that the orphan share is ~2 %: the OLD scheduler (guard: refuse above 20 %) would delete these.
+  const fill = await prisma.campaign.create({ data: { adAccountId: A.account.id, externalCampaignId: `fill_${sfx}`, name: 'Filler' } });
+  await prisma.dailyStat.createMany({ data: Array.from({ length: 120 }, (_, i) => ({ entityType: EntityType.CAMPAIGN, entityId: fill.id, date: day(100 + i), spend: 1n })) });
   for (const d of [1, 2, 3]) await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_s1_${sfx}`, date: day(d), spend: 1n } });
-  const cnt = await P.countOrphanedCampaignStatsGlobal(prisma);
-  const f = cnt.orphanRows / cnt.campaignStatRows;
-  const refused = await P.cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'system-scheduler' }, { maxOrphanFraction: f / 2 });
-  const stillThere = await prisma.dailyStat.count({ where: { entityId: `orph_s1_${sfx}` } });
-  check('orphans above the allowed share (a partly restored database): REFUSED, nothing deleted', refused.status === 'skipped_orphan_fraction' && stillThere === 3, [refused.status, f]);
-  const ok = await P.cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'system-scheduler' }, { maxOrphanFraction: 1 });
-  check('within the allowed share it deletes them', ok.status === 'deleted' && ok.rowsDeleted >= 3 && (await prisma.dailyStat.count({ where: { entityId: `orph_s1_${sfx}` } })) === 0, ok);
-  let threw = false; try { await P.cleanupOrphanedCampaignStatsGlobal(prisma, undefined as never); } catch { threw = true; }
-  check('without a PlatformAuthorization the function refuses to run', threw);
+  const snap = async () => (await pool.query(`select id, xmin::text as x from daily_stats order by id`)).rows.map((r) => `${r.id}:${r.x}`).join('|');
+  const rep = await P.reportOrphanedCampaignStatsGlobal(prisma);
+  check('(setup) orphans are a small share of campaign stats — below the old 20% guard, so the old scheduler would have deleted them', rep.orphanRows === 3 && rep.orphanFraction > 0 && rep.orphanFraction < 0.2, rep);
+  const before = await snap();
+  const warns: string[] = [];
+  const origWarn = console.warn; const origLog = console.log; const origErr = console.error;
+  console.warn = (...a: unknown[]) => { warns.push(a.map(String).join(' ')); }; console.log = () => {}; console.error = (...a: unknown[]) => { warns.push('ERR ' + a.map(String).join(' ')); };
+  try { await runIntegritySweep(prisma); } finally { console.warn = origWarn; console.log = origLog; console.error = origErr; }
+  const after = await snap();
+  const orphanLine = warns.find((w) => /ORPHANED campaign stats/.test(w)) ?? '';
+  check('the sweep deleted NOTHING: every daily_stats row, with its xmin, is exactly as before', before === after && (await prisma.dailyStat.count({ where: { entityId: `orph_s1_${sfx}` } })) === 3, [before.length, after.length]);
+  check('…and it said so: REPORT ONLY, nothing deleted, with the counts (3 rows / 1 id) and the share', /REPORT ONLY/.test(orphanLine) && /nothing was deleted/.test(orphanLine) && /3 row\(s\) \/ 1 campaign id\(s\)/.test(orphanLine), orphanLine);
+  check('the sweep did not fail', !warns.some((w) => /^ERR /.test(w)), warns.filter((w) => /^ERR /.test(w)));
+  let threw = false; try { await P.cleanupOrphanedCampaignStatsGlobal(prisma, undefined as never, { expectedRows: 3, batchId: HEXZ }); } catch { threw = true; }
+  check('without a platform-admin authorisation the delete function refuses to run', threw);
+  let threwSched = false; try { await P.cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'system-scheduler' } as never, { expectedRows: 3, batchId: HEXZ }); } catch { threwSched = true; }
+  check('there is no scheduler principal any more: { kind: "system-scheduler" } is refused', threwSched && (await prisma.dailyStat.count({ where: { entityId: `orph_s1_${sfx}` } })) === 3);
 
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect(); await pool.end();

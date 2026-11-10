@@ -23,7 +23,7 @@ import { runRefresh } from '../services/refresh/refreshEngine';
 import { config } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
 import { runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
-import { cleanupOrphanedCampaignStatsGlobal } from '../lib/platformOrphanCleanup';
+import { reportOrphanedCampaignStatsGlobal } from '../lib/platformOrphanCleanup';
 import { refreshExpiringMetaTokens } from './refreshMetaTokens';
 import { refreshCampaignHistoryRollups } from './rollupHistory';
 import { bootQueueWorkers } from './queue';
@@ -377,8 +377,8 @@ async function runDailyMaintenance(prisma: PrismaClient): Promise<void> {
   await runIntegritySweep(prisma);
 }
 
-/** Periodic data-integrity observer — logs warnings and auto-cleans orphans. */
-async function runIntegritySweep(prisma: PrismaClient): Promise<void> {
+/** Periodic data-integrity observer — logs warnings, reports orphans, deletes nothing. */
+export async function runIntegritySweep(prisma: PrismaClient): Promise<void> {
   try {
     const accounts = await prisma.adAccount.findMany({
       where: { status: 'ACTIVE' },
@@ -401,18 +401,19 @@ async function runIntegritySweep(prisma: PrismaClient): Promise<void> {
         );
       }
     }
-    // GLOBAL cleanup is a platform operation: the scheduler acts as the platform,
-    // explicitly, and refuses when orphans are an implausible share of all campaign
-    // statistics (a restored or partly restored database whose `campaigns` table is
-    // missing or behind) — see src/lib/platformOrphanCleanup.ts.
-    const cleaned = await cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'system-scheduler' });
-    if (cleaned.status === 'skipped_orphan_fraction') {
+    // REPORT ONLY. The scheduler never deletes orphaned statistics: on a restored or partly
+    // restored database the `campaigns` table can be behind while daily_stats are intact, and
+    // an unattended delete — even one capped at a percentage — destroys history nobody has
+    // looked at. Deleting is a platform-admin act on an approved batch:
+    //   GET /api/admin/data-health/orphans (dry run: counts + batchId), then
+    //   POST /api/admin/data-health/orphans/cleanup?expectedRows=N&batchId=… (src/lib/platformOrphanCleanup.ts).
+    const orphans = await reportOrphanedCampaignStatsGlobal(prisma);
+    if (orphans.orphanRows > 0) {
       console.warn(
-        `[adlytic:integrity] REFUSED automatic orphan cleanup: ${cleaned.counts.orphanRows} of ${cleaned.counts.campaignStatRows} campaign stat rows ` +
-        `(${(cleaned.fraction * 100).toFixed(1)}% > ${(cleaned.maxOrphanFraction * 100).toFixed(0)}%) have no campaign — check the database before deleting anything`,
+        `[adlytic:integrity] ORPHANED campaign stats (REPORT ONLY — nothing was deleted): ${orphans.orphanRows} row(s) / ${orphans.orphanCampaignIds} campaign id(s) ` +
+        `= ${(orphans.orphanFraction * 100).toFixed(1)}% of ${orphans.campaignStatRows} campaign stat rows have no campaign. ` +
+        `If this follows a restore, compare the campaigns table with the source before cleaning; cleanup is a platform-admin dry run + approval.`,
       );
-    } else if (cleaned.rowsDeleted > 0) {
-      console.log(`[adlytic:integrity] auto-cleaned ${cleaned.rowsDeleted} orphaned daily_stat row(s) globally`);
     }
   } catch (err) {
     console.error('[adlytic:integrity] Sweep failed:', err);

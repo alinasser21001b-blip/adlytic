@@ -231,7 +231,7 @@ import { runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { deleteOwnedOrphanedCampaignStats } from '../lib/campaignDataIsolation';
 // … and the GLOBAL one, reachable only from the platform-admin routes below and the
 // scheduler. test_data_health_isolation.ts fails the build if anything else imports it.
-import { cleanupOrphanedCampaignStatsGlobal, countOrphanedCampaignStatsGlobal } from '../lib/platformOrphanCleanup';
+import { cleanupOrphanedCampaignStatsGlobal, describeOrphanBatchGlobal, ORPHAN_BATCH_ID_FORMAT } from '../lib/platformOrphanCleanup';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
 /** Map resolved purpose family → objective key for KPI math helpers. */
@@ -1582,37 +1582,48 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   /**
-   * GET /api/admin/data-health/orphans — platform administrators only. Aggregate
-   * counts of orphaned campaign stats ACROSS tenants (never ids), including the
-   * ones whose owner cannot be verified. The number to quote to the POST below.
+   * GET /api/admin/data-health/orphans — platform administrators only. THE DRY RUN.
+   * Aggregate counts of orphaned campaign stats ACROSS tenants (never ids), including
+   * the ones whose owner cannot be verified, plus the `batchId` — a digest of the exact
+   * set of orphan rows counted. Nothing is deleted. The two numbers to quote to the POST below.
    */
   app.get('/api/admin/data-health/orphans', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
-    return c.json({ scope: 'platform-global', ...(await countOrphanedCampaignStatsGlobal(prisma)) });
+    return c.json({
+      scope: 'platform-global',
+      mode: 'dry-run',
+      ...(await describeOrphanBatchGlobal(prisma)),
+      approve: 'POST /api/admin/data-health/orphans/cleanup?expectedRows=<orphanRows>&batchId=<batchId>',
+    });
   });
 
   /**
-   * POST /api/admin/data-health/orphans/cleanup?expectedRows=N — platform
-   * administrators only. Deletes EVERY orphaned campaign daily_stat, whoever it
-   * belonged to. N must equal the `orphanRows` the operator just read from the
-   * GET above; if the number moved, nothing is deleted (409).
+   * POST /api/admin/data-health/orphans/cleanup?expectedRows=N&batchId=H — platform
+   * administrators only. Deletes the orphaned campaign daily_stats of EXACTLY the batch
+   * the dry run above showed: `expectedRows` and `batchId` must both equal what the
+   * database computes now, in the same snapshot as the delete. A batch that changed
+   * (a row more, fewer, or different) deletes nothing and answers 409 with a fresh dry run.
+   * There is no scheduled or automatic caller: the scheduler only reports.
    */
   app.post('/api/admin/data-health/orphans/cleanup', async (c) => {
     const req = await honoToApiRequest(c);
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
-    const raw = req.query['expectedRows'];
-    const expectedRows = raw !== undefined && /^\d+$/.test(String(raw)) ? Number(raw) : undefined;
-    if (expectedRows === undefined) {
-      return c.json({ error: 'expectedRows is required: the orphanRows value from GET /api/admin/data-health/orphans' }, 400);
+    const rawRows = req.query['expectedRows'];
+    const expectedRows = rawRows !== undefined && /^\d+$/.test(String(rawRows)) && Number.isSafeInteger(Number(rawRows)) ? Number(rawRows) : undefined;
+    const rawBatch = req.query['batchId'];
+    const batchId = typeof rawBatch === 'string' && ORPHAN_BATCH_ID_FORMAT.test(rawBatch) ? rawBatch : undefined;
+    if (expectedRows === undefined || batchId === undefined) {
+      return c.json({ error: 'expectedRows and batchId are required: the orphanRows and batchId values from GET /api/admin/data-health/orphans (batchId is 64 lowercase hex characters)' }, 400);
     }
-    const result = await cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'platform-admin', userId: gate.userId, email: gate.email }, { expectedRows });
-    if (result.status === 'skipped_expected_rows_mismatch') {
-      return c.json({ error: 'The orphan count changed since it was read; nothing was deleted', ...result }, 409);
+    const result = await cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'platform-admin', userId: gate.userId, email: gate.email }, { expectedRows, batchId });
+    if (result.status !== 'deleted') {
+      console.warn(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… REFUSED (${result.status}): nothing deleted`);
+      return c.json({ error: 'The orphan batch changed since the dry run; nothing was deleted. Re-run the dry run and approve the new batch.', scope: 'platform-global', ...result }, 409);
     }
-    console.log(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… deleted=${result.rowsDeleted}`);
+    console.log(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… batch=${result.batchId.slice(0, 12)}… deleted=${result.rowsDeleted}`);
     return c.json({ scope: 'platform-global', ...result });
   });
 
