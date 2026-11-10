@@ -51,6 +51,16 @@ export interface Signals {
    * standards layer will then use neutral vocabulary instead of guessing.
    */
   purposeFamily?: ObjectiveKpiFamily | null;
+
+  /**
+   * Set by the Signals builders when the spend this window was computed from is not
+   * verified (IQD account, rows with no raw Meta counterpart or proven ×100 —
+   * src/lib/spendEvidence.ts). The builder has then already nulled every spend-derived
+   * signal (spendTrend, cpmTrend, currentCpm); detectors that rest on spend must also
+   * decline when this is set. ABSENT whenever the window is clean or the account is not
+   * IQD, so a clean account's Signals are byte-identical to what they were before.
+   */
+  spendWithheld?: 'SPEND_SCALE_UNVERIFIED' | 'SPEND_SCALE_OVERSCALED' | null;
 }
 
 /**

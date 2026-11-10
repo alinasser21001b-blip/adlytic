@@ -42,6 +42,7 @@ import { persistBrainBatch, BrainSnapshotInput } from '../services/BrainPersiste
 import { loadCampaignSignalsBatch } from '../engines/rules/loadCampaignSignals';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
 import { resolveCurrencyMinorFactor } from '../lib/currency';
+import { EVIDENCE_WINDOWS, evaluateSpendWindow, windowForAsOf, type SpendGateReason } from '../lib/spendEvidence';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 const ORCHESTRATOR_CONFIG = {
@@ -63,6 +64,8 @@ export interface BrainOrchestratorResult {
   upserted: number;                 // persisted snapshots
   tickDate?: string;                // YYYY-MM-DD
   error?: string;                   // only set when ok === false
+  /** Present ONLY when the account's spend was not verified for this tick: spend-dependent verdicts were withheld. */
+  spendEvidence?: { reason: SpendGateReason; from: string | null; to: string | null; rows: number; unverified: number; overscaled: number };
 }
 
 /**
@@ -158,13 +161,24 @@ export async function runBrainOrchestrator(
     const baseline = calculateAccountBaseline(dataReady.map(d => d.raw));
     console.log(`${tag} baseline computed — confidence=${baseline.confidence.level} (${baseline.confidence.score})`);
 
+    // ── 3a. Spend evidence (IQD only). The Brain's verdicts blend cost-per-message, and its
+    // period signals read two weeks of campaign rows: if those days are not verified (account
+    // row unproven, or the campaigns do not add up to it — CAMPAIGN level, src/lib/spendEvidence.ts)
+    // the spend-dependent verdicts are withheld, visibly, rather than computed from them.
+    const evidenceWindow = windowForAsOf(now, EVIDENCE_WINDOWS.brain);
+    const spendWindow = await evaluateSpendWindow(prisma, { id: account.id, currency: account.currency }, evidenceWindow.from, evidenceWindow.to, 'CAMPAIGN');
+    const spendWithheld: SpendGateReason | null = spendWindow.clean ? null : spendWindow.reason;
+    if (spendWithheld) {
+      console.log(`${tag} spend NOT verified (${spendWithheld}) — ${spendWindow.unverified} unverified + ${spendWindow.overscaled} over-scaled of ${spendWindow.rows} campaign day(s) in ${evidenceWindow.from}..${evidenceWindow.to}: spend-dependent verdicts withheld`);
+    }
+
     // ── 3b. Real period Signals for rule grounding (same math as Analytics). ──
     // One batched DailyStat read; campaigns without enough history simply fall
     // back to absolute-only grounding inside buildRuleGrounding.
     const periodSignalsByCampaign = await loadCampaignSignalsBatch(
       prisma,
       dataReady.map((d) => d.campaign.id),
-      { asOf: now },
+      { asOf: now, spendWithheld },
     );
     // Stamp Meta objective onto Signals so detectors/diagnose use objective standards.
     for (const { campaign, raw } of dataReady) {
@@ -195,7 +209,7 @@ export async function runBrainOrchestrator(
             raw,
             baseline,
             v2Inputs ?? undefined,
-            { periodSignals: periodSignalsByCampaign.get(campaign.id) ?? null },
+            { periodSignals: periodSignalsByCampaign.get(campaign.id) ?? null, spendWithheld },
           );
 
           return {
@@ -246,6 +260,9 @@ export async function runBrainOrchestrator(
       campaignsFailed: failed,
       upserted,
       tickDate,
+      ...(spendWithheld
+        ? { spendEvidence: { reason: spendWithheld, from: spendWindow.from, to: spendWindow.to, rows: spendWindow.rows, unverified: spendWindow.unverified, overscaled: spendWindow.overscaled } }
+        : {}),
     };
   } catch (e) {
     const error = e instanceof Error ? e.message : String(e);

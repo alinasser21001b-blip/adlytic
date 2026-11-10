@@ -6,6 +6,7 @@ import { findOwnedOrphanedCampaignEntityIds } from '../lib/campaignDataIsolation
 import { accountDeliveryHold, classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
 import { accountLocalDateFloor } from '../lib/campaignSpending';
 import { accountHistoryEvidenceCoverage, collectScaleEvidence } from '../lib/iqdRepair';
+import { listSpendPeriods, type SpendScalePeriods } from '../lib/spendEvidence';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -32,7 +33,14 @@ export type SpendScaleReport = {
   window: { days: number; accountRows: number; verified: number; overscaled: number; unverified: number };
   /** ACCOUNT-level rows of ALL time, and how many have no raw_insights row for their date. */
   history: { accountRows: number; withoutEvidence: number };
-};
+} & SpendScalePeriods;
+// `SpendScalePeriods` (additive keys, src/lib/spendEvidence.ts): the affected PERIODS of the
+// account's whole history — contiguous runs of ACCOUNT rows that are not verified by a raw
+// counterpart (`unverifiedPeriods`) or are proven x100 (`overscaledPeriods`), newest first,
+// capped at `periodsCap` with exact totals. Driven by the rows alone: not cleared by the
+// stored factor, by running the repair, or by the 30-day window moving past them. Listed, not
+// warned, beyond the window (SPEND_EVIDENCE_GATING.md §2).
+
 
 export type DataIntegrityReport = {
   workspaceId: string;
@@ -261,6 +269,7 @@ export async function runDataIntegrityCheck(
   if (storedAccount && storedAccount.currency === 'IQD') {
     const scale = await collectScaleEvidence(prisma, account.id, { sinceDate });
     const history = await accountHistoryEvidenceCoverage(prisma, account.id);
+    const periods = await listSpendPeriods(prisma, account.id);
     const windowRows = accountStats.length;
     const verified = scale.accountRows.verified;
     const overscaled = scale.accountRows.overscaled;
@@ -271,6 +280,7 @@ export async function runDataIntegrityCheck(
       factorIsEvidence: false,
       window: { days: windowDays, accountRows: windowRows, verified, overscaled, unverified },
       history: { accountRows: history.accountRows, withoutEvidence: history.withoutEvidence },
+      ...periods,
     };
     if (scale.overscaled.length > 0) {
       checks.push({

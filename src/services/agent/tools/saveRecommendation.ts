@@ -20,6 +20,7 @@ import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveEntityIntelligenceForGuard } from '../../entityIntelligence';
 import { permitAction } from '../../../analytics/intelligence/hierarchy';
+import { EVIDENCE_WINDOWS, evaluateEntityWindow, isSpendDependentActionCode } from '../../../lib/spendEvidence';
 
 const ALLOWED_ACTION_CODES = [
   'PAUSE',
@@ -212,6 +213,32 @@ export function saveRecommendationHandler(): ToolHandler<SaveRecommendationArgs,
               field: 'actionCode',
               retryable: false,
               suggestion: 'Re-check get_campaign_details / the funnel diagnosis before choosing an action — the upstream stages were measured healthy, so a creative- or audience-facing action would misdirect the merchant.',
+            },
+          );
+        }
+      }
+
+      // Spend-evidence guard (IQD only; src/lib/spendEvidence.ts). A budget move or a pause rests on
+      // spend: not recorded while the spend it would rest on is unverified or over-scaled. Creative,
+      // audience and tracking actions never reach this branch. If the evidence cannot be read, the
+      // spend-dependent action is refused rather than saved on a guess.
+      if (isSpendDependentActionCode(args.actionCode)) {
+        const spendWindow = await evaluateEntityWindow(
+          prisma,
+          args.entityType === 'ACCOUNT' ? EntityType.ACCOUNT : EntityType.CAMPAIGN,
+          args.entityId,
+          today,
+          EVIDENCE_WINDOWS.aiAgent,
+        ).catch(() => null);
+        if (!spendWindow || !spendWindow.clean) {
+          return fail(
+            'STALE_DATA',
+            `SPEND_SCALE_UNVERIFIED: the spend figures this "${args.actionCode}" would rest on could not be verified against raw Meta data` +
+              (spendWindow ? ` (${spendWindow.unverified} unverified, ${spendWindow.overscaled} over-scaled of ${spendWindow.rows} day(s) in ${spendWindow.from}..${spendWindow.to})` : ''),
+            {
+              field: 'actionCode',
+              retryable: false,
+              suggestion: 'Do not recommend a budget change or a pause for this period. Tell the merchant their spend for it cannot be verified yet, and recommend only actions that do not depend on spend (creative, audience, tracking).',
             },
           );
         }

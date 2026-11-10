@@ -23,6 +23,10 @@ export interface CampaignDecision {
   // إذا تم تجاوز قرار Layer 4 بواسطة V2 emergencyOverride،
   // نحفظ القرار الأصلي هنا للديباغ والشفافية. لا يُضبط داخل decideCampaignAction.
   overriddenAction?: DecisionAction;
+  // أُخفي القرار الأصلي لأن الإنفاق في نافذة التقييم غير موثَّق (IQD) — src/lib/spendEvidence.ts.
+  // Present ONLY when the verdict was withheld for that reason, so every other decision
+  // keeps exactly the shape it always had.
+  spendEvidence?: { withheld: true; reason: 'SPEND_SCALE_UNVERIFIED' | 'SPEND_SCALE_OVERSCALED'; withheldAction: DecisionAction };
 }
 
 /**

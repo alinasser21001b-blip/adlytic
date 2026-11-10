@@ -156,6 +156,8 @@ async function main() {
     healthScore:  { create: () => { throw new Error("VIOLATION: rec wrote health_scores"); } },
     knowledgeRule:{ create: () => { throw new Error("VIOLATION: rec wrote knowledge_rules"); } },
     adAccount: {
+      // Read-only lookup of the account's currency (spend-evidence gate): USD = not gated.
+      findFirst: async ({ where }: any) => ({ id: where.id, currency: "USD" }),
       findUnique: async ({ where }: any) => {
         calls.push({ table: "ad_accounts", op: "read", where });
         if (where.id === "acc_furn") {

@@ -24,6 +24,7 @@ import type { Diagnosis } from "./diagnose";
 import { resolveCampaignPurpose } from "../../lib/campaignPurpose";
 import { resultFor } from "../../analytics/resultSemantics";
 import type { ObjectiveKpiFamily } from "../../lib/objectiveKpis";
+import { evaluateEntityWindow, type SpendGateReason } from "../../lib/spendEvidence";
 
 export interface RulesOptions {
   /** "as of" date for the run. Must match the date used by AnalyticsEngine. */
@@ -44,6 +45,12 @@ export interface RulesResult {
   diagnoses: Diagnosis[];
   ok: boolean;
   error?: string;
+  /**
+   * Present ONLY when the spend this run read is not verified (IQD; src/lib/spendEvidence.ts):
+   * spendTrend, cpmTrend and currentCpm were withheld, so spend-derived issues
+   * (RISING_COST_PER_RESULT) could not be detected. Absent for a clean or non-IQD run.
+   */
+  spendWithheld?: SpendGateReason;
 }
 
 export class RulesEngine {
@@ -69,6 +76,7 @@ export class RulesEngine {
 
     try {
       const signals = await this.buildSignals(entityType, entityId, asOf, windowDays, lag);
+      if (signals.spendWithheld) result.spendWithheld = signals.spendWithheld;
       const { issues, diagnoses } = runDetectorPipeline(signals, detectors);
       // Detectors don't know windowDays (they only see Signals); the
       // orchestrator does, so it attaches the real window here rather than
@@ -102,6 +110,12 @@ export class RulesEngine {
     // Window: [currentSince, currentUntil] — must match AnalyticsEngine math.
     const currentUntil = addDays(asOf, -lag);
     const currentSince = addDays(currentUntil, -(windowDays - 1));
+
+    // Spend evidence for everything the spend-derived signals below read: the current
+    // window AND the prior one the trend compares with. IQD only; a clean window or any
+    // other currency leaves the Signals exactly as they were.
+    const spendWindow = await evaluateEntityWindow(this.prisma, entityType, entityId, asOf, { lagDays: lag, spanDays: windowDays * 2 });
+    const spendWithheld = spendWindow.clean ? null : spendWindow.reason;
 
     // Trends row for this asOf — the newest row AT OR BEFORE asOf, so a backfill
     // for a past date pairs with that date's trends, not today's. (Reading the
@@ -176,19 +190,21 @@ export class RulesEngine {
 
     return {
       ctrTrend: trend?.ctrTrend ?? null,
-      cpmTrend: trend?.cpmTrend ?? null,
+      // Spend-derived: withheld (null) while the window's spend is unverified, never guessed.
+      cpmTrend: spendWithheld ? null : trend?.cpmTrend ?? null,
       frequencyTrend: trend?.frequencyTrend ?? null,
       resultsTrend: trend?.resultsTrend ?? null,
-      spendTrend: trend?.spendTrend ?? null,
+      spendTrend: spendWithheld ? null : trend?.spendTrend ?? null,
 
       currentCtr: impTotal > 0 ? +(ctrNum / impTotal).toFixed(4) : null,
-      currentCpm: impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,
+      currentCpm: spendWithheld ? null : impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,
       currentFrequency: freqVals.length
         ? +(freqVals.reduce((a, b) => a + b, 0) / freqVals.length).toFixed(4)
         : null,
       currentResults: resultsSum,
       currentSpend: spendSum,
       purposeFamily,
+      ...(spendWithheld ? { spendWithheld } : {}),
     };
   }
 }

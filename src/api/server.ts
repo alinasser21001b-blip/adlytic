@@ -220,6 +220,7 @@ import {
   resolveEntityIntelligenceForGuard,
 } from '../services/entityIntelligence';
 import { permitAction } from '../analytics/intelligence/hierarchy';
+import { DATA_QUALITY_HEADER, partitionRecommendationsBySpendEvidence, spendScaleFlagForRange } from '../lib/spendEvidence';
 import { buildBrainObservatory } from '../services/brainObservatory';
 import { getCampaignWhy } from '../services/campaignWhy';
 import {
@@ -3453,6 +3454,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const scope: CampaignScopeFilter =
       scopeRaw === 'live' || scopeRaw === 'historical' ? scopeRaw : 'all';
     const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
+    // The window's campaign spend is shown as stored; say so when it is not verified (header: array body).
+    const spendFlag = await spendScaleFlagForRange(prisma, account, sinceDate, null, 'CAMPAIGN');
+    if (spendFlag) c.header(DATA_QUALITY_HEADER, spendFlag.code);
     // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
     // so every campaign gets exactly 7 chronological points.
     const sparkDays = 7;
@@ -4617,6 +4621,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'desc' },
     });
+    // A period read that overlaps unverified IQD spend says so (array body: header only).
+    const spendFlag = await spendScaleFlagForRange(prisma, account, sinceDate, null);
+    if (spendFlag) c.header(DATA_QUALITY_HEADER, spendFlag.code);
     return c.json(safeJson(stats));
   });
 
@@ -4803,9 +4810,15 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const accountIntelligence = await resolveEntityIntelligenceForGuard(
       prisma, EntityType.ACCOUNT, account.id,
     ).catch(() => null);
-    const recs = accountIntelligence
+    const permittedRecs = accountIntelligence
       ? allRecs.filter((r) => permitAction(r.actionCode, accountIntelligence).allowed)
       : allRecs;
+    // Spend-evidence gate (IQD only; src/lib/spendEvidence.ts): a recommendation that rests on
+    // spend is not shown when the window it was computed from holds spend that is unverified or
+    // over-scaled — whichever producer stored it and however old the row. Spend-independent
+    // recommendations, and every non-IQD account, pass through untouched.
+    const spendGate = await partitionRecommendationsBySpendEvidence(prisma, permittedRecs);
+    const recs = spendGate.kept;
 
     // Fire-and-forget: log a snapshot for closed-loop learning. One log entry
     // per recommendations fetch summarising the top recommendation surfaced.
@@ -4865,6 +4878,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
 
     if (latestLogId) c.header('X-Recommendation-Log-Id', latestLogId);
+    if (spendGate.suppressed.length > 0) {
+      // The array shape cannot grow a key: the withholding is on the headers, and in full on ?include=suppressed.
+      c.header(DATA_QUALITY_HEADER, [...new Set(spendGate.suppressed.map((x) => x.reason))].join(','));
+      c.header('X-Recommendations-Withheld', String(spendGate.suppressed.length));
+    }
+    if (req.query['include'] === 'suppressed') {
+      return c.json(safeJson({ recommendations: recs, suppressed: spendGate.suppressed, dataQuality: { spendWithheldCount: spendGate.suppressed.length } }));
+    }
     return c.json(safeJson(recs));
   });
 

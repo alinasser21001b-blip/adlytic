@@ -40,12 +40,37 @@ import {
   resolveBenchmarkIndustry,
   toBenchmarkEvaluationOptions,
 } from "../../knowledge/industryRouting";
+import {
+  EVIDENCE_WINDOWS,
+  evaluateEntityWindow,
+  isSpendDependentIssueCode,
+  spendDependenceOfRecommendation,
+  withholdSpendDerivedMetrics,
+  SPEND_DERIVED_KB_METRICS,
+  type SpendGateReason,
+} from "../../lib/spendEvidence";
 
 export interface RecommendationOptions {
   /** "as of" date for the run. Matches what Rules wrote. */
   asOf?: Date;
   /** Override the composition table — useful for tests. */
   rules?: CompositionRule[];
+}
+
+/**
+ * What this run left out because the spend it would have used is not verified
+ * (IQD only; src/lib/spendEvidence.ts). ABSENT when nothing was withheld, so a clean
+ * or non-IQD run returns exactly what it always did.
+ */
+export interface RecommendationSpendEvidence {
+  reason: SpendGateReason;
+  window: { from: string | null; to: string | null; rows: number; unverified: number; overscaled: number };
+  /** Detected issues dropped before composition (e.g. RISING_COST_PER_RESULT). */
+  withheldIssueCodes: string[];
+  /** Knowledge-base metrics not evaluated (cpm, cpc, cost_per_message …). */
+  withheldMetrics: string[];
+  /** The composed recommendation itself depended on spend and was not written. */
+  recommendationWithheld: boolean;
 }
 
 export interface RecommendationResult {
@@ -55,6 +80,7 @@ export interface RecommendationResult {
   recommendation: RecommendationRecord | null;
   ok: boolean;
   error?: string;
+  spendEvidence?: RecommendationSpendEvidence;
 }
 
 export class RecommendationEngine {
@@ -83,11 +109,26 @@ export class RecommendationEngine {
         where: { entityType, entityId, date },
       });
 
-      const codes = (issues as any[]).map(i => i.issueCode as IssueCode);
+      // SPEND EVIDENCE. A recommendation that rests on spend (cost per result, CPM/CPC/
+      // cost-per-message, budget pacing) is composed only from spend that is verified.
+      // For an IQD window holding unverified or over-scaled rows those inputs are left out
+      // BEFORE composition: the spend-dependent detected issues, and the spend-derived
+      // knowledge-base metrics. Recommendations that do not rest on spend (fatigue,
+      // frequency, CTR) are composed exactly as before.
+      const spendWindow = await evaluateEntityWindow(this.prisma, entityType, entityId, asOf, EVIDENCE_WINDOWS.engine);
+      const spendWithheld = spendWindow.clean ? null : spendWindow.reason;
+
+      const allCodes = (issues as any[]).map(i => i.issueCode as IssueCode);
+      const codes = spendWithheld ? allCodes.filter((c) => !isSpendDependentIssueCode(c)) : allCodes;
+      const withheldIssueCodes = allCodes.filter((c) => !codes.includes(c));
       const chosen = matchCompositionRule(codes, rules);
 
       // Meta Ads KB FIRST — attach verbatim actions when live metrics breach thresholds.
-      const metrics = await this.loadCampaignMetrics(entityType, entityId, asOf);
+      const rawMetrics = await this.loadCampaignMetrics(entityType, entityId, asOf);
+      const metrics = spendWithheld ? withholdSpendDerivedMetrics(rawMetrics) : rawMetrics;
+      const withheldMetrics = spendWithheld
+        ? Object.keys(rawMetrics).filter((k) => SPEND_DERIVED_KB_METRICS.has(k) && rawMetrics[k] != null)
+        : [];
       const industry =
         entityType === EntityType.ACCOUNT
           ? await resolveBenchmarkIndustry(this.prisma, { adAccountId: entityId })
@@ -121,6 +162,28 @@ export class RecommendationEngine {
           sourceIssues: chosen.requiredIssues,
           details: null,
         };
+      }
+
+      // Safety net: whatever was composed, a recommendation that still rests on spend
+      // (by its action code, its source issues or its knowledge-base metric) is not written.
+      let recommendationWithheld = false;
+      if (spendWithheld && recommendation &&
+          spendDependenceOfRecommendation({ actionCode: recommendation.actionCode, sourceIssues: recommendation.sourceIssues, details: recommendation.details }).dependent) {
+        recommendation = null;
+        recommendationWithheld = true;
+      }
+
+      if (spendWithheld && (withheldIssueCodes.length > 0 || withheldMetrics.length > 0 || recommendationWithheld)) {
+        const evidence: RecommendationSpendEvidence = {
+          reason: spendWithheld,
+          window: { from: spendWindow.from, to: spendWindow.to, rows: spendWindow.rows, unverified: spendWindow.unverified, overscaled: spendWindow.overscaled },
+          withheldIssueCodes, withheldMetrics, recommendationWithheld,
+        };
+        result.spendEvidence = evidence;
+        // A recommendation that survives says, on the row itself, what it was composed without.
+        if (recommendation) {
+          recommendation = { ...recommendation, details: { ...(recommendation.details ?? {}), spendEvidence: evidence } };
+        }
       }
 
       await this.repo.replaceForDate({

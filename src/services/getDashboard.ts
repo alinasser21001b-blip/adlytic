@@ -108,6 +108,19 @@ import { resolveAccountResultKey } from "../analytics/accountResultKey";
 import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { issueEvidenceFieldsFromJson } from "../analytics/evidence";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
+import {
+  evaluateSpendWindow,
+  flagFromWindow,
+  isIqd,
+  isSpendDependentIssueCode,
+  notApplicable,
+  partitionRecommendationsBySpendEvidence,
+  withholdSpendDerivedMetrics,
+  SPEND_SCALE_UNVERIFIED,
+  type SpendGateReason,
+  type SpendScaleFlag,
+  type SpendWindowEvidence,
+} from "../lib/spendEvidence";
 
 // ── Lazy-initialized standalone Prisma client (used when no client is passed in).
 // When getDashboard is called from the HTTP server, the server's own prisma
@@ -417,6 +430,19 @@ export interface DashboardDTO {
   predictions?: PredictionsDTO;
   aiRecommendations?: AIRecommendationsDTO;
   weeklyReport?: WeeklyReportDTO;
+
+  /**
+   * Data-quality signal (additive; present ONLY when the 30-day window holds IQD spend that
+   * is unverified or proven ×100 — never for another currency or a fully verified window).
+   * `flags` carries the same SPEND_SCALE_UNVERIFIED / SPEND_SCALE_OVERSCALED code the
+   * data-health check uses, for this read's window. `withheld` names every spend-dependent
+   * surface of THIS dashboard that was left out because of it — none is silent.
+   * src/lib/spendEvidence.ts · delivery/core/SPEND_EVIDENCE_GATING.md
+   */
+  dataQuality?: {
+    flags: SpendScaleFlag[];
+    withheld: Array<{ surface: "priorityAction" | "issues" | "knowledgeBase" | "drain" | "forecast" | "bleedAlert" | "steadyState"; reason: SpendGateReason; detail?: string }>;
+  };
 }
 
 /** Stable-account snapshot for Main Move + AI Assistant when no actions are pending. */
@@ -842,6 +868,14 @@ function dimensionLabel(key: string, ar: boolean): string {
   return ar ? 'المنصات' : 'platform';
 }
 
+/** The verdict used when the evidence cannot be read: an IQD window is then NOT clean (never shown on a guess). */
+function spendEvidenceUnreadable(currency: string, since: Date): SpendWindowEvidence {
+  const from = since.toISOString().slice(0, 10);
+  return isIqd(currency)
+    ? { applies: true, level: 'ACCOUNT', from, to: null, rows: 0, verified: 0, overscaled: 0, unverified: 0, clean: false, reason: SPEND_SCALE_UNVERIFIED, periods: [] }
+    : notApplicable('ACCOUNT', from, null);
+}
+
 export async function getDashboard(
   workspaceId: string,
   opts: { locale?: Locale; windowDays?: number; prisma?: PrismaClient } = {}
@@ -887,7 +921,7 @@ export async function getDashboard(
   const priorSinceDate = accountLocalDateFloor(account.timezone, windowDays * 2);
 
   // 2. Independent account reads in parallel (biggest latency win).
-  const [allDaily, healthRow, detected, latestTrend, rec, accountFunnel] = await Promise.all([
+  const [allDaily, healthRow, detected, latestTrend, recStored, accountFunnel, spendWindow] = await Promise.all([
     timedStage('accountDailyStats', () =>
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
@@ -926,7 +960,39 @@ export async function getDashboard(
     softStage('funnel', null, () =>
       buildAccountFunnel(account.id, prisma).catch(() => null),
     ),
+    // Spend evidence for the window every spend-dependent surface below is computed from
+    // (IQD only — src/lib/spendEvidence.ts). Unreadable evidence is treated as unverified:
+    // the spend-dependent surfaces are withheld, never shown on a guess.
+    softStage('spendEvidence', spendEvidenceUnreadable(account.currency, sinceDate), () =>
+      evaluateSpendWindow(prisma, account, sinceDate, null, 'ACCOUNT').catch(() => spendEvidenceUnreadable(account.currency, sinceDate)),
+    ),
   ]);
+
+  // ── Spend-evidence gate. `spendGated` is false for every non-IQD account and for a window
+  // whose spend is fully verified — in both cases nothing below differs from before.
+  const spendGated = spendWindow.applies && !spendWindow.clean;
+  const spendReason: SpendGateReason = spendWindow.reason ?? SPEND_SCALE_UNVERIFIED;
+  const spendWithheldSurfaces: NonNullable<DashboardDTO["dataQuality"]>["withheld"] = [];
+
+  // The stored recommendation the priority action is built from: the best one that does not
+  // rest on unverified spend. (The common case — nothing withheld — is the single row loaded
+  // above, untouched.)
+  let rec = recStored;
+  if (recStored) {
+    const first = await partitionRecommendationsBySpendEvidence(prisma, [recStored]);
+    if (first.suppressed.length > 0) {
+      const candidates = await prisma.recommendation.findMany({
+        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+        orderBy: [{ priority: "desc" }, { date: "desc" }],
+        take: 25,
+      });
+      const part = await partitionRecommendationsBySpendEvidence(prisma, candidates);
+      rec = part.kept[0] ?? null;
+      for (const sup of part.suppressed) {
+        spendWithheldSurfaces.push({ surface: "priorityAction", reason: sup.reason, detail: sup.actionCode });
+      }
+    }
+  }
 
   // Reconciled cross-engine intelligence — computed here, immediately after
   // accountFunnel resolves, so it is available before detected_issues is
@@ -949,9 +1015,16 @@ export async function getDashboard(
       )
     : undefined;
   const suppressedIssueCodes = new Set(accountIntelligence?.suppressedIssueCodes ?? []);
-  const detectedFiltered = suppressedIssueCodes.size
-    ? (detected as any[]).filter((d) => !suppressedIssueCodes.has(d.issueCode))
+  const detectedFiltered = suppressedIssueCodes.size || spendGated
+    ? (detected as any[]).filter((d) => !suppressedIssueCodes.has(d.issueCode) && !(spendGated && isSpendDependentIssueCode(d.issueCode)))
     : detected;
+  if (spendGated) {
+    for (const d of detected as any[]) {
+      if (isSpendDependentIssueCode(d.issueCode) && !suppressedIssueCodes.has(d.issueCode)) {
+        spendWithheldSurfaces.push({ surface: "issues", reason: spendReason, detail: String(d.issueCode) });
+      }
+    }
+  }
 
   const sinceMs = sinceDate.getTime();
   const daily = allDaily.filter((d) => d.date.getTime() >= sinceMs);
@@ -1119,7 +1192,7 @@ export async function getDashboard(
   // Account-level dashboard has mixed objectives; keep shared delivery metrics
   // (ctr/cpm/frequency) and only include cost_per_message when messages exist.
   // Per-campaign objective filtering happens in campaign inspector / brain path.
-  const kbMetrics: CampaignMetrics = {
+  const kbMetricsAll: CampaignMetrics = {
     ctr: ctrWindow,
     cpm: cpmWindow,
     frequency: freqAvg,
@@ -1127,6 +1200,12 @@ export async function getDashboard(
       ? { cost_per_message: totalSpendMajor / totalMsgs }
       : {}),
   };
+  // cpm / cost_per_message are spend-derived: not evaluated while the window's spend is unverified.
+  const kbMetrics: CampaignMetrics = spendGated ? withholdSpendDerivedMetrics(kbMetricsAll) : kbMetricsAll;
+  if (spendGated) {
+    const dropped = evaluateCampaign(kbMetricsAll).filter((b) => !evaluateCampaign(kbMetrics).some((k) => k.metricKey === b.metricKey));
+    for (const b of dropped) spendWithheldSurfaces.push({ surface: "knowledgeBase", reason: spendReason, detail: b.metricKey });
+  }
   const kbBreaches = evaluateCampaign(kbMetrics);
   const resolvedIndustry = resolveBenchmarkIndustryFromContext({ workspace: ws });
   const benchmarkInsights = evaluateBenchmarks(
@@ -1239,15 +1318,16 @@ export async function getDashboard(
   const totalConversions = accountResultsSingleUnit ?? 0;
   const signals: Signals = {
     ctrTrend: (latestTrend as any)?.ctrTrend ?? null,
-    cpmTrend: (latestTrend as any)?.cpmTrend ?? null,
+    cpmTrend: spendGated ? null : (latestTrend as any)?.cpmTrend ?? null,
     frequencyTrend: (latestTrend as any)?.frequencyTrend ?? null,
     resultsTrend: (latestTrend as any)?.resultsTrend ?? null,
-    spendTrend: (latestTrend as any)?.spendTrend ?? null,
+    spendTrend: spendGated ? null : (latestTrend as any)?.spendTrend ?? null,
     currentCtr: ctrWindow,
-    currentCpm: cpmWindow,
+    currentCpm: spendGated ? null : cpmWindow,
     currentFrequency: freqAvg,
     currentResults: totalConversions,
     currentSpend: totalSpendMinor,
+    ...(spendGated ? { spendWithheld: spendReason } : {}),
   };
   const diagnoses = diagnose(issueRecords, signals);
 
@@ -1476,7 +1556,8 @@ export async function getDashboard(
   const drainRaw = computePerformanceDrain(
     completeDaily.map((d) => ({ spend: Number(d.spend), messages: Number(d.messages) })),
   );
-  const drain = drainRaw
+  if (spendGated && drainRaw) spendWithheldSurfaces.push({ surface: "drain", reason: spendReason });
+  const drain = drainRaw && !spendGated
     ? {
         weeklyExcessMinor: drainRaw.weeklyExcessMinor,
         display: locale === Locale.AR
@@ -1593,7 +1674,8 @@ export async function getDashboard(
   const ar = locale === Locale.AR;
 
   const forecastRaw = computeForecast(drainRows, nowUtc);
-  const forecast = forecastRaw && forecastRaw.daysLeft > 0
+  if (spendGated && forecastRaw && forecastRaw.daysLeft > 0) spendWithheldSurfaces.push({ surface: "forecast", reason: spendReason });
+  const forecast = forecastRaw && forecastRaw.daysLeft > 0 && !spendGated
     ? {
         text: ar
           ? `بالوتيرة الحالية: متوقع تُنهي الشهر بإنفاق ~${money(forecastRaw.projectedSpendMinor)} و~${forecastRaw.projectedMessages.toLocaleString()} رسالة (${forecastRaw.daysLeft} يوم متبقٍ).`
@@ -1602,7 +1684,8 @@ export async function getDashboard(
     : null;
 
   const bleedRaw = detectBleed(drainRows, nowUtc);
-  const bleedAlert = bleedRaw
+  if (spendGated && bleedRaw) spendWithheldSurfaces.push({ surface: "bleedAlert", reason: spendReason });
+  const bleedAlert = bleedRaw && !spendGated
     ? {
         text: ar
           ? `⚠️ اليوم: صرفت ${money(bleedRaw.spendTodayMinor)} حتى الآن بدون أي رسالة — افحص حملاتك النشطة.`
@@ -1666,18 +1749,23 @@ export async function getDashboard(
     (brain?.cmoFeedV2 ?? []).some((it) => it.generatedAt);
 
   const roasAvg = avg(daily, "roas");
+  if (spendGated && !hasActionItems && (cpmWindow != null || totalMsgs > 0 || roasAvg != null)) {
+    spendWithheldSurfaces.push({ surface: "steadyState", reason: spendReason, detail: "cpa,cpm,roas benchmarks" });
+  }
   const steadyState = !hasActionItems
     ? buildSteadyStateSummary({
         locale,
         currency: curr,
         factor,
         ctr: ctrWindow,
-        cpm: cpmWindow,
+        // Cost verdicts ("above CPA target", "CPM elevated", "below ROAS target") are advice from spend:
+        // left out of the steady-state benchmarks while the window's spend is unverified.
+        cpm: spendGated ? null : cpmWindow,
         costPerMessage:
-          totalMsgs > 0
+          totalMsgs > 0 && !spendGated
             ? (factor === 1 ? totalSpendMinor : totalSpendMinor / factor) / totalMsgs
             : null,
-        roas: roasAvg,
+        roas: spendGated ? null : roasAvg,
         healthScore: score,
         healthBand: band(score),
         activeCampaigns,
@@ -1771,6 +1859,9 @@ export async function getDashboard(
     ...(predictions && { predictions }),
     ...(aiRecommendations && { aiRecommendations }),
     ...(weeklyReport && { weeklyReport }),
+    ...(spendGated && {
+      dataQuality: { flags: [flagFromWindow(spendWindow)].filter((f): f is SpendScaleFlag => f !== null), withheld: spendWithheldSurfaces },
+    }),
   };
 }
 

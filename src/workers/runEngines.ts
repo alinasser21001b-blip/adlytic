@@ -43,11 +43,21 @@ export async function runEngines(
     const rulesEngine = new RulesEngine(prisma);
     const rResult = await rulesEngine.run(EntityType.ACCOUNT, adAccountId, { asOf: now });
     console.log(`${tag} Rules done — issues fired: ${(rResult as any)?.issuesFired ?? '?'}`);
+    if (rResult.spendWithheld) {
+      console.log(`${tag} spend-derived signals WITHHELD (${rResult.spendWithheld}): spendTrend, cpmTrend, currentCpm — RISING_COST_PER_RESULT cannot be detected`);
+    }
 
     console.log(`${tag} Running recommendation engine…`);
     const recommendationEngine = new RecommendationEngine(prisma);
-    await recommendationEngine.run(EntityType.ACCOUNT, adAccountId, { asOf: now });
+    const recResult = await recommendationEngine.run(EntityType.ACCOUNT, adAccountId, { asOf: now });
     console.log(`${tag} Recommendation done`);
+    if (recResult.spendEvidence) {
+      const e = recResult.spendEvidence;
+      console.log(
+        `${tag} spend-based inputs WITHHELD (${e.reason}): ${e.window.unverified} unverified + ${e.window.overscaled} over-scaled of ${e.window.rows} ` +
+        `account row(s) in ${e.window.from}..${e.window.to}; issues=[${e.withheldIssueCodes.join(',')}] metrics=[${e.withheldMetrics.join(',')}] recommendationWithheld=${e.recommendationWithheld}`,
+      );
+    }
 
     console.log(`${tag} Running health engine…`);
     const healthEngine = new HealthScoreEngine(prisma);

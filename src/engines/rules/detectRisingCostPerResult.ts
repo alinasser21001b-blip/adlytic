@@ -29,6 +29,8 @@ import { severityFromMagnitude } from "./severity";
 const COST_PER_RESULT_DIVERGENCE = 0.15;
 
 export const detectRisingCostPerResult: Detector = (s) => {
+  // Cost per result IS spend over results: with unverified spend there is no cost to compare.
+  if (s.spendWithheld) return null;
   if (s.resultsTrend == null || s.spendTrend == null) return null;
   const divergence = s.resultsTrend - s.spendTrend;
   if (divergence > -COST_PER_RESULT_DIVERGENCE) return null;

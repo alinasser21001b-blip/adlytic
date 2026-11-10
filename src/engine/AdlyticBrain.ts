@@ -11,6 +11,7 @@ import {
   type RuleGrounding,
 } from '../engines/rules/ruleGrounding';
 import type { Signals } from '../engines/rules/types';
+import { BRAIN_SPEND_DEPENDENT_ACTIONS, type SpendGateReason } from '../lib/spendEvidence';
 
 // ── V2 wiring ────────────────────────────────────────────────────────────
 import type {
@@ -32,6 +33,32 @@ import { evaluateCreativeResonance } from './v2/CreativeResonanceEngine';
 export interface BrainGroundingInputs {
   /** Real period-over-period Signals (from loadCampaignSignalsBatch). */
   periodSignals?: Signals | null;
+  /**
+   * Set when the spend the Brain reads for this campaign is not verified (IQD; the
+   * orchestrator evaluates it — src/lib/spendEvidence.ts). Every verdict that rests on
+   * cost (scale, pause, rescue, creative refresh by physics score, the spend-velocity
+   * emergency) is then withheld and said so; absent/null changes nothing.
+   */
+  spendWithheld?: SpendGateReason | null;
+}
+
+/**
+ * Pure. Replace a spend-dependent verdict with HOLD_AND_MONITOR, keeping the original in
+ * `overriddenAction` (the precedent ruleGrounding already uses) and saying why in `reason`
+ * and `spendEvidence`. Verdicts that do not rest on spend (HOLD_AND_MONITOR,
+ * KEEP_COLLECTING) are returned untouched. The Brain's score blends cost-per-message into
+ * every verdict, so there is no spend-free remainder of a physics decision to keep.
+ */
+export function withholdSpendDependentDecision(decision: CampaignDecision, reason: SpendGateReason): CampaignDecision {
+  if (!BRAIN_SPEND_DEPENDENT_ACTIONS.has(decision.action)) return decision;
+  return {
+    campaignId: decision.campaignId,
+    action: 'HOLD_AND_MONITOR',
+    priority: 'NORMAL',
+    reason: `[${reason}] Withheld: the spend this verdict was computed from is not verified against raw Meta data, so "${decision.action}" is not issued. Original reasoning: ${decision.reason}`,
+    overriddenAction: decision.action,
+    spendEvidence: { withheld: true, reason, withheldAction: decision.action },
+  };
 }
 
 /**
@@ -97,6 +124,11 @@ export function runBrainForCampaign(
 
   // Layer 4: Decision Engine — الترجمة إلى Action قابل للتنفيذ (يبقى أعمى ونقياً)
   let decision = decideCampaignAction(physics, confidence, pattern, recovery);
+  const spendWithheld = groundingInputs?.spendWithheld ?? null;
+  // Withhold BEFORE rule grounding: grounding may still raise a creative-fatigue refresh on
+  // frequency/CTR evidence, which does not rest on spend (its spend-derived signals are
+  // already nulled by the signals loader).
+  if (spendWithheld) decision = withholdSpendDependentDecision(decision, spendWithheld);
 
   // Layer 4b: Rule grounding — prefer real period Signals when available;
   // otherwise absolute-only snapshot (no fabricated trends).
@@ -139,13 +171,15 @@ export function runBrainForCampaign(
     // ── Emergency Override: Layer 10 outranks Layer 4 ───────────────────
     // The orchestrator (not DecisionEngine) is the only place this can fire.
     if (velocity.emergencyOverride) {
-      decision = {
+      const emergency: CampaignDecision = {
         campaignId: decision.campaignId,
         action: 'EMERGENCY_PAUSE',
         priority: 'CRITICAL',
         reason: `[تجاوز طوارئ — إنفاق مرتفع]: ${decision.reason} | سرعة الإنفاق مرتفعة جداً.`,
         overriddenAction: decision.action,
       };
+      // The velocity override IS spend (spent-so-far against budget): never issued on unverified spend.
+      decision = spendWithheld ? withholdSpendDependentDecision(emergency, spendWithheld) : emergency;
     }
   }
 

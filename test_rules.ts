@@ -209,7 +209,9 @@ const mockPrisma: any = {
   recommendation: { create: () => { throw new Error("VIOLATION: rules wrote recommendations"); } },
   healthScore:   { create: () => { throw new Error("VIOLATION: rules wrote health_scores"); } },
   knowledgeRule: { create: () => { throw new Error("VIOLATION: rules wrote knowledge_rules"); } },
-  adAccount:     { update: () => { throw new Error("VIOLATION: rules wrote ad_accounts"); } },
+  // Read-only lookup of the account's currency (spend-evidence gate, src/lib/spendEvidence.ts): USD = not gated.
+  adAccount:     { findFirst: async ({ where }: any) => ({ id: where.id, currency: "USD" }),
+                   update: () => { throw new Error("VIOLATION: rules wrote ad_accounts"); } },
 };
 
 async function main() {

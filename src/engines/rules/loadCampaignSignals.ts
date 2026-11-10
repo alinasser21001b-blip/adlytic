@@ -20,11 +20,19 @@ import type { Signals } from './types';
 import { resolveCampaignPurpose } from '../../lib/campaignPurpose';
 import { resultFor } from '../../analytics/resultSemantics';
 import type { ObjectiveKpiFamily } from '../../lib/objectiveKpis';
+import type { SpendGateReason } from '../../lib/spendEvidence';
 
 export interface LoadCampaignSignalsOptions {
   asOf?: Date;
   windowDays?: number;
   attributionLagDays?: number;
+  /**
+   * The caller's spend-evidence verdict for these campaigns (src/lib/spendEvidence.ts):
+   * a reason when the window's spend is unverified, null/omitted when it is clean or the
+   * account is not IQD. When set, every spend-derived signal (spendTrend, cpmTrend,
+   * currentCpm) is nulled and `spendWithheld` is stamped, so no detector reasons from them.
+   */
+  spendWithheld?: SpendGateReason | null;
 }
 
 /**
@@ -161,20 +169,22 @@ export async function loadCampaignSignalsBatch(
       spendSum += p.spend;
     }
 
+    const spendWithheld = opts.spendWithheld ?? null;
     out.set(campaignId, {
       purposeFamily: purpose.family,
       ctrTrend: calculateCtrTrend(current, prior),
-      cpmTrend: calculateCpmTrend(current, prior),
+      cpmTrend: spendWithheld ? null : calculateCpmTrend(current, prior),
       frequencyTrend: calculateFrequencyTrend(current, prior),
       resultsTrend: calculateResultsTrend(current, prior, resultDef.resultKey),
-      spendTrend: calculateSpendTrend(current, prior),
+      spendTrend: spendWithheld ? null : calculateSpendTrend(current, prior),
       currentCtr: impTotal > 0 ? +(ctrNum / impTotal).toFixed(4) : null,
-      currentCpm: impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,
+      currentCpm: spendWithheld ? null : impTotal > 0 ? +(cpmNum / impTotal).toFixed(4) : null,
       currentFrequency: freqVals.length
         ? +(freqVals.reduce((a, b) => a + b, 0) / freqVals.length).toFixed(4)
         : null,
       currentResults: resultsSum,
       currentSpend: spendSum,
+      ...(spendWithheld ? { spendWithheld } : {}),
     });
   }
 

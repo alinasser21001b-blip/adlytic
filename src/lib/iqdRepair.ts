@@ -33,10 +33,11 @@
 
 import { EntityType, Prisma, type PrismaClient } from "@prisma/client";
 import { currencyMinorFactorFor } from "./currency";
-
-/** Over-scale is exactly ×100 (the schema default factor applied to an IQD major). */
-const OVERSCALE_DIVISOR = 100;
-const OVERSCALE_TOLERANCE = 0.02;
+// The evidence rule itself lives in a pure, read-only module that the spend-evidence
+// gate (src/lib/spendEvidence.ts) shares, so the repair and the gate cannot drift.
+import { OVERSCALE_DIVISOR, judgeDayAgainstRaws, judgeSpendScale, parseMetaSpend, type ScaleVerdict } from "./spendScaleRule";
+export { judgeSpendScale, parseMetaSpend };
+export type { ScaleVerdict };
 /** Only the entity levels the old repair covered. Ad-set / ad rows are NOT repaired. */
 const COVERED_ENTITY_TYPES = [EntityType.ACCOUNT, EntityType.CAMPAIGN] as const;
 const ID_CHUNK = 500;
@@ -46,33 +47,6 @@ const TX_MAX_WAIT_MS = 10_000;
 // `$queryRaw` because the evidence is ONE number inside a JSON payload: selecting
 // raw_json whole would pull the heaviest table in the database into memory.
 type Reader = Pick<PrismaClient, "dailyStat" | "campaign" | "$queryRaw">;
-
-export type ScaleVerdict = "OVERSCALED" | "VERIFIED" | "UNVERIFIABLE";
-
-/** Raw Meta `spend` (account-currency MAJOR units) from a raw_insights payload, or null. */
-export function parseMetaSpend(rawJson: unknown): number | null {
-  if (!rawJson || typeof rawJson !== "object") return null;
-  const v = (rawJson as Record<string, unknown>)["spend"];
-  if (v === null || v === undefined || v === "") return null;
-  const n = typeof v === "number" ? v : parseFloat(String(v));
-  return Number.isFinite(n) && n >= 0 ? n : null;
-}
-
-/**
- * Pure. For an IQD account (canonical factor 1) is the stored minor spend what
- * raw Meta says (VERIFIED), exactly 100× that (OVERSCALED), or neither
- * (UNVERIFIABLE)? Missing or invalid evidence is UNVERIFIABLE — never a guess.
- */
-export function judgeSpendScale(storedMinor: number, rawMetaSpendMajor: number | null): ScaleVerdict {
-  if (rawMetaSpendMajor == null || !Number.isFinite(rawMetaSpendMajor) || rawMetaSpendMajor < 0) return "UNVERIFIABLE";
-  if (!Number.isFinite(storedMinor) || storedMinor < 0) return "UNVERIFIABLE";
-  const expected = Math.round(rawMetaSpendMajor); // IQD factor is 1
-  if (Math.abs(storedMinor - expected) <= 1) return "VERIFIED";
-  if (rawMetaSpendMajor > 0 && Math.abs(storedMinor / (rawMetaSpendMajor * OVERSCALE_DIVISOR) - 1) < OVERSCALE_TOLERANCE) {
-    return "OVERSCALED";
-  }
-  return "UNVERIFIABLE";
-}
 
 export interface ScaleEvidenceRow {
   statId: string;
@@ -176,23 +150,14 @@ export async function collectScaleEvidence(
         const key = `${s.entityId}|${dayKey(s.date)}`;
         const seen = spendsByKey.get(key) ?? [];
         const stored = Number(s.spend);
-        let verdict: ScaleVerdict;
         // "Equal to SOME raw of the day" verifies a restated day — unless ANOTHER raw of
         // that day proves the stored value is exactly x100 (e.g. [100000 (older), 1000
         // (newer)] with 100000 stored): then the row is contradicted, not certified. It
-        // falls through to the disagreement rule below — unproven, counted, never
-        // rewritten, because we do not guess which fetch is the newer one.
-        const contradictedAsX100 = seen.some((v) => judgeSpendScale(stored, v) === "OVERSCALED");
-        if (!contradictedAsX100 && seen.some((v) => judgeSpendScale(stored, v) === "VERIFIED")) {
-          verdict = "VERIFIED";
-        } else {
-          let evidence: number | null = null;
-          if (seen.length > 0) {
-            const spread = Math.max(...seen) - Math.min(...seen);
-            if (spread > 1) conflicting.add(key); else evidence = seen[0]!;
-          }
-          verdict = judgeSpendScale(stored, evidence);
-        }
+        // is unproven, counted, never rewritten, because we do not guess which fetch is
+        // the newer one. (The rule is shared: src/lib/spendScaleRule.ts.)
+        const judged = judgeDayAgainstRaws(stored, seen);
+        const verdict: ScaleVerdict = judged.verdict;
+        if (judged.conflicting) conflicting.add(key);
         const acct = entityType === EntityType.ACCOUNT ? out.accountRows : null;
         if (verdict === "VERIFIED") { out.verified++; if (acct) acct.verified++; }
         else if (verdict === "UNVERIFIABLE") { out.unverifiable++; if (acct) acct.unverifiable++; }

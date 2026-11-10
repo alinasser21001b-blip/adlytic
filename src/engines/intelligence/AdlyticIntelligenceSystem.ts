@@ -52,6 +52,7 @@ import {
   toBenchmarkEvaluationOptions,
 } from "../../knowledge/industryRouting";
 import type { CampaignMetrics } from "../../knowledge/types";
+import { EVIDENCE_WINDOWS, evaluateEntityWindow, withholdSpendDerivedMetrics } from "../../lib/spendEvidence";
 
 // ── types ────────────────────────────────────────────────────────────────
 
@@ -362,19 +363,26 @@ export class AdlyticIntelligenceSystem {
     // ── Phase 1: signals ────────────────────────────────────────────────
     const signals = this.extractSignals(cur, prior, adAccountId, resultKey);
 
+    // SPEND EVIDENCE (IQD only; src/lib/spendEvidence.ts). The rising-cost rule rests on CPM
+    // (spend ÷ impressions) and the knowledge-base cost metrics on spend: while the window's
+    // spend is unverified neither is evaluated. Fatigue, frequency, CTR and results rules are
+    // unchanged, and a clean window or another currency changes nothing at all.
+    const spendWindow = await evaluateEntityWindow(this.prisma, "ACCOUNT", adAccountId, now, EVIDENCE_WINDOWS.engine);
+    const spendWithheld = !spendWindow.clean;
+
     // ── Phase 2: expert rules ───────────────────────────────────────────
     const issues: IssueRow[] = [
       ruleAudienceFatigue(cur, prior, adAccountId, resultKey),
       ruleLowCtr(cur, adAccountId),
       ruleHighFrequency(cur, adAccountId),
       ruleDecliningResults(cur, prior, adAccountId, resultKey),
-      ruleRisingCostPerResult(cur, prior, adAccountId, resultKey),
+      spendWithheld ? null : ruleRisingCostPerResult(cur, prior, adAccountId, resultKey),
     ].filter((r): r is IssueRow => r !== null);
 
     const healthScore = deriveHealthScore(issues);
 
     // KB FIRST — verbatim recommended_optimization_actions when thresholds breach.
-    const metrics = buildCampaignMetrics(cur);
+    const metrics = spendWithheld ? withholdSpendDerivedMetrics(buildCampaignMetrics(cur)) : buildCampaignMetrics(cur);
     const industry = await resolveBenchmarkIndustry(this.prisma, { adAccountId });
     const kbRecs = metaKnowledgeInsightEngine.deriveRecommendations(
       metrics,

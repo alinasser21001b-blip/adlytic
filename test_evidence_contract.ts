@@ -57,6 +57,8 @@ function makeFakeRulesEnginePrisma(writes: any[], fixture: { trend: any; dailyRo
     metricTrend: { findFirst: async () => fixture.trend },
     dailyStat: { findMany: async () => fixture.dailyRows },
     campaign: { findUnique: async () => null },
+    // Read-only lookup of the account's currency (spend-evidence gate): USD = not gated.
+    adAccount: { findFirst: async ({ where }: any) => ({ id: where.id, currency: 'USD' }) },
     detectedIssue: {
       deleteMany: async (args: any) => { writes.push({ op: 'deleteMany', args }); return { count: 0 }; },
       createMany: async (args: any) => { writes.push({ op: 'createMany', data: args.data }); return { count: args.data.length }; },
