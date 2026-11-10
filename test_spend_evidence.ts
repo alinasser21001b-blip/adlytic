@@ -457,6 +457,7 @@ async function main() {
       },
       campaign: { findFirst: ev.campaign.findFirst },
       adAccount: { findFirst: ev.adAccount.findFirst },
+      workspaceMember: { findFirst: async () => ({ role: 'OWNER' }) },   // the tool's role gate (recommendation-write-auth) runs first
     };
     return { db, table };
   }
