@@ -44,7 +44,7 @@ Row B is the price of choosing A: a viewer no longer fixes data by looking at it
 
 ## 4. Limits the owner should know
 
-1. Repair covers **account and campaign** rows (as before). **Ad-set and ad rows are not repaired** (they never were).
+1. **In production the evidence-based repair can only fix ACCOUNT-level rows.** Sync appends `raw_insights` at account level only (`src/workers/syncAccount.ts:364` and `:1684`), so campaign, ad-set and ad rows have **no** raw counterpart: they can be neither verified nor proven ×100, and the repair leaves them intact (the magnitude/CPM heuristic that used to rescale campaign rows is gone on purpose). What re-derives **campaign** rows is the 90-day backfill that `POST …/repair-iqd` enqueues after the repair — it re-fetches from Meta with the canonical factor, so campaign rows inside that window are rewritten from the source and older ones stay as stored. A campaign-level ×100 next to a corrected account total shows up as the `ACCOUNT_CAMPAIGN_DIVERGENCE` check. (The tests seed campaign-level raws to exercise the code path; production does not have them.)
 2. Rows older than `RAW_INSIGHTS_RETAIN_DAYS` (90) have no evidence and are **left as stored**. The warning does **not** clear when the factor flips to 1 (it follows the rows); `spendScale.history.withoutEvidence` reports how many account-level rows of all time have no raw counterpart. A persisted per-row "unverified" mark would need a schema change (gated).
 3. A row is only rewritten if its *spend* is proven ×100; cpc/cpm/cost-per-message/revenue of that row are divided with it (same mapper scaling).
 4. The other mutating GET (`data-health?cleanup=true`, which deleted every tenant's orphaned stats) is **fixed**: see `DATA_HEALTH_ISOLATION.md`.
