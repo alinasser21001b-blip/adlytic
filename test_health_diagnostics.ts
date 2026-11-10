@@ -1,14 +1,20 @@
 // ═════════════════════════════════════════════════════════════════════════
 //  test_health_diagnostics.ts
 //
-//  GET /api/health must (1) tell different database failures apart, (2) never
-//  say "ok" for a database the app cannot use, (3) keep every field existing
-//  consumers read, and (4) never leak driver text.
+//  GET /api/health must (1) tell different database failures apart — IN THE
+//  SERVER LOG, (2) never say "ok" for a database the app cannot use, (3) keep
+//  EXACTLY the public fields verify-live.yml and the platform read, and
+//  (4) never leak driver text, in the body or in any log line.
 //
 //  Reproduced beforehand with scripts/repro/health_matrix.ts against a real
 //  local Postgres: four different failures returned the identical 503 and
 //  logged nothing; an empty schema returned 200 "ok" while queries failed with
 //  P2021. The error shapes used below are the ones that run actually produced.
+//
+//  Owner decisions applied here: the reason (dbReason) lives in sanitised
+//  internal logs only — never in the public JSON; the public body keeps the
+//  legacy keys and nothing else. Release readiness (migration identities,
+//  required tables) is covered by test_health_migration_gate.ts.
 //
 //  No database, Redis or network: the Prisma client is a fake that answers only
 //  what the health path asks.
@@ -18,7 +24,7 @@ process.env['NODE_ENV'] = process.env['NODE_ENV'] ?? 'test';
 process.env['JWT_SECRET'] = process.env['JWT_SECRET'] ?? 'test-jwt-secret-at-least-32-chars-long-xxxx';
 process.env['DATABASE_URL'] = process.env['DATABASE_URL'] ?? 'postgresql://user:pass@localhost:5432/adlytic_test';
 
-import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, rmSync, readdirSync, readFileSync, statSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
@@ -35,30 +41,45 @@ const adapterErr = (kind: string, extra: Record<string, unknown> = {}) => Object
   { name: 'PrismaClientKnownRequestError', code: 'P2010', meta: { driverAdapterError: { name: 'DriverAdapterError', cause: { kind, ...extra } } } },
 );
 
-type Row = Record<string, unknown>;
-/** Fake client: `$queryRaw` is a tagged template; route by the SQL text. */
+/** Fake client: `$queryRaw` is a tagged template; route by the SQL text. A complete, correct database by default. */
 function fakePrisma(o: {
-  liveness?: 'ok' | Error;
-  rel?: { core: boolean; history: boolean } | Error;
-  counts?: { applied: number; failed: number };
+  liveness?: Error;
+  tables?: string[] | Error;
+  history?: Array<{ name: string; finished?: boolean }> | Error;
   calls?: { n: number };
 }) {
   return {
-    $queryRaw: async (strings: TemplateStringsArray): Promise<Row[]> => {
+    $queryRaw: async (strings: TemplateStringsArray): Promise<Array<Record<string, unknown>>> => {
       if (o.calls) o.calls.n++;
       const sql = strings.join(' ');
-      if (/SELECT\s+1\b/.test(sql) && !/to_regclass/.test(sql)) {
+      if (/pg_tables/.test(sql)) {
+        if (o.tables instanceof Error) throw o.tables;
+        return (o.tables ?? [...SCHEMA_TABLES, '_prisma_migrations']).map((name) => ({ name }));
+      }
+      if (/migration_name/.test(sql)) {
+        if (o.history instanceof Error) throw o.history;
+        return (o.history ?? SHIPPED.map((name): { name: string; finished?: boolean } => ({ name }))).map((r) => ({ name: r.name, finished: r.finished !== false }));
+      }
+      if (/SELECT\s+1\b/.test(sql)) {
         if (o.liveness instanceof Error) throw o.liveness;
         return [{ '?column?': 1 }];
       }
-      if (/to_regclass/.test(sql)) {
-        if (o.rel instanceof Error) throw o.rel;
-        return [o.rel ?? { core: true, history: true }];
-      }
-      if (/_prisma_migrations/.test(sql)) return [o.counts ?? { applied: 41, failed: 0 }];
       throw new Error(`unexpected SQL in fake: ${sql.slice(0, 60)}`);
     },
   } as unknown as import('@prisma/client').PrismaClient;
+}
+
+/** What this build ships and what its schema needs — read from disk without the module under test. */
+const MIG_DIR = path.join(__dirname, 'prisma', 'migrations');
+const SHIPPED = readdirSync(MIG_DIR).filter((n) => statSync(path.join(MIG_DIR, n)).isDirectory() && existsSync(path.join(MIG_DIR, n, 'migration.sql'))).sort();
+const SCHEMA_TABLES: string[] = [];
+{
+  let model: string | null = null; let mapped: string | null = null;
+  for (const line of readFileSync(path.join(__dirname, 'prisma', 'schema.prisma'), 'utf8').split('\n')) {
+    const m = /^model\s+(\w+)\s*\{/.exec(line);
+    if (m) { model = m[1]!; mapped = null; continue; }
+    if (model) { const mm = /@@map\("([^"]+)"\)/.exec(line); if (mm) mapped = mm[1]!; if (/^\}/.test(line)) { SCHEMA_TABLES.push(mapped ?? model); model = null; } }
+  }
 }
 
 async function main() {
@@ -84,47 +105,26 @@ async function main() {
   check('message text alone is NOT trusted → unknown', C(new Error('password authentication failed')) === 'unknown');
   check('null / string / number → unknown', C(null) === 'unknown' && C('boom') === 'unknown' && C(42) === 'unknown');
 
-  // ── 2. expected migrations on disk ───────────────────────────────────
-  console.log('\n── 2. expectedMigrationCount ──');
-  const tmp = mkdtempSync(path.join(tmpdir(), 'adlytic-mig-'));
+  // ── 2. shipped migration identities on disk ──────────────────────────
+  console.log('\n── 2. shippedMigrationNames ──');
   try {
-    for (const n of ['20260101000000_a', '20260102000000_b']) { mkdirSync(path.join(tmp, n)); writeFileSync(path.join(tmp, n, 'migration.sql'), '-- x'); }
-    mkdirSync(path.join(tmp, '20260103000000_no_sql'));            // directory without migration.sql: not a migration
-    writeFileSync(path.join(tmp, 'migration_lock.toml'), 'x');      // file: not a migration
-    check('counts only directories that hold migration.sql', H.expectedMigrationCount([tmp]) === 2, H.expectedMigrationCount([tmp]));
-    check('unreadable directory → null, not 0', H.expectedMigrationCount([path.join(tmp, 'nope')]) === null);
-  } finally { rmSync(tmp, { recursive: true, force: true }); }
-  const real = H.expectedMigrationCount();
-  check('the real prisma/migrations directory is found and non-empty', typeof real === 'number' && real > 0, real);
+    const tmp = mkdtempSync(path.join(tmpdir(), 'adlytic-mig-'));
+    try {
+      for (const n of ['20260101000000_a', '20260102000000_b']) { mkdirSync(path.join(tmp, n)); writeFileSync(path.join(tmp, n, 'migration.sql'), '-- x'); }
+      mkdirSync(path.join(tmp, '20260103000000_no_sql'));            // directory without migration.sql: not a migration
+      writeFileSync(path.join(tmp, 'migration_lock.toml'), 'x');      // file: not a migration
+      const names = H.shippedMigrationNames([tmp]);
+      check('returns the NAMES of directories that hold migration.sql — not a count', JSON.stringify([...(names ?? [])].sort()) === JSON.stringify(['20260101000000_a', '20260102000000_b']), names);
+      check('unreadable directory → null, not an empty list', H.shippedMigrationNames([path.join(tmp, 'nope')]) === null);
+    } finally { rmSync(tmp, { recursive: true, force: true }); }
+    const real = H.shippedMigrationNames();
+    check('the real prisma/migrations directory is found and matches what is on disk', JSON.stringify([...(real ?? [])].sort()) === JSON.stringify(SHIPPED) && SHIPPED.length > 0, real?.length);
+  } catch (e) { fail++; console.log(`  ✗ shippedMigrationNames — threw: ${(e as Error).message}`); }
 
-  // ── 3. schema probe ──────────────────────────────────────────────────
-  console.log('\n── 3. probeSchema ──');
-  const P = (p: import('@prisma/client').PrismaClient, expected: number | null = 41) => H.probeSchema(p, { expected, cacheMs: 0 });
-  check('core table absent → missing', (await P(fakePrisma({ rel: { core: false, history: false } }))).state === 'missing');
-  check('core present, no history table → unknown', (await P(fakePrisma({ rel: { core: true, history: false } }))).state === 'unknown');
-  const okS = await P(fakePrisma({ counts: { applied: 41, failed: 0 } }));
-  check('all shipped migrations applied → ok (applied/expected reported)', okS.state === 'ok' && okS.applied === 41 && okS.expected === 41, okS);
-  const pend = await P(fakePrisma({ counts: { applied: 39, failed: 0 } }));
-  check('fewer applied than shipped → pending', pend.state === 'pending' && pend.applied === 39, pend);
-  check('an unfinished row → failed (even when the count looks complete)', (await P(fakePrisma({ counts: { applied: 41, failed: 1 } }))).state === 'failed');
-  check('shipped count unknown → unknown, never a guess', (await P(fakePrisma({}), null)).state === 'unknown');
-  const errS = await P(fakePrisma({ rel: new Error('boom') }));
-  check('probe error → unknown (never throws into the route)', errS.state === 'unknown' && errS.applied === null, errS);
-
-  const calls = { n: 0 };
-  const cached = fakePrisma({ calls });
-  let t = 1_000_000;
-  await H.probeSchema(cached, { expected: 41, now: () => t, cacheMs: 30_000 });
-  const afterFirst = calls.n;
-  await H.probeSchema(cached, { expected: 41, now: () => t + 5_000, cacheMs: 30_000 });
-  check('a second probe inside the cache window issues no queries', calls.n === afterFirst, calls.n);
-  await H.probeSchema(cached, { expected: 41, now: () => t + 31_000, cacheMs: 30_000 });
-  check('after the window it queries again', calls.n > afterFirst, calls.n);
-
-  // ── 4. the route ─────────────────────────────────────────────────────
-  console.log('\n── 4. GET /api/health ──');
+  // ── 3. the route ─────────────────────────────────────────────────────
+  console.log('\n── 3. GET /api/health ──');
   const LEGACY = ['status', 'service', 'version', 'timestamp', 'db', 'role', 'runsBackgroundSync', 'bullmq', 'build'];
-  const hasLegacy = (b: Record<string, unknown>) => LEGACY.every((k) => k in b);
+  const exactLegacy = (b: Record<string, unknown>) => JSON.stringify(Object.keys(b)) === JSON.stringify(LEGACY);
 
   async function hit(p: import('@prisma/client').PrismaClient) {
     const app = buildRoutes(p);
@@ -135,42 +135,52 @@ async function main() {
       return { status: res.status, body: await res.json() as Record<string, any>, warn };
     } finally { console.warn = origWarn; }
   }
+  const LEAK = /svc|S3CR3T|db\.internal|postgresql:|password/i;
 
   H.__resetDbHealthStateForTests();
-  const healthy = await hit(fakePrisma({ counts: { applied: H.expectedMigrationCount() ?? 0, failed: 0 } }));
-  check('healthy → 200, db ok', healthy.status === 200 && healthy.body['db'] === 'ok' && healthy.body['status'] === 'ok', healthy);
-  check('healthy → schema.state ok', healthy.body['schema']?.state === 'ok', healthy.body['schema']);
-  check('healthy keeps every legacy field', hasLegacy(healthy.body), Object.keys(healthy.body));
-  check('healthy has no dbReason', !('dbReason' in healthy.body));
+  const healthy = await hit(fakePrisma({}));
+  check('healthy → 200, db ok, status ok', healthy.status === 200 && healthy.body['db'] === 'ok' && healthy.body['status'] === 'ok', healthy);
+  check('healthy → public keys are EXACTLY the legacy ones, in order', exactLegacy(healthy.body), Object.keys(healthy.body));
+  check('healthy → no schema block, no dbReason in the body', !('schema' in healthy.body) && !('dbReason' in healthy.body));
+  check('healthy → nothing logged', healthy.warn.length === 0, healthy.warn);
 
   H.__resetDbHealthStateForTests();
   const down = await hit(fakePrisma({ liveness: adapterErr('DatabaseNotReachable') }));
   check('db unreachable → 503, status degraded, db unavailable', down.status === 503 && down.body['status'] === 'degraded' && down.body['db'] === 'unavailable', down);
-  check('db unreachable → dbReason=unreachable', down.body['dbReason'] === 'unreachable', down.body['dbReason']);
-  check('failure body keeps every legacy field', hasLegacy(down.body), Object.keys(down.body));
+  check('db unreachable → public keys are EXACTLY the legacy ones (no dbReason)', exactLegacy(down.body), Object.keys(down.body));
   const bodyText = JSON.stringify(down.body);
-  check('no driver text, host, user or secret in the body', !/svc|S3CR3T|db\.internal|postgresql:|password/i.test(bodyText), bodyText);
+  check('no driver text, host, user or secret in the body', !LEAK.test(bodyText), bodyText);
   check('exactly one server log line, naming the reason', down.warn.length === 1 && /reason=unreachable/.test(down.warn[0] ?? ''), down.warn);
-  check('the log line carries no driver text, host, user or secret', !/svc|S3CR3T|db\.internal|postgresql:|password/i.test(down.warn.join(' ')), down.warn);
+  check('the log line carries no driver text, host, user or secret', !LEAK.test(down.warn.join(' ')), down.warn);
 
   const down2 = await hit(fakePrisma({ liveness: adapterErr('DatabaseNotReachable') }));
-  check('repeat failure inside the minute: still 503 + reason, but NO second log line', down2.status === 503 && down2.body['dbReason'] === 'unreachable' && down2.warn.length === 0, down2.warn);
+  check('repeat failure inside the minute: still 503, but NO second log line', down2.status === 503 && down2.warn.length === 0, down2.warn);
 
-  const auth = await hit(fakePrisma({ liveness: adapterErr('DatabaseAccessDenied') }));
-  const gone = await hit(fakePrisma({ liveness: adapterErr('DatabaseDoesNotExist') }));
-  check('credentials rejected and database dropped are distinguishable', auth.body['dbReason'] === 'auth' && gone.body['dbReason'] === 'database_missing', [auth.body['dbReason'], gone.body['dbReason']]);
+  // The reasons the body used to carry are now readable from the log, one per distinguishable cause.
+  const reasons: Array<[string, Error, string]> = [
+    ['credentials rejected', adapterErr('DatabaseAccessDenied'), 'auth'],
+    ['database dropped', adapterErr('DatabaseDoesNotExist'), 'database_missing'],
+    ['TLS failure', adapterErr('TlsConnectionError'), 'tls'],
+    ['timeout', adapterErr('SocketTimeout'), 'timeout'],
+    ['unclassifiable', new Error('boom'), 'unknown'],
+  ];
+  H.__resetDbHealthStateForTests();
+  for (const [label, err, reason] of reasons) {
+    const r = await hit(fakePrisma({ liveness: err }));
+    check(`${label} → 503, log says reason=${reason}, body carries none of it`, r.status === 503 && r.warn.length === 1 && new RegExp(`reason=${reason}\\b`).test(r.warn[0] ?? '') && exactLegacy(r.body) && !LEAK.test(r.warn.join(' ') + JSON.stringify(r.body)), { warn: r.warn, keys: Object.keys(r.body) });
+  }
 
   H.__resetDbHealthStateForTests();
-  const empty = await hit(fakePrisma({ rel: { core: false, history: false } }));
-  check('reachable database with NO schema → 503 (was a false 200)', empty.status === 503 && empty.body['status'] === 'degraded', empty);
-  check('…and it still says db: "ok" (the database IS reachable) with schema.state=missing', empty.body['db'] === 'ok' && empty.body['schema']?.state === 'missing', empty.body);
+  const empty = await hit(fakePrisma({ tables: [], history: [] }));
+  check('reachable database with NO schema → 503 (was a false 200), db STILL ok', empty.status === 503 && empty.body['status'] === 'degraded' && empty.body['db'] === 'ok', empty);
+  check('…public keys exactly the legacy ones; the detail is in the log only', exactLegacy(empty.body) && empty.warn.length === 1 && /state=missing/.test(empty.warn[0] ?? ''), { keys: Object.keys(empty.body), warn: empty.warn });
 
   H.__resetDbHealthStateForTests();
-  const pending = await hit(fakePrisma({ counts: { applied: 1, failed: 0 } }));
-  check('pending migrations are REPORTED but do not fail the check', pending.status === 200 && pending.body['schema']?.state === 'pending', pending.body['schema']);
+  const pending = await hit(fakePrisma({ history: SHIPPED.slice(0, 1).map((name) => ({ name })) }));
+  check('pending migrations now FAIL the check (503, db ok) — readiness is gated, see test_health_migration_gate.ts', pending.status === 503 && pending.body['db'] === 'ok' && /state=pending/.test(pending.warn[0] ?? ''), pending);
   H.__resetDbHealthStateForTests();
-  const failed = await hit(fakePrisma({ counts: { applied: 41, failed: 1 } }));
-  check('a failed migration row is REPORTED but does not fail the check', failed.status === 200 && failed.body['schema']?.state === 'failed', failed.body['schema']);
+  const failed = await hit(fakePrisma({ history: [...SHIPPED.map((name) => ({ name })), { name: '29990101000000_half', finished: false }] }));
+  check('a failed migration row now FAILS the check (503, db ok)', failed.status === 503 && failed.body['db'] === 'ok' && /state=failed/.test(failed.warn[0] ?? ''), failed);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
