@@ -89,6 +89,61 @@ const RESPONSE_SCHEMA_HINT = `Return JSON with this exact structure:
   "performanceInsight"?: {"ar": string, "en": string} (required when Adlytic live metrics or manual metrics exist)
 }`;
 
+const CTA_LABEL_AR: Record<string, string> = {
+  SHOP_NOW: 'تسوق الآن',
+  LEARN_MORE: 'اعرف المزيد',
+  SIGN_UP: 'سجّل الآن',
+  BOOK_TRAVEL: 'احجز',
+  CONTACT_US: 'تواصل معنا',
+  DOWNLOAD: 'حمّل',
+  GET_OFFER: 'احصل على العرض',
+  GET_QUOTE: 'اطلب عرض سعر',
+  APPLY_NOW: 'قدّم الآن',
+  BUY_NOW: 'اشترِ الآن',
+  ORDER_NOW: 'اطلب الآن',
+  SUBSCRIBE: 'اشترك',
+  WATCH_MORE: 'شاهد المزيد',
+  SEND_MESSAGE: 'أرسل رسالة',
+  WHATSAPP_MESSAGE: 'راسل عبر واتساب',
+  INSTAGRAM_MESSAGE: 'راسل عبر إنستغرام',
+  GET_DIRECTIONS: 'احصل على الاتجاهات',
+  CALL_NOW: 'اتصل الآن',
+  NO_BUTTON: 'بدون زر',
+};
+
+function ctaLabelAr(raw: string | null | undefined): string | undefined {
+  if (!raw) return undefined;
+  const key = String(raw).toUpperCase();
+  return CTA_LABEL_AR[key] || String(raw).replace(/_/g, ' ');
+}
+
+/** Fetch a remote creative thumbnail into base64 for vision analysis. */
+async function fetchThumbnailAsBase64(
+  url: string,
+): Promise<{ base64: string; mimeType: string } | null> {
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { Accept: 'image/*' },
+      redirect: 'follow',
+    });
+    clearTimeout(timer);
+    if (!res.ok) return null;
+    const contentType = (res.headers.get('content-type') || '').split(';')[0].trim();
+    if (contentType && !contentType.startsWith('image/')) return null;
+    const buf = Buffer.from(await res.arrayBuffer());
+    // Cap at ~4MB raw to avoid blowing the OpenAI payload.
+    if (buf.length < 32 || buf.length > 4 * 1024 * 1024) return null;
+    const mimeType = contentType.startsWith('image/') ? contentType : 'image/jpeg';
+    return { base64: buf.toString('base64'), mimeType };
+  } catch (e) {
+    console.warn('[ad-assessor] thumbnail fetch failed:', e);
+    return null;
+  }
+}
+
 function applyAdlyticPrefill(
   data: AssessRequest,
   ctx: AdlyticAssessmentContext,
@@ -108,7 +163,7 @@ function applyAdlyticPrefill(
       next.creative.headline = ctx.creative.headline;
     }
     if (!next.creative.desiredAction && ctx.creative.callToActionType) {
-      next.creative.desiredAction = ctx.creative.callToActionType;
+      next.creative.desiredAction = ctaLabelAr(ctx.creative.callToActionType);
     }
   }
 
@@ -290,6 +345,18 @@ export async function runAdAssessment(
       });
       if (adlyticContext) {
         data = applyAdlyticPrefill(data, adlyticContext);
+        // When the merchant picked an existing campaign, pull the stored
+        // thumbnail so vision analysis works without a re-upload.
+        if (!data.imageBase64 && adlyticContext.creative?.thumbnailUrl) {
+          const fetched = await fetchThumbnailAsBase64(adlyticContext.creative.thumbnailUrl);
+          if (fetched) {
+            data = {
+              ...data,
+              imageBase64: fetched.base64,
+              imageMimeType: fetched.mimeType,
+            };
+          }
+        }
       }
     } catch (e) {
       console.warn('[ad-assessor] failed to assemble Adlytic context:', e);
