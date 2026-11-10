@@ -120,6 +120,8 @@ DATABASE_URL=postgresql://adlytic@127.0.0.1:54329/adlytic_repro_rc2 npm run test
 
 Results are in the final report of the change (counts, RED-on-old, mutation table); the numbers are not copied here so this file cannot drift from the code. `test_spend_evidence.ts` covers the rule, periods, campaign reconciliation, classification, the read gate, generation (fake prisma), the Brain, the AI tool and the wiring; `test_spend_evidence_postgres.ts` repeats it on real rows through the real app: after the repair the periods and the WARN are unchanged, a period 45 days old is listed and flagged on a 90-day read but not a 30-day one, 80 alternating days give 40 runs capped at 24, campaign rows that do not reconcile, real engines on unverified / verified / USD twins (the twins identical), stored rows withheld and kept, the dashboard, the AI agent, the Brain orchestrator.
 
+**"Exactly as before" is also checked as a differential**, not only asserted: `scripts/repro/spend_evidence_differential.ts` seeds one USD and one fully verified IQD synthetic account, runs the real engines (rules, recommendation, V5, Brain orchestrator) and reads eight routes through the real app, once with the old source and once with this one, and byte-compares the normalised responses and the rows the engines wrote. Result in the change report: the USD account is identical; the verified IQD account differs **only** by the additive `spendScale` period keys.
+
 Existing engine tests (`test_rules`, `test_recommendation`, `test_evidence_contract`) construct fake Prisma objects; each gained a read-only `adAccount.findFirst` returning a USD account (the engines now read the account's currency). Nothing else in those tests changed.
 
 ## 7. Where it lives
