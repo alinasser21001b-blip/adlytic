@@ -13,7 +13,7 @@ Without that, the weekly report printed **900 000 IQD instead of 9 000 IQD** for
 
 **Signal.** Spend whose scale cannot be verified is reported through the existing data-integrity check (`GET …/data-health`, and the scheduler's integrity observer):
 `SPEND_SCALE_UNVERIFIED` (WARN) — account-level window rows have no raw Meta counterpart to be checked against (**at any factor**: a stored factor of 1 certifies nothing, see `DATA_HEALTH_ISOLATION.md` §4);
-`SPEND_SCALE_OVERSCALED` (CRITICAL) — raw Meta spend proves rows are exactly 100×. Both are read-only; neither changes a number.
+`SPEND_SCALE_OVERSCALED` (CRITICAL) — raw Meta spend proves rows are exactly 100×. (A row equal to one raw of its day is verified, unless another raw of that day proves it exactly 100× — then it is unproven, never certified and never rewritten; `DATA_HEALTH_ISOLATION.md` §6.) Both are read-only; neither changes a number.
 
 **Repair (B's safeguards), only in sync and `POST /api/workspaces/:id/repair-iqd`** (`src/lib/iqdRepair.ts`):
 * **Row-level evidence.** A row is rewritten only if `raw_insights` for that entity and date proves `stored ≈ 100 × raw` (±2 %). No magnitude/CPM heuristic. No evidence, two raw fetches that disagree, or a ratio matching neither scale → **left intact** and counted.
