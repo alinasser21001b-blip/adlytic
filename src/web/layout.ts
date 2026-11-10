@@ -2407,15 +2407,15 @@ async function apiFetch(path, opts = {}) {
     },
   });
   if (res.status === 401) { logout(); return null; }
-  if (res.status === 403) {
-    const err = await res.json().catch(() => ({}));
-    if (err.code === 'ACCOUNT_INACTIVE') {
+  if (!res.ok) {
+    // The error body is read ONCE. A 403 used to be consumed by the inactive-account check above this
+    // branch, so the code of every other 403 (INSUFFICIENT_ROLE …) was lost and the pages that key
+    // their message on e.code showed a generic failure instead of "viewers cannot do this".
+    const err = await res.json().catch(() => ({ error: res.statusText }));
+    if (res.status === 403 && err.code === 'ACCOUNT_INACTIVE') {
       window.location.href = err.redirect || '/pending-activation';
       return null;
     }
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({ error: res.statusText }));
     const e = new Error(err.error || res.statusText);
     if (err.code) e.code = err.code;
     if (err.reconnectUrl) e.reconnectUrl = err.reconnectUrl;

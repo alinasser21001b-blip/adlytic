@@ -282,6 +282,39 @@ async function main() {
   check('exactly three pages call POST …/recommendations/action (a new call site must be a conscious decision)', JSON.stringify(callers) === JSON.stringify(['src/web/pages/beginnerDashboardPage.ts', 'src/web/pages/dashboardPage.ts', 'src/web/pages/recommendationsPage.ts']), callers);
   for (const p of callers) check(`${p} handles code INSUFFICIENT_ROLE with its own message`, /e(rr)?\.code === 'INSUFFICIENT_ROLE'/.test(src(p)), p);
 
+  // The pages key their message on e.code — so the browser helper must actually deliver the code of a 403.
+  // (It used to read the 403 body for the inactive-account check and then fail to find it again: a viewer
+  // saw "Forbidden"/a generic failure, and the check above — a grep — could not tell. Review finding truth-F2.)
+  console.log('\n── 5b. apiFetch (the browser helper) delivers the code of a 403 to the page ──');
+  {
+    const lines = src('src/web/layout.ts').split('\n');
+    const start = lines.findIndex((l) => l.startsWith('async function apiFetch(path, opts = {})'));
+    let end = start; while (end < lines.length && !lines[end]!.startsWith('}')) end++;
+    check('(setup) the real apiFetch text was found in src/web/layout.ts', start > 0 && end > start, [start, end]);
+    const fnSrc = lines.slice(start, end + 1).join('\n');
+    const run = async (status: number, body: string | null, contentType = 'application/json') => {
+      const calls = { logout: 0, redirect: '' };
+      const win: { location: { href: string } } = { location: { href: '' } };
+      const fakeFetch = async () => new Response(body, { status, headers: { 'content-type': contentType } });
+      const apiFetch = new Function('API', 'getToken', 'logout', 'window', 'fetch', `${fnSrc}; return apiFetch;`)('', () => 'tok', () => { calls.logout++; }, win, fakeFetch) as (p: string, o?: unknown) => Promise<unknown>;
+      let value: unknown; let err: (Error & { code?: string }) | null = null;
+      try { value = await apiFetch('/x', { method: 'POST', body: '{}' }); } catch (e) { err = e as Error & { code?: string }; }
+      return { value, err, logout: calls.logout, href: win.location.href };
+    };
+    const viewer = await run(403, JSON.stringify({ error: 'Insufficient permissions', code: 'INSUFFICIENT_ROLE' }));
+    check('a viewer\'s 403 {code: INSUFFICIENT_ROLE} reaches the page as e.code (so the page can say why)', viewer.err?.code === 'INSUFFICIENT_ROLE' && viewer.err.message === 'Insufficient permissions', [viewer.err?.code, viewer.err?.message]);
+    const inactive = await run(403, JSON.stringify({ code: 'ACCOUNT_INACTIVE', redirect: '/pending-activation' }));
+    check('…an inactive account (403 ACCOUNT_INACTIVE) is still sent to the activation page, with no error thrown', inactive.err === null && inactive.value === null && inactive.href === '/pending-activation', inactive);
+    const plain403 = await run(403, '<html>nope</html>', 'text/html');
+    check('…a 403 whose body is not JSON still throws a readable error (the status text), not a crash', plain403.err instanceof Error && plain403.err.code === undefined, plain403.err?.message);
+    const other = await run(409, JSON.stringify({ error: 'conflict', code: 'SOME_CODE' }));
+    check('…every other error status keeps its code and message exactly as before', other.err?.code === 'SOME_CODE' && other.err.message === 'conflict', [other.err?.code, other.err?.message]);
+    const unauth = await run(401, JSON.stringify({ error: 'Unauthorized' }));
+    check('…401 still logs the user out', unauth.logout === 1 && unauth.err === null && unauth.value === null, unauth);
+    const ok = await run(200, JSON.stringify({ fine: true }));
+    check('…and a success returns the parsed body', ok.err === null && JSON.stringify(ok.value) === '{"fine":true}', ok);
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }
