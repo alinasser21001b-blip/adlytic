@@ -100,7 +100,9 @@ async function main() {
   await prisma.campaign.create({ data: { id: ID.r1, adAccountId: A.account.id, externalCampaignId: `reborn_${sfx}`, name: 'Reborn' } }); // r1's campaign exists again
 
   const name = (id: string) => Object.entries(ID).find(([, v]) => v === id)?.[0] ?? id;
-  const quiet = async <T,>(fn: () => Promise<T>): Promise<T> => { const l = console.log; console.log = () => {}; try { return await fn(); } finally { console.log = l; } };
+  // re-entrant: two concurrent requests must not leave console.log swapped out (the first version restored the NOOP and swallowed every later line)
+  let quietDepth = 0; let realLog = console.log;
+  const quiet = async <T,>(fn: () => Promise<T>): Promise<T> => { if (quietDepth++ === 0) { realLog = console.log; console.log = () => {}; } try { return await fn(); } finally { if (--quietDepth === 0) console.log = realLog; } };
   const req = (method: 'GET' | 'POST', path: string, token?: string, body?: unknown) => quiet(async () => {
     const headers: Record<string, string> = token ? { authorization: `Bearer ${token}` } : {};
     const init: RequestInit = { method, headers };
@@ -251,6 +253,13 @@ async function main() {
   const g4 = await dry();
   const final = await post(`?expectedRows=${g4.body.orphanRows}&batchId=${g4.body.batchId}`);
   check('a fresh dry run approved: 200 deleted, exactly the rows the dry run counted, and the table has no orphans left', final.status === 200 && final.body?.status === 'deleted' && final.body?.rowsDeleted === g4.body.orphanRows && (await dry()).body.orphanRows === 0, [final.status, final.body]);
+
+  // Two operators (or one double-click) approve the SAME batch at the same moment: it is applied once.
+  for (let i = 0; i < 40; i++) await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_dup_${sfx}_${i % 4}`, date: day(10 + Math.floor(i / 4)), spend: 2n } });
+  const g5 = await dry();
+  const [dupA, dupB] = await Promise.all([post(`?expectedRows=${g5.body.orphanRows}&batchId=${g5.body.batchId}`), post(`?expectedRows=${g5.body.orphanRows}&batchId=${g5.body.batchId}`)]);
+  const deletedTotal = (dupA.body?.rowsDeleted ?? 0) + (dupB.body?.rowsDeleted ?? 0);
+  check('the same approval sent twice concurrently: no 5xx, no deadlock, the batch is deleted exactly once (rows deleted in total = the batch), nothing else touched', [dupA.status, dupB.status].every((st) => st === 200 || st === 409) && deletedTotal === g5.body.orphanRows && (await dry()).body.orphanRows === 0 && (await rowsOf())['r1'] === 3, [dupA.status, dupB.status, dupA.body?.rowsDeleted, dupB.body?.rowsDeleted, g5.body.orphanRows]);
 
   // ── 5. the scheduler REPORTS; it never deletes ───────────────────────
   console.log('\n── 5. the scheduled integrity sweep reports orphans and deletes nothing ──');
