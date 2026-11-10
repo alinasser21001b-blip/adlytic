@@ -115,6 +115,8 @@ export interface Readiness {
 }
 
 const READY_STATES: ReadonlySet<ReadinessState> = new Set<ReadinessState>(['ok', 'ahead']);
+/** The ONLY place a state becomes a verdict. Every Readiness is built through it, so READY_STATES is the single definition of "release-ready". */
+const isReady = (state: ReadinessState): boolean => READY_STATES.has(state);
 
 /** Driver-adapter error kinds (Prisma 7 + @prisma/adapter-pg) → reason. Observed, not assumed. */
 const KIND_TO_REASON: Record<string, DbFailureReason> = {
@@ -293,8 +295,8 @@ function decide(shipped: string[], required: string[], tables: ReadonlySet<strin
   if (history === null) {
     // No history table. An empty database is "missing"; a populated one with no history proves nothing.
     return missingTables.length > 0
-      ? { ...base, state: 'missing', ready: false, applied: null }
-      : { ...base, state: 'unknown', ready: false, applied: null, unknownReason: 'history_absent' };
+      ? { ...base, state: 'missing', ready: isReady('missing'), applied: null }
+      : { ...base, state: 'unknown', ready: isReady('unknown'), applied: null, unknownReason: 'history_absent' };
   }
 
   const applied = new Set(history.filter((r) => r.finished).map((r) => r.name));
@@ -310,12 +312,12 @@ function decide(shipped: string[], required: string[], tables: ReadonlySet<strin
     : unexpectedMigrations.length > 0 ? 'ahead'
     : 'ok';
 
-  return { ...base, state, ready: READY_STATES.has(state), applied: applied.size, missingMigrations, unexpectedMigrations, failedMigrations };
+  return { ...base, state, ready: isReady(state), applied: applied.size, missingMigrations, unexpectedMigrations, failedMigrations };
 }
 
 function unknown(unknownReason: UnknownReason, shipped: number | null, extra: Partial<Readiness> = {}): Readiness {
   return {
-    state: 'unknown', ready: false, applied: null, shipped,
+    state: 'unknown', ready: isReady('unknown'), applied: null, shipped,
     missingMigrations: [], unexpectedMigrations: [], failedMigrations: [], missingTables: [], missingColumns: [],
     unknownReason, ...extra,
   };
@@ -411,7 +413,7 @@ export async function probeReadiness(prisma: PrismaClient, opts: ProbeOptions = 
           have.set(t, set);
         }
         const missingColumns = absentColumns(requiredCols, have);
-        if (missingColumns.length > 0) value = { ...value, state: 'missing', ready: false, missingColumns };
+        if (missingColumns.length > 0) value = { ...value, state: 'missing', ready: isReady('missing'), missingColumns };
       }
     } catch (err) {
       value = unknown('probe_error', shipped.length, { cause: describeError(err) });
