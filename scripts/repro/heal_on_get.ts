@@ -103,7 +103,7 @@ async function main(): Promise<void> {
     const after = await snap(t);
     scenarios['A_correct_rows_stale_factor_no_raw'] = {
       route: 'GET /api/workspaces/:id', status: res.status, before, after,
-      verdict: after.spendRows[0] !== before.spendRows[0] ? 'CORRECT DATA REWRITTEN BY A READ (heuristic cannot tell correct from over-scaled)' : 'unchanged',
+      verdict: JSON.stringify(before) !== JSON.stringify(after) ? 'CORRECT DATA REWRITTEN BY A READ (heuristic cannot tell correct from over-scaled)' : 'UNCHANGED: the read wrote nothing',
     };
   }
 
@@ -142,7 +142,7 @@ async function main(): Promise<void> {
       firstGetStatus: r1.status, retryGetStatus: r2.status, before, afterFailedGet: afterFail, afterHealthyRetry: afterRetry,
       verdict: afterRetry.factor === 1 && afterRetry.spendRows[0] === before.spendRows[0]
         ? 'FACTOR FLIPPED, ROWS STAY OVER-SCALED: the flag that triggers the repair was committed before the repair, so the repair never retries'
-        : 'repaired on retry',
+        : JSON.stringify(before) === JSON.stringify(afterRetry) ? 'UNCHANGED: reads no longer repair, so a failing repair cannot strand anything' : 'changed (inspect before/after)',
     };
   }
 
