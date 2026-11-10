@@ -135,10 +135,16 @@ export async function collectScaleEvidence(
     for (const idChunk of chunk(ids, ID_CHUNK)) {
       if (idChunk.length === 0) continue;
       const since = opts.sinceDate ? Prisma.sql`AND date >= ${opts.sinceDate}` : Prisma.empty;
+      // DISTINCT (entity, day, spend): sync appends a raw row on every 15-minute pass, so an
+      // account carries ~2,700 raws per day of its 28-day window (80,640 rows in the 30-day
+      // window, 200-350 ms of the main thread per call, ~1.9 s for ten parallel page loads).
+      // The rule below only ever asks "is this value among them" and "do they disagree", so
+      // duplicates carry no information — the verdicts are identical on the deduplicated set.
       const raws = await db.$queryRaw<Array<{ entity_id: string; day: string; spend: string | null }>>`
         SELECT entity_id, to_char(date, 'YYYY-MM-DD') AS day, raw_json->>'spend' AS spend
         FROM raw_insights
-        WHERE entity_type = ${entityType}::"EntityType" AND entity_id = ANY(${idChunk}) ${since}`;
+        WHERE entity_type = ${entityType}::"EntityType" AND entity_id = ANY(${idChunk}) ${since}
+        GROUP BY entity_id, date, raw_json->>'spend'`;
       if (raws.length === 0) continue;
 
       // (entity, date) -> every raw spend seen. sync APPENDS a raw row on every
