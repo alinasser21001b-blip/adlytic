@@ -299,6 +299,16 @@ async function main() {
       check('…identities is a WARN, not a silent PASS', status(r, 'identities') === 'WARN', status(r, 'identities'));
     });
 
+    await scenario('duprow', async (c) => {
+      await c.query(`insert into _prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count)
+        select gen_random_uuid()::text, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count from _prisma_migrations where migration_name = $1`, [SHIPPED[5]]);
+    }, [], async (r, db) => {
+      const n = await withDb(db, async (c) => (await c.query(`select count(*)::int as rows, count(distinct migration_name)::int as names from _prisma_migrations`)).rows[0] as { rows: number; names: number });
+      check(`a finished row copied for one identity (${n.rows} rows, ${n.names} identities) → NO-GO, exit 1`, n.rows === SHIPPED.length + 1 && n.names === SHIPPED.length && r.code === 1 && r.json.verdict === 'NO-GO', { n, code: r.code });
+      check('…identities FAIL names the duplicated migration; every other schema check is PASS', status(r, 'identities') === 'FAIL' && detailsOf(r, 'identities').includes(`duplicated: ${SHIPPED[5]}`) && ['checksums', 'tables', 'columns'].every((id) => status(r, id) === 'PASS'), r.json?.checks?.map((c: any) => `${c.id}:${c.status}`));
+      check('…and /api/health still says "ok" for it (state ok): only the preflight sees the copied row', r.json.state === 'ok', r.json?.state);
+    });
+
     await scenario('nocolumn', async (c) => { await c.query('alter table users drop column email'); }, [], (r) => {
       check('a dropped column (every identity applied, every table present) → NO-GO, state missing', r.code === 1 && r.json.state === 'missing', { code: r.code, state: r.json?.state });
       check('…users.email is named, identities and tables are PASS', detailsOf(r, 'columns').includes('users.email') && status(r, 'identities') === 'PASS' && status(r, 'tables') === 'PASS', r.json?.checks?.map((c: any) => `${c.id}:${c.status}`));

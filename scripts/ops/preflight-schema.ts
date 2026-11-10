@@ -261,6 +261,22 @@ export function decideVerdict(f: SchemaFacts): SchemaDecision {
     }
   }
 
+  // A finished, live row recorded more than once for one identity. `prisma migrate status` and /api/health both call such a
+  // history fine (they read a set of names), but a migration is recorded once: a second row means the history was copied or
+  // edited by hand. It cannot be told apart from a damaged restore, so it blocks. Rolled-back rows are not live (see above).
+  if (f.history !== null && shippedOk) {
+    const seen = new Set<string>(); const dup = new Set<string>();
+    for (const r of f.history) { if (r.rolledBack || !r.finished) continue; if (seen.has(r.name)) dup.add(r.name); seen.add(r.name); }
+    if (dup.size > 0) {
+      const names = [...dup].sort();
+      identity = {
+        id: 'identities', status: 'FAIL', gating: true,
+        reason: `${names.length} migration identity(ies) recorded more than once (finished, not rolled back): the history was copied or edited; ${identity.reason}`,
+        details: [...capList('duplicated', names), ...(identity.details ?? [])],
+      };
+    }
+  }
+
   // ── checksums ──
   let checksum: CheckResult;
   if (!shippedOk) {

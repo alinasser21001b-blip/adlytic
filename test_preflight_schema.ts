@@ -326,6 +326,18 @@ async function main() {
     const dup = healthy(); dup.history!.push({ name: SHIPPED[2]!, checksum: sha('other'), finished: true });
     check('two finished rows for one identity, one of them different → NO-GO', P.decideVerdict(dup).verdict === 'NO-GO');
 
+    // A finished, live row recorded TWICE for one identity (same name, same checksum): `prisma migrate status` calls the database
+    // "up to date" and /api/health calls it ready, but the history was copied or edited by hand: the identity-based verdict must not be GO.
+    const same = healthy(); same.history!.push({ name: SHIPPED[2]!, checksum: sha(sqlOf(SHIPPED[2]!)), finished: true });
+    const sd = P.decideVerdict(same);
+    check('the SAME identity finished twice with an identical checksum → NO-GO (history rows are evidence, not a set)', sd.verdict === 'NO-GO', sd);
+    check('…the identities check FAILs, names the duplicated migration and says "more than once"', byId(sd.checks, 'identities')?.status === 'FAIL' && /more than once/.test(byId(sd.checks, 'identities')?.reason ?? '') && (byId(sd.checks, 'identities')?.details ?? []).join(' ').includes(`duplicated: ${SHIPPED[2]}`), byId(sd.checks, 'identities'));
+    check('…while the /api/health state stays "ok" (the gate cannot see this either)', sd.state === 'ok', sd.state);
+    const dupRb = healthy(); dupRb.history!.push({ name: SHIPPED[2]!, checksum: 'old', finished: true, rolledBack: true });
+    check('a rolled-back copy of an applied identity is NOT a duplicate → GO', P.decideVerdict(dupRb).verdict === 'GO', P.decideVerdict(dupRb));
+    const dupAhead = healthy(); dupAhead.history!.push({ name: '29990101000000_future', checksum: 'x', finished: true }, { name: '29990101000000_future', checksum: 'x', finished: true });
+    check('a duplicated identity this build does not ship is also reported (a history copied twice)', P.decideVerdict(dupAhead).verdict === 'NO-GO' && (byId(P.decideVerdict(dupAhead).checks, 'identities')?.details ?? []).join(' ').includes('duplicated: 29990101000000_future'), byId(P.decideVerdict(dupAhead).checks, 'identities'));
+
     const unfinishedDrift = healthy(); unfinishedDrift.history![3] = { name: SHIPPED[3]!, checksum: sha('whatever'), finished: false };
     check('an unfinished row is judged as failed/pending, never as a checksum match', P.decideVerdict(unfinishedDrift).verdict === 'NO-GO');
   });
