@@ -63,3 +63,12 @@ probe-*.mjs
 # desktop audit artefacts
 .desktop-shots/
 .desktop-findings.json
+
+# Database backups. backup_database.command writes the WHOLE customer database (user
+# e-mails and password hashes, every tenant's data, billing events) to
+# ./backups/adlytic_backup_*.sql.gz, through a *.sql.gz.partial that it renames when
+# the dump is verified. `git add -A` must never be able to commit one of them; a dump
+# kept anywhere else in the tree by hand is covered by the two file patterns.
+/backups/
+*.sql.gz
+*.sql.gz.partial

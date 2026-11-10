@@ -162,5 +162,35 @@ const b = spawnSync(path.join(binDir, 'bash'), [path.join(a.dir, 'backup_databas
 const both = readdirSync(path.join(a.dir, 'backups')).sort();
 check('two successful runs in the SAME second (fixed clock) produce two distinct files — the first is not overwritten', a.status === 0 && b.status === 0 && JSON.stringify(both) === JSON.stringify(['adlytic_backup_20260101_000000.sql.gz', 'adlytic_backup_20260101_000000_1.sql.gz']), both);
 
+// ── 6. the default output directory holds the whole customer database: never committed, never in the image ──
+console.log('\n── 6. everything the script can create in its default directory is ignored by git and by docker ──');
+{
+  // The paths the script can create: the directory itself, a finished dump, the *.partial it writes first.
+  const created = ['backups/adlytic_backup_20260101_000000.sql.gz', 'backups/adlytic_backup_20260101_000000_1.sql.gz', 'backups/adlytic_backup_20260101_000000.sql.gz.partial'];
+  const gi = path.join(work, 'gitcheck');
+  mkdirSync(gi);
+  const git = (args: string[]) => spawnSync('git', args, { cwd: gi, encoding: 'utf8', env: { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_SYSTEM: '/dev/null' } });
+  const haveGit = git(['init', '-q']).status === 0;
+  check('(setup) git is available to run `git check-ignore`', haveGit);
+  if (haveGit) {
+    copyFileSync(path.join(ROOT, '.gitignore'), path.join(gi, '.gitignore'));   // the repo's real rules, in an isolated repo (no user-level excludes)
+    mkdirSync(path.join(gi, 'backups')); mkdirSync(path.join(gi, 'nested', 'backups'), { recursive: true });   // git treats a missing path as a file: a `backups/` rule needs the directory to exist
+    for (const p of [...created, 'backups', 'backups/anything-else.dat', 'elsewhere/by-hand.sql.gz', 'elsewhere/by-hand.sql.gz.partial', 'nested/backups/adlytic_backup_x.sql.gz']) {
+      const c = git(['check-ignore', '-q', '--no-index', p]);
+      check(`.gitignore ignores ${p} (git check-ignore exit 0)`, c.status === 0, [c.status, c.stderr]);
+    }
+    writeFileSync(path.join(gi, 'backups', 'adlytic_backup_20260101_000000.sql.gz'), 'x'); writeFileSync(path.join(gi, 'backups', 'a.sql.gz.partial'), 'x');
+    const st = git(['status', '--porcelain', '--untracked-files=all']);
+    check('`git add -A` would stage nothing from backups/ (git status shows only .gitignore)', st.stdout.trim() === '?? .gitignore', st.stdout);
+    check('control: a file that is NOT a backup is not ignored by these rules (the check is not vacuous)', git(['check-ignore', '-q', '--no-index', 'src/index.ts']).status === 1);
+  }
+  // docker: no CLI here, so evaluate .dockerignore with Docker's documented rules (last matching pattern wins; `**` spans directories; a match excludes everything under it)
+  const dockerPatterns = readFileSync(path.join(ROOT, '.dockerignore'), 'utf8').split('\n').map((l) => l.trim()).filter((l) => l && !l.startsWith('#'));
+  const toRe = (pat: string) => new RegExp('^' + pat.replace(/\/+$/, '').replace(/[.+^${}()|\\]/g, '\\$&').replace(/\*\*\//g, '\u0000').replace(/\*\*/g, '\u0001').replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]').replace(/\u0000/g, '(?:.*/)?').replace(/\u0001/g, '.*') + '(?:/.*)?$');
+  const dockerIgnored = (p: string) => { let ig = false; for (const pat of dockerPatterns) { const neg = pat.startsWith('!'); if (toRe(neg ? pat.slice(1) : pat).test(p)) ig = !neg; } return ig; };
+  for (const p of [...created, 'backups/anything-else.dat', 'elsewhere/by-hand.sql.gz', 'elsewhere/by-hand.sql.gz.partial']) check(`.dockerignore excludes ${p} from the build context`, dockerIgnored(p), dockerPatterns.filter((x) => /backup|sql/.test(x)));
+  check('control: .dockerignore does not exclude src/index.ts (the matcher is not vacuous)', !dockerIgnored('src/index.ts'));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

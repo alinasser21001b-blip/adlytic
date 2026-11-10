@@ -45,6 +45,13 @@ test-results
 .env.*
 !.env.example
 
+# ── Database dumps (backup_database.command): the whole customer database ──
+# Docker's patterns are not recursive, hence the explicit `**/` forms.
+backups
+**/backups
+**/*.sql.gz
+**/*.sql.gz.partial
+
 # ── Tests & dev scripts ─────────────────────────────────────────────────
 test_*.ts
 test_*.mjs
