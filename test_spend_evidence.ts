@@ -731,7 +731,22 @@ async function main() {
   const priorOnlyDash = runBanner(dashPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
   const priorOnlyRec = runBanner(recPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
   check('SE-5/SE-4: a prior-window flag alone IS shown on the dashboard (its KPI deltas are in doubt) but NOT on the recommendations page (it is about advice)', priorOnlyDash?.style.display === 'flex' && priorOnlyDash.innerHTML.includes('الفترة السابقة') && priorOnlyRec?.style.display === 'none', [priorOnlyDash, priorOnlyRec]);
-  check('SE-5: the dashboard withholds the "Scale this" budget link of the best campaign in the weekly report while report.dataQuality is set', /spendWithheld \? '' : '<a class="weekly-highlight-action best-action"/.test(dashPage) && /report\.dataQuality/.test(dashPage));
+  function runWeeklyRender(report: any) {
+    const fn = lift(dashPage, 'renderWeeklyReport');
+    if (!fn) return null;
+    const sec: any = { style: { display: 'none' }, classList: { add() {} } };
+    const cont: any = { innerHTML: '' };
+    const doc = { getElementById: (id: string) => (id === 'weekly-report-section' ? sec : id === 'weekly-report-content' ? cont : null) };
+    // eslint-disable-next-line no-new-func
+    new Function('document', 'escHtml', 'lbl', `${fn}; renderWeeklyReport(${JSON.stringify(report)});`)(doc, esc, (en: string, ar: string) => ar);
+    return cont.innerHTML as string;
+  }
+  const wkRep = { weekStart: '2026-01-01', weekEnd: '2026-01-08', thisWeek: { spendDisplay: '1 IQD', results: 1, ctr: 1 }, lastWeek: { spendDisplay: '1 IQD', results: 1, ctr: 1 }, delta: { spendPct: null, resultsPct: 5, ctrPct: 1, costPerResultPct: null },
+    bestCampaign: { campaignId: 'a', campaignName: 'Alpha', ctr: 4, spend: 1, results: 1 }, worstCampaign: { campaignId: 'b', campaignName: 'Beta', ctr: 1, spend: 1, results: 1 }, brainActions: {}, activeCampaigns: 2, pausedCampaigns: 0, recommendationsAr: [], summaryAr: '' };
+  const wkHtmlClean = runWeeklyRender(wkRep);
+  const wkHtmlHeld = runWeeklyRender({ ...wkRep, dataQuality: { flags: [{ code: REASON }], withheld: [] } });
+  check('SE-5: the dashboard\'s weekly-report block offers the best campaign\'s "Scale this" budget link on a clean report and NOT while report.dataQuality is set (the worst campaign\'s diagnose link stays)',
+    !!wkHtmlClean && wkHtmlClean.includes('best-action') && wkHtmlClean.includes('worst-action') && !!wkHtmlHeld && !wkHtmlHeld.includes('best-action') && wkHtmlHeld.includes('worst-action') && wkHtmlHeld.includes('Alpha'), [wkHtmlClean?.length, wkHtmlHeld?.length]);
 
   // the doc says what the code does (the first version's claims were wrong)
   const docSrc = read('delivery/core/SPEND_EVIDENCE_GATING.md');

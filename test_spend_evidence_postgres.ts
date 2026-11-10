@@ -456,6 +456,17 @@ async function main() {
   check('SE-1: …the DTO and dataQuality.withheld both name it (aiRecommendations: det-scale), with the reason', dsU.body.aiRecommendations?.spendWithheld?.reason === REASON && dsU.body.aiRecommendations.spendWithheld.ids.includes('det-scale') && dsU.body.dataQuality?.withheld?.some((w: any) => w.surface === 'aiRecommendations' && w.reason === REASON && /det-scale/.test(w.detail ?? '')), [dsU.body.aiRecommendations?.spendWithheld, dsU.body.dataQuality?.withheld]);
   check('SE-1: …the spend-free cards of the same payload are untouched (the unverified dashboard still has the watch card for the campaigns under observation)', cards(dsU.body).some((c) => c.category === 'watch') === cards(dsV.body).some((c) => c.category === 'watch'), [cards(dsU.body).map((c) => c.id), cards(dsV.body).map((c) => c.id)]);
 
+  // SE-1 (per campaign) — the Brain judges CAMPAIGN level over 16 days ending TODAY; the dashboard judges the ACCOUNT rows.
+  // Only today's campaign rows drift (97 % of the verified account row), so the account window, the prior window and the
+  // weekly report (it ends yesterday) are all clean — while the Brain withheld its verdicts. The scale card must follow the Brain.
+  const bTF = await seed('b-drift', { factor: 1, account: brainAccountRows(() => 'match'), campaigns: Array.from({ length: 8 }, (_, c) => brainCampaignRows(c).map((r) => (r.ago === 0 && c >= 1 ? { ...r, spend: 194_000 } : r))), budgets: false, objective: 'MESSAGES' });
+  const brF = await brainOf(bTF);
+  const dsF = await dash(bTF);
+  check('SE-1 precondition: today\'s campaign rows drift → the Brain (CAMPAIGN level, ends today) withholds its cost-based verdicts, while the dashboard\'s ACCOUNT window is clean', brF.res.spendEvidence?.reason === REASON && brF.res.spendEvidence.unverified === 1 && !actionsOf(brF).some(spendDep) && dsF.body.drain !== undefined, [brF.res.spendEvidence, actionsOf(brF)]);
+  check('SE-1: …so the dashboard\'s scale card is not emitted either (the stored decision carries spendEvidence.withheld), the other cards are, and the DTO and dataQuality.withheld say so',
+    !cards(dsF.body).some((c) => c.id === 'det-scale') && dsF.body.aiRecommendations?.spendWithheld?.ids?.includes('det-scale') && dsF.body.dataQuality?.withheld?.some((w: any) => w.surface === 'aiRecommendations'), [cards(dsF.body).map((c) => c.id), dsF.body.dataQuality]);
+  check('SE-1: …and that dataQuality exists although no flag does (every window it judges is clean) — the page banner then says it in a generic line; nothing else was withheld (no drain / priority action change)', Array.isArray(dsF.body.dataQuality?.flags) && dsF.body.dataQuality.flags.length === 0 && dsF.body.dataQuality.withheld.every((w: any) => w.surface === 'aiRecommendations'), dsF.body.dataQuality);
+
   // SE-2 — weekly report, embedded and served
   check('SE-2 baseline: on VERIFIED IQD spend the report advises raising the best campaign\'s budget and carries the spend / cost-per-result changes', xV.body.recommendationsAr?.some((x: string) => x.includes('فكّر بزيادة ميزانيتها')) && xV.body.delta?.spendPct != null && xV.body.delta?.costPerResultPct != null && xV.body.dataQuality === undefined, advice(xV.body));
   check('SE-2: the USD twin\'s report has the same advice, changes, highlights and Brain counts as the verified IQD one; no dataQuality, no header on either route', same(advice(xD.body), advice(xV.body)) && xD.body.dataQuality === undefined && dq(xV.r) === null && dq(xD.r) === null, [advice(xD.body), advice(xV.body)]);
