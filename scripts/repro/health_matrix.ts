@@ -13,9 +13,17 @@
 //    createdb adlytic_repro_empty
 //    createdb -T adlytic_repro_heal adlytic_repro_failedmig   # then insert an unfinished _prisma_migrations row
 //    createdb -T adlytic_repro_heal adlytic_repro_behind      # then delete the last two history rows + drop their tables
+//    createdb -T adlytic_repro_heal adlytic_repro_wronghist   # then rename ONE history row to a bogus identity (count stays equal)
+//    createdb -T adlytic_repro_heal adlytic_repro_ahead       # then add one extra applied row with a future identity
+//    createdb -T adlytic_repro_heal adlytic_repro_nocolumn    # then ALTER TABLE users DROP COLUMN email
 //  (scripts/repro/health_matrix_prepare.sh does all of it.)
 //
-//    PGBASE=postgresql://adlytic@127.0.0.1:54329 npx tsx scripts/repro/health_matrix.ts
+//    PGBASE=postgresql://adlytic@127.0.0.1:54329 REPRO_OUT=/path/out.json npx tsx scripts/repro/health_matrix.ts
+//
+//  Per case it records the HTTP status, the exact public body (and its key
+//  list), and every `[adlytic:health]` log line the server wrote. The
+//  rate-limit memory is reset between cases so that a later case is not
+//  silenced by an earlier one with the same reason.
 // ════════════════════════════════════════════════════════════════════════
 
 process.env['NODE_ENV'] = 'test';
@@ -30,29 +38,40 @@ let b: URL;
 try { b = new URL(base); } catch { console.error('PGBASE missing/invalid (e.g. postgresql://adlytic@127.0.0.1:54329)'); process.exit(2); }
 if (!['127.0.0.1', 'localhost'].includes(b.hostname)) { console.error('REFUSED: PGBASE must be loopback'); process.exit(2); }
 
+// Databases are <prefix>_empty|failedmig|behind|wronghist|ahead|nocolumn (see health_matrix_prepare.sh). The migrated
+// source is adlytic_repro_heal and is only read. Prefix must start with adlytic_repro.
+const PFX = process.env['REPRO_DB_PREFIX'] ?? 'adlytic_repro';
+const SRC = process.env['REPRO_SRC_DB'] ?? 'adlytic_repro_heal';
+
 interface Case { name: string; host: string; port: number; db: string; user: string; note: string }
 const mk = (name: string, db: string, note: string, o: Partial<Case> = {}): Case =>
   ({ name, host: b.hostname, port: Number(b.port) || 5432, db, user: decodeURIComponent(b.username), note, ...o });
 
 const CASES: Case[] = [
-  mk('H0_healthy_migrated', 'adlytic_repro_heal', 'control: fully migrated database'),
-  mk('H1_port_closed', 'adlytic_repro_heal', 'DB service removed / wrong port', { port: 1 }),
-  mk('H2_dns_failure', 'adlytic_repro_heal', 'private-network hostname no longer resolves', { host: 'no-such-host.invalid' }),
+  mk('H0_healthy_migrated', SRC, 'control: fully migrated database'),
+  mk('H1_port_closed', SRC, 'DB service removed / wrong port', { port: 1 }),
+  mk('H2_dns_failure', SRC, 'private-network hostname no longer resolves', { host: 'no-such-host.invalid' }),
   mk('H3_database_missing', 'adlytic_repro_does_not_exist', 'server up, database dropped'),
-  mk('H4_role_missing', 'adlytic_repro_heal', 'credentials rotated / role gone', { user: 'nobody_here' }),
-  mk('H5_schema_empty', 'adlytic_repro_empty', 'restored/created WITHOUT migrations: app routes will 500'),
-  mk('H6_failed_migration_row', 'adlytic_repro_failedmig', '_prisma_migrations holds an unfinished (failed) row'),
-  mk('H7_migrations_behind', 'adlytic_repro_behind', 'last two migrations not applied (older snapshot)'),
+  mk('H4_role_missing', SRC, 'credentials rotated / role gone', { user: 'nobody_here' }),
+  mk('H5_schema_empty', `${PFX}_empty`, 'restored/created WITHOUT migrations: app routes will 500'),
+  mk('H6_failed_migration_row', `${PFX}_failedmig`, '_prisma_migrations holds an unfinished (failed) row'),
+  mk('H7_migrations_behind', `${PFX}_behind`, 'last two migrations not applied (older snapshot)'),
+  mk('H8_equal_count_wrong_history', `${PFX}_wronghist`, '41 applied / 41 shipped, none failed, all tables present - but one applied identity is not shipped'),
+  mk('H9_ahead', `${PFX}_ahead`, 'every shipped identity applied plus one extra (older build against a newer database)'),
+  mk('H10_column_dropped', `${PFX}_nocolumn`, 'every identity applied, every table present, no failed row - but users.email was dropped: every read of users fails with P2022'),
 ];
+for (const c of CASES) if (!/^adlytic_repro/.test(c.db)) { console.error(`REFUSED: ${c.db} is not an adlytic_repro* database`); process.exit(2); }
 
 async function main(): Promise<void> {
   const { PrismaClient } = await import('@prisma/client');
   const { PrismaPg } = await import('@prisma/adapter-pg');
   const pg = (await import('pg')).default;
   const { buildRoutes } = await import('../../src/api/server');
+  const { __resetDbHealthStateForTests } = await import('../../src/lib/dbHealth');
 
   const results: Record<string, unknown> = {};
   for (const c of CASES) {
+    __resetDbHealthStateForTests();
     const pool = new pg.Pool({ host: c.host, port: c.port, user: c.user, database: c.db, max: 2, connectionTimeoutMillis: 3000 });
     const prisma = new PrismaClient({ adapter: new PrismaPg(pool) });
     const app = buildRoutes(prisma);
@@ -74,11 +93,18 @@ async function main(): Promise<void> {
     }
 
     // Ground truth: would a real app query work?
+    //  findFirst selects every column of the model (count() does not), so it also notices a dropped column.
     let appQueryWorks: boolean | string = 'n/a';
-    if (!errorShape) { try { await prisma.user.count(); appQueryWorks = true; } catch (e: any) { appQueryWorks = `NO (${e?.code ?? e?.name})`; } }
+    if (!errorShape) { try { await prisma.user.findFirst(); appQueryWorks = true; } catch (e: any) { appQueryWorks = `NO (${e?.code ?? e?.name})`; } }
 
     const mentionsFailure = logs.filter((l) => /health|unreachable|db_reason|dbReason|probe/i.test(l) && !/^(<--|-->)/.test(l));
-    results[c.name] = { note: c.note, status, body, serverLogLinesNamingTheFailure: mentionsFailure.length, errorShape, appQueryWorks };
+    const bodyKeys = body && typeof body === 'object' ? Object.keys(body as object) : [];
+    results[c.name] = {
+      note: c.note, status, body, bodyKeys,
+      serverLogLinesNamingTheFailure: mentionsFailure.length,
+      serverLogLines: mentionsFailure,
+      errorShape, appQueryWorks,
+    };
     await prisma.$disconnect().catch(() => {});
     await pool.end().catch(() => {});
   }

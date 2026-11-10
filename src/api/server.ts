@@ -57,7 +57,7 @@ import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatfor
 import { getAdminOpsSnapshot } from '../services/adminOpsHealth';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { getBuildIdentity } from '../lib/buildIdentity';
-import { classifyDbError, logDbFailure, probeSchema } from '../lib/dbHealth';
+import { classifyDbError, logDbFailure, logNotReady, probeReadiness } from '../lib/dbHealth';
 import { runCapabilityProbeForWorkspace, redactProbeError, classifyProbeRunFailure } from '../services/metaCapabilityRunner';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
@@ -1387,7 +1387,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   // ════════════════════════════════════════════════════════════════════════
 
   /**
-   * GET /api/health — process liveness + DB readiness + WHICH COMMIT IS RUNNING.
+   * GET /api/health — process liveness + DB release-readiness + WHICH COMMIT IS RUNNING.
    *
    * `version` is a hardcoded literal and always has been; it is kept only so
    * nothing that already parses it breaks, and it is explicitly NOT the answer
@@ -1410,39 +1410,44 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       bullmq: config.features.bullmqEnabled ? 'enabled' : 'disabled',
       build: getBuildIdentity(),
     };
-    //  Every pre-existing field keeps its name, value and meaning — verify-live.yml
-    //  and the platform healthcheck read them. What is ADDED (src/lib/dbHealth.ts):
-    //    · on failure   `dbReason`  — closed vocabulary, never driver text
-    //    · on success   `schema`    — { state, applied, expected }
-    //  and the endpoint no longer says "ok" for a database the app cannot use:
-    //  a missing core schema is 503. `pending`/`failed` migrations are REPORTED
-    //  but do not change the status (owner decision before they may gate deploys).
+    //  PUBLIC CONTRACT. The body has exactly the keys verify-live.yml and the
+    //  platform healthcheck read, in this order — status, service, version,
+    //  timestamp, db, role, runsBackgroundSync, bullmq, build — and nothing else.
+    //  Only status/db and the HTTP code vary:
+    //
+    //    reachable and release-ready      200  status 'ok'       db 'ok'
+    //    reachable, NOT release-ready     503  status 'degraded' db 'ok'   (the database IS reachable)
+    //    unreachable                      503  status 'degraded' db 'unavailable'
+    //
+    //  WHY it is gated, and on what: src/lib/dbHealth.ts. Readiness is the
+    //  identity of every migration this build ships plus the presence of every
+    //  table of the Prisma schema — not a count, which cannot see an equal-count
+    //  wrong history. Why it failed, and how, goes to the SERVER LOG only
+    //  (sanitised, once per reason per minute); an unauthenticated caller learns
+    //  neither the reason nor the migration names.
     try {
       await prisma.$queryRaw`SELECT 1`;
     } catch (err) {
-      const dbReason = classifyDbError(err);
-      logDbFailure(dbReason, err);
+      logDbFailure(classifyDbError(err), err);
       return c.json({
         status: 'degraded',
         service: 'adlytic',
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         db: 'unavailable',
-        dbReason,
         ...roleInfo,
       }, 503);
     }
-    const schema = await probeSchema(prisma);
-    const schemaMissing = schema.state === 'missing';
+    const readiness = await probeReadiness(prisma);
+    if (!readiness.ready) logNotReady(readiness);
     return c.json({
-      status: schemaMissing ? 'degraded' : 'ok',
+      status: readiness.ready ? 'ok' : 'degraded',
       service: 'adlytic',
       version: '0.1.0',
       timestamp: new Date().toISOString(),
       db: 'ok',
-      schema,
       ...roleInfo,
-    }, schemaMissing ? 503 : 200);
+    }, readiness.ready ? 200 : 503);
   });
 
   /** GET /api/health/ai — live AI provider self-test.

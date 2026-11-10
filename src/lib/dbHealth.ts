@@ -16,21 +16,64 @@
 //      200 `db: "ok"` while every real query failed with P2021. A green health
 //      check on a broken app is worse than a red one: the platform promotes it.
 //
-//  WHAT IT DOES NOT DO
+//  A first fix compared a COUNT of applied migrations with a count of shipped
+//  ones. A count cannot tell "the 41 migrations this build ships" from "41
+//  migrations, one of which this build has never heard of" — and it reads a
+//  half-applied or foreign history as ok (scripts/repro/health_matrix.ts, H8).
+//
+//  WHAT IT DOES NOW
+//  Release readiness is a question about IDENTITIES, not counts:
+//
+//    shipped  = names of the directories under prisma/migrations that hold a
+//               migration.sql (what THIS build was written against)
+//    applied  = _prisma_migrations.migration_name, finished and not rolled back
+//    failed   = _prisma_migrations rows that are neither finished nor rolled back
+//    required = every table of every Prisma model, in schema `public`, and every
+//               column of every scalar/enum field of those models
+//
+//    ok        every shipped identity applied; nothing else; no required table or column absent
+//    ahead     every shipped identity applied, plus identities this build does
+//              not ship (an older release running against a newer database).
+//              TOLERATED — a rollback must not take the service down
+//    pending   some shipped identity is not applied, no extras
+//    diverged  some shipped identity is not applied AND extras exist. Includes
+//              equal-count wrong histories (41 shipped / 41 applied, one name differs)
+//    failed    any unfinished row, even when every shipped identity is applied
+//    missing   a required table is absent (also: an empty database), or — with
+//              every identity applied and every table present — a required
+//              COLUMN is absent (a column dropped by hand, or added to a migration
+//              file after it was applied: the identity matches, the schema does
+//              not, and Prisma selects every column, so every read of that model
+//              fails with P2022)
+//    unknown   shipped list unreadable, required-table/column list unreadable,
+//              history table absent, or the probe itself errored
+//
+//    READY = ok | ahead. Everything else is NOT ready and answers 503.
+//    Fail closed: an unreadable shipped list never passes silently; it is logged.
+//
+//  Precedence when several things are wrong: failed > pending/diverged > missing
+//  table > missing column > ahead > ok. (Columns are only read when everything
+//  before them passed, so a not-ready database costs no extra query.) A pending migration usually ALSO means missing tables;
+//  naming the migration is the more useful label, and the table list is logged
+//  regardless.
+//
+//  WHAT LEAVES THIS MODULE
+//  · The PUBLIC body says nothing about any of this. Not-ready is the same
+//    shape as ready with a different status/HTTP code (see server.ts). The
+//    reason and the detail go to the server log only — a closed vocabulary
+//    plus migration/table NAMES (at most 5 each), sanitised.
 //  · It never returns or logs the driver's message text — that text carries
-//    the host:port and sometimes the user name. Only a closed vocabulary
-//    leaves this module.
-//  · It does not decide to fail deployments on `pending`/`failed` migrations.
-//    Those are reported, not enforced, until the owner decides: production has
-//    not been exercised against that gate. Only the two cases where the app is
-//    CERTAINLY broken degrade the status (database down, core schema missing).
+//    the host:port and sometimes the user name — nor a URL, host, port, user
+//    or SQL text.
+//  · No environment variables, no network, no calls to Railway/Meta/GitHub.
 // ════════════════════════════════════════════════════════════════════════
 
 import { existsSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { Prisma } from '@prisma/client';
 import type { PrismaClient } from '@prisma/client';
 
-/** Closed vocabulary — safe to publish on an unauthenticated endpoint. */
+/** Closed vocabulary for CONNECTIVITY failures. Server log only — never the public body. */
 export type DbFailureReason =
   | 'unreachable'       // refused / DNS / connection closed / too many connections
   | 'database_missing'  // server answered, the named database does not exist
@@ -39,20 +82,41 @@ export type DbFailureReason =
   | 'timeout'           // reached, then timed out
   | 'unknown';
 
-export type SchemaState =
-  | 'ok'        // history table present, every shipped migration applied, none failed
-  | 'missing'   // core table absent: the app cannot work on this database
-  | 'pending'   // fewer migrations applied than ship with this build
-  | 'failed'    // an unfinished (failed) migration row exists
-  | 'unknown';  // could not be determined (no history table, no migrations dir, probe error)
+export type ReadinessState = 'ok' | 'ahead' | 'pending' | 'diverged' | 'failed' | 'missing' | 'unknown';
 
-export interface SchemaReadiness {
-  state: SchemaState;
-  /** Migrations recorded as finished and not rolled back. null if unknown. */
+export type UnknownReason =
+  | 'shipped_unreadable'  // prisma/migrations could not be read (or holds no migration)
+  | 'tables_unreadable'   // the required-table list could not be derived from the Prisma client
+  | 'columns_unreadable'  // the required-column list could not be derived from the Prisma client
+  | 'history_absent'      // every required table exists but there is no _prisma_migrations
+  | 'probe_error';        // a query failed
+
+export interface Readiness {
+  state: ReadinessState;
+  /** ok | ahead. The only thing the route turns into a 200. */
+  ready: boolean;
+  /** Distinct applied identities (finished, not rolled back). null when the history was not read. */
   applied: number | null;
-  /** Migrations that ship with this build (directories under prisma/migrations). null if unreadable. */
-  expected: number | null;
+  /** Migrations this build ships. null when unreadable. */
+  shipped: number | null;
+  /** Shipped but not applied (full list; the log truncates). */
+  missingMigrations: string[];
+  /** Applied but not shipped by this build. */
+  unexpectedMigrations: string[];
+  /** Rows that are neither finished nor rolled back. */
+  failedMigrations: string[];
+  /** Required tables that are absent. */
+  missingTables: string[];
+  /** Required columns that are absent, as table.column (only read when every table is present). */
+  missingColumns: string[];
+  unknownReason?: UnknownReason;
+  /** Only for probe_error: the structure of the error, never its text. */
+  cause?: { reason: DbFailureReason; prismaCode: string; adapterKind: string };
 }
+
+const READY_STATES: ReadonlySet<ReadinessState> = new Set<ReadinessState>(['ok', 'ahead']);
+/** The ONLY place a state becomes a verdict. Every Readiness is built through it, so READY_STATES is the single definition of "release-ready". */
+const isReady = (state: ReadinessState): boolean => READY_STATES.has(state);
 
 /** Driver-adapter error kinds (Prisma 7 + @prisma/adapter-pg) → reason. Observed, not assumed. */
 const KIND_TO_REASON: Record<string, DbFailureReason> = {
@@ -76,6 +140,11 @@ const PG_SQLSTATE_TO_REASON: Record<string, DbFailureReason> = {
   '3D000': 'database_missing', '28000': 'auth', '28P01': 'auth', '57P03': 'unreachable', '53300': 'unreachable',
 };
 
+/** Own-property lookup only: a plain-object index also "finds" 'constructor', 'toString', '__proto__' — functions, not reasons. */
+function lookup(table: Record<string, DbFailureReason>, key: string): DbFailureReason | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
 /** Map a driver/Prisma/Node error to the closed vocabulary. Reads structure, never message text. */
 export function classifyDbError(err: unknown): DbFailureReason {
   const e = err as {
@@ -87,93 +156,272 @@ export function classifyDbError(err: unknown): DbFailureReason {
 
   const adapterCause = e.meta?.driverAdapterError?.cause;
   const kind = typeof adapterCause?.kind === 'string' ? adapterCause.kind : null;
-  if (kind && KIND_TO_REASON[kind]) return KIND_TO_REASON[kind]!;
+  const byKind = kind ? lookup(KIND_TO_REASON, kind) : undefined;
+  if (byKind) return byKind;
   const original = typeof adapterCause?.originalCode === 'string' ? adapterCause.originalCode : null;
-  if (original && PG_SQLSTATE_TO_REASON[original]) return PG_SQLSTATE_TO_REASON[original]!;
+  const byOriginal = original ? lookup(PG_SQLSTATE_TO_REASON, original) : undefined;
+  if (byOriginal) return byOriginal;
 
   const code = typeof e.code === 'string' ? e.code : null;
-  if (code && PRISMA_CODE_TO_REASON[code]) return PRISMA_CODE_TO_REASON[code]!;
-  if (code && NODE_CODE_TO_REASON[code]) return NODE_CODE_TO_REASON[code]!;
-  if (code && PG_SQLSTATE_TO_REASON[code]) return PG_SQLSTATE_TO_REASON[code]!;
+  const byCode = code ? (lookup(PRISMA_CODE_TO_REASON, code) ?? lookup(NODE_CODE_TO_REASON, code) ?? lookup(PG_SQLSTATE_TO_REASON, code)) : undefined;
+  if (byCode) return byCode;
   const causeCode = typeof e.cause?.code === 'string' ? e.cause.code : null;
-  if (causeCode && NODE_CODE_TO_REASON[causeCode]) return NODE_CODE_TO_REASON[causeCode]!;
+  const byCause = causeCode ? lookup(NODE_CODE_TO_REASON, causeCode) : undefined;
+  if (byCause) return byCause;
   return 'unknown';
 }
 
-// ── expected migrations (what THIS build ships) ──────────────────────────
+// ── what THIS build requires ─────────────────────────────────────────────
 
-let expectedCache: number | null | undefined;
+let shippedCache: string[] | undefined;
 
-/** Number of migration directories shipped with this build, or null when unreadable. */
-export function expectedMigrationCount(candidates?: string[]): number | null {
-  if (expectedCache !== undefined && !candidates) return expectedCache;
-  const dirs = candidates ?? [
-    path.resolve(process.cwd(), 'prisma', 'migrations'),
+/**
+ * Where this build's migrations can be, most trustworthy first.
+ *
+ * The module's OWN location comes first: the shipped list defines "what this
+ * build needs", so it must be read from this build's files. The working
+ * directory is incidental — a process started from another checkout, or from a
+ * directory with a different prisma/migrations, would otherwise be judged
+ * against a foreign list (an older one makes a database that lacks the newest
+ * migration look ready). It stays as the LAST resort, and asking for it can
+ * itself fail (process.cwd() throws when the directory was deleted), which must
+ * never escape into the health route.
+ */
+export function migrationDirCandidates(): string[] {
+  const out = [
     path.resolve(__dirname, '..', '..', 'prisma', 'migrations'),          // src/lib → repo root (tsx)
     path.resolve(__dirname, '..', '..', '..', 'prisma', 'migrations'),    // dist/src/lib → repo root (compiled)
   ];
-  let found: number | null = null;
+  try { out.push(path.resolve(process.cwd(), 'prisma', 'migrations')); } catch { /* cwd deleted: skip the fallback */ }
+  return out;
+}
+
+/**
+ * Names of the migrations that ship with this build — directories under
+ * prisma/migrations that hold a migration.sql — sorted. `null` when no
+ * candidate directory is readable (never `[]` for "could not read").
+ * A successful non-empty read is memoised; a failure is retried next time.
+ */
+export function shippedMigrationNames(candidates?: string[]): string[] | null {
+  if (!candidates && shippedCache) return shippedCache;
+  const dirs = candidates ?? migrationDirCandidates();
   for (const dir of dirs) {
     try {
       if (!existsSync(dir)) continue;
-      found = readdirSync(dir).filter((n) => {
+      const names = readdirSync(dir).filter((n) => {
         try { return statSync(path.join(dir, n)).isDirectory() && existsSync(path.join(dir, n, 'migration.sql')); } catch { return false; }
-      }).length;
-      break;
+      }).sort();
+      if (!candidates && names.length > 0) shippedCache = names;
+      return names;
     } catch { /* try the next candidate */ }
   }
-  if (!candidates) expectedCache = found;
-  return found;
+  return null;
 }
 
-// ── schema probe ─────────────────────────────────────────────────────────
+let requiredCache: string[] | undefined;
 
-const SCHEMA_CACHE_MS = 30_000;
-let schemaCache = new WeakMap<object, { at: number; value: SchemaReadiness }>();
+/**
+ * Table of every Prisma model (its @@map, else the model name), taken from the
+ * GENERATED client's own metadata — the same artefact every query goes through,
+ * so it cannot drift from what the app actually reads. `null` when the client
+ * does not expose it (the readiness probe then fails closed).
+ * test_health_migration_gate.ts proves it equals the tables parsed from
+ * prisma/schema.prisma, so a Prisma upgrade that drops this metadata fails CI
+ * instead of failing a deployment.
+ */
+export function requiredTableNames(): string[] | null {
+  if (requiredCache) return requiredCache;
+  try {
+    const dmmf = (Prisma as unknown as { dmmf?: { datamodel?: { models?: Array<{ name?: unknown; dbName?: unknown }> } } }).dmmf;
+    const models = dmmf?.datamodel?.models;
+    if (!Array.isArray(models) || models.length === 0) return null;
+    const names: string[] = [];
+    for (const m of models) {
+      const n = typeof m.dbName === 'string' && m.dbName ? m.dbName : typeof m.name === 'string' ? m.name : '';
+      if (!n) return null;
+      names.push(n);
+    }
+    requiredCache = [...new Set(names)].sort();
+    return requiredCache;
+  } catch {
+    return null;
+  }
+}
+
+let requiredColsCache: Map<string, string[]> | undefined;
+
+/**
+ * table → columns of every Prisma model, from the GENERATED client's own metadata (the same
+ * artefact every query goes through): scalar, enum and Unsupported fields, each under its
+ * @map name. Relation fields have no column. `null` when the client does not expose it (the
+ * readiness probe then fails closed). test_health_migration_gate.ts proves it equals the
+ * columns parsed from prisma/schema.prisma.
+ */
+export function requiredColumnNames(): Map<string, string[]> | null {
+  if (requiredColsCache) return requiredColsCache;
+  try {
+    const dmmf = (Prisma as unknown as { dmmf?: { datamodel?: { models?: Array<{ name?: unknown; dbName?: unknown; fields?: Array<{ name?: unknown; dbName?: unknown; kind?: unknown; isIgnored?: unknown }> }> } } }).dmmf;
+    const models = dmmf?.datamodel?.models;
+    if (!Array.isArray(models) || models.length === 0) return null;
+    const out = new Map<string, string[]>();
+    for (const m of models) {
+      const table = typeof m.dbName === 'string' && m.dbName ? m.dbName : typeof m.name === 'string' ? m.name : '';
+      if (!table || !Array.isArray(m.fields)) return null;
+      const cols: string[] = [];
+      for (const f of m.fields) {
+        if (f.kind === 'object' || f.isIgnored === true) continue;           // relation (no column) / @ignore
+        const col = typeof f.dbName === 'string' && f.dbName ? f.dbName : typeof f.name === 'string' ? f.name : '';
+        if (!col) return null;
+        cols.push(col);
+      }
+      if (cols.length === 0) return null;
+      out.set(table, [...new Set(cols)].sort());
+    }
+    requiredColsCache = out;
+    return out;
+  } catch {
+    return null;
+  }
+}
+
+// ── the readiness decision (pure) ────────────────────────────────────────
+
+interface HistoryRow { name: string; finished: boolean }
+
+function decide(shipped: string[], required: string[], tables: ReadonlySet<string>, history: HistoryRow[] | null): Readiness {
+  const missingTables = required.filter((t) => !tables.has(t)).sort();
+  const base = { shipped: shipped.length, missingMigrations: [] as string[], unexpectedMigrations: [] as string[], failedMigrations: [] as string[], missingTables, missingColumns: [] as string[] };
+
+  if (history === null) {
+    // No history table. An empty database is "missing"; a populated one with no history proves nothing.
+    return missingTables.length > 0
+      ? { ...base, state: 'missing', ready: isReady('missing'), applied: null }
+      : { ...base, state: 'unknown', ready: isReady('unknown'), applied: null, unknownReason: 'history_absent' };
+  }
+
+  const applied = new Set(history.filter((r) => r.finished).map((r) => r.name));
+  const failedMigrations = [...new Set(history.filter((r) => !r.finished).map((r) => r.name))].sort();
+  const shippedSet = new Set(shipped);
+  const missingMigrations = shipped.filter((n) => !applied.has(n));
+  const unexpectedMigrations = [...applied].filter((n) => !shippedSet.has(n)).sort();
+
+  const state: ReadinessState =
+    failedMigrations.length > 0 ? 'failed'
+    : missingMigrations.length > 0 ? (unexpectedMigrations.length > 0 ? 'diverged' : 'pending')
+    : missingTables.length > 0 ? 'missing'
+    : unexpectedMigrations.length > 0 ? 'ahead'
+    : 'ok';
+
+  return { ...base, state, ready: isReady(state), applied: applied.size, missingMigrations, unexpectedMigrations, failedMigrations };
+}
+
+function unknown(unknownReason: UnknownReason, shipped: number | null, extra: Partial<Readiness> = {}): Readiness {
+  return {
+    state: 'unknown', ready: isReady('unknown'), applied: null, shipped,
+    missingMigrations: [], unexpectedMigrations: [], failedMigrations: [], missingTables: [], missingColumns: [],
+    unknownReason, ...extra,
+  };
+}
+
+/** Required columns absent from `have` (table → columns present), as table.column, sorted. */
+function absentColumns(required: ReadonlyMap<string, string[]>, have: ReadonlyMap<string, Set<string>>): string[] {
+  const out: string[] = [];
+  for (const [table, cols] of required) {
+    const present = have.get(table);
+    for (const c of cols) if (!present || !present.has(c)) out.push(`${table}.${c}`);
+  }
+  return out.sort();
+}
+
+// ── readiness probe ──────────────────────────────────────────────────────
+
+/** True while `at` is less than `windowMs` in the past. A clock that stepped BACKWARD (negative age) is outside the window, not inside it. */
+function withinWindow(now: number, at: number, windowMs: number): boolean {
+  const age = now - at;
+  return age >= 0 && age < windowMs;
+}
+
+const READY_CACHE_MS = 30_000;
+let readyCache = new WeakMap<object, { at: number; value: Readiness }>();
 
 export interface ProbeOptions {
   now?: () => number;
-  /** Override the shipped-migration count (tests). `undefined` = read from disk. */
-  expected?: number | null;
+  /** Override the shipped identities (tests). `undefined` = read from disk; `null` = unreadable. */
+  shipped?: string[] | null;
+  /** Override the required tables (tests). `undefined` = from the generated client; `null` = unreadable. */
+  requiredTables?: string[] | null;
+  /** Override the required columns (tests). `undefined` = from the generated client; `null` = unreadable; an empty map = none required. */
+  requiredColumns?: Map<string, string[]> | null;
   cacheMs?: number;
 }
 
 /**
- * One bounded round-trip: does the core table exist, and how do applied
- * migrations compare with what this build ships? Cached briefly because the
- * endpoint is public and may be polled.
+ * Is this database one THIS build can run against? Two bounded queries (which
+ * tables exist; which migrations are recorded) compared with the build's own
+ * identities. Never throws.
+ *
+ * CACHING: a READY result is reused for 30 s because the endpoint is public and
+ * may be polled. A not-ready or errored result is NEVER cached — the next
+ * request asks again, so recovery is visible at once. (The route's `SELECT 1`
+ * liveness check is not cached either.)
  */
-export async function probeSchema(prisma: PrismaClient, opts: ProbeOptions = {}): Promise<SchemaReadiness> {
+export async function probeReadiness(prisma: PrismaClient, opts: ProbeOptions = {}): Promise<Readiness> {
   const now = (opts.now ?? Date.now)();
-  const cacheMs = opts.cacheMs ?? SCHEMA_CACHE_MS;
-  const hit = schemaCache.get(prisma);
-  if (hit && now - hit.at < cacheMs) return hit.value;
+  const cacheMs = opts.cacheMs ?? READY_CACHE_MS;
+  const hit = readyCache.get(prisma);
+  if (hit && withinWindow(now, hit.at, cacheMs)) return hit.value;
 
-  const expected = opts.expected === undefined ? expectedMigrationCount() : opts.expected;
-  let value: SchemaReadiness;
-  try {
-    const rel = await prisma.$queryRaw<Array<{ core: boolean; history: boolean }>>`
-      SELECT to_regclass('public.users') IS NOT NULL AS core,
-             to_regclass('public._prisma_migrations') IS NOT NULL AS history`;
-    const r = rel[0];
-    if (!r?.core) {
-      value = { state: 'missing', applied: null, expected };
-    } else if (!r.history) {
-      value = { state: 'unknown', applied: null, expected };
-    } else {
-      const counts = await prisma.$queryRaw<Array<{ applied: number; failed: number }>>`
-        SELECT (count(*) FILTER (WHERE finished_at IS NOT NULL AND rolled_back_at IS NULL))::int AS applied,
-               (count(*) FILTER (WHERE finished_at IS NULL AND rolled_back_at IS NULL))::int AS failed
-        FROM _prisma_migrations`;
-      const applied = Number(counts[0]?.applied ?? 0);
-      const failed = Number(counts[0]?.failed ?? 0);
-      const state: SchemaState = failed > 0 ? 'failed' : expected == null ? 'unknown' : applied < expected ? 'pending' : 'ok';
-      value = { state, applied, expected };
+  const shipped = opts.shipped === undefined ? shippedMigrationNames() : opts.shipped;
+  const required = opts.requiredTables === undefined ? requiredTableNames() : opts.requiredTables;
+  const requiredCols = opts.requiredColumns === undefined ? requiredColumnNames() : opts.requiredColumns;
+
+  let value: Readiness;
+  if (!shipped || shipped.length === 0) {
+    value = unknown('shipped_unreadable', null);
+  } else if (!required || required.length === 0) {
+    value = unknown('tables_unreadable', shipped.length);
+  } else if (!requiredCols) {
+    value = unknown('columns_unreadable', shipped.length);
+  } else {
+    try {
+      const tableRows = await prisma.$queryRaw<Array<{ name: string }>>`
+        SELECT tablename AS name FROM pg_catalog.pg_tables WHERE schemaname = 'public'`;
+      const tables = new Set(tableRows.map((r) => String(r.name)));
+      let history: HistoryRow[] | null = null;
+      if (tables.has('_prisma_migrations')) {
+        const rows = await prisma.$queryRaw<Array<{ name: string; finished: boolean }>>`
+          SELECT migration_name AS name, (finished_at IS NOT NULL) AS finished
+          FROM public._prisma_migrations
+          WHERE rolled_back_at IS NULL`;
+        history = rows.map((r) => ({ name: String(r.name), finished: r.finished === true }));
+      }
+      value = decide(shipped, required, tables, history);
+      if (value.ready && requiredCols.size > 0) {
+        // Identities and tables all check out; the last question is whether each table has the columns this
+        // build's client selects. Read only now, so a not-ready database costs no extra query.
+        const colRows = await prisma.$queryRaw<Array<{ t: string; c: string }>>`
+          SELECT cl.relname AS t, a.attname AS c
+          FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class cl ON cl.oid = a.attrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+          WHERE n.nspname = 'public' AND cl.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped`;
+        const have = new Map<string, Set<string>>();
+        for (const r of colRows) {
+          const t = String(r.t);
+          const set = have.get(t) ?? new Set<string>();
+          set.add(String(r.c));
+          have.set(t, set);
+        }
+        const missingColumns = absentColumns(requiredCols, have);
+        if (missingColumns.length > 0) value = { ...value, state: 'missing', ready: isReady('missing'), missingColumns };
+      }
+    } catch (err) {
+      value = unknown('probe_error', shipped.length, { cause: describeError(err) });
     }
-  } catch {
-    value = { state: 'unknown', applied: null, expected };
   }
-  schemaCache.set(prisma, { at: now, value });
+
+  if (value.ready) readyCache.set(prisma, { at: now, value });
+  else readyCache.delete(prisma);
   return value;
 }
 
@@ -181,22 +429,94 @@ export async function probeSchema(prisma: PrismaClient, opts: ProbeOptions = {})
 
 const lastLogged = new Map<string, number>();
 const LOG_EVERY_MS = 60_000;
+const MAX_NAMES = 5;
+const MAX_NAME_LEN = 64;
+
+/** Only identifier characters survive; anything else (newline, space, '/', ':', '@') becomes '?'. */
+function safeToken(v: unknown): string {
+  return String(v).replace(/[^A-Za-z0-9_.-]/g, '?').slice(0, MAX_NAME_LEN);
+}
+
+/**
+ * Driver-adapter error kinds Prisma 7 can report (@prisma/driver-adapter-utils) plus the
+ * database-family catch-alls. A kind outside this set is logged as "other": the field is
+ * STRUCTURE, and anything else in it is text that must not reach the log.
+ */
+const KNOWN_ADAPTER_KINDS: ReadonlySet<string> = new Set([
+  'AuthenticationFailed', 'ColumnNotFound', 'ConnectionClosed', 'DatabaseAccessDenied', 'DatabaseAlreadyExists',
+  'DatabaseDoesNotExist', 'DatabaseNotReachable', 'ForeignKeyConstraintViolation', 'GenericJs', 'InconsistentColumnData',
+  'InvalidInputValue', 'InvalidIsolationLevel', 'LengthMismatch', 'MissingFullTextSearchIndex', 'NullConstraintViolation',
+  'SocketTimeout', 'TableDoesNotExist', 'TlsConnectionError', 'TooManyConnections', 'TransactionAlreadyClosed',
+  'TransactionWriteConflict', 'UniqueConstraintViolation', 'UnsupportedNativeDataType', 'ValueOutOfRange',
+  'mssql', 'mysql', 'postgres', 'sqlite',
+]);
+
+/** Prisma error codes (P1001, P2010, ...) and the Node/SQLSTATE codes the classifier already knows. Nothing else is logged. */
+function loggableCode(code: unknown): string {
+  if (typeof code !== 'string') return '-';
+  if (/^P\d{4}$/.test(code) || lookup(NODE_CODE_TO_REASON, code) || lookup(PG_SQLSTATE_TO_REASON, code)) return code;
+  return '-';
+}
+
+function describeError(err: unknown): NonNullable<Readiness['cause']> {
+  const e = err as { code?: unknown; meta?: { driverAdapterError?: { cause?: { kind?: unknown } } } } | null;
+  const kind = e?.meta?.driverAdapterError?.cause?.kind;
+  return {
+    reason: classifyDbError(err),
+    prismaCode: loggableCode(e?.code),
+    adapterKind: typeof kind !== 'string' ? '-' : KNOWN_ADAPTER_KINDS.has(kind) ? kind : 'other',
+  };
+}
+
+function throttled(key: string, now: number): boolean {
+  const last = lastLogged.get(key);
+  if (last !== undefined && withinWindow(now, last, LOG_EVERY_MS)) return true;
+  lastLogged.set(key, now);
+  return false;
+}
 
 /** One line per reason per minute. Never includes the driver message, host, or user. */
 export function logDbFailure(reason: DbFailureReason, err: unknown, now: number = Date.now()): boolean {
-  const last = lastLogged.get(reason);
-  if (last !== undefined && now - last < LOG_EVERY_MS) return false;
-  lastLogged.set(reason, now);
-  const e = err as { code?: unknown; meta?: { driverAdapterError?: { cause?: { kind?: unknown } } } } | null;
-  const code = typeof e?.code === 'string' ? e.code : '-';
-  const kind = typeof e?.meta?.driverAdapterError?.cause?.kind === 'string' ? e.meta.driverAdapterError.cause.kind : '-';
-  console.warn(`[adlytic:health] database probe failed reason=${reason} prismaCode=${code} adapterKind=${kind}`);
+  if (throttled(`conn:${reason}`, now)) return false;
+  const c = describeError(err);
+  console.warn(`[adlytic:health] database probe failed reason=${reason} prismaCode=${c.prismaCode} adapterKind=${c.adapterKind}`);
   return true;
 }
 
-/** Test seam: forget rate-limit and schema memory. */
+function nameList(label: string, names: string[]): string {
+  if (names.length === 0) return '';
+  const more = names.length - MAX_NAMES;
+  return ` ${label}=${names.slice(0, MAX_NAMES).map(safeToken).join(',')}${more > 0 ? `,+${more}more` : ''}`;
+}
+
+/**
+ * One line per state per minute for a reachable database that is not
+ * release-ready: the state, applied/shipped counts and at most 5 names each of
+ * missing and unexpected migrations, failed rows and missing tables.
+ * Names are sanitised; no driver text, host, port, user, URL or SQL.
+ */
+export function logNotReady(r: Readiness, now: number = Date.now()): boolean {
+  if (r.ready) return false;
+  if (throttled(`ready:${r.state}:${r.unknownReason ?? ''}`, now)) return false;
+  const cause = r.cause ? ` reason=${r.cause.reason} prismaCode=${r.cause.prismaCode} adapterKind=${r.cause.adapterKind}` : '';
+  console.warn(
+    `[adlytic:health] database not release-ready state=${r.state} applied=${r.applied ?? '?'} shipped=${r.shipped ?? '?'}`
+    + (r.unknownReason ? ` unknownReason=${r.unknownReason}` : '')
+    + cause
+    + nameList('missingMigrations', r.missingMigrations)
+    + nameList('unexpectedMigrations', r.unexpectedMigrations)
+    + nameList('failedMigrations', r.failedMigrations)
+    + nameList('missingTables', r.missingTables)
+    + nameList('missingColumns', r.missingColumns),
+  );
+  return true;
+}
+
+/** Test seam: forget rate-limit and cache memory. */
 export function __resetDbHealthStateForTests(): void {
   lastLogged.clear();
-  expectedCache = undefined;
-  schemaCache = new WeakMap();
+  shippedCache = undefined;
+  requiredCache = undefined;
+  requiredColsCache = undefined;
+  readyCache = new WeakMap();
 }
