@@ -88,9 +88,29 @@ Public contract: ready 200 `status ok, db ok`; reachable but not ready 503 `stat
 | pending | a shipped identity is not applied, no extras | 503 |
 | diverged | a shipped identity is not applied and extras exist (includes equal-count wrong histories) | 503 |
 | failed | any unfinished, not-rolled-back row | 503 |
-| missing | a required table is absent, or the database is empty | 503 |
+| missing | a required table is absent, or the database is empty; or (identities and tables fine) a required column is absent | 503 |
 | unknown | shipped or table list unreadable, history table absent, or the probe errored | 503 |
 
 Local matrix on synthetic Postgres 16 (`scripts/repro/health_matrix.ts`, H0-H9): H0, H9 200; H1-H4 503 `db: unavailable`; H5-H8 503 `db: ok`; every public body has only the legacy keys.
 
 Before the gate is enabled against production, compare its `_prisma_migrations` identities with `ls prisma/migrations` (read-only). A renamed or squashed history there is `diverged` and would hold every release. Not verified: Railway's healthcheck behaviour, the live production history, TLS classification against a real TLS-failing server.
+
+## 7. Independent review of the gate (`local/health-gate`, commits after `b878560`)
+
+Method: adversarial search on synthetic Postgres 16 (`adlytic_repro_*` databases built from the migrated `adlytic_repro_heal`), the real Prisma CLI for the failed / rolled-back / resolved flows, and the compiled `dist/` output run with `node` from several working directories. Every new test was run against the previous module first and failed there.
+
+Fixed (one commit each, test first):
+
+| Finding | Evidence | Fix |
+|---|---|---|
+| Fail-open: a dropped column answered 200 | `ALTER TABLE users DROP COLUMN email`, identities and tables intact: HTTP 200 while `prisma.user.findFirst()` failed with P2022 | Required columns (from the generated client, `@map` names) compared with `pg_attribute`; read only when identities and tables pass; state `missing`, log `missingColumns=`. Widens the owner's tables-only reading of "schema": one separable commit. |
+| Fail-open: the shipped list was read from `process.cwd()` first | cwd with an older `prisma/migrations`: a database lacking the newest migration read as `ok` | Module-relative directories first, cwd last |
+| 500 instead of the health contract | `process.cwd()` threw (deleted directory) outside every try block | Guarded, last resort |
+| Log fields were a charset filter, not an allowlist | `code`/`kind` carrying a host or user name reached the log verbatim | `prismaCode`: `P####` or a known Node/SQLSTATE code; `adapterKind`: Prisma's kinds, else `other` |
+| Closed vocabulary was not closed | kind `constructor` logged `reason=function Object() { [native code] }` | Own-property lookups |
+| Backward clock step | negative age counted as fresh: a READY result served and a state left unlogged for the length of the step | Negative age is outside the window |
+| Verdict defined in three places | adding `unknown` to `READY_STATES` changed nothing (equivalent mutant) | `isReady(state)` is the only source |
+
+Checked and found correct: public keys identical to `3f61e40` for 200 and both 503 shapes; no secret, URL, host or user in the body or any log line for errors thrown by the liveness, table and history queries; renamed, truncated, dropped, case-only and whitespace-only history, tables dropped or renamed, rolled-back rows, a finished plus a failed row for one identity: all 503. Not false-red: a failed migration resolved `--rolled-back` (200), re-deployed after it (200, rows rolled-back + finished), `resolve --applied` (200), a newer database (`ahead`, 200), a directory without `migration.sql` (Prisma itself refuses it with P3015, so no running build can have one).
+
+Residual, unchanged: ready results are trusted for 30 s (a not-ready database is noticed at the end of the window; a racing slow probe can overwrite a newer not-ready observation for at most one window); no single-flight; schema `public` is hard-coded; checksums are not compared; privilege problems (a role that cannot read a table) are not probed; production's history and column set are unverified.
