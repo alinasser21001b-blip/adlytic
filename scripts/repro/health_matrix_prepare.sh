@@ -6,7 +6,7 @@
 set -euo pipefail
 : "${PGHOST:?}" "${PGPORT:?}" "${PGUSER:?}"
 case "$PGHOST" in 127.0.0.1|localhost) ;; *) echo "REFUSED: PGHOST must be loopback" >&2; exit 2;; esac
-# Names are <prefix>_empty, _failedmig, _behind, _wronghist, _ahead. The prefix must start with adlytic_repro
+# Names are <prefix>_empty, _failedmig, _behind, _wronghist, _ahead, _nocolumn. The prefix must start with adlytic_repro
 # so this script can only ever drop/create throw-away databases; use your own prefix (e.g. adlytic_repro_gate)
 # when another track may be using the default ones. The migrated source is only READ (used as a template).
 PFX="${REPRO_DB_PREFIX:-adlytic_repro}"
@@ -19,6 +19,7 @@ $P -d postgres -c "drop database if exists ${PFX}_failedmig" -c "create database
 $P -d postgres -c "drop database if exists ${PFX}_behind" -c "create database ${PFX}_behind template $SRC"
 $P -d postgres -c "drop database if exists ${PFX}_wronghist" -c "create database ${PFX}_wronghist template $SRC"
 $P -d postgres -c "drop database if exists ${PFX}_ahead" -c "create database ${PFX}_ahead template $SRC"
+$P -d postgres -c "drop database if exists ${PFX}_nocolumn" -c "create database ${PFX}_nocolumn template $SRC"
 
 # failed-migration row (what Prisma leaves behind after P3018)
 $P -d ${PFX}_failedmig -c "insert into _prisma_migrations (id, checksum, migration_name, started_at, applied_steps_count) values (gen_random_uuid()::text, 'x', '29990101000000_synthetic_failed', now(), 0)"
@@ -36,4 +37,9 @@ $P -d ${PFX}_wronghist \
 # running against a database a newer release already migrated). Tolerated by the gate.
 $P -d ${PFX}_ahead \
   -c "insert into _prisma_migrations (id, checksum, migration_name, started_at, finished_at, applied_steps_count) values (gen_random_uuid()::text, 'x', '29990102000000_future_release', now(), now(), 1)"
-echo "prepared: ${PFX}_empty ${PFX}_failedmig ${PFX}_behind ${PFX}_wronghist ${PFX}_ahead (from $SRC)"
+
+# H10 'column dropped': every identity applied, every table present, no failed row - but a column the client
+# selects is gone (users.email). Identities and tables cannot see it; every read of users fails with P2022.
+$P -d ${PFX}_nocolumn \
+  -c "alter table users drop column email"
+echo "prepared: ${PFX}_empty ${PFX}_failedmig ${PFX}_behind ${PFX}_wronghist ${PFX}_ahead ${PFX}_nocolumn (from $SRC)"

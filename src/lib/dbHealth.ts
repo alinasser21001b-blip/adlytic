@@ -28,9 +28,10 @@
 //               migration.sql (what THIS build was written against)
 //    applied  = _prisma_migrations.migration_name, finished and not rolled back
 //    failed   = _prisma_migrations rows that are neither finished nor rolled back
-//    required = every table of every Prisma model, in schema `public`
+//    required = every table of every Prisma model, in schema `public`, and every
+//               column of every scalar/enum field of those models
 //
-//    ok        every shipped identity applied; nothing else; no required table absent
+//    ok        every shipped identity applied; nothing else; no required table or column absent
 //    ahead     every shipped identity applied, plus identities this build does
 //              not ship (an older release running against a newer database).
 //              TOLERATED — a rollback must not take the service down
@@ -38,15 +39,21 @@
 //    diverged  some shipped identity is not applied AND extras exist. Includes
 //              equal-count wrong histories (41 shipped / 41 applied, one name differs)
 //    failed    any unfinished row, even when every shipped identity is applied
-//    missing   a required table is absent (also: an empty database)
-//    unknown   shipped list unreadable, required-table list unreadable, history
-//              table absent, or the probe itself errored
+//    missing   a required table is absent (also: an empty database), or — with
+//              every identity applied and every table present — a required
+//              COLUMN is absent (a column dropped by hand, or added to a migration
+//              file after it was applied: the identity matches, the schema does
+//              not, and Prisma selects every column, so every read of that model
+//              fails with P2022)
+//    unknown   shipped list unreadable, required-table/column list unreadable,
+//              history table absent, or the probe itself errored
 //
 //    READY = ok | ahead. Everything else is NOT ready and answers 503.
 //    Fail closed: an unreadable shipped list never passes silently; it is logged.
 //
 //  Precedence when several things are wrong: failed > pending/diverged > missing
-//  table > ahead > ok. A pending migration usually ALSO means missing tables;
+//  table > missing column > ahead > ok. (Columns are only read when everything
+//  before them passed, so a not-ready database costs no extra query.) A pending migration usually ALSO means missing tables;
 //  naming the migration is the more useful label, and the table list is logged
 //  regardless.
 //
@@ -80,6 +87,7 @@ export type ReadinessState = 'ok' | 'ahead' | 'pending' | 'diverged' | 'failed' 
 export type UnknownReason =
   | 'shipped_unreadable'  // prisma/migrations could not be read (or holds no migration)
   | 'tables_unreadable'   // the required-table list could not be derived from the Prisma client
+  | 'columns_unreadable'  // the required-column list could not be derived from the Prisma client
   | 'history_absent'      // every required table exists but there is no _prisma_migrations
   | 'probe_error';        // a query failed
 
@@ -99,6 +107,8 @@ export interface Readiness {
   failedMigrations: string[];
   /** Required tables that are absent. */
   missingTables: string[];
+  /** Required columns that are absent, as table.column (only read when every table is present). */
+  missingColumns: string[];
   unknownReason?: UnknownReason;
   /** Only for probe_error: the structure of the error, never its text. */
   cause?: { reason: DbFailureReason; prismaCode: string; adapterKind: string };
@@ -236,13 +246,49 @@ export function requiredTableNames(): string[] | null {
   }
 }
 
+let requiredColsCache: Map<string, string[]> | undefined;
+
+/**
+ * table → columns of every Prisma model, from the GENERATED client's own metadata (the same
+ * artefact every query goes through): scalar, enum and Unsupported fields, each under its
+ * @map name. Relation fields have no column. `null` when the client does not expose it (the
+ * readiness probe then fails closed). test_health_migration_gate.ts proves it equals the
+ * columns parsed from prisma/schema.prisma.
+ */
+export function requiredColumnNames(): Map<string, string[]> | null {
+  if (requiredColsCache) return requiredColsCache;
+  try {
+    const dmmf = (Prisma as unknown as { dmmf?: { datamodel?: { models?: Array<{ name?: unknown; dbName?: unknown; fields?: Array<{ name?: unknown; dbName?: unknown; kind?: unknown; isIgnored?: unknown }> }> } } }).dmmf;
+    const models = dmmf?.datamodel?.models;
+    if (!Array.isArray(models) || models.length === 0) return null;
+    const out = new Map<string, string[]>();
+    for (const m of models) {
+      const table = typeof m.dbName === 'string' && m.dbName ? m.dbName : typeof m.name === 'string' ? m.name : '';
+      if (!table || !Array.isArray(m.fields)) return null;
+      const cols: string[] = [];
+      for (const f of m.fields) {
+        if (f.kind === 'object' || f.isIgnored === true) continue;           // relation (no column) / @ignore
+        const col = typeof f.dbName === 'string' && f.dbName ? f.dbName : typeof f.name === 'string' ? f.name : '';
+        if (!col) return null;
+        cols.push(col);
+      }
+      if (cols.length === 0) return null;
+      out.set(table, [...new Set(cols)].sort());
+    }
+    requiredColsCache = out;
+    return out;
+  } catch {
+    return null;
+  }
+}
+
 // ── the readiness decision (pure) ────────────────────────────────────────
 
 interface HistoryRow { name: string; finished: boolean }
 
 function decide(shipped: string[], required: string[], tables: ReadonlySet<string>, history: HistoryRow[] | null): Readiness {
   const missingTables = required.filter((t) => !tables.has(t)).sort();
-  const base = { shipped: shipped.length, missingMigrations: [] as string[], unexpectedMigrations: [] as string[], failedMigrations: [] as string[], missingTables };
+  const base = { shipped: shipped.length, missingMigrations: [] as string[], unexpectedMigrations: [] as string[], failedMigrations: [] as string[], missingTables, missingColumns: [] as string[] };
 
   if (history === null) {
     // No history table. An empty database is "missing"; a populated one with no history proves nothing.
@@ -270,9 +316,19 @@ function decide(shipped: string[], required: string[], tables: ReadonlySet<strin
 function unknown(unknownReason: UnknownReason, shipped: number | null, extra: Partial<Readiness> = {}): Readiness {
   return {
     state: 'unknown', ready: false, applied: null, shipped,
-    missingMigrations: [], unexpectedMigrations: [], failedMigrations: [], missingTables: [],
+    missingMigrations: [], unexpectedMigrations: [], failedMigrations: [], missingTables: [], missingColumns: [],
     unknownReason, ...extra,
   };
+}
+
+/** Required columns absent from `have` (table → columns present), as table.column, sorted. */
+function absentColumns(required: ReadonlyMap<string, string[]>, have: ReadonlyMap<string, Set<string>>): string[] {
+  const out: string[] = [];
+  for (const [table, cols] of required) {
+    const present = have.get(table);
+    for (const c of cols) if (!present || !present.has(c)) out.push(`${table}.${c}`);
+  }
+  return out.sort();
 }
 
 // ── readiness probe ──────────────────────────────────────────────────────
@@ -292,6 +348,8 @@ export interface ProbeOptions {
   shipped?: string[] | null;
   /** Override the required tables (tests). `undefined` = from the generated client; `null` = unreadable. */
   requiredTables?: string[] | null;
+  /** Override the required columns (tests). `undefined` = from the generated client; `null` = unreadable; an empty map = none required. */
+  requiredColumns?: Map<string, string[]> | null;
   cacheMs?: number;
 }
 
@@ -313,12 +371,15 @@ export async function probeReadiness(prisma: PrismaClient, opts: ProbeOptions = 
 
   const shipped = opts.shipped === undefined ? shippedMigrationNames() : opts.shipped;
   const required = opts.requiredTables === undefined ? requiredTableNames() : opts.requiredTables;
+  const requiredCols = opts.requiredColumns === undefined ? requiredColumnNames() : opts.requiredColumns;
 
   let value: Readiness;
   if (!shipped || shipped.length === 0) {
     value = unknown('shipped_unreadable', null);
   } else if (!required || required.length === 0) {
     value = unknown('tables_unreadable', shipped.length);
+  } else if (!requiredCols) {
+    value = unknown('columns_unreadable', shipped.length);
   } else {
     try {
       const tableRows = await prisma.$queryRaw<Array<{ name: string }>>`
@@ -333,6 +394,25 @@ export async function probeReadiness(prisma: PrismaClient, opts: ProbeOptions = 
         history = rows.map((r) => ({ name: String(r.name), finished: r.finished === true }));
       }
       value = decide(shipped, required, tables, history);
+      if (value.ready && requiredCols.size > 0) {
+        // Identities and tables all check out; the last question is whether each table has the columns this
+        // build's client selects. Read only now, so a not-ready database costs no extra query.
+        const colRows = await prisma.$queryRaw<Array<{ t: string; c: string }>>`
+          SELECT cl.relname AS t, a.attname AS c
+          FROM pg_catalog.pg_attribute a
+          JOIN pg_catalog.pg_class cl ON cl.oid = a.attrelid
+          JOIN pg_catalog.pg_namespace n ON n.oid = cl.relnamespace
+          WHERE n.nspname = 'public' AND cl.relkind IN ('r', 'p') AND a.attnum > 0 AND NOT a.attisdropped`;
+        const have = new Map<string, Set<string>>();
+        for (const r of colRows) {
+          const t = String(r.t);
+          const set = have.get(t) ?? new Set<string>();
+          set.add(String(r.c));
+          have.set(t, set);
+        }
+        const missingColumns = absentColumns(requiredCols, have);
+        if (missingColumns.length > 0) value = { ...value, state: 'missing', ready: false, missingColumns };
+      }
     } catch (err) {
       value = unknown('probe_error', shipped.length, { cause: describeError(err) });
     }
@@ -424,7 +504,8 @@ export function logNotReady(r: Readiness, now: number = Date.now()): boolean {
     + nameList('missingMigrations', r.missingMigrations)
     + nameList('unexpectedMigrations', r.unexpectedMigrations)
     + nameList('failedMigrations', r.failedMigrations)
-    + nameList('missingTables', r.missingTables),
+    + nameList('missingTables', r.missingTables)
+    + nameList('missingColumns', r.missingColumns),
   );
   return true;
 }
@@ -434,5 +515,6 @@ export function __resetDbHealthStateForTests(): void {
   lastLogged.clear();
   shippedCache = undefined;
   requiredCache = undefined;
+  requiredColsCache = undefined;
   readyCache = new WeakMap();
 }

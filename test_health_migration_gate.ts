@@ -71,17 +71,44 @@ function tablesFromSchemaFile(): string[] {
 }
 const REQUIRED = tablesFromSchemaFile();
 
+/** table → columns, parsed from schema.prisma without the module under test: every scalar/enum field under its @map name; relation fields have no column. */
+function columnsFromSchemaFile(): Map<string, string[]> {
+  const text = readFileSync(path.join(ROOT, 'prisma', 'schema.prisma'), 'utf8');
+  const modelNames = new Set([...text.matchAll(/^model\s+(\w+)\s*\{/gm)].map((m) => m[1]!));
+  const out = new Map<string, string[]>();
+  let model: string | null = null; let mapped: string | null = null; let cols: string[] = [];
+  for (const line of text.split('\n')) {
+    const m = /^model\s+(\w+)\s*\{/.exec(line);
+    if (m) { model = m[1]!; mapped = null; cols = []; continue; }
+    if (!model) continue;
+    if (/^\}/.test(line)) { out.set(mapped ?? model, [...new Set(cols)].sort()); model = null; continue; }
+    const mm = /@@map\("([^"]+)"\)/.exec(line);
+    if (mm) { mapped = mm[1]!; continue; }
+    if (/^\s*(\/\/|@@|$)/.test(line)) continue;
+    const f = /^\s*(\w+)\s+(\w+)(\[\])?(\?)?(.*)$/.exec(line);
+    if (!f) continue;
+    if (modelNames.has(f[2]!)) continue;                                  // relation field: no column
+    const fm = /@map\("([^"]+)"\)/.exec(f[5] ?? '');
+    cols.push(fm ? fm[1]! : f[1]!);
+  }
+  return out;
+}
+const REQUIRED_COLS = columnsFromSchemaFile();
+
 // ── fake database ─────────────────────────────────────────────────────────
 interface Hist { name: string; finished?: boolean; rolledBack?: boolean }
 interface Db {
   liveness?: Error;
   tables?: string[] | Error;
   history?: Hist[] | Error;
+  /** table → columns present in the database. */
+  columns?: Map<string, string[]> | Error;
   calls?: { n: number; sql: string[] };
 }
 const healthyDb = (): Db => ({
   tables: [...REQUIRED, '_prisma_migrations'],
   history: SHIPPED.map((name) => ({ name })),
+  columns: new Map([...REQUIRED_COLS].map(([t, c]) => [t, [...c]] as [string, string[]])),
 });
 
 /** `$queryRaw` is a tagged template; the fake routes by SQL text and re-reads `db` on every call. */
@@ -101,6 +128,12 @@ function fakePrisma(db: Db) {
         return [{ applied: h.filter((r) => r.finished !== false).length, failed: h.filter((r) => r.finished === false).length }];
       }
       if (/pg_tables/.test(sql)) return tabs().map((name) => ({ name }));
+      if (/pg_attribute/.test(sql)) {
+        if (db.columns instanceof Error) throw db.columns;
+        const out: Array<Record<string, unknown>> = [];
+        for (const [t, cs] of db.columns ?? []) for (const c of cs) out.push({ t, c });
+        return out;
+      }
       if (/migration_name/.test(sql)) return hist().filter((r) => !r.rolledBack).map((r) => ({ name: r.name, finished: r.finished !== false }));
       if (/SELECT\s+1\b/.test(sql)) { if (db.liveness) throw db.liveness; return [{ '?column?': 1 }]; }
       throw new Error(`unexpected SQL in fake: ${sql.slice(0, 80)}`);
@@ -267,7 +300,7 @@ async function main() {
   const S = ['m1', 'm2', 'm3'];
   const T = ['users', 'ads'];
   const tabs = [...T, '_prisma_migrations'];
-  const probe = (h: Hist[], t: string[] = tabs) => H.probeReadiness(fakePrisma({ tables: t, history: h }), { shipped: S, requiredTables: T, cacheMs: 0 });
+  const probe = (h: Hist[], t: string[] = tabs) => H.probeReadiness(fakePrisma({ tables: t, history: h }), { shipped: S, requiredTables: T, requiredColumns: new Map(), cacheMs: 0 });
   await unit('truth table', async () => {
     fresh();
     const cases: Array<[string, Hist[], string[], string, boolean]> = [
@@ -549,7 +582,7 @@ async function main() {
     check('the clock steps back one hour: the cached READY result is NOT trusted, the database is asked again', calls.n > n1, { n1, n: calls.n });
 
     fresh();
-    const notReady: Readiness = { state: 'pending', ready: false, applied: 1, shipped: 2, missingMigrations: ['m2'], unexpectedMigrations: [], failedMigrations: [], missingTables: [] };
+    const notReady: Readiness = { state: 'pending', ready: false, applied: 1, shipped: 2, missingMigrations: ['m2'], unexpectedMigrations: [], failedMigrations: [], missingTables: [], missingColumns: [] };
     const lines: string[] = [];
     const ow = console.warn; console.warn = (...a: unknown[]) => { lines.push(a.join(' ')); };
     try {
@@ -559,6 +592,83 @@ async function main() {
       check('control: the same state 5 s later is rate-limited', first === true && same === false, [first, same]);
       check('the clock steps back one hour: the state is logged again instead of staying silent for an hour', back === true && lines.length === 2, { back, lines: lines.length });
     } finally { console.warn = ow; }
+  });
+
+  // ── 11. columns: identities and tables can match while the schema does not ──
+  //  Reproduced on a real Postgres (scripts/repro/health_matrix.ts, H10): with every
+  //  identity applied and every table present, `ALTER TABLE users DROP COLUMN email`
+  //  left /api/health at 200 while prisma.user.findFirst() failed with P2022. The
+  //  same state arises when a migration file is edited AFTER it was applied (the
+  //  identity matches, the column was never created).
+  console.log('\n── 11. required columns ──');
+  const flatCols = (m: Map<string, string[]>) => JSON.stringify([...m].map(([t, c]) => [t, [...c].sort()]).sort((a, b) => String(a[0]).localeCompare(String(b[0]))));
+  await unit('requiredColumnNames', async () => {
+    const got = H.requiredColumnNames();
+    check('ground truth parsed from schema.prisma covers hundreds of columns across every model', REQUIRED_COLS.size === REQUIRED.length && [...REQUIRED_COLS.values()].reduce((n, c) => n + c.length, 0) > 400, { tables: REQUIRED_COLS.size });
+    check('requiredColumnNames() (from the generated client) equals the columns parsed from prisma/schema.prisma — @map names included', got !== null && flatCols(got) === flatCols(REQUIRED_COLS), { got: got?.size, want: REQUIRED_COLS.size });
+    check('…a @map\'d column is required under its database name, not its Prisma name', (got?.get('users') ?? []).includes('password_hash') && !(got?.get('users') ?? []).includes('passwordHash'), got?.get('users'));
+    check('…and relation fields are not columns', !(got?.get('ad_accounts') ?? []).includes('workspace'), got?.get('ad_accounts'));
+  });
+
+  const dropCol = (db: Db, table: string, col: string) => { const m = db.columns as Map<string, string[]>; m.set(table, (m.get(table) ?? []).filter((c) => c !== col)); };
+
+  fresh();
+  const colDb = healthyDb(); dropCol(colDb, 'users', 'email');
+  const colRes = await hit(fakePrisma(colDb));
+  check('COLUMN dropped by hand, history and tables intact → 503, status degraded, db ok', colRes.status === 503 && colRes.body['status'] === 'degraded' && colRes.body['db'] === 'ok', colRes);
+  check('…logged as state=missing and the column is named table.column', /state=missing/.test(colRes.logs[0] ?? '') && /missingColumns=users\.email\b/.test(colRes.logs[0] ?? ''), colRes.logs);
+  check('…the public body is still exactly the legacy keys', JSON.stringify(Object.keys(colRes.body)) === JSON.stringify(LEGACY), Object.keys(colRes.body));
+
+  fresh();
+  const mapDb = healthyDb(); dropCol(mapDb, 'users', 'password_hash');
+  const mapRes = await hit(fakePrisma(mapDb));
+  check('a @map\'d column (users.password_hash) missing → 503', mapRes.status === 503 && /missingColumns=users\.password_hash\b/.test(mapRes.logs[0] ?? ''), mapRes.logs);
+
+  fresh();
+  const extraDb = healthyDb(); (extraDb.columns as Map<string, string[]>).set('users', [...(extraDb.columns as Map<string, string[]>).get('users')!, 'added_by_a_newer_release']);
+  (extraDb.columns as Map<string, string[]>).set('some_future_table', ['id']);
+  const extraRes = await hit(fakePrisma(extraDb));
+  check('EXTRA columns/tables the build does not know are tolerated (a newer database) → 200', extraRes.status === 200 && extraRes.logs.length === 0, extraRes);
+
+  fresh();
+  const aheadColDb = healthyDb();
+  aheadColDb.history = [...(aheadColDb.history as Hist[]), { name: '29990101000000_from_a_newer_release' }];
+  dropCol(aheadColDb, 'campaigns', 'name');
+  const aheadCol = await hit(fakePrisma(aheadColDb));
+  check('an AHEAD database (extra identity) that lacks a required column is still 503', aheadCol.status === 503 && /state=missing/.test(aheadCol.logs[0] ?? '') && /missingColumns=campaigns\.name\b/.test(aheadCol.logs[0] ?? ''), aheadCol);
+
+  fresh();
+  const manyDb = healthyDb(); (manyDb.columns as Map<string, string[]>).set('users', []);
+  const manyCol = await hit(fakePrisma(manyDb));
+  const colLine = manyCol.logs[0] ?? '';
+  check('a table with EVERY column missing: the log names at most 5 and counts the rest, on one short line', manyCol.status === 503 && manyCol.logs.length === 1 && /missingColumns=\S+,\+\d+more/.test(colLine) && colLine.length < 600, colLine);
+
+  fresh();
+  const pendColDb = healthyDb(); pendColDb.history = (pendColDb.history as Hist[]).slice(0, -1); dropCol(pendColDb, 'users', 'email');
+  const pendCalls = { n: 0, sql: [] as string[] };
+  const pendCol = await hit(fakePrisma({ ...pendColDb, calls: pendCalls }));
+  check('pending outranks a missing column (the identity is the better label)', /state=pending/.test(pendCol.logs[0] ?? ''), pendCol.logs);
+  check('…and the column query is not even issued for a database that is already not ready', !pendCalls.sql.some((q) => /pg_attribute/.test(q)), pendCalls.sql.map((q) => q.slice(0, 40)));
+
+  fresh();
+  const colsErrDb = healthyDb(); colsErrDb.columns = new Error(SECRET_TEXT);
+  const colsErr = await hit(fakePrisma(colsErrDb));
+  check('the column query throws → 503 (never 200, never 500), state=unknown probe_error', colsErr.status === 503 && /state=unknown/.test(colsErr.logs[0] ?? '') && /probe_error/.test(colsErr.logs[0] ?? ''), colsErr);
+  check('…one log line and nothing sensitive in it', colsErr.logs.length === 1 && !LEAK.test(colsErr.logs.join(' ')), colsErr.logs);
+
+  await unit('columns unreadable', async () => {
+    fresh();
+    const r = await H.probeReadiness(fakePrisma(healthyDb()), { shipped: SHIPPED, requiredTables: REQUIRED, requiredColumns: null, cacheMs: 0 });
+    check('required-column list unreadable → not ready, state unknown/columns_unreadable (fail closed)', r.ready === false && r.state === 'unknown' && r.unknownReason === 'columns_unreadable', r);
+  });
+  await unit('columns cached with the ready result', async () => {
+    fresh();
+    const calls = { n: 0, sql: [] as string[] };
+    const p = fakePrisma({ ...healthyDb(), calls });
+    const a = await hit(p);
+    const nA = calls.n;
+    const b = await hit(p);
+    check('first request: liveness + tables + history + columns; the READY result (columns included) is cached, so the second adds only the liveness query', a.status === 200 && b.status === 200 && nA === 4 && calls.n === nA + 1, { nA, n: calls.n });
   });
 
   console.log(`\n${pass} passed, ${fail} failed`);

@@ -48,6 +48,11 @@ function fakePrisma(o: {
   history?: Array<{ name: string; finished?: boolean }> | Error;
   calls?: { n: number };
 }) {
+  const columnRows = (): Array<Record<string, unknown>> => {
+    const out: Array<Record<string, unknown>> = [];
+    for (const [t, cs] of REQUIRED_COLUMNS ?? []) for (const c of cs) out.push({ t, c });
+    return out;
+  };
   return {
     $queryRaw: async (strings: TemplateStringsArray): Promise<Array<Record<string, unknown>>> => {
       if (o.calls) o.calls.n++;
@@ -56,6 +61,7 @@ function fakePrisma(o: {
         if (o.tables instanceof Error) throw o.tables;
         return (o.tables ?? [...SCHEMA_TABLES, '_prisma_migrations']).map((name) => ({ name }));
       }
+      if (/pg_attribute/.test(sql)) return columnRows();   // a database that has every column the client selects
       if (/migration_name/.test(sql)) {
         if (o.history instanceof Error) throw o.history;
         return (o.history ?? SHIPPED.map((name): { name: string; finished?: boolean } => ({ name }))).map((r) => ({ name: r.name, finished: r.finished !== false }));
@@ -72,6 +78,8 @@ function fakePrisma(o: {
 /** What this build ships and what its schema needs — read from disk without the module under test. */
 const MIG_DIR = path.join(__dirname, 'prisma', 'migrations');
 const SHIPPED = readdirSync(MIG_DIR).filter((n) => statSync(path.join(MIG_DIR, n)).isDirectory() && existsSync(path.join(MIG_DIR, n, 'migration.sql'))).sort();
+/** Columns this build's client selects, table → columns (set once the module under test is loaded; only the "healthy database" default uses it). */
+let REQUIRED_COLUMNS: Map<string, string[]> | null = null;
 const SCHEMA_TABLES: string[] = [];
 {
   let model: string | null = null; let mapped: string | null = null;
@@ -85,6 +93,7 @@ const SCHEMA_TABLES: string[] = [];
 async function main() {
   const H = await import('./src/lib/dbHealth');
   const { buildRoutes } = await import('./src/api/server');
+  REQUIRED_COLUMNS = H.requiredColumnNames();
 
   // ── 1. classifier ────────────────────────────────────────────────────
   console.log('\n── 1. classifyDbError: structure, never message text ──');
