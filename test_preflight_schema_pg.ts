@@ -309,6 +309,19 @@ async function main() {
       check('…and /api/health still says "ok" for it (state ok): only the preflight sees the copied row', r.json.state === 'ok', r.json?.state);
     });
 
+    // The count statements name tables unqualified. With the role's default search_path ("$user", public), a schema named like the
+    // role holding a table of the same name would be counted instead of public's.
+    const roleName = decodeURIComponent(admin.username);
+    await scenario('searchpath', async (c) => {
+      await c.query(`create schema ${pgMod.escapeIdentifier(roleName)}`);
+      await c.query(`create table ${pgMod.escapeIdentifier(roleName)}.users (id text)`);
+      await c.query(`create table ${pgMod.escapeIdentifier(roleName)}.campaigns (id text)`);
+    }, ['--counts'], async (r, db) => {
+      const truth = await withDb(db, async (c) => (await c.query(`select (select count(*) from public.users)::int as users, (select count(*) from public.campaigns)::int as campaigns`)).rows[0] as { users: number; campaigns: number });
+      check(`a same-named table in a schema named like the role is NOT what is counted (public.users = ${truth.users}, public.campaigns = ${truth.campaigns})`, r.json?.counts?.rows?.users === truth.users && r.json.counts.rows.campaigns === truth.campaigns && truth.users > 0, { counted: r.json?.counts?.rows, truth });
+      check('…and the run is still GO', r.code === 0, r.code);
+    });
+
     await scenario('nocolumn', async (c) => { await c.query('alter table users drop column email'); }, [], (r) => {
       check('a dropped column (every identity applied, every table present) → NO-GO, state missing', r.code === 1 && r.json.state === 'missing', { code: r.code, state: r.json?.state });
       check('…users.email is named, identities and tables are PASS', detailsOf(r, 'columns').includes('users.email') && status(r, 'identities') === 'PASS' && status(r, 'tables') === 'PASS', r.json?.checks?.map((c: any) => `${c.id}:${c.status}`));

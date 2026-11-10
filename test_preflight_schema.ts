@@ -102,7 +102,7 @@ function fakeConn(o: FakeOpts = {}) {
     async query(text: string): Promise<{ rows: Array<Record<string, unknown>> }> {
       sent.push(text);
       if (o.failOn && text === SQL[o.failOn]) throw Object.assign(new Error('boom: host db.internal.example user svc password S3CR3T-pw ' + MARKER), { code: o.failCode ?? '57014' });
-      if (text === SQL['begin'] || text === SQL['setStatementTimeout'] || text === SQL['setLockTimeout'] || text === SQL['rollback']) return { rows: [] };
+      if (text === SQL['begin'] || text === SQL['setStatementTimeout'] || text === SQL['setLockTimeout'] || text === SQL['setSearchPath'] || text === SQL['rollback']) return { rows: [] };
       if (text === SQL['version']) return { rows: [{ server_version: '16.15 (Ubuntu 16.15-0ubuntu0.24.04.1)' }] };
       if (text === SQL['dbName']) return { rows: [{ name: o.dbName ?? 'railway_production_db' }] };
       if (text === SQL['tables']) return { rows: tables.map((name) => ({ name })) };
@@ -435,8 +435,34 @@ async function main() {
       let threw = false; try { P.assertReadOnlySql(sql); } catch { threw = true; }
       check(`rejects ${name}`, threw, sql);
     }
+    // search_path is the one other setting the script changes, and only to this exact value
+    let spOk = true; try { P.assertReadOnlySql('SET LOCAL search_path = pg_catalog, public'); } catch { spOk = false; }
+    check('accepts: SET LOCAL search_path = pg_catalog, public (the exact value the script sets)', spOk);
+    for (const sp of ["SET LOCAL search_path = other", "SET LOCAL search_path = public", "SET search_path = pg_catalog, public", "SET LOCAL search_path = pg_catalog, public; DROP TABLE users", "SET LOCAL search_path = pg_catalog, public, evil"]) {
+      let threw = false; try { P.assertReadOnlySql(sp); } catch { threw = true; }
+      check(`rejects ${sp}`, threw);
+    }
     let msg = ''; try { P.assertReadOnlySql("UPDATE users SET email = 'secret@x.invalid'"); } catch (e) { msg = (e as Error).message; }
     check('the rejection does not echo the statement text (it may carry values)', msg.length > 0 && !msg.includes('secret@x.invalid'), msg);
+  });
+
+  await unit('exact statements', () => {
+    // The denylist above is NOT exhaustive: these pass it and are refused only by a read-only transaction that does not forbid them
+    // (observed on Postgres 16: pg_stat_reset() and pg_logical_emit_message() both ran inside BEGIN READ ONLY). The second layer is therefore an
+    // exact match against the statements this tool defines: nothing else may ever be sent, however harmless it looks.
+    const AK = (P as unknown as { assertKnownStatement?: (s: string) => void }).assertKnownStatement;
+    check('assertKnownStatement is exported', typeof AK === 'function');
+    if (typeof AK !== 'function') return;
+    const accepts = (sql: string) => { try { AK(sql); return true; } catch { return false; } };
+    const cq = (P as unknown as { COUNT_QUERIES: Array<{ sql: string }> }).COUNT_QUERIES;
+    check('every statement the script defines is known (SQL.* and every count statement)', Object.values(P.SQL).every((v) => accepts(v as string)) && cq.every((q) => accepts(q.sql)), Object.values(P.SQL).filter((v) => !accepts(v as string)));
+    for (const evil of ['SELECT pg_stat_reset()', "SELECT pg_logical_emit_message(true, 'a', 'b')", 'SELECT pg_stat_statements_reset()', 'SELECT public.some_user_function()', 'SELECT 1', 'SHOW server_version ', `${P.SQL.version} `, ` ${P.SQL.tables}`, P.SQL.tables.replace('public', 'other'), 'BEGIN', 'COMMIT']) {
+      check(`a statement that is not one of the defined ones is refused: ${evil.slice(0, 50)}`, !accepts(evil), evil);
+      let denylistAccepts = true; try { P.assertReadOnlySql(evil); } catch { denylistAccepts = false; }
+      if (/pg_stat|pg_logical|some_user_function/.test(evil)) check(`…and the denylist alone WOULD have let it through (why the exact layer exists): ${evil.slice(0, 40)}`, denylistAccepts, evil);
+    }
+    let msg = ''; try { AK('SELECT pg_stat_reset()'); } catch (e) { msg = (e as Error).message; }
+    check('the refusal is a "read-only guard:" error (closed vocabulary guard_refused) and never echoes the statement', /^read-only guard:/.test(msg) && !msg.includes('pg_stat_reset'), msg);
   });
 
   // ── 7. loopback and arguments ───────────────────────────────────────────
@@ -519,6 +545,7 @@ async function main() {
     check('the last statement is ROLLBACK', sent[sent.length - 1] === 'ROLLBACK', sent[sent.length - 1]);
     check('COMMIT is never sent', !sent.some((s) => /^\s*(COMMIT|END)\b/i.test(s)), sent);
     check('SET LOCAL statement_timeout and lock_timeout are sent right after BEGIN', sent.slice(1, 4).some((s) => /statement_timeout/.test(s)) && sent.slice(1, 4).some((s) => /lock_timeout/.test(s)), sent.slice(0, 4));
+    check('SET LOCAL search_path = pg_catalog, public is sent before any read (the count statements are unqualified: a same-named table in another schema must not be read)', sent.indexOf('SET LOCAL search_path = pg_catalog, public') > 0 && sent.indexOf('SET LOCAL search_path = pg_catalog, public') < sent.indexOf(P.SQL.version), sent.slice(0, 6));
     check('every statement sent passes the read-only allowlist', sent.every((s) => { try { P.assertReadOnlySql(s); return true; } catch { return false; } }), sent.filter((s) => { try { P.assertReadOnlySql(s); return false; } catch { return true; } }));
     check('the connection is closed', ended.n === 1, ended.n);
     check('the database name is printed redacted, never in full', /rai/.test(c.all()) && !c.all().includes('railway_production_db'), c.out().slice(0, 300));
@@ -633,6 +660,18 @@ async function main() {
       check('a statement that is not read-only injected into the count list is NEVER sent to the database', !f.sent.some((s) => /DELETE/.test(s)), f.sent.filter((s) => /DELETE/.test(s)));
       check('…the run reports guard_refused and fails closed (exit 1)', /guard_refused/.test(c.out()) && code === 1, { code, out: c.out().slice(-400) });
       check('…ROLLBACK still ends the session', f.sent[f.sent.length - 1] === 'ROLLBACK', f.sent.slice(-2));
+    } finally { cq.pop(); }
+  });
+
+  await unit('exact layer in the code path', async () => {
+    const cq = (P as unknown as { COUNT_QUERIES: Array<{ id: string; sql: string; needs: unknown[] }> }).COUNT_QUERIES;
+    cq.push({ id: 'rows.evil_probe', sql: 'SELECT pg_stat_reset()', needs: [['users']] });      // passes the denylist; is not a statement this tool defines
+    try {
+      const f = fakeConn({ forCounts: true });
+      const c = cap();
+      const code = await P.main(['--counts'], { DATABASE_URL: 'postgresql://u:p@127.0.0.1:5432/d' }, c.io, realisticDeps(f.conn));
+      check('a SELECT that passes the denylist but is not a defined statement is NEVER sent to the database', !f.sent.some((s) => /pg_stat_reset/.test(s)), f.sent.filter((s) => /pg_stat_reset/.test(s)));
+      check('…the run reports guard_refused and fails closed (exit 1)', /guard_refused/.test(c.out()) && code === 1, { code, out: c.out().slice(-300) });
     } finally { cq.pop(); }
   });
 

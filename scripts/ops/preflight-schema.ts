@@ -33,9 +33,14 @@
 //      lock_timeout, and it ends with ROLLBACK — Postgres itself refuses a write inside it.
 //    · Every statement is a constant defined below. Nothing read from the database is ever
 //      interpolated into SQL (counts are chosen from a fixed list, gated on catalog presence).
-//    · assertReadOnlySql() is a second, independent layer: every statement sent must start with
-//      SELECT / SHOW / WITH, or be exactly BEGIN READ ONLY / ROLLBACK / SET LOCAL <timeout>; no
-//      semicolons, comments, dollar-quoting, writing keywords or writing functions.
+//    · Two more layers sit in front of the connection (both run for every statement sent):
+//      assertKnownStatement() requires the text to be BYTE-FOR-BYTE one of the statements defined in this
+//      file (SQL.* and COUNT_QUERIES, frozen at load); assertReadOnlySql() is a denylist: SELECT / SHOW / WITH
+//      or exactly BEGIN READ ONLY / ROLLBACK / SET LOCAL <timeout or search_path>, no semicolons, comments,
+//      dollar-quoting, writing keywords or writing functions. The denylist is NOT exhaustive (pg_stat_reset(),
+//      pg_logical_emit_message() and user functions pass it, and READ ONLY does not forbid the first two), which
+//      is why the exact match exists. A function that opens its OWN connection (dblink) would also escape READ
+//      ONLY; the tool never calls a function by name and never selects from a view (only tables from pg_tables).
 //    · Refuses a non-loopback DATABASE_URL unless --i-understand-this-reads-a-real-database.
 //    · Output never contains the host, port, user, password or full database name; driver error
 //      text is never printed (only a closed vocabulary and a SQLSTATE/Node code).
@@ -434,6 +439,9 @@ export const SQL = {
   begin: 'BEGIN READ ONLY',
   setStatementTimeout: `SET LOCAL statement_timeout = '20s'`,
   setLockTimeout: `SET LOCAL lock_timeout = '2s'`,
+  // The count statements name their tables unqualified; with the role's default search_path a schema named like the role
+  // (or any earlier schema) holding a table of the same name would be read instead of public's. pg_catalog first, then public.
+  setSearchPath: 'SET LOCAL search_path = pg_catalog, public',
   rollback: 'ROLLBACK',
   version: 'SHOW server_version',
   dbName: 'SELECT current_database() AS name',
@@ -493,6 +501,7 @@ export const COUNT_QUERIES: ReadonlyArray<CountQuery> = [
 // ── the statement allowlist (second layer; the first is BEGIN READ ONLY) ──
 
 const SET_LOCAL_RE = /^SET LOCAL (statement_timeout|lock_timeout) = '[0-9]{1,6}(ms|s)'$/i;
+const SET_SEARCH_PATH_RE = /^SET LOCAL search_path = pg_catalog, public$/i;
 const FORBIDDEN_WORDS = /\b(INSERT|UPDATE|DELETE|DROP|CREATE|ALTER|TRUNCATE|COPY|GRANT|REVOKE|INTO|CALL|DO|EXECUTE|PREPARE|DEALLOCATE|VACUUM|ANALYZE|REINDEX|CLUSTER|REFRESH|LOCK|COMMENT|MERGE|IMPORT|LISTEN|NOTIFY|UNLISTEN|DISCARD|RESET|SET|BEGIN|START|COMMIT|END|ABORT|ROLLBACK|SAVEPOINT|RELEASE|DECLARE|FETCH|MOVE|SECURITY|EXPLAIN|OWNER)\b/i;
 const FORBIDDEN_LOCKING = /\bFOR\s+(SHARE|NO|KEY)\b/i;
 const FORBIDDEN_FUNCTIONS = /\b(set_config|nextval|setval|pg_advisory\w*|pg_terminate_backend|pg_cancel_backend|pg_reload_conf|pg_rotate_logfile|pg_switch_wal|pg_create_\w+|pg_drop_\w+|lo_\w+|dblink\w*|pg_read_\w+|pg_ls_\w+|pg_sleep\w*|pg_notify|txid_\w+)\b/i;
@@ -510,13 +519,25 @@ export function assertReadOnlySql(sql: string): void {
   if (s.includes('--') || s.includes('/*')) return refuse('comment');
   const norm = s.replace(/\s+/g, ' ').toUpperCase();
   if (norm === 'BEGIN READ ONLY' || norm === 'ROLLBACK') return;
-  if (SET_LOCAL_RE.test(s.replace(/\s+/g, ' '))) return;
+  if (SET_LOCAL_RE.test(s.replace(/\s+/g, ' ')) || SET_SEARCH_PATH_RE.test(s.replace(/\s+/g, ' '))) return;
   if (!/^(SELECT|SHOW|WITH)\b/i.test(s)) return refuse('statement type not allowed');
   const quotes = (s.match(/'/g) ?? []).length;
   if (quotes % 2 !== 0) return refuse('unbalanced quote');
   const stripped = s.replace(/'(?:[^']|'')*'/g, "''");
   if (FORBIDDEN_WORDS.test(stripped) || FORBIDDEN_LOCKING.test(stripped)) return refuse('writing or locking keyword');
   if (FORBIDDEN_FUNCTIONS.test(stripped)) return refuse('writing or locking function');
+}
+
+/**
+ * The statements this tool defines, fixed at load time: every SQL.* constant and every count statement. The denylist above is
+ * NOT exhaustive for SELECT (pg_stat_reset(), pg_logical_emit_message() and any user-defined function pass it, and a READ ONLY
+ * transaction does not forbid the first two: observed on Postgres 16), so what is sent must also be EXACTLY one of these.
+ */
+const KNOWN_STATEMENTS: ReadonlySet<string> = new Set<string>([...Object.values(SQL), ...COUNT_QUERIES.map((q) => q.sql)]);
+
+/** Throws unless `sql` is byte-for-byte one of the statements defined in this file. */
+export function assertKnownStatement(sql: string): void {
+  if (typeof sql !== 'string' || !KNOWN_STATEMENTS.has(sql)) throw new Error('read-only guard: statement refused (not one of the statements this tool defines)');
 }
 
 // ── arguments ────────────────────────────────────────────────────────────
@@ -693,7 +714,8 @@ function parseCount(c: CountsData, q: CountQuery, rows: Array<Record<string, unk
 /** Runs every read inside ONE read-only transaction and always ends with ROLLBACK. */
 async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
   const send = async (text: string): Promise<Array<Record<string, unknown>>> => {
-    assertReadOnlySql(text);
+    assertKnownStatement(text);          // exact match against what this file defines
+    assertReadOnlySql(text);             // and the denylist, independently
     return (await conn.query(text)).rows;
   };
   const out: Collected = {
@@ -704,6 +726,7 @@ async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
   try {
     await send(SQL.setStatementTimeout);
     await send(SQL.setLockTimeout);
+    await send(SQL.setSearchPath);
 
     const v = await send(SQL.version);
     out.server = /^\d+(\.\d+)?/.exec(String((v[0] ?? {})['server_version'] ?? ''))?.[0] ?? '?';
