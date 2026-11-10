@@ -1,5 +1,7 @@
 # Heal-on-GET — read routes that write to the database
 
+> **Update:** the owner chose option A for reads and option B safeguards for the repair; implemented on `local/iqd-repair`, see `IQD_REPAIR.md`. This file records the original investigation and the reproduction *before* the change.
+
 Status: **reproduced locally (LOCAL_PASS of the reproduction); not observed live.**
 Line numbers are for `main @ 3f61e40` (`/home/user/wt/core`). Reproduction:
 `scripts/repro/heal_on_get.ts` on branch `local/railway-recovery` (commit `51e6631`).
