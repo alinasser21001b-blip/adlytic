@@ -443,6 +443,12 @@ async function main() {
       check(`rejects ${JSON.stringify(bad)}`, P.parseArgs(bad).ok === false, P.parseArgs(bad));
     }
     check('--help is recognised', (P.parseArgs(['--help']) as { help?: boolean }).help === true);
+    // A connection URL passed as an ARGUMENT (an easy mistake: the tool reads DATABASE_URL from the environment) must never be echoed back.
+    for (const bad of [[SECRET_URL], ['--database-url=' + SECRET_URL], ['--json', SECRET_URL], ['--volume-bytes', SECRET_URL], ['--volume-bytes=' + SECRET_URL]]) {
+      const r = P.parseArgs(bad);
+      check(`an argument carrying a connection URL is refused (${bad[bad.length - 1]!.slice(0, 18)}...)`, r.ok === false, r);
+      check('…and its text (user, password, host, port, database) is not in the error message', r.ok === false && leaked(r.error).length === 0 && !/S3CR3T|svc_user|railway_production/.test(r.error), r);
+    }
   });
 
   // ── 8. counts ───────────────────────────────────────────────────────────
@@ -672,6 +678,12 @@ async function main() {
     check('--json on a closed port → a JSON document with verdict NOT_RUN, exit 2', e.code === 2 && j?.verdict === 'NOT_RUN', e);
     const h = run(['--help'], {});
     check('--help → exit 0', h.code === 0 && /Usage/.test(h.text), h);
+    const u = run([SECRET_URL], {});
+    check('a connection URL passed as an ARGUMENT → exit 2 and not one character of it is echoed', u.code === 2 && leaked(u.text).length === 0 && !/svc_user|S3CR3T|db\.internal/.test(u.text), u);
+    const u2 = run(['postgresql://postgres:Zq9Leak7731@host.proxy.example:6543/railway'], {});
+    check('…the same for a realistic URL whose user and password fall inside the first 40 characters (the old echo printed them)', u2.code === 2 && !/Zq9Leak|postgres:|host\.proxy/.test(u2.text), u2);
+    const u3 = run(['--database-url=postgresql://postgres:Zq9Leak7731@host.proxy.example:6543/railway'], {});
+    check('…and for --database-url=<url>: only the flag NAME may be named', u3.code === 2 && !/Zq9Leak|postgres:|host\.proxy/.test(u3.text) && /--database-url/.test(u3.text), u3);
   });
 
   console.log(`\n${fail === 0 ? 'PASS' : 'FAIL'}: ${pass} passed, ${fail} failed`);

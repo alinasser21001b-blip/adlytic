@@ -509,6 +509,16 @@ export type ParsedArgs =
   | { ok: true; json: boolean; counts: boolean; volumeBytes: number | undefined; acknowledged: boolean; help: boolean }
   | { ok: false; error: string };
 
+/**
+ * What an unknown argument may be called in an error message. The operator's most likely mistake is to pass the
+ * connection URL (or `--database-url=<url>`) as an argument instead of the DATABASE_URL variable, so NO part of the
+ * argument is echoed unless it is a plain flag NAME (the text before any `=`, letters digits and dashes only).
+ */
+function unknownArgumentLabel(a: string): string {
+  const name = a.split('=')[0] ?? '';
+  return /^--[A-Za-z][A-Za-z0-9-]{0,30}$/.test(name) ? `${name}${a.includes('=') ? '=<value not shown>' : ''}` : '(value not shown)';
+}
+
 export function parseArgs(argv: string[]): ParsedArgs {
   let json = false; let counts = false; let acknowledged = false; let help = false;
   let volumeBytes: number | undefined;
@@ -527,7 +537,7 @@ export function parseArgs(argv: string[]): ParsedArgs {
     else if (a === '--help' || a === '-h') help = true;
     else if (a === '--volume-bytes') { const e = parseVolume(argv[++i]); if (e) return { ok: false, error: e }; }
     else if (a.startsWith('--volume-bytes=')) { const e = parseVolume(a.slice('--volume-bytes='.length)); if (e) return { ok: false, error: e }; }
-    else return { ok: false, error: `unknown argument ${JSON.stringify(a.slice(0, 40))}` };
+    else return { ok: false, error: `unknown argument ${unknownArgumentLabel(a)}` };
   }
   return { ok: true, json, counts, volumeBytes, acknowledged, help };
 }
