@@ -79,7 +79,7 @@ async function main() {
     for (const [m, role] of [[owner, 'OWNER'], [manager, 'MANAGER'], [viewer, 'VIEWER']] as const) {
       await prisma.workspaceMember.create({ data: { workspaceId: ws.id, userId: m.u.id, role } });
     }
-    const mkAccount = (n: number) => prisma.adAccount.create({ data: { workspaceId: ws.id, externalAccountId: `act_${label}${n}_${sfx}`, name: `Account ${label}${n}`, currency: 'IQD', currencyMinorFactor: 1, timezone: 'UTC', metaAccountStatus: 1, lastSyncedAt: new Date(), createdAt: new Date(Date.now() - (3 - n) * 1000) } });
+    const mkAccount = (n: number) => prisma.adAccount.create({ data: { workspaceId: ws.id, externalAccountId: `act_${label}${n}_${sfx}`, name: `Account ${label}${n}`, currency: 'USD', currencyMinorFactor: 100, timezone: 'UTC', metaAccountStatus: 1, lastSyncedAt: new Date(), createdAt: new Date(Date.now() - (3 - n) * 1000) } });
     const account = await mkAccount(1);
     const account2 = await mkAccount(2);
     const mkCampaign = (acc: { id: string }, n: number) => prisma.campaign.create({ data: { adAccountId: acc.id, externalCampaignId: `camp_${label}${n}_${sfx}`, name: `Campaign ${label}${n}` } });
