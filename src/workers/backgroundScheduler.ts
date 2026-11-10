@@ -22,10 +22,8 @@ import { resolveAccountToken, handleMeta190 } from '../services/accountToken';
 import { runRefresh } from '../services/refresh/refreshEngine';
 import { config } from '../config';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from '../lib/advisoryLock';
-import {
-  cleanupOrphanedCampaignStats,
-  runDataIntegrityCheck,
-} from '../services/dataIntegrityMonitor';
+import { runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
+import { cleanupOrphanedCampaignStatsGlobal } from '../lib/platformOrphanCleanup';
 import { refreshExpiringMetaTokens } from './refreshMetaTokens';
 import { refreshCampaignHistoryRollups } from './rollupHistory';
 import { bootQueueWorkers } from './queue';
@@ -403,9 +401,18 @@ async function runIntegritySweep(prisma: PrismaClient): Promise<void> {
         );
       }
     }
-    const cleaned = await cleanupOrphanedCampaignStats(prisma);
-    if (cleaned > 0) {
-      console.log(`[adlytic:integrity] auto-cleaned ${cleaned} orphaned daily_stat row(s) globally`);
+    // GLOBAL cleanup is a platform operation: the scheduler acts as the platform,
+    // explicitly, and refuses when orphans are an implausible share of all campaign
+    // statistics (a restored or partly restored database whose `campaigns` table is
+    // missing or behind) — see src/lib/platformOrphanCleanup.ts.
+    const cleaned = await cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'system-scheduler' });
+    if (cleaned.status === 'skipped_orphan_fraction') {
+      console.warn(
+        `[adlytic:integrity] REFUSED automatic orphan cleanup: ${cleaned.counts.orphanRows} of ${cleaned.counts.campaignStatRows} campaign stat rows ` +
+        `(${(cleaned.fraction * 100).toFixed(1)}% > ${(cleaned.maxOrphanFraction * 100).toFixed(0)}%) have no campaign — check the database before deleting anything`,
+      );
+    } else if (cleaned.rowsDeleted > 0) {
+      console.log(`[adlytic:integrity] auto-cleaned ${cleaned.rowsDeleted} orphaned daily_stat row(s) globally`);
     }
   } catch (err) {
     console.error('[adlytic:integrity] Sweep failed:', err);

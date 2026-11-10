@@ -2,13 +2,10 @@ import type { PrismaClient } from '@prisma/client';
 import { EntityType } from '@prisma/client';
 
 import { getCampaignCounts, type CampaignCounts } from '../lib/campaignCatalog';
-import {
-  cleanupOrphanedCampaignStats,
-  findGloballyOrphanedCampaignEntityIds,
-} from '../lib/campaignDataIsolation';
+import { findOwnedOrphanedCampaignEntityIds } from '../lib/campaignDataIsolation';
 import { accountDeliveryHold, classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
 import { accountLocalDateFloor } from '../lib/campaignSpending';
-import { collectScaleEvidence } from '../lib/iqdRepair';
+import { accountHistoryEvidenceCoverage, collectScaleEvidence } from '../lib/iqdRepair';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -21,6 +18,22 @@ export type IntegrityCheck = {
   autoFixable?: boolean;
 };
 
+/**
+ * How much of an IQD account's stored spend can actually be checked against raw
+ * Meta data. The stored currency factor is NOT evidence: `factorIsEvidence` is
+ * always false, and a factor of 1 certifies nothing about rows that have no raw
+ * counterpart (everything older than RAW_INSIGHTS_RETAIN_DAYS, and any day sync
+ * never captured).
+ */
+export type SpendScaleReport = {
+  currency: 'IQD';
+  storedFactor: number;
+  factorIsEvidence: false;
+  window: { days: number; accountRows: number; verified: number; overscaled: number; unverified: number };
+  /** ACCOUNT-level rows of ALL time, and how many have no raw_insights row for their date. */
+  history: { accountRows: number; withoutEvidence: number };
+};
+
 export type DataIntegrityReport = {
   workspaceId: string;
   accountId: string;
@@ -29,8 +42,11 @@ export type DataIntegrityReport = {
   campaignCounts: CampaignCounts;
   checks: IntegrityCheck[];
   overallStatus: IntegritySeverity;
+  /** Orphans whose owner is VERIFIED to be this workspace — never another tenant's, never unattributed ones. */
   orphanedCount: number;
   orphanedCampaignIds: string[];
+  /** Present for IQD accounts only. */
+  spendScale?: SpendScaleReport;
   divergencePct: number;
   divergenceStatus: 'OK' | 'MODERATE' | 'HIGH';
   staleActiveCount: number;
@@ -66,6 +82,11 @@ export async function runDataIntegrityCheck(
   const windowDays = opts.windowDays ?? DELIVERY_WINDOW_DAYS;
   const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
   const checks: IntegrityCheck[] = [];
+
+  // Ownership is verified here, not assumed from the arguments: everything below
+  // is scoped by this workspace, so the account must belong to it.
+  const owns = await prisma.adAccount.findFirst({ where: { id: account.id, workspaceId }, select: { id: true } });
+  if (!owns) throw new Error('data-integrity: ad account does not belong to the workspace');
 
   // The account-level hold is the FIRST check, because it explains every
   // other symptom at once: flat-lined spend, zero delivery, dormant-looking
@@ -123,7 +144,7 @@ export async function runDataIntegrityCheck(
           _sum: { spend: true },
         })
       : Promise.resolve([]),
-    findGloballyOrphanedCampaignEntityIds(prisma, { sinceDate, limit: 500 }),
+    findOwnedOrphanedCampaignEntityIds(prisma, workspaceId, { sinceDate, limit: 500 }),
   ]);
 
   const spendWindowByCampaign = new Map(
@@ -236,9 +257,21 @@ export async function runDataIntegrityCheck(
     where: { id: account.id },
     select: { currency: true, currencyMinorFactor: true },
   });
+  let spendScale: SpendScaleReport | undefined;
   if (storedAccount && storedAccount.currency === 'IQD') {
     const scale = await collectScaleEvidence(prisma, account.id, { sinceDate });
-    const factorStale = storedAccount.currencyMinorFactor !== 1;
+    const history = await accountHistoryEvidenceCoverage(prisma, account.id);
+    const windowRows = accountStats.length;
+    const verified = scale.accountRows.verified;
+    const overscaled = scale.accountRows.overscaled;
+    const unverified = Math.max(0, windowRows - verified - overscaled);
+    spendScale = {
+      currency: 'IQD',
+      storedFactor: storedAccount.currencyMinorFactor,
+      factorIsEvidence: false,
+      window: { days: windowDays, accountRows: windowRows, verified, overscaled, unverified },
+      history: { accountRows: history.accountRows, withoutEvidence: history.withoutEvidence },
+    };
     if (scale.overscaled.length > 0) {
       checks.push({
         code: 'SPEND_SCALE_OVERSCALED',
@@ -248,13 +281,15 @@ export async function runDataIntegrityCheck(
         value: scale.overscaled.length,
         autoFixable: false,
       });
-    } else if (factorStale && accountStats.length > 0 && scale.verified < accountStats.length) {
+    } else if (unverified > 0) {
+      // Driven by the ROWS, never by the factor: a stored factor of 1 certifies
+      // nothing about spend that has no raw Meta counterpart to be checked against.
       checks.push({
         code: 'SPEND_SCALE_UNVERIFIED',
         severity: 'WARN',
-        message: `IQD account stores currency factor ${storedAccount.currencyMinorFactor} and its spend scale cannot be verified from raw Meta data — figures are shown as stored, not rewritten`,
-        messageAr: `لا يمكن التحقق من مقياس الإنفاق لحساب IQD (المعامل المحفوظ ${storedAccount.currencyMinorFactor}) — الأرقام تُعرض كما هي ولا تُعدَّل تلقائياً`,
-        value: storedAccount.currencyMinorFactor,
+        message: `${unverified} of ${windowRows} account-level spend row(s) in the ${windowDays}d window cannot be checked against raw Meta data — the stored currency factor (${storedAccount.currencyMinorFactor}) is not evidence of their scale; figures are shown as stored, not rewritten`,
+        messageAr: `${unverified} من ${windowRows} صف إنفاق على مستوى الحساب خلال آخر ${windowDays} يوماً لا يمكن التحقق منها ببيانات Meta الخام — المعامل المحفوظ (${storedAccount.currencyMinorFactor}) ليس دليلاً على مقياسها؛ تُعرض كما هي ولا تُعدَّل`,
+        value: unverified,
         autoFixable: false,
       });
     }
@@ -279,11 +314,10 @@ export async function runDataIntegrityCheck(
     overallStatus: maxSeverity(checks),
     orphanedCount: orphanedEntityIds.length,
     orphanedCampaignIds: orphanedEntityIds,
+    ...(spendScale ? { spendScale } : {}),
     divergencePct,
     divergenceStatus,
     staleActiveCount,
     syncAgeHours,
   };
 }
-
-export { cleanupOrphanedCampaignStats, findGloballyOrphanedCampaignEntityIds };

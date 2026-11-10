@@ -3634,7 +3634,9 @@ ${renderIntelligenceJs}
           fixBtn.onclick = function() {
             fixBtn.disabled = true;
             fixBtn.textContent = 'جارٍ التنظيف…';
-            apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/data-health?cleanup=true', {}, 15000)
+            // Deleting is a POST scoped to THIS workspace's verified orphans; the GET
+            // is read-only and ignores ?cleanup=true.
+            apiFetchWithTimeout('/api/workspaces/' + workspaceId + '/data-health/cleanup', { method: 'POST' }, 15000)
               .then(function(result) {
                 toast('تم تنظيف ' + (result.orphanedRowsDeleted || 0) + ' صف بيانات قديمة', 'success');
                 fixBtn.style.display = 'none';

@@ -226,7 +226,12 @@ import {
   type MobileClientChannel,
   type OAuthStatePayload,
 } from '../lib/mobileClient';
-import { cleanupOrphanedCampaignStats, runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
+import { runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
+// Tenant-scoped orphan deletion (verified ownership) …
+import { deleteOwnedOrphanedCampaignStats } from '../lib/campaignDataIsolation';
+// … and the GLOBAL one, reachable only from the platform-admin routes below and the
+// scheduler. test_data_health_isolation.ts fails the build if anything else imports it.
+import { cleanupOrphanedCampaignStatsGlobal, countOrphanedCampaignStatsGlobal } from '../lib/platformOrphanCleanup';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
 /** Map resolved purpose family → objective key for KPI math helpers. */
@@ -1508,7 +1513,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   /**
    * GET /api/workspaces/:workspaceId/data-health — data consistency observer.
    * Compares account-level vs sum-of-campaign stats, dormant ACTIVE inflation,
-   * and orphaned historical rows. ?cleanup=true removes orphaned stats.
+   * and orphaned historical rows.
+   *
+   * READ-ONLY, whatever the query string says. `?cleanup=true` used to delete
+   * orphaned stats GLOBALLY from this GET — any member, a VIEWER included, could
+   * wipe every tenant's orphans — and the orphan ids and count in the answer
+   * were global too. Now: the ids and count are only those whose ownership is
+   * VERIFIED for this workspace, `cleanup=true` is ignored (it reports that
+   * nothing was done), and deleting is POST …/data-health/cleanup below.
    */
   app.get('/api/workspaces/:workspaceId/data-health', async (c) => {
     const req = await honoToApiRequest(c);
@@ -1519,13 +1531,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json({ error: 'No ad account linked' }, 404);
 
-    const doCleanup = req.query['cleanup'] === 'true';
+    const cleanupRequested = req.query['cleanup'] === 'true';
     const report = await runDataIntegrityCheck(prisma, req.params['workspaceId'], account);
-
-    let orphanedRowsDeleted = 0;
-    if (doCleanup && report.orphanedCount > 0) {
-      orphanedRowsDeleted = await cleanupOrphanedCampaignStats(prisma);
-    }
 
     return c.json({
       window: `${report.windowDays}d`,
@@ -1543,8 +1550,70 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       orphanedCount: report.orphanedCount,
       staleActiveCount: report.staleActiveCount,
       syncAgeHours: report.syncAgeHours,
-      ...(doCleanup ? { orphanedRowsDeleted } : {}),
+      ...(report.spendScale ? { spendScale: report.spendScale } : {}),
+      ...(cleanupRequested
+        ? {
+            orphanedRowsDeleted: 0,
+            cleanup: { performed: false, reason: 'GET is read-only', use: `POST /api/workspaces/${req.params['workspaceId']}/data-health/cleanup` },
+          }
+        : {}),
     });
+  });
+
+  /**
+   * POST /api/workspaces/:workspaceId/data-health/cleanup — delete THIS workspace's
+   * orphaned daily stats, and only those whose ownership is verified for it
+   * (src/lib/campaignDataIsolation.ts). Owner/Manager only. Orphans that nobody
+   * names, or that another workspace names, are never touched here.
+   */
+  app.post('/api/workspaces/:workspaceId/data-health/cleanup', async (c) => {
+    const req = await honoToApiRequest(c);
+    if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
+    const userId = await getUserId(req.bearerToken);
+    if (!userId) return c.json({ error: 'Invalid token' }, 401);
+    const workspaceId = req.params['workspaceId'];
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions' }, 403);
+    const { account } = await getAccount(workspaceId);
+    if (!account) return c.json({ error: 'No ad account linked' }, 404);
+    const { rowsDeleted } = await deleteOwnedOrphanedCampaignStats(prisma, workspaceId);
+    return c.json({ orphanedRowsDeleted: rowsDeleted, scope: 'workspace-verified-ownership' });
+  });
+
+  /**
+   * GET /api/admin/data-health/orphans — platform administrators only. Aggregate
+   * counts of orphaned campaign stats ACROSS tenants (never ids), including the
+   * ones whose owner cannot be verified. The number to quote to the POST below.
+   */
+  app.get('/api/admin/data-health/orphans', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    return c.json({ scope: 'platform-global', ...(await countOrphanedCampaignStatsGlobal(prisma)) });
+  });
+
+  /**
+   * POST /api/admin/data-health/orphans/cleanup?expectedRows=N — platform
+   * administrators only. Deletes EVERY orphaned campaign daily_stat, whoever it
+   * belonged to. N must equal the `orphanRows` the operator just read from the
+   * GET above; if the number moved, nothing is deleted (409).
+   */
+  app.post('/api/admin/data-health/orphans/cleanup', async (c) => {
+    const req = await honoToApiRequest(c);
+    const gate = await requirePlatformAdmin(req, prisma);
+    if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
+    const raw = req.query['expectedRows'];
+    const expectedRows = raw !== undefined && /^\d+$/.test(String(raw)) ? Number(raw) : undefined;
+    if (expectedRows === undefined) {
+      return c.json({ error: 'expectedRows is required: the orphanRows value from GET /api/admin/data-health/orphans' }, 400);
+    }
+    const result = await cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'platform-admin', userId: gate.userId, email: gate.email }, { expectedRows });
+    if (result.status === 'skipped_expected_rows_mismatch') {
+      return c.json({ error: 'The orphan count changed since it was read; nothing was deleted', ...result }, 409);
+    }
+    console.log(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… deleted=${result.rowsDeleted}`);
+    return c.json({ scope: 'platform-global', ...result });
   });
 
   // ════════════════════════════════════════════════════════════════════════

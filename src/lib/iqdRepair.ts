@@ -92,9 +92,11 @@ export interface ScaleEvidence {
   verified: number;
   /** Rows inside the evidence range with no usable raw spend, conflicting raw spends, or a ratio matching neither scale. */
   unverifiable: number;
-  /** (entity, date) keys whose raw rows disagree with each other — treated as no evidence. */
+  /** (entity, date) keys whose raw rows disagree with each other and none matches the stored spend — treated as no evidence. */
   conflictingRawKeys: number;
   entitiesChecked: number;
+  /** The same counts for ACCOUNT-level rows only (the headline spend). */
+  accountRows: { verified: number; unverifiable: number; overscaled: number };
 }
 
 const dayKey = (d: Date): string => d.toISOString().slice(0, 10);
@@ -122,7 +124,10 @@ export async function collectScaleEvidence(
     [EntityType.CAMPAIGN]: campaigns.map((c) => c.id),
   };
 
-  const out: ScaleEvidence = { overscaled: [], verified: 0, unverifiable: 0, conflictingRawKeys: 0, entitiesChecked: 0 };
+  const out: ScaleEvidence = {
+    overscaled: [], verified: 0, unverifiable: 0, conflictingRawKeys: 0, entitiesChecked: 0,
+    accountRows: { verified: 0, unverifiable: 0, overscaled: 0 },
+  };
 
   for (const entityType of COVERED_ENTITY_TYPES) {
     const ids = idsByType[entityType];
@@ -136,8 +141,11 @@ export async function collectScaleEvidence(
         WHERE entity_type = ${entityType}::"EntityType" AND entity_id = ANY(${idChunk}) ${since}`;
       if (raws.length === 0) continue;
 
-      // (entity, date) -> every raw spend seen. Disagreement is NOT resolved by
-      // guessing which fetch is newer; it is treated as no evidence.
+      // (entity, date) -> every raw spend seen. sync APPENDS a raw row on every
+      // run, so a recent day legitimately has several, with restated values.
+      //   · a stored value that equals ANY of them is VERIFIED (Meta reported it);
+      //   · a stored value is judged OVERSCALED only against raws that all agree:
+      //     disagreement is NOT resolved by guessing which fetch is newer.
       const spendsByKey = new Map<string, number[]>();
       let minDay = raws[0]!.day, maxDay = raws[0]!.day;
       for (const r of raws) {
@@ -160,15 +168,23 @@ export async function collectScaleEvidence(
       for (const s of stats) {
         const key = `${s.entityId}|${dayKey(s.date)}`;
         const seen = spendsByKey.get(key) ?? [];
-        let evidence: number | null = null;
-        if (seen.length > 0) {
-          const spread = Math.max(...seen) - Math.min(...seen);
-          if (spread > 1) conflicting.add(key); else evidence = seen[0]!;
+        const stored = Number(s.spend);
+        let verdict: ScaleVerdict;
+        if (seen.some((v) => judgeSpendScale(stored, v) === "VERIFIED")) {
+          verdict = "VERIFIED";
+        } else {
+          let evidence: number | null = null;
+          if (seen.length > 0) {
+            const spread = Math.max(...seen) - Math.min(...seen);
+            if (spread > 1) conflicting.add(key); else evidence = seen[0]!;
+          }
+          verdict = judgeSpendScale(stored, evidence);
         }
-        const verdict = judgeSpendScale(Number(s.spend), evidence);
-        if (verdict === "VERIFIED") out.verified++;
-        else if (verdict === "UNVERIFIABLE") out.unverifiable++;
+        const acct = entityType === EntityType.ACCOUNT ? out.accountRows : null;
+        if (verdict === "VERIFIED") { out.verified++; if (acct) acct.verified++; }
+        else if (verdict === "UNVERIFIABLE") { out.unverifiable++; if (acct) acct.unverifiable++; }
         else {
+          if (acct) acct.overscaled++;
           out.overscaled.push({
             statId: s.id, entityType, entityId: s.entityId, date: s.date, storedSpend: s.spend,
             cpc: s.cpc, cpm: s.cpm, costPerMessage: s.costPerMessage, revenueMinor: s.revenueMinor, verdict,
@@ -178,7 +194,45 @@ export async function collectScaleEvidence(
       out.conflictingRawKeys += conflicting.size;
     }
   }
+
+  // Everything the evidence did not PROVE is unverifiable — including rows with no
+  // raw counterpart at all and rows older than the raw coverage. Counting only the
+  // rows that happened to fall inside a raw date range would understate it (and say
+  // "0" for an account that has no raw_insights whatever).
+  const dateFilter = opts.sinceDate ? { date: { gte: opts.sinceDate } } : {};
+  let totalRows = 0, totalAccountRows = 0;
+  for (const entityType of COVERED_ENTITY_TYPES) {
+    for (const idChunk of chunk(idsByType[entityType], ID_CHUNK)) {
+      if (idChunk.length === 0) continue;
+      const n = await db.dailyStat.count({ where: { entityType, entityId: { in: idChunk }, ...dateFilter } });
+      totalRows += n;
+      if (entityType === EntityType.ACCOUNT) totalAccountRows += n;
+    }
+  }
+  out.unverifiable = Math.max(0, totalRows - out.verified - out.overscaled.length);
+  out.accountRows.unverifiable = Math.max(0, totalAccountRows - out.accountRows.verified - out.accountRows.overscaled);
   return out;
+}
+
+/**
+ * READ-ONLY. How much of one account's ACCOUNT-level history has ANY raw_insights
+ * row for its date. Rows without one cannot be checked against Meta at all —
+ * whatever the stored currency factor says. (raw_insights are pruned after
+ * RAW_INSIGHTS_RETAIN_DAYS by fetched_at; daily_stats are kept.)
+ */
+export async function accountHistoryEvidenceCoverage(
+  db: Pick<PrismaClient, "$queryRaw">,
+  accountId: string,
+): Promise<{ accountRows: number; withoutEvidence: number }> {
+  const r = await db.$queryRaw<Array<{ total: number; without_evidence: number }>>`
+    SELECT count(*)::int AS total,
+           (count(*) FILTER (WHERE NOT EXISTS (
+              SELECT 1 FROM raw_insights r
+              WHERE r.entity_type = 'ACCOUNT'::"EntityType" AND r.entity_id = d.entity_id AND r.date = d.date
+           )))::int AS without_evidence
+    FROM daily_stats d
+    WHERE d.entity_type = 'ACCOUNT'::"EntityType" AND d.entity_id = ${accountId}`;
+  return { accountRows: Number(r[0]?.total ?? 0), withoutEvidence: Number(r[0]?.without_evidence ?? 0) };
 }
 
 /** The fields the mapper multiplied by the (wrong) factor, divided back. Ratios (ctr, roas, frequency) are untouched. */
