@@ -143,7 +143,8 @@ export async function collectScaleEvidence(
 
       // (entity, date) -> every raw spend seen. sync APPENDS a raw row on every
       // run, so a recent day legitimately has several, with restated values.
-      //   · a stored value that equals ANY of them is VERIFIED (Meta reported it);
+      //   · a stored value that equals ANY of them is VERIFIED (Meta reported it) — unless
+      //     another of them says it is exactly x100, which withdraws the certificate;
       //   · a stored value is judged OVERSCALED only against raws that all agree:
       //     disagreement is NOT resolved by guessing which fetch is newer.
       const spendsByKey = new Map<string, number[]>();
@@ -170,7 +171,13 @@ export async function collectScaleEvidence(
         const seen = spendsByKey.get(key) ?? [];
         const stored = Number(s.spend);
         let verdict: ScaleVerdict;
-        if (seen.some((v) => judgeSpendScale(stored, v) === "VERIFIED")) {
+        // "Equal to SOME raw of the day" verifies a restated day — unless ANOTHER raw of
+        // that day proves the stored value is exactly x100 (e.g. [100000 (older), 1000
+        // (newer)] with 100000 stored): then the row is contradicted, not certified. It
+        // falls through to the disagreement rule below — unproven, counted, never
+        // rewritten, because we do not guess which fetch is the newer one.
+        const contradictedAsX100 = seen.some((v) => judgeSpendScale(stored, v) === "OVERSCALED");
+        if (!contradictedAsX100 && seen.some((v) => judgeSpendScale(stored, v) === "VERIFIED")) {
           verdict = "VERIFIED";
         } else {
           let evidence: number | null = null;

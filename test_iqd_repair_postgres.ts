@@ -67,7 +67,9 @@ async function main() {
 
   // 'restated': sync APPENDS a raw row on every run, so a day can carry an earlier, different
   // value next to the final one. The stored (correct) value matches the final one.
-  type RawMode = 'none' | 'match' | 'conflict' | 'restated';
+  // 'stale100': the day carries a raw row equal to the stored (x100) value AND another raw that is exactly
+  // 1/100 of it: "equal to SOME raw" must not bless a row that another raw proves is x100.
+  type RawMode = 'none' | 'match' | 'conflict' | 'restated' | 'stale100';
   interface SeedOpts { currency?: string; factor: number; scale: 'correct' | 'over' | 'ambiguous37'; raw: RawMode; campaigns?: number; /** extra ACCOUNT-level rows N days ago, never with a raw counterpart */ oldAccountRows?: number[] }
 
   /** One synthetic tenant. `over` = every money field x100; `ambiguous37` = x37 (matches neither scale). */
@@ -101,6 +103,7 @@ async function main() {
           if (o.raw === 'restated') await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(Math.round(e.spend * 0.6)) } } });
           await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(e.spend) } } });
           if (o.raw === 'conflict') await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(Math.round(e.spend * 0.6)) } } });
+          if (o.raw === 'stale100') await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(e.spend * 100) } } });
         }
       }
     }
@@ -341,6 +344,14 @@ async function main() {
   const rConf = await quiet(() => R.repairIqdAccountScale(prisma, conf.account.id))();
   check('two raw fetches that disagree are NOT evidence: rows untouched', same(bConf.stats, (await snap(conf)).stats) && rConf.conflictingRawKeys === 9, rConf);
 
+  // "equal to ANY raw of the day" verifies restated days, but must never bless a row that another raw proves is x100
+  const st100 = await seed('stale100', { factor: 100, scale: 'over', raw: 'stale100' });
+  const bSt100 = await snap(st100);
+  const dSt100 = await quiet(() => R.repairIqdAccountScale(prisma, st100.account.id, { apply: false }))();
+  check('stored x100 value equals an OLDER raw while another raw of the same day is exactly 1/100 of it: NOT verified (dry run: 0 verified, 0 overscaled, 9 conflicting, 9 unproven)', dSt100.rowsVerified === 0 && dSt100.rowsOverscaled === 0 && dSt100.conflictingRawKeys === 9 && dSt100.rowsUnverifiable === 9, dSt100);
+  const rSt100 = await quiet(() => R.repairIqdAccountScale(prisma, st100.account.id))();
+  check('…and the repair does not guess which raw is newer: the rows are left exactly as they are', same(bSt100.stats, (await snap(st100)).stats) && rSt100.accountRowsRescaled + rSt100.campaignRowsRescaled === 0, rSt100);
+
   // ── 9. tenants ───────────────────────────────────────────────────────
   console.log('\n── 9. one tenant can never repair another ──');
   const A = await seed('tenantA', { factor: 100, scale: 'over', raw: 'match' });
@@ -407,6 +418,9 @@ async function main() {
   check('stale factor with unverifiable rows: the repair flips the factor to 1 …', bF2.factor === 100 && aF2.factor === 1 && rF2.factorChanged, [bF2.factor, aF2.factor]);
   check('…leaves every unproven row exactly as it is, and REPORTS all 9 of them as left intact (not 0)', same(bF2.stats, aF2.stats) && rF2.rowsUnverifiable === 9, rF2);
   check('…and AFTER the flip the warning is still there: factor 1 did not certify them', h2.body.checks?.some((c: any) => c.code === 'SPEND_SCALE_UNVERIFIED') && h2.body.spendScale?.storedFactor === 1, [h2.body.spendScale, h2.body.checks?.map((c: any) => c.code)]);
+  const f6 = await seed('f6-stale100', { factor: 1, scale: 'over', raw: 'stale100', campaigns: 1 });
+  const h6 = await healthOf(f6);
+  check('factor 1, rows x100, one raw equal to the stored value but another raw exactly 1/100: data-health does NOT certify them (SPEND_SCALE_UNVERIFIED, 0 verified)', h6.body.spendScale?.window?.verified === 0 && h6.body.spendScale?.window?.unverified === 3 && h6.body.checks?.some((c: any) => c.code === 'SPEND_SCALE_UNVERIFIED') && h6.body.overallStatus !== 'OK', [h6.body.spendScale?.window, h6.body.checks?.map((c: any) => c.code)]);
   const f3 = await seed('f3-hist', { factor: 1, scale: 'correct', raw: 'match', campaigns: 1, oldAccountRows: [200, 201, 202] });
   const h3 = await healthOf(f3);
   check('history older than any raw evidence (3 rows, 200+ days ago): reported, not certified', h3.body.spendScale?.history?.accountRows === 6 && h3.body.spendScale?.history?.withoutEvidence === 3, h3.body.spendScale?.history);
