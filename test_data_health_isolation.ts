@@ -85,7 +85,8 @@ async function main() {
   const exported = [...iso.matchAll(/export async function (\w*[Oo]rphan\w*)\(([^)]*)\)/g)].map((m) => ({ name: m[1]!, params: m[2]! }));
   check('campaignDataIsolation exports orphan functions', exported.length >= 2, exported.map((e) => e.name));
   check('…and every one of them takes workspaceId', exported.every((e) => /workspaceId/.test(e.params)), exported);
-  check('ownership is VERIFIED by records that outlive the campaign, and a foreign claim disqualifies', /campaign_brain_snapshots/.test(iso) && /recommendation_logs/.test(iso) && /workspace_id <>/.test(iso));
+  check('ownership is VERIFIED by brain snapshots (written by the worker, outliving the campaign), and a foreign claim disqualifies', /campaign_brain_snapshots/.test(iso) && /workspace_id <>/.test(iso));
+  check('recommendation_logs are NOT ownership evidence: their campaign_id is client-supplied (POST …/recommendations/action), so a member of B could veto or claim A\'s orphans with it', !/recommendation_logs|recommendationLog/.test(iso), iso.match(/recommendation_?[lL]ogs?/g));
   check('the delete is one statement guarded by NOT EXISTS (a campaign that reappears keeps its rows)', /DELETE FROM daily_stats d USING owned o/.test(iso) && /NOT EXISTS \(SELECT 1 FROM campaigns c WHERE c\.id = d\.entity_id\)/.test(iso));
   const mon = code(read('src/services/dataIntegrityMonitor.ts'));
   check('the integrity monitor uses only the OWNED finder and verifies the account belongs to the workspace',

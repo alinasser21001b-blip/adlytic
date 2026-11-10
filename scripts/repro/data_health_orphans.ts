@@ -11,10 +11,12 @@
 //
 //  An "orphan" is a campaign daily_stat whose campaign row no longer exists.
 //  The row itself names no owner; ownership can only come from a tenant-bearing
-//  record that outlives the campaign (campaign_brain_snapshots,
-//  recommendation_logs). The scenario covers every case:
-//    a1   named only by A                  b1, b2  named only by B
-//    c1   named by BOTH A and B (ambiguous)   u1  named by nobody
+//  record that outlives the campaign and that a tenant cannot write
+//  (campaign_brain_snapshots; recommendation_logs are client-supplied, so they are
+//  NOT evidence on the fixed code — on 12d7ac5 nothing was verified at all).
+//  The scenario covers every case:
+//    a1   brain: A only          b1  brain: B only      b2  recommendation log: B only
+//    c1   brain: A AND B (ambiguous)                    u1  named by nobody
 // ════════════════════════════════════════════════════════════════════════
 
 process.env['NODE_ENV'] = 'test';
@@ -74,12 +76,12 @@ async function main(): Promise<void> {
   // ── orphans (daily_stats rows whose campaign no longer exists) ───────
   const ID = { a1: `orph_a1_${sfx}`, b1: `orph_b1_${sfx}`, b2: `orph_b2_${sfx}`, c1: `orph_c1_${sfx}`, u1: `orph_u1_${sfx}` };
   for (const id of Object.values(ID)) for (const d of [1, 2, 3]) await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: id, date: day(d), spend: 50_000n, impressions: 5_000n, clicks: 50n } });
-  const brain = (ws: string, cid: string) => prisma.campaignBrainSnapshot.create({ data: { workspaceId: ws, campaignId: cid, externalCampaignId: `x_${cid}`, tickDate: day(1), action: 'KEEP', priority: 'NORMAL', patternSignature: 'SYNTHETIC', finalScore: 50, payload: {} } });
+  const brain = (ws: string, cid: string, tick = 1) => prisma.campaignBrainSnapshot.create({ data: { workspaceId: ws, campaignId: cid, externalCampaignId: `x_${cid}`, tickDate: day(tick), action: 'KEEP', priority: 'NORMAL', patternSignature: 'SYNTHETIC', finalScore: 50, payload: {} } });
   const reco = (ws: string, cid: string) => prisma.recommendationLog.create({ data: { workspaceId: ws, campaignId: cid, verdict: 'synthetic', metricsSnapshot: {} } });
   await brain(A.ws.id, ID.a1);                       // a1 named by A
   await brain(B.ws.id, ID.b1);                       // b1 named by B (brain snapshot)
-  await reco(B.ws.id, ID.b2);                        // b2 named by B (recommendation log)
-  await brain(A.ws.id, ID.c1); await reco(B.ws.id, ID.c1); // c1 named by A and by B: ambiguous
+  await reco(B.ws.id, ID.b2);                        // b2 named by B through a recommendation log only (not evidence on the fixed code)
+  await brain(A.ws.id, ID.c1); await brain(B.ws.id, ID.c1, 2); // c1 named by A and by B: ambiguous
   // u1 is named by nobody
 
   const owner = (id: string) => Object.entries(ID).find(([, v]) => v === id)?.[0] ?? id;

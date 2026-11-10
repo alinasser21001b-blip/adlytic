@@ -6,13 +6,23 @@ import { Prisma, type PrismaClient } from '@prisma/client';
 //  An orphan is a campaign daily_stat whose campaign row no longer exists. The
 //  row itself names no owner (entity_id is a plain string, no foreign key), so
 //  "whose orphan is this?" can only be answered by a tenant-bearing record that
-//  OUTLIVES the campaign and names it:
-//    · campaign_brain_snapshots (workspace_id, campaign_id)
-//    · recommendation_logs      (workspace_id, campaign_id)
+//  OUTLIVES the campaign and names it, AND that a tenant cannot write:
+//    · campaign_brain_snapshots (workspace_id, campaign_id) — written only by the
+//      Brain worker, from the campaigns of the account's own workspace.
+//
+//  recommendation_logs (workspace_id, campaign_id) are deliberately NOT evidence.
+//  Their campaign_id is whatever a member put in the body of
+//  POST /api/workspaces/:id/recommendations/action — it is not checked against
+//  the workspace's campaigns — so a member of tenant B could name tenant A's
+//  orphan id to veto A's claim (A could no longer see or clean it) or, for an
+//  orphan nobody else names, to CLAIM it and delete its rows
+//  (delivery/core/DATA_HEALTH_ISOLATION.md §6, reproduced on a synthetic
+//  database). The table is also unindexed on campaign_id, so using it cost a
+//  sequential scan of the whole table on every data-health call.
 //  (campaign_history_snapshots are deleted with the campaign, so they prove nothing.)
 //
-//  VERIFIED OWNERSHIP, as used here: at least one such record names the campaign
-//  for THIS workspace, and NO such record names it for any other workspace. An
+//  VERIFIED OWNERSHIP, as used here: at least one brain snapshot names the campaign
+//  for THIS workspace, and NO brain snapshot names it for any other workspace. An
 //  orphan that nobody names, or that two workspaces name, is not verified for
 //  anyone: a tenant never sees it, counts it, or deletes it. Only a platform
 //  administrator can deal with those (src/lib/platformOrphanCleanup.ts).
@@ -37,9 +47,7 @@ export async function findOwnedOrphanedCampaignEntityIds(
   const since = opts.sinceDate ? Prisma.sql`AND d.date >= ${opts.sinceDate}` : Prisma.empty;
   const rows = await prisma.$queryRaw<Array<{ id: string }>>`
     WITH mine AS (
-      SELECT campaign_id FROM campaign_brain_snapshots WHERE workspace_id = ${workspaceId}
-      UNION
-      SELECT campaign_id FROM recommendation_logs WHERE workspace_id = ${workspaceId} AND campaign_id IS NOT NULL
+      SELECT DISTINCT campaign_id FROM campaign_brain_snapshots WHERE workspace_id = ${workspaceId}
     ),
     cand AS (
       SELECT DISTINCT d.entity_id AS id
@@ -49,7 +57,6 @@ export async function findOwnedOrphanedCampaignEntityIds(
     )
     SELECT x.id FROM cand x
     WHERE NOT EXISTS (SELECT 1 FROM campaign_brain_snapshots b WHERE b.campaign_id = x.id AND b.workspace_id <> ${workspaceId})
-      AND NOT EXISTS (SELECT 1 FROM recommendation_logs l WHERE l.campaign_id = x.id AND l.workspace_id <> ${workspaceId})
     ORDER BY x.id
     LIMIT ${limit}`;
   return rows.map((r) => r.id);
@@ -68,9 +75,7 @@ export async function deleteOwnedOrphanedCampaignStats(
   if (!workspaceId) return { rowsDeleted: 0 };
   const rowsDeleted = await prisma.$executeRaw`
     WITH mine AS (
-      SELECT campaign_id FROM campaign_brain_snapshots WHERE workspace_id = ${workspaceId}
-      UNION
-      SELECT campaign_id FROM recommendation_logs WHERE workspace_id = ${workspaceId} AND campaign_id IS NOT NULL
+      SELECT DISTINCT campaign_id FROM campaign_brain_snapshots WHERE workspace_id = ${workspaceId}
     ),
     cand AS (
       SELECT DISTINCT d.entity_id AS id
@@ -81,7 +86,6 @@ export async function deleteOwnedOrphanedCampaignStats(
     owned AS (
       SELECT x.id FROM cand x
       WHERE NOT EXISTS (SELECT 1 FROM campaign_brain_snapshots b WHERE b.campaign_id = x.id AND b.workspace_id <> ${workspaceId})
-        AND NOT EXISTS (SELECT 1 FROM recommendation_logs l WHERE l.campaign_id = x.id AND l.workspace_id <> ${workspaceId})
     )
     DELETE FROM daily_stats d USING owned o
     WHERE d.entity_type = 'CAMPAIGN'::"EntityType" AND d.entity_id = o.id
