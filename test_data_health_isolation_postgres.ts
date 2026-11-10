@@ -258,6 +258,20 @@ async function main() {
   const final = await post(`?expectedRows=${g4.body.orphanRows}&batchId=${g4.body.batchId}`);
   check('a fresh dry run approved: 200 deleted, exactly the rows the dry run counted, and the table has no orphans left', final.status === 200 && final.body?.status === 'deleted' && final.body?.rowsDeleted === g4.body.orphanRows && (await dry()).body.orphanRows === 0, [final.status, final.body]);
 
+  // The digest must not be fooled by an id that contains the separator: {"a,b","c"} and {"a","b,c"} concatenate alike.
+  let ambDay = 20;
+  const mk = (id: string) => prisma.dailyStat.create({ data: { id, entityType: EntityType.CAMPAIGN, entityId: `orph_amb_${sfx}`, date: day(ambDay++), spend: 1n } });   // the DIGEST is over row ids
+  const ambIds = [`amb_a_${sfx},amb_b_${sfx}`, `amb_c_${sfx}`, `amb_a_${sfx}`, `amb_b_${sfx},amb_c_${sfx}`];
+  await mk(ambIds[0]!); await mk(ambIds[1]!);
+  const ambDry1 = await dry();
+  await prisma.dailyStat.deleteMany({ where: { id: { in: [ambIds[0]!, ambIds[1]!] } } });
+  await mk(ambIds[2]!); await mk(ambIds[3]!);
+  const ambDry2 = await dry();
+  check('two different orphan sets whose ids concatenate identically ("a,b"+"c" vs "a"+"b,c") get DIFFERENT batch ids (ids are length-prefixed)', ambDry1.body.orphanRows === ambDry2.body.orphanRows && ambDry1.body.batchId !== ambDry2.body.batchId, [ambDry1.body.batchId.slice(0, 12), ambDry2.body.batchId.slice(0, 12)]);
+  const ambOld = await post(`?expectedRows=${ambDry1.body.orphanRows}&batchId=${ambDry1.body.batchId}`);
+  check('…and approving the first set deletes nothing of the second (409)', ambOld.status === 409 && (await prisma.dailyStat.count({ where: { id: { in: [ambIds[2]!, ambIds[3]!] } } })) === 2, [ambOld.status]);
+  await prisma.dailyStat.deleteMany({ where: { id: { in: ambIds } } });
+
   // Two operators (or one double-click) approve the SAME batch at the same moment: it is applied once.
   for (let i = 0; i < 40; i++) await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: `orph_dup_${sfx}_${i % 4}`, date: day(10 + Math.floor(i / 4)), spend: 2n } });
   const g5 = await dry();

@@ -24,8 +24,8 @@
 //      2. approve   POST /api/admin/data-health/orphans/cleanup
 //                        ?expectedRows=<orphanRows>&batchId=<batchId>
 //
-//  The batchId is a SHA-256 over the ordered ids of EVERY orphan row the dry run
-//  saw. The delete is ONE statement that computes that digest and deletes in the
+//  The batchId is a SHA-256 over the ordered, LENGTH-PREFIXED ids of EVERY orphan row
+//  the dry run saw (length-prefixed so that {"a,b","c"} and {"a","b,c"} differ). The delete is ONE statement that computes that digest and deletes in the
 //  same snapshot, and deletes only the rows of that snapshot, only if the digest
 //  and the row count both equal what the admin approved. A different batch — a
 //  row more, a row fewer, a different row — deletes nothing (409).
@@ -95,7 +95,7 @@ export async function describeOrphanBatchGlobal(prisma: PrismaClient): Promise<O
     SELECT count(*)::int AS total,
            (count(*) FILTER (WHERE t.orphan))::int AS orphan_rows,
            (count(DISTINCT t.entity_id) FILTER (WHERE t.orphan))::int AS orphan_ids,
-           encode(sha256(convert_to(${BATCH_DOMAIN} || coalesce(string_agg(t.id, ',' ORDER BY t.id) FILTER (WHERE t.orphan), ''), 'UTF8')), 'hex') AS batch_id
+           encode(sha256(convert_to(${BATCH_DOMAIN} || coalesce(string_agg(length(t.id)::text || ':' || t.id, ',' ORDER BY t.id) FILTER (WHERE t.orphan), ''), 'UTF8')), 'hex') AS batch_id
     FROM (
       SELECT d.id, d.entity_id, (c.id IS NULL) AS orphan
       FROM daily_stats d LEFT JOIN campaigns c ON c.id = d.entity_id
@@ -149,7 +149,7 @@ export async function cleanupOrphanedCampaignStatsGlobal(
     ),
     batch AS (
       SELECT count(*)::int AS n,
-             encode(sha256(convert_to(${BATCH_DOMAIN} || coalesce(string_agg(id, ',' ORDER BY id), ''), 'UTF8')), 'hex') AS h
+             encode(sha256(convert_to(${BATCH_DOMAIN} || coalesce(string_agg(length(id)::text || ':' || id, ',' ORDER BY id), ''), 'UTF8')), 'hex') AS h
       FROM orphan
     ),
     del AS (
