@@ -65,8 +65,10 @@ async function main() {
   const day = (n: number) => { const d = new Date(Date.now() - n * 864e5); d.setUTCHours(0, 0, 0, 0); return d; };
   let seq = 0;
 
-  type RawMode = 'none' | 'match' | 'conflict';
-  interface SeedOpts { currency?: string; factor: number; scale: 'correct' | 'over' | 'ambiguous37'; raw: RawMode; campaigns?: number }
+  // 'restated': sync APPENDS a raw row on every run, so a day can carry an earlier, different
+  // value next to the final one. The stored (correct) value matches the final one.
+  type RawMode = 'none' | 'match' | 'conflict' | 'restated';
+  interface SeedOpts { currency?: string; factor: number; scale: 'correct' | 'over' | 'ambiguous37'; raw: RawMode; campaigns?: number; /** extra ACCOUNT-level rows N days ago, never with a raw counterpart */ oldAccountRows?: number[] }
 
   /** One synthetic tenant. `over` = every money field x100; `ambiguous37` = x37 (matches neither scale). */
   async function seed(label: string, o: SeedOpts) {
@@ -96,10 +98,14 @@ async function main() {
         });
         if (o.raw !== 'none') {
           const et = e.type === 'ACCOUNT' ? EntityType.ACCOUNT : EntityType.CAMPAIGN;
+          if (o.raw === 'restated') await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(Math.round(e.spend * 0.6)) } } });
           await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(e.spend) } } });
           if (o.raw === 'conflict') await prisma.rawInsight.create({ data: { entityType: et, entityId: e.id, date: day(d), rawJson: { spend: String(Math.round(e.spend * 0.6)) } } });
         }
       }
+    }
+    for (const d of o.oldAccountRows ?? []) {
+      await prisma.dailyStat.create({ data: { entityType: EntityType.ACCOUNT, entityId: account.id, date: day(d), spend: BigInt(TRUE_SPEND * nCamp * k), impressions: BigInt(IMPRESSIONS), clicks: 500n } });
     }
     const token = signToken({ sub: user.id, email: user.email, ver: 0 });
     return { user, ws, account, campaigns, token, ids: [account.id, ...campaigns.map((c) => c.id)] };
@@ -181,6 +187,7 @@ async function main() {
         // The ONE intended difference: the new scale signal itself. Compare everything else.
         j.checks = (j.checks ?? []).filter((c: { code: string }) => !c.code.startsWith('SPEND_SCALE') && c.code !== 'ALL_CLEAR');
         delete j.overallStatus;
+        if (j.spendScale) j.spendScale.storedFactor = 'X'; // the stored factor is the only thing that legitimately differs
       }
       return j;
     } catch { return s; }
@@ -214,7 +221,13 @@ async function main() {
   const overT = await seed('over-sig', { factor: 1, scale: 'over', raw: 'match' });
   const codesO = await integ(overT);
   check('stranded rows (factor 1, rows x100 per raw evidence) → SPEND_SCALE_OVERSCALED (CRITICAL)', codesO.includes('SPEND_SCALE_OVERSCALED'), codesO);
-  check('canonical healthy account → no scale warning', !(await integ(canon)).some((c) => c.startsWith('SPEND_SCALE')));
+  // factor = 1 is NOT evidence: a canonical account whose rows cannot be checked is still flagged.
+  const codesCanon = await integ(canon);
+  check('factor = 1 but NO raw evidence → SPEND_SCALE_UNVERIFIED: the factor certifies nothing', codesCanon.includes('SPEND_SCALE_UNVERIFIED'), codesCanon);
+  const canonProven = await seed('canon-proven', { factor: 1, scale: 'correct', raw: 'match' });
+  check('factor = 1 and every row PROVEN against raw Meta spend → no warning', !(await integ(canonProven)).some((c) => c.startsWith('SPEND_SCALE')), await integ(canonProven));
+  const canonRestated = await seed('canon-restated', { factor: 1, scale: 'correct', raw: 'restated' });
+  check('raw rows restated by later syncs (an earlier, different value next to the final one) are NOT a false alarm', !(await integ(canonRestated)).some((c) => c.startsWith('SPEND_SCALE')), await integ(canonRestated));
   const usd = await seed('usd', { currency: 'USD', factor: 100, scale: 'correct', raw: 'none' });
   check('USD account → never flagged', !(await integ(usd)).some((c) => c.startsWith('SPEND_SCALE')));
 
@@ -378,6 +391,34 @@ async function main() {
   const bSy3 = await snap(sy3);
   const fU = await R.reconcileAccountScaleForSync(prisma, accSy3);
   check('non-IQD stale factor: one compare-and-set on the column (1 → 100), rows never rewritten', fU === 100 && (await snap(sy3)).factor === 100 && same(bSy3.stats, (await snap(sy3)).stats), fU);
+
+  // ── 12. factor = 1 does not certify historical spend that has no evidence ──
+  console.log('\n── 12. a stored factor of 1 is not evidence ──');
+  const healthOf = async (t: Tenant) => { const r = await quiet(() => get(`/api/workspaces/${t.ws.id}/data-health`, t.token))(); return { status: r.status, body: await r.json() as any }; };
+  const f1 = await seed('f1-nof', { factor: 1, scale: 'correct', raw: 'none', campaigns: 1 });
+  const h1 = await healthOf(f1);
+  check('factor 1, rows with NO raw evidence: data-health WARNs (SPEND_SCALE_UNVERIFIED) and overallStatus is not OK', h1.body.checks?.some((c: any) => c.code === 'SPEND_SCALE_UNVERIFIED' && c.severity === 'WARN') && h1.body.overallStatus === 'WARN', [h1.body.overallStatus, h1.body.checks?.map((c: any) => c.code)]);
+  check('…and spells it out: factorIsEvidence=false, 3 window rows, 0 verified, 3 unverified', h1.body.spendScale?.factorIsEvidence === false && h1.body.spendScale?.storedFactor === 1 && h1.body.spendScale?.window?.accountRows === 3 && h1.body.spendScale?.window?.verified === 0 && h1.body.spendScale?.window?.unverified === 3, h1.body.spendScale);
+  const f2 = await seed('f2-stale', { factor: 100, scale: 'correct', raw: 'none' });
+  const bF2 = await snap(f2);
+  const rF2 = await quiet(() => R.repairIqdAccountScale(prisma, f2.account.id))();
+  const aF2 = await snap(f2);
+  const h2 = await healthOf(f2);
+  check('stale factor with unverifiable rows: the repair flips the factor to 1 …', bF2.factor === 100 && aF2.factor === 1 && rF2.factorChanged, [bF2.factor, aF2.factor]);
+  check('…leaves every unproven row exactly as it is, and REPORTS all 9 of them as left intact (not 0)', same(bF2.stats, aF2.stats) && rF2.rowsUnverifiable === 9, rF2);
+  check('…and AFTER the flip the warning is still there: factor 1 did not certify them', h2.body.checks?.some((c: any) => c.code === 'SPEND_SCALE_UNVERIFIED') && h2.body.spendScale?.storedFactor === 1, [h2.body.spendScale, h2.body.checks?.map((c: any) => c.code)]);
+  const f3 = await seed('f3-hist', { factor: 1, scale: 'correct', raw: 'match', campaigns: 1, oldAccountRows: [200, 201, 202] });
+  const h3 = await healthOf(f3);
+  check('history older than any raw evidence (3 rows, 200+ days ago): reported, not certified', h3.body.spendScale?.history?.accountRows === 6 && h3.body.spendScale?.history?.withoutEvidence === 3, h3.body.spendScale?.history);
+  check('…while the proven recent window raises no warning', h3.body.spendScale?.window?.verified === 3 && !h3.body.checks?.some((c: any) => c.code.startsWith('SPEND_SCALE')), [h3.body.spendScale?.window, h3.body.checks?.map((c: any) => c.code)]);
+  const f4 = await seed('f4-str', { factor: 1, scale: 'over', raw: 'match', campaigns: 1 });
+  const h4 = await healthOf(f4);
+  check('factor 1 with rows x100 PROVEN by raw evidence: CRITICAL, not certified by the factor', h4.body.checks?.some((c: any) => c.code === 'SPEND_SCALE_OVERSCALED' && c.severity === 'CRITICAL') && h4.body.overallStatus === 'CRITICAL', [h4.body.overallStatus, h4.body.checks?.map((c: any) => c.code)]);
+  const rF1 = await quiet(() => app.request(`/api/workspaces/${f1.ws.id}/repair-iqd`, { method: 'POST', headers: { authorization: `Bearer ${f1.token}` } }))();
+  const rF1b = await rF1.json() as any;
+  check('POST repair-iqd on an account with unproven rows reports them (rowsLeftIntact = 3 account + 3 campaign)', rF1.status === 200 && rF1b.rescale?.rowsLeftIntact === 6 && rF1b.rescale?.rowsRescaled === 0, rF1b);
+  const hUsd = await healthOf(await seed('f5-usd', { currency: 'USD', factor: 100, scale: 'correct', raw: 'none', campaigns: 1 }));
+  check('a USD account gets no spendScale block and no scale warning', hUsd.body.spendScale === undefined && !hUsd.body.checks?.some((c: any) => c.code.startsWith('SPEND_SCALE')), hUsd.body.spendScale);
 
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect();

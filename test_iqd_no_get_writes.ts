@@ -83,8 +83,8 @@ async function main() {
   check('only server.ts (repair route), syncAccount.ts and the integrity monitor import iqdRepair', JSON.stringify(importers) === JSON.stringify(allowed), importers);
 
   const monitor = read('src/services/dataIntegrityMonitor.ts');
-  const monitorImport = /import\s*\{([^}]*)\}\s*from\s*['"]\.\.\/lib\/iqdRepair['"]/.exec(monitor)?.[1]?.trim();
-  check('the integrity monitor imports only the READ-ONLY collectScaleEvidence', monitorImport === 'collectScaleEvidence', monitorImport);
+  const monitorImport = (/import\s*\{([^}]*)\}\s*from\s*['"]\.\.\/lib\/iqdRepair['"]/.exec(monitor)?.[1] ?? '').split(',').map((x) => x.trim()).filter(Boolean).sort().join(',');
+  check('the integrity monitor imports only the two READ-ONLY evidence readers', monitorImport === 'accountHistoryEvidenceCoverage,collectScaleEvidence', monitorImport);
 
   const sync = code(read('src/workers/syncAccount.ts'));
   check('sync uses reconcileAccountScaleForSync, not a bare writer', /reconcileAccountScaleForSync/.test(sync) && !/healAccountCurrencyAndSpend|healIqdAccountFactors|rescaleIqdSpendFromRaw/.test(sync));
