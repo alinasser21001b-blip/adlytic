@@ -157,7 +157,7 @@ async function scenario(id: string, setup: ((c: PgClient) => Promise<void>) | nu
     check(`${id}: preflight state "${r.json.state}" equals the /api/health state "${h.state}"`, r.json.state === h.state, { preflight: r.json.state, health: h.state });
     check(`${id}: a GO is never given where /api/health would answer 503`, r.json.verdict !== 'GO' || h.ready, { verdict: r.json.verdict, ready: h.ready });
   }
-  await then(r, db);
+  try { await then(r, db); } catch (e) { fail++; console.log(`  ✗ ${id}: the assertions threw — ${(e as Error).message}`); }
   if (!opts.keep) await dropDb(db);
   return db;
 }
@@ -514,4 +514,5 @@ async function main() {
   process.exit(fail === 0 ? 0 : 1);
 }
 
-main().catch((e) => { console.error('test crashed:', (e as Error).message); process.exit(2); });
+// A crash after the preconditions held is a FAILURE (exit 1); exit 2 is reserved for "could not run at all" (handled above).
+main().catch((e) => { console.error('test crashed:', (e as Error).message); process.exit(1); });
