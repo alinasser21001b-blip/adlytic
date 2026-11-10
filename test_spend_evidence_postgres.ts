@@ -336,6 +336,10 @@ async function main() {
     const t = await seed(label, { currency, factor, account: dashRows(rawFor) });
     await prisma.dailyStat.create({ data: { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(0), spend: 80_000n, impressions: 9_000n, clicks: 200n, messages: 0n, ctr: 2.0, frequency: 2.0 } });
     if (currency === 'IQD' && rawFor(0) === 'match') await prisma.rawInsight.create({ data: { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(0), rawJson: { spend: '80000' } } });
+    // a campaign that is burning through its day: today's spend against an hourly burn rate recorded by the Brain's V2 velocity
+    const burner = await prisma.campaign.create({ data: { adAccountId: t.account.id, externalCampaignId: `burn_${t.account.id}`, name: 'Burner', objective: 'MESSAGES', dailyBudget: 2_400_000n } });
+    await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: burner.id, date: day(0), spend: 2_000_000n, impressions: 9_000n, clicks: 200n, messages: 0n, ctr: 2.0, frequency: 2.0 } });
+    await prisma.campaignBrainSnapshot.create({ data: { workspaceId: t.ws.id, campaignId: burner.id, externalCampaignId: burner.externalCampaignId, tickDate: day(0), action: 'HOLD_AND_MONITOR', priority: 'NORMAL', patternSignature: 'STABLE_PERFORMER', finalScore: 60, payload: { campaignName: 'Burner', v2: { velocity: { burnRate: currency === 'IQD' ? 100_000 : 1_000 } }, physics: {} } as any } });
     await store(t, [
       { code: 'PAUSE_AND_RELAUNCH', priority: 'CRITICAL', ago: 1, issues: ['AUDIENCE_FATIGUE', 'DECLINING_RESULTS', 'RISING_COST_PER_RESULT'] },
       { code: 'BROADEN_AUDIENCE', priority: 'MEDIUM', ago: 1, issues: ['AUDIENCE_FATIGUE', 'HIGH_FREQUENCY'] },
@@ -372,6 +376,9 @@ async function main() {
   const kV = await dash(await kbAcc('k-ver', 'IQD', 1, () => 'match'));
   const kD = await dash(await kbAcc('k-usd', 'USD', 100, () => 'none'));
   check('with NO stored recommendation: verified IQD and USD get the knowledge-base cost action as their priority action; unverified IQD gets none', kV.body.priorityAction?.actionCode === 'CPMSG_PAUSE_BLEEDERS' && kD.body.priorityAction?.actionCode === 'CPMSG_PAUSE_BLEEDERS' && (kU.body.priorityAction == null) && kV.body.dataQuality === undefined && kD.body.dataQuality === undefined, [kV.body.priorityAction?.actionCode, kD.body.priorityAction?.actionCode, kU.body.priorityAction]);
+  check('budget-exhaustion prediction (pace / budget from today\'s spend vs burn rate): present on verified IQD and USD, withheld on unverified IQD and named in dataQuality',
+    (bV.body.predictions?.budgetExhaustion ?? []).length === 1 && (bD.body.predictions?.budgetExhaustion ?? []).length === 1 && (bU.body.predictions?.budgetExhaustion ?? []).length === 0 && surfaces.includes('predictions'), [bV.body.predictions?.budgetExhaustion?.length, bD.body.predictions?.budgetExhaustion?.length, bU.body.predictions?.budgetExhaustion, surfaces]);
+  check('…the other half of predictions (creative fatigue — no spend) is present in the unverified dashboard exactly as in the verified one', same(bU.body.predictions?.creativeFatigue ?? null, bV.body.predictions?.creativeFatigue ?? null) && bU.body.predictions !== undefined, [bU.body.predictions?.creativeFatigue, bV.body.predictions?.creativeFatigue]);
   check('…the KPI numbers themselves are still shown as stored (the gate withholds advice, it does not rewrite money)', bU.body.kpis?.find((k: any) => k.key === 'spend')?.value === bV.body.kpis?.find((k: any) => k.key === 'spend')?.value);
 
   // ═════════════════════════════════════════════════════════════════════
