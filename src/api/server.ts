@@ -57,6 +57,7 @@ import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatfor
 import { getAdminOpsSnapshot } from '../services/adminOpsHealth';
 import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
 import { getBuildIdentity } from '../lib/buildIdentity';
+import { classifyDbError, logDbFailure, probeSchema } from '../lib/dbHealth';
 import { runCapabilityProbeForWorkspace, redactProbeError, classifyProbeRunFailure } from '../services/metaCapabilityRunner';
 import { requireActiveUser } from '../services/accountAccess';
 import { getStripe, getStripeWebhookSecret, StripeNotConfiguredError } from '../services/stripeClient';
@@ -1403,26 +1404,39 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       bullmq: config.features.bullmqEnabled ? 'enabled' : 'disabled',
       build: getBuildIdentity(),
     };
+    //  Every pre-existing field keeps its name, value and meaning — verify-live.yml
+    //  and the platform healthcheck read them. What is ADDED (src/lib/dbHealth.ts):
+    //    · on failure   `dbReason`  — closed vocabulary, never driver text
+    //    · on success   `schema`    — { state, applied, expected }
+    //  and the endpoint no longer says "ok" for a database the app cannot use:
+    //  a missing core schema is 503. `pending`/`failed` migrations are REPORTED
+    //  but do not change the status (owner decision before they may gate deploys).
     try {
       await prisma.$queryRaw`SELECT 1`;
-      return c.json({
-        status: 'ok',
-        service: 'adlytic',
-        version: '0.1.0',
-        timestamp: new Date().toISOString(),
-        db: 'ok',
-        ...roleInfo,
-      });
-    } catch {
+    } catch (err) {
+      const dbReason = classifyDbError(err);
+      logDbFailure(dbReason, err);
       return c.json({
         status: 'degraded',
         service: 'adlytic',
         version: '0.1.0',
         timestamp: new Date().toISOString(),
         db: 'unavailable',
+        dbReason,
         ...roleInfo,
       }, 503);
     }
+    const schema = await probeSchema(prisma);
+    const schemaMissing = schema.state === 'missing';
+    return c.json({
+      status: schemaMissing ? 'degraded' : 'ok',
+      service: 'adlytic',
+      version: '0.1.0',
+      timestamp: new Date().toISOString(),
+      db: 'ok',
+      schema,
+      ...roleInfo,
+    }, schemaMissing ? 503 : 200);
   });
 
   /** GET /api/health/ai — live AI provider self-test.
