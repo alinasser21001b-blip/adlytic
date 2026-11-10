@@ -116,6 +116,8 @@ async function main() {
   check('with the variable unset nothing is reserved (the guard itself fails closed with 503, so there is no admin to impersonate)', !isReservedForPlatformAdmin('somebody-else@example.test') && !isPlatformAdminEmail('somebody-else@example.test'));
   process.env['PLATFORM_ADMIN_EMAILS'] = ' Platform-Admin@Example.Test ,, Kareem.Admin@Example.Test ,owner+ops@example.test';
   _resetAdminAllowlistCache();
+  const reservedFn = guardSrc.slice(guardSrc.indexOf('export function isReservedForPlatformAdmin'));
+  check('isReservedForPlatformAdmin is built ON the guard\'s own predicate (isPlatformAdminEmail), not a second copy of its normalisation — structural, so the two cannot drift', /if \(isPlatformAdminEmail\(email\)\) return true;/.test(reservedFn));
   check('the reservation and the guard share one allowlist and one cache reset', _resetCoversFold(guardSrc));
   function _resetCoversFold(g: string) { return /export function _resetAdminAllowlistCache\(\): void \{\s*_allowlist = undefined;\s*_foldedAllowlist = undefined;\s*\}/.test(g); }
   check('the guard compares the DATABASE address (trim + lower-case), never the one inside the token', /select: \{ tokenVersion: true, email: true \}/.test(guardSrc) && /user\.email\.trim\(\)\.toLowerCase\(\)/.test(guardSrc) && !/payload\.email/.test(guardSrc));
