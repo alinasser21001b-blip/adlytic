@@ -428,6 +428,7 @@ async function main() {
   const f4 = await seed('f4-str', { factor: 1, scale: 'over', raw: 'match', campaigns: 1 });
   const h4 = await healthOf(f4);
   check('factor 1 with rows x100 PROVEN by raw evidence: CRITICAL, not certified by the factor', h4.body.checks?.some((c: any) => c.code === 'SPEND_SCALE_OVERSCALED' && c.severity === 'CRITICAL') && h4.body.overallStatus === 'CRITICAL', [h4.body.overallStatus, h4.body.checks?.map((c: any) => c.code)]);
+  check('…and the window arithmetic adds up when over-scaled rows exist: 3 rows, 0 verified, 3 over-scaled, 0 unverified', same(h4.body.spendScale?.window, { days: 30, accountRows: 3, verified: 0, overscaled: 3, unverified: 0 }), h4.body.spendScale?.window);
   const rF1 = await quiet(() => app.request(`/api/workspaces/${f1.ws.id}/repair-iqd`, { method: 'POST', headers: { authorization: `Bearer ${f1.token}` } }))();
   const rF1b = await rF1.json() as any;
   check('POST repair-iqd on an account with unproven rows reports them (rowsLeftIntact = 3 account + 3 campaign)', rF1.status === 200 && rF1b.rescale?.rowsLeftIntact === 6 && rF1b.rescale?.rowsRescaled === 0, rF1b);

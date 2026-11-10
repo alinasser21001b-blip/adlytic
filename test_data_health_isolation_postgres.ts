@@ -93,6 +93,8 @@ async function main() {
   // u1: named by nobody
   await brain(A.ws.id, ID.r1);
   await brain(A.ws.id, ID.f1);                             // f1: A's, and B is about to forge a claim on it (section 2b)
+  // rows of other entity types that merely share an orphan's entity_id must never be touched by a campaign cleanup
+  for (const t of ['ACCOUNT', 'AD_SET', 'AD'] as const) await prisma.dailyStat.create({ data: { entityType: EntityType[t], entityId: ID.a1, date: day(5), spend: 7n } });
   await brain(A.ws.id, ID.w1);                             // w1: A's, but its only stats are older than the 30-day data-health window
   await prisma.campaign.create({ data: { id: ID.r1, adAccountId: A.account.id, externalCampaignId: `reborn_${sfx}`, name: 'Reborn' } }); // r1's campaign exists again
 
@@ -132,6 +134,12 @@ async function main() {
   check('every orphan row and every live row is untouched (row counts)', same(r0, await rowsOf()), await rowsOf());
   check('database-level proof: no row got a new version (xmin unchanged), not even a no-op update', x0 === (await xmins()));
 
+  // the integrity monitor itself refuses an account that is not the workspace's (defence in depth behind the route)
+  const { runDataIntegrityCheck } = await import('./src/services/dataIntegrityMonitor');
+  let mismatch = false; try { await quiet(() => runDataIntegrityCheck(prisma, B.ws.id, A.account)); } catch { mismatch = true; }
+  const matched = await quiet(() => runDataIntegrityCheck(prisma, A.ws.id, A.account)).then(() => true, () => false);
+  check('runDataIntegrityCheck(B\'s workspace, A\'s account) throws; with A\'s own workspace it runs', mismatch && matched, [mismatch, matched]);
+
   // ── 2b. a member of B cannot veto or claim A's orphans by writing recommendation logs ──
   console.log('\n── 2b. forged ownership claims (POST …/recommendations/action takes a client-supplied campaignId) ──');
   const forge = async (cid: string) => req('POST', `/api/workspaces/${B.ws.id}/recommendations/action`, bViewer.token, { action: 'IGNORED', itemKey: `forge:${cid}`, campaignId: cid });
@@ -157,6 +165,7 @@ async function main() {
   const aOwnerPost = await req('POST', `/api/workspaces/${A.ws.id}/data-health/cleanup`, aManager.token);
   const r1 = await rowsOf();
   check('A\'s MANAGER (not only the OWNER) may clean: 200 and exactly A\'s verified orphans go (a1 + f1 + w1 = 9 rows; w1\'s stats are older than the data-health window, which the POST does not apply)', aOwnerPost.status === 200 && aOwnerPost.body?.orphanedRowsDeleted === 9 && r1['a1'] === 0 && r1['f1'] === 0 && r1['w1'] === 0, [aOwnerPost.status, aOwnerPost.body, r1]);
+  check('only entity_type CAMPAIGN rows go: ACCOUNT / AD_SET / AD rows that share a1\'s entity_id are still there', (await prisma.dailyStat.count({ where: { entityId: ID.a1, entityType: { not: EntityType.CAMPAIGN } } })) === 3);
   check('a3/b2 (log-only claims), B\'s b1 is already gone, the ambiguous c1, the unattributed u1 and the forged-claim f2, the reborn r1 and every live campaign are untouched', r1['a3'] === 3 && r1['b2'] === 3 && r1['c1'] === 3 && r1['u1'] === 3 && r1['f2'] === 3 && r1['r1'] === 3 && r1['liveA'] === 3 && r1['liveB'] === 3, r1);
   const replay = await req('POST', `/api/workspaces/${A.ws.id}/data-health/cleanup`, A.owner.token);
   check('replay deletes nothing', replay.body?.orphanedRowsDeleted === 0, replay.body);
@@ -192,6 +201,9 @@ async function main() {
   check('…and the unattributed u1 is still there', (await rowsOf())['u1'] === 3);
   const gAdmin = await req('GET', '/api/admin/data-health/orphans', admin.token);
   check('the platform report is aggregate only: counts, never an id', gAdmin.status === 200 && typeof gAdmin.body?.orphanRows === 'number' && gAdmin.body.orphanRows >= 3 && !JSON.stringify(gAdmin.body).includes('orph_'), gAdmin.body);
+  const badCounts: Array<[string, number]> = [];
+  for (const bad of ['abc', '1e3', '-1', '1.5', '', '%20', '0x10']) badCounts.push([bad, (await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=${bad}`, admin.token)).status]);
+  check('expectedRows that is not a plain non-negative integer (abc, 1e3, -1, 1.5, empty, space, 0x10) → 400, nothing deleted', badCounts.every(([, st]) => st === 400) && (await rowsOf())['u1'] === 3, badCounts);
   const noExpected = await req('POST', '/api/admin/data-health/orphans/cleanup', admin.token);
   const wrong = await req('POST', `/api/admin/data-health/orphans/cleanup?expectedRows=${gAdmin.body.orphanRows + 1}`, admin.token);
   check('the admin must quote the row count they saw: missing → 400, a different number → 409; nothing deleted either time', noExpected.status === 400 && wrong.status === 409 && (await rowsOf())['u1'] === 3, [noExpected.status, wrong.status]);
