@@ -308,6 +308,15 @@ async function main() {
   const rOnlyCostUsd = await new RecommendationEngine(onlyCostUsd.db).run(EntityType.ACCOUNT, 'acct_1', { asOf });
   check('…the same issue on a USD account still yields REVIEW_BUDGET_PACING', rOnlyCostUsd.recommendation?.actionCode === 'REVIEW_BUDGET_PACING', rOnlyCostUsd.recommendation);
 
+  // Safety net: a rule table that maps a spend-free issue to a spend-dependent action code (a custom `rules` seam) is still not written.
+  const budgetRule = [{ requiredIssues: [IssueCode.LOW_CTR], priority: 'MEDIUM' as any, actionCode: 'REVIEW_BUDGET_PACING' as any, rationale: 'test rule: a budget action from a spend-free issue' }];
+  const netDb = engineDb({ currency: 'IQD', issues: [IssueCode.LOW_CTR], evidence: uncleanEv });
+  const rNet = await new RecommendationEngine(netDb.db).run(EntityType.ACCOUNT, 'acct_1', { asOf, rules: budgetRule });
+  const netUsd = engineDb({ currency: 'USD', issues: [IssueCode.LOW_CTR], evidence: uncleanEv });
+  const rNetUsd = await new RecommendationEngine(netUsd.db).run(EntityType.ACCOUNT, 'acct_1', { asOf, rules: budgetRule });
+  check('safety net: a composed recommendation that still rests on spend (REVIEW_BUDGET_PACING) is not written on unverified IQD spend, and the result says so', rNet.ok && rNet.recommendation === null && netDb.written.length === 0 && rNet.spendEvidence?.recommendationWithheld === true, [rNet, netDb.written]);
+  check('…the same rule table on a USD account writes it (the net is not an unconditional ban)', rNetUsd.recommendation?.actionCode === 'REVIEW_BUDGET_PACING' && netUsd.written.length === 1, rNetUsd);
+
   const fatigueOnly = engineDb({ currency: 'IQD', issues: [IssueCode.AUDIENCE_FATIGUE, IssueCode.HIGH_FREQUENCY], evidence: uncleanEv });
   const rFatigue = await new RecommendationEngine(fatigueOnly.db).run(EntityType.ACCOUNT, 'acct_1', { asOf });
   const fatigueUsd = engineDb({ currency: 'USD', issues: [IssueCode.AUDIENCE_FATIGUE, IssueCode.HIGH_FREQUENCY], evidence: uncleanEv });
