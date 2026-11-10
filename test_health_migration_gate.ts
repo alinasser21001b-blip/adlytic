@@ -483,6 +483,50 @@ async function main() {
     } finally { process.chdir(before); fresh(); }
   });
 
+  // ── 9. structured error fields are an allowlist, not a charset filter ──
+  //  The log line carries the error's `code` and the adapter's `kind`. Those are
+  //  structure, not message text — but a driver (or a wrapper) that puts text in
+  //  them must not be able to smuggle a host, user or URL into the log: a charset
+  //  filter lets letters, digits, '.', '_' and '-' through, which is exactly what a
+  //  hostname or a user name is made of.
+  console.log('\n── 9. error code / adapter kind: allowlisted values only ──');
+  const hostileFields = (code: unknown, kind: unknown, original: unknown, causeCode: unknown) => Object.assign(new Error(`Raw query failed. Message: ${SECRET_TEXT}`), {
+    name: 'PrismaClientKnownRequestError', code, cause: { code: causeCode }, meta: { driverAdapterError: { cause: { kind, originalCode: original } } },
+  });
+  const LEAK2 = /svcuser|S3CR3Tpw|db-internal|railway|postgresql|appdb|5432|svc\b|S3CR3T/i;
+  const cases2: Array<[string, unknown]> = [
+    ['URL in code, kind, originalCode and cause.code', hostileFields('postgresql://svcuser:S3CR3Tpw@db-internal.railway.internal:5432/appdb', 'postgresql://svcuser:S3CR3Tpw@db-internal.railway.internal:5432/appdb', 'svcuser@db-internal', 'db-internal.railway.internal')],
+    ['host and user made only of identifier characters', hostileFields('svcuser', 'S3CR3Tpw.db-internal.railway.internal', 'svcuser', 'svcuser')],
+  ];
+  for (const [label, err] of cases2) {
+    fresh();
+    const live = await hit(fakePrisma({ ...healthyDb(), liveness: err as Error }));
+    check(`connectivity failure, ${label}: 503 and exactly one log line`, live.status === 503 && live.logs.length === 1, { status: live.status, logs: live.logs });
+    check(`connectivity failure, ${label}: nothing of the host/user/URL reaches the log or the body`, !LEAK2.test(live.logs.join(' ')) && !LEAK2.test(JSON.stringify(live.body)), live.logs);
+    fresh();
+    const probe = await hit(fakePrisma({ ...healthyDb(), tables: err as Error }));
+    check(`probe failure, ${label}: 503 and exactly one log line`, probe.status === 503 && probe.logs.length === 1, { status: probe.status, logs: probe.logs });
+    check(`probe failure, ${label}: nothing of the host/user/URL reaches the log or the body`, !LEAK2.test(probe.logs.join(' ')) && !LEAK2.test(JSON.stringify(probe.body)), probe.logs);
+  }
+  fresh();
+  const good = await hit(fakePrisma({ ...healthyDb(), liveness: adapterErr('DatabaseAccessDenied') }));
+  check('known values are still logged: prismaCode=P2010 adapterKind=DatabaseAccessDenied reason=auth', /reason=auth prismaCode=P2010 adapterKind=DatabaseAccessDenied$/.test(good.logs[0] ?? ''), good.logs);
+  fresh();
+  const odd = await hit(fakePrisma({ ...healthyDb(), liveness: hostileFields('P1001', 'SomeFutureKind', undefined, undefined) }));
+  check('a well-formed Prisma code survives; an adapter kind this build does not know is logged as "other", not verbatim', /prismaCode=P1001 adapterKind=other$/.test(odd.logs[0] ?? ''), odd.logs);
+  //  `reason` is a CLOSED vocabulary. A plain-object lookup (KIND_TO_REASON[kind]) also "finds" names inherited
+  //  from Object.prototype, so a kind of 'constructor' would have put a function into the log line.
+  const VOCAB = /reason=(unreachable|database_missing|auth|tls|timeout|unknown) /;
+  for (const word of ['constructor', 'toString', 'hasOwnProperty', '__proto__', 'valueOf']) {
+    fresh();
+    const inherited = await hit(fakePrisma({ ...healthyDb(), liveness: hostileFields(word, word, word, word) }));
+    check(`inherited property name "${word}" as code/kind/originalCode/cause.code: reason stays in the closed vocabulary and nothing is echoed`,
+      inherited.status === 503 && VOCAB.test(inherited.logs[0] ?? '') && /reason=unknown prismaCode=- adapterKind=other$/.test(inherited.logs[0] ?? '') && inherited.logs.length === 1, inherited.logs);
+  }
+  fresh();
+  const none = await hit(fakePrisma({ ...healthyDb(), liveness: new Error(SECRET_TEXT) }));
+  check('an error with no structure at all logs "-" for both', /prismaCode=- adapterKind=-$/.test(none.logs[0] ?? ''), none.logs);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }

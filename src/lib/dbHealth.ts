@@ -128,6 +128,11 @@ const PG_SQLSTATE_TO_REASON: Record<string, DbFailureReason> = {
   '3D000': 'database_missing', '28000': 'auth', '28P01': 'auth', '57P03': 'unreachable', '53300': 'unreachable',
 };
 
+/** Own-property lookup only: a plain-object index also "finds" 'constructor', 'toString', '__proto__' — functions, not reasons. */
+function lookup(table: Record<string, DbFailureReason>, key: string): DbFailureReason | undefined {
+  return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : undefined;
+}
+
 /** Map a driver/Prisma/Node error to the closed vocabulary. Reads structure, never message text. */
 export function classifyDbError(err: unknown): DbFailureReason {
   const e = err as {
@@ -139,16 +144,18 @@ export function classifyDbError(err: unknown): DbFailureReason {
 
   const adapterCause = e.meta?.driverAdapterError?.cause;
   const kind = typeof adapterCause?.kind === 'string' ? adapterCause.kind : null;
-  if (kind && KIND_TO_REASON[kind]) return KIND_TO_REASON[kind]!;
+  const byKind = kind ? lookup(KIND_TO_REASON, kind) : undefined;
+  if (byKind) return byKind;
   const original = typeof adapterCause?.originalCode === 'string' ? adapterCause.originalCode : null;
-  if (original && PG_SQLSTATE_TO_REASON[original]) return PG_SQLSTATE_TO_REASON[original]!;
+  const byOriginal = original ? lookup(PG_SQLSTATE_TO_REASON, original) : undefined;
+  if (byOriginal) return byOriginal;
 
   const code = typeof e.code === 'string' ? e.code : null;
-  if (code && PRISMA_CODE_TO_REASON[code]) return PRISMA_CODE_TO_REASON[code]!;
-  if (code && NODE_CODE_TO_REASON[code]) return NODE_CODE_TO_REASON[code]!;
-  if (code && PG_SQLSTATE_TO_REASON[code]) return PG_SQLSTATE_TO_REASON[code]!;
+  const byCode = code ? (lookup(PRISMA_CODE_TO_REASON, code) ?? lookup(NODE_CODE_TO_REASON, code) ?? lookup(PG_SQLSTATE_TO_REASON, code)) : undefined;
+  if (byCode) return byCode;
   const causeCode = typeof e.cause?.code === 'string' ? e.cause.code : null;
-  if (causeCode && NODE_CODE_TO_REASON[causeCode]) return NODE_CODE_TO_REASON[causeCode]!;
+  const byCause = causeCode ? lookup(NODE_CODE_TO_REASON, causeCode) : undefined;
+  if (byCause) return byCause;
   return 'unknown';
 }
 
@@ -342,12 +349,34 @@ function safeToken(v: unknown): string {
   return String(v).replace(/[^A-Za-z0-9_.-]/g, '?').slice(0, MAX_NAME_LEN);
 }
 
+/**
+ * Driver-adapter error kinds Prisma 7 can report (@prisma/driver-adapter-utils) plus the
+ * database-family catch-alls. A kind outside this set is logged as "other": the field is
+ * STRUCTURE, and anything else in it is text that must not reach the log.
+ */
+const KNOWN_ADAPTER_KINDS: ReadonlySet<string> = new Set([
+  'AuthenticationFailed', 'ColumnNotFound', 'ConnectionClosed', 'DatabaseAccessDenied', 'DatabaseAlreadyExists',
+  'DatabaseDoesNotExist', 'DatabaseNotReachable', 'ForeignKeyConstraintViolation', 'GenericJs', 'InconsistentColumnData',
+  'InvalidInputValue', 'InvalidIsolationLevel', 'LengthMismatch', 'MissingFullTextSearchIndex', 'NullConstraintViolation',
+  'SocketTimeout', 'TableDoesNotExist', 'TlsConnectionError', 'TooManyConnections', 'TransactionAlreadyClosed',
+  'TransactionWriteConflict', 'UniqueConstraintViolation', 'UnsupportedNativeDataType', 'ValueOutOfRange',
+  'mssql', 'mysql', 'postgres', 'sqlite',
+]);
+
+/** Prisma error codes (P1001, P2010, ...) and the Node/SQLSTATE codes the classifier already knows. Nothing else is logged. */
+function loggableCode(code: unknown): string {
+  if (typeof code !== 'string') return '-';
+  if (/^P\d{4}$/.test(code) || lookup(NODE_CODE_TO_REASON, code) || lookup(PG_SQLSTATE_TO_REASON, code)) return code;
+  return '-';
+}
+
 function describeError(err: unknown): NonNullable<Readiness['cause']> {
   const e = err as { code?: unknown; meta?: { driverAdapterError?: { cause?: { kind?: unknown } } } } | null;
+  const kind = e?.meta?.driverAdapterError?.cause?.kind;
   return {
     reason: classifyDbError(err),
-    prismaCode: typeof e?.code === 'string' ? safeToken(e.code) : '-',
-    adapterKind: typeof e?.meta?.driverAdapterError?.cause?.kind === 'string' ? safeToken(e.meta.driverAdapterError.cause.kind) : '-',
+    prismaCode: loggableCode(e?.code),
+    adapterKind: typeof kind !== 'string' ? '-' : KNOWN_ADAPTER_KINDS.has(kind) ? kind : 'other',
   };
 }
 
