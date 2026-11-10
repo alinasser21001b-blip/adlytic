@@ -171,6 +171,13 @@ async function main() {
   await refused('B\'s OWNER posting with A\'s workspaceId and B\'s own campaign', 403, R1(A.ws.id, B.owner.token, goodBody(B, B.c1.id)));
   await refused('a workspaceId that does not exist (same 403 as a foreign one — no oracle)', 403, R1(`ws_nope_${sfx}`, A.owner.token, okA));
   await refused('a MANAGER whose account is not activated yet (the active-user gate)', 403, R1(A.ws.id, pendingMgr.token, okA));
+  // The gate and the handler once parsed "Authorization" differently: with two spaces (or space+tab) the gate
+  // verified the untrimmed string, failed, and let the request through while the handler trimmed and accepted it.
+  for (const [label, sep] of [['two spaces', ' '], ['three spaces', '  '], ['space then tab', ' \t']] as const) {
+    await refused(`the same not-yet-activated MANAGER with "Bearer" + ${label} before the token (the gate must not be skippable by header spacing)`, 403, R1(A.ws.id, `${sep}${pendingMgr.token}`, okA));
+    await refused(`…GET /recommendations with ${label}`, 403, () => send('GET', `/api/workspaces/${A.ws.id}/recommendations`, `${sep}${pendingMgr.token}`));
+  }
+  check('…and the activated MANAGER is still served with the odd spacing (the fix is the shared parser, not a rejection of spaces)', (await send('GET', `/api/workspaces/${A.ws.id}/recommendations`, ` ${A.manager.token}`)).status === 200);
   const foreignCamp = await refused('B\'s MANAGER, B\'s workspace, but A\'s campaignId', 404, R1(B.ws.id, B.manager.token, goodBody(B, A.c1.id)));
   await refused('B\'s OWNER, B\'s workspace, A\'s campaign that sits on A\'s SECOND ad account', 404, R1(B.ws.id, B.owner.token, goodBody(B, A.c3.id)));
   await refused('A\'s MANAGER with a campaignId from B', 404, R1(A.ws.id, A.manager.token, goodBody(A, B.c1.id)));
@@ -204,6 +211,11 @@ async function main() {
     ['itemKind is an object', R1(A.ws.id, A.manager.token, goodBody(A, null, { itemKind: { x: 1 } }))],
     ['feedKey is a number', R1(A.ws.id, A.manager.token, goodBody(A, null, { feedKey: 7 }))],
     ['title is 5000 characters', R1(A.ws.id, A.manager.token, goodBody(A, null, { title: 't'.repeat(5000) }))],
+    // a lone surrogate half passes JSON.parse but jsonb/text cannot store it: it used to be 500 AFTER the execution row was written
+    ['itemKey has a lone surrogate (used to 500 after writing the execution)', R1(A.ws.id, A.manager.token, goodBody(A, A.c1.id, { itemKey: 'priority:INCREASE_BUDGET\uD800' }))],
+    ['title has a lone surrogate', R1(A.ws.id, A.manager.token, goodBody(A, A.c1.id, { title: 'bad\uD800value' }))],
+    ['feedKey has a lone surrogate', R1(A.ws.id, A.manager.token, goodBody(A, A.c1.id, { feedKey: 'bad\uDC00value' }))],
+    ['itemKind has a lone surrogate', R1(A.ws.id, A.manager.token, goodBody(A, A.c1.id, { itemKind: 'bad\uD800value' }))],
   ];
   for (const [name, call] of malformed) await refused(`malformed: ${name}`, 400, call);
 
