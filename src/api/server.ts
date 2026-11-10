@@ -5346,6 +5346,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         tokensOut: result.tokensOut,
       });
     } catch (err) {
+      // A conversation id that is not the caller's own (foreign, another user's, unknown): the same 404 for
+      // all three, before any model call and before anything is written.
+      if ((err as { name?: string } | null)?.name === 'ConversationNotFoundError') {
+        return c.json({ error: 'Conversation not found', code: 'CONVERSATION_NOT_FOUND' }, 404);
+      }
       console.error('[adlytic:ai-chat-v2] error:', err);
       const classified = classifyLlmError(err);
       let dto: Awaited<ReturnType<typeof getDashboard>> | null = null;

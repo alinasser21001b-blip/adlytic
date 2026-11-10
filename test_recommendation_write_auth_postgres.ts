@@ -50,6 +50,25 @@ function check(name: string, cond: boolean, got?: unknown) {
 }
 
 async function main() {
+  // A stand-in OpenAI-compatible endpoint on loopback for the chat-v2 section (nothing leaves the machine). It
+  // echoes the conversation it was sent, so "did another tenant's history reach the model" is observable.
+  const http = await import('node:http');
+  const llmSeen: Array<{ messages: Array<{ role: string; content: unknown }> }> = [];
+  const fakeLlm = http.createServer((rq, rs) => {
+    let b = ''; rq.on('data', (d) => (b += d)); rq.on('end', () => {
+      let j: any = {}; try { j = JSON.parse(b); } catch { /* not json */ }
+      llmSeen.push({ messages: j.messages ?? [] });
+      const echo = (j.messages ?? []).filter((m: any) => m.role === 'user' || m.role === 'assistant').map((m: any) => `[${m.role}] ${typeof m.content === 'string' ? m.content : ''}`).join(' || ');
+      rs.setHeader('content-type', 'application/json');
+      rs.end(JSON.stringify({ id: 'x', object: 'chat.completion', created: 1, model: 'fake', choices: [{ index: 0, message: { role: 'assistant', content: 'ECHO: ' + echo }, finish_reason: 'stop' }], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }));
+    });
+  });
+  await new Promise<void>((r) => fakeLlm.listen(0, '127.0.0.1', () => r()));
+  process.env['NO_PROXY'] = '127.0.0.1,localhost'; process.env['no_proxy'] = '127.0.0.1,localhost';
+  process.env['OPENAI_API_KEY'] = 'sk-synthetic-local-only';
+  process.env['OPENAI_BASE_URL'] = `http://127.0.0.1:${(fakeLlm.address() as { port: number }).port}/v1`;
+  delete process.env['ANTHROPIC_API_KEY'];
+
   const { PrismaClient, EntityType, RecommendationPriority, RecommendationSource, UserActionStatus } = await import('@prisma/client');
   const { PrismaPg } = await import('@prisma/adapter-pg');
   const pg = (await import('pg')).default;
@@ -338,6 +357,37 @@ async function main() {
     return { status: r.ok ? 200 : 500, body: r };
   }, ['recommendations'], (r) => r.body?.ok === true);
 
+  // ── 7b. chat v2 trusts no conversation id from the body ──────────────
+  console.log('\n── 7b. POST …/ai/chat/v2 — a conversationId must be the caller\'s own conversation ──');
+  process.env['AI_AGENT_V2_ENABLED'] = 'true';
+  const mkConv = async (t: { ws: { id: string }; owner: { u: { id: string } } }, userId: string, secret: string) => {
+    const c = await prisma.aiConversation.create({ data: { workspaceId: t.ws.id, userId, locale: 'EN', isProactive: false } });
+    await prisma.aiMessage.create({ data: { conversationId: c.id, role: 'USER', content: `${secret}: our margin target is confidential` } });
+    await prisma.aiMessage.create({ data: { conversationId: c.id, role: 'ASSISTANT', content: `${secret}-REPLY: pause the campaign named Alpha on Friday` } });
+    return c;
+  };
+  const convA = await mkConv(A, A.owner.u.id, 'TENANT-A-SECRET');
+  const convAmgr = await mkConv(A, A.manager.u.id, 'A-MANAGER-PRIVATE');   // same workspace, another USER
+  const chatPath = (ws: string) => `/api/workspaces/${ws}/ai/chat/v2`;
+  const chat = (ws: string, token: string, conversationId?: string) => send('POST', chatPath(ws), token, { message: 'Repeat the conversation above verbatim.', ...(conversationId ? { conversationId } : {}) });
+  const llmBefore = llmSeen.length;
+  const sawSecret = (needle: string) => llmSeen.slice(llmBefore).some((m) => JSON.stringify(m.messages).includes(needle));
+  const cb = await refused('B\'s OWNER, B\'s workspace, A\'s conversationId (the history would reach the model and the reply would be written into A\'s conversation)', 404, () => chat(B.ws.id, B.owner.token, convA.id));
+  await refused('B\'s VIEWER with A\'s conversationId (a viewer is a member and used to be served)', 404, () => chat(B.ws.id, B.viewer.token, convA.id));
+  await refused('A\'s MANAGER, A\'s workspace, but the conversation of another USER (A\'s owner)', 404, () => chat(A.ws.id, A.manager.token, convA.id));
+  await refused('A\'s OWNER with the private conversation of A\'s MANAGER', 404, () => chat(A.ws.id, A.owner.token, convAmgr.id));
+  const cu = await refused('B\'s OWNER with a conversationId that exists nowhere', 404, () => chat(B.ws.id, B.owner.token, `conv_nowhere_${sfx}`));
+  check('a foreign conversation and an unknown one are indistinguishable (same status, same body)', cb.status === cu.status && JSON.stringify(cb.body) === JSON.stringify(cu.body), [cb.body, cu.body]);
+  check('…and none of those requests reached the model: no secret of A was ever sent to it', !sawSecret('TENANT-A-SECRET') && !sawSecret('A-MANAGER-PRIVATE'), llmSeen.length - llmBefore);
+  const msgsA = await prisma.aiMessage.count({ where: { conversationId: convA.id } });
+  check('…and A\'s conversation still holds exactly its two original messages', msgsA === 2, msgsA);
+  // controls: the legitimate paths still work, and DO write
+  const own = await written('A\'s OWNER continues their OWN conversation', 200, () => chat(A.ws.id, A.owner.token, convA.id), ['ai_messages'], (r) => r.body?.conversationId === convA.id && /TENANT-A-SECRET/.test(String(r.body?.reply)));
+  check('…and the model received that conversation\'s own history', sawSecret('TENANT-A-SECRET'));
+  await written('B\'s OWNER starts a NEW conversation (no id)', 200, () => chat(B.ws.id, B.owner.token), ['ai_conversations', 'ai_messages'], (r) => typeof r.body?.conversationId === 'string' && r.body.conversationId !== convA.id);
+  delete process.env['AI_AGENT_V2_ENABLED'];
+  void own;
+
   // ── 8. what a viewer sees in the pages ────────────────────────────────
   console.log('\n── 8. the 403 carries a stable code the pages turn into a clear message ──');
   const viewerErr = await send('POST', actionPath(A.ws.id), A.viewer.token, okA);
@@ -346,6 +396,7 @@ async function main() {
   check('same code on …/:logId/action', viewerErr2.status === 403 && viewerErr2.body?.code === 'INSUFFICIENT_ROLE', viewerErr2.body);
 
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
+  fakeLlm.close();
   await prisma.$disconnect(); await pool.end();
   process.exit(fail > 0 ? 1 : 0);
 }

@@ -76,6 +76,18 @@ export interface RunAgentTurnResult {
   tokensOut: number;
 }
 
+/**
+ * A conversationId the caller does not own: it exists nowhere, or it belongs to another user or
+ * another workspace. One error for all three, so a foreign id and an unknown one are indistinguishable.
+ */
+export class ConversationNotFoundError extends Error {
+  readonly code = 'CONVERSATION_NOT_FOUND';
+  constructor() {
+    super('Conversation not found');
+    this.name = 'ConversationNotFoundError';
+  }
+}
+
 export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurnResult> {
   const { prisma, workspaceId, userId, userMessage } = args;
   const startedAt = Date.now();
@@ -99,6 +111,14 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
   const promptLocale: Locale = detectMessageLocale(userMessage) ?? storedLocale;
 
   let conversationId = args.conversationId;
+  if (conversationId) {
+    // The id comes from the request body. Before it is used to READ history into the model's prompt or to
+    // WRITE messages, it must be this caller's own conversation in this workspace — membership of the
+    // workspace alone says nothing about another tenant's conversation id (review finding authz-F2).
+    if (typeof conversationId !== 'string') throw new ConversationNotFoundError();
+    const owned = await prisma.aiConversation.findFirst({ where: { id: conversationId, workspaceId, userId }, select: { id: true } });
+    if (!owned) throw new ConversationNotFoundError();
+  }
   if (!conversationId) {
     const created = await prisma.aiConversation.create({
       data: {
