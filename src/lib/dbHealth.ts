@@ -157,6 +157,27 @@ export function classifyDbError(err: unknown): DbFailureReason {
 let shippedCache: string[] | undefined;
 
 /**
+ * Where this build's migrations can be, most trustworthy first.
+ *
+ * The module's OWN location comes first: the shipped list defines "what this
+ * build needs", so it must be read from this build's files. The working
+ * directory is incidental — a process started from another checkout, or from a
+ * directory with a different prisma/migrations, would otherwise be judged
+ * against a foreign list (an older one makes a database that lacks the newest
+ * migration look ready). It stays as the LAST resort, and asking for it can
+ * itself fail (process.cwd() throws when the directory was deleted), which must
+ * never escape into the health route.
+ */
+export function migrationDirCandidates(): string[] {
+  const out = [
+    path.resolve(__dirname, '..', '..', 'prisma', 'migrations'),          // src/lib → repo root (tsx)
+    path.resolve(__dirname, '..', '..', '..', 'prisma', 'migrations'),    // dist/src/lib → repo root (compiled)
+  ];
+  try { out.push(path.resolve(process.cwd(), 'prisma', 'migrations')); } catch { /* cwd deleted: skip the fallback */ }
+  return out;
+}
+
+/**
  * Names of the migrations that ship with this build — directories under
  * prisma/migrations that hold a migration.sql — sorted. `null` when no
  * candidate directory is readable (never `[]` for "could not read").
@@ -164,11 +185,7 @@ let shippedCache: string[] | undefined;
  */
 export function shippedMigrationNames(candidates?: string[]): string[] | null {
   if (!candidates && shippedCache) return shippedCache;
-  const dirs = candidates ?? [
-    path.resolve(process.cwd(), 'prisma', 'migrations'),
-    path.resolve(__dirname, '..', '..', 'prisma', 'migrations'),          // src/lib → repo root (tsx)
-    path.resolve(__dirname, '..', '..', '..', 'prisma', 'migrations'),    // dist/src/lib → repo root (compiled)
-  ];
+  const dirs = candidates ?? migrationDirCandidates();
   for (const dir of dirs) {
     try {
       if (!existsSync(dir)) continue;

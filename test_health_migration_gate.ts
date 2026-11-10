@@ -31,7 +31,8 @@ process.env['NODE_ENV'] = process.env['NODE_ENV'] ?? 'test';
 process.env['JWT_SECRET'] = process.env['JWT_SECRET'] ?? 'test-jwt-secret-at-least-32-chars-long-xxxx';
 process.env['DATABASE_URL'] = process.env['DATABASE_URL'] ?? 'postgresql://user:pass@localhost:5432/adlytic_test';
 
-import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 let pass = 0;
@@ -435,6 +436,52 @@ async function main() {
     && wrong.body['status'] === 'degraded' && wrong.body['db'] === 'ok'
     && down.body['status'] === 'degraded' && down.body['db'] === 'unavailable',
     [ok.body['status'], ok.body['db'], wrong.body['status'], wrong.body['db'], down.body['status'], down.body['db']]);
+
+  // ── 8. WHERE the shipped list is read from (review findings) ─────────
+  //  The shipped list is the definition of "what this build needs". It must come
+  //  from THIS build's own files, never from whatever directory the process
+  //  happens to run in, and a broken working directory must not turn the
+  //  endpoint into a 500.
+  console.log('\n── 8. the shipped list belongs to the build, not to the working directory ──');
+  await unit('cwd decoy', async () => {
+    const decoyRoot = mkdtempSync(path.join(tmpdir(), 'health-decoy-'));
+    // The nastiest decoy: a copy of this build's list MINUS the newest migration (an older checkout). Read as
+    // "shipped", it makes a database that lacks the newest migration look completely ready.
+    for (const n of SHIPPED.slice(0, -1)) {
+      mkdirSync(path.join(decoyRoot, 'prisma', 'migrations', n), { recursive: true });
+      writeFileSync(path.join(decoyRoot, 'prisma', 'migrations', n, 'migration.sql'), 'select 1;\n');
+    }
+    const before = process.cwd();
+    try {
+      process.chdir(decoyRoot);
+      fresh();
+      const names = H.shippedMigrationNames();
+      check('run from a directory that has its OWN prisma/migrations: the shipped list is still THIS build\'s (not the decoy)',
+        JSON.stringify(names) === JSON.stringify(SHIPPED), { got: names?.length, want: SHIPPED.length });
+      const r = await H.probeReadiness(fakePrisma(healthyDb()), { cacheMs: 0 });
+      check('…so a healthy database is still ok, judged against the build\'s own list', r.ready === true && r.state === 'ok' && r.shipped === SHIPPED.length, r);
+      const pend = healthyDb(); pend.history = (pend.history as Hist[]).slice(0, -1);
+      const r2 = await H.probeReadiness(fakePrisma(pend), { cacheMs: 0 });
+      check('…and a database that lacks the NEWEST migration is pending, not ok (the decoy list would have said ok)', r2.ready === false && r2.state === 'pending', r2);
+    } finally { process.chdir(before); rmSync(decoyRoot, { recursive: true, force: true }); fresh(); }
+  });
+  await unit('deleted cwd', async () => {
+    const gone = mkdtempSync(path.join(tmpdir(), 'health-gone-'));
+    const before = process.cwd();
+    try {
+      process.chdir(gone);
+      rmdirSync(gone);
+      fresh();
+      let threw: string | null = null;
+      let r: Awaited<ReturnType<typeof H.probeReadiness>> | null = null;
+      try { r = await H.probeReadiness(fakePrisma(healthyDb()), { cacheMs: 0 }); } catch (e) { threw = (e as Error).message; }
+      check('the working directory no longer exists: probeReadiness still does not throw', threw === null, threw);
+      check('…and still finds the build\'s own migrations (ok, not unknown)', r?.ready === true && r?.state === 'ok', r);
+      fresh();
+      const res = await hit(fakePrisma(healthyDb()));
+      check('…so GET /api/health is the 200 contract, not a 500 {error}', res.status === 200 && JSON.stringify(Object.keys(res.body)) === JSON.stringify(LEGACY), { status: res.status, keys: Object.keys(res.body) });
+    } finally { process.chdir(before); fresh(); }
+  });
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
