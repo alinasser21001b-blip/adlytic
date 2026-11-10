@@ -220,7 +220,7 @@ async function main() {
   ];
   const part = await S.partitionRecommendationsBySpendEvidence(unclean, recs as any);
   check('IQD, window not clean: spend-dependent ones withheld, the spend-independent one kept', same(part.kept.map((r: any) => r.id), ['indep']) && same(part.suppressed.map((x) => x.id).sort(), ['ai-budget', 'budget', 'composed']), [part.kept.map((r: any) => r.id), part.suppressed.map((x) => x.id)]);
-  check('…each withheld one says why (reason code, basis, window) — not silent', part.suppressed.every((x) => x.reason === 'SPEND_SCALE_UNVERIFIED' && !!x.basis && x.window.unverified === 1) && part.suppressed.find((x) => x.id === 'budget')!.basis === 'ACTION_CODE' && part.suppressed.find((x) => x.id === 'composed')!.basis === 'SOURCE_ISSUE', part.suppressed);
+  check('…each withheld one says why (reason code, basis, window) — not silent', part.suppressed.every((x) => x.reason === 'SPEND_SCALE_UNVERIFIED' && !!x.basis && x.window.unverified === 1) && part.suppressed.find((x) => x.id === 'budget')?.basis === 'ACTION_CODE' && part.suppressed.find((x) => x.id === 'composed')?.basis === 'SOURCE_ISSUE', part.suppressed);
   const cleanDb = fakeDb({ account: [{ day: iso(5), spend: 1000 }], raws: [{ day: iso(5), spend: 1000 }] });
   const partClean = await S.partitionRecommendationsBySpendEvidence(cleanDb, recs as any);
   check('IQD, window fully verified: everything kept, nothing suppressed', partClean.kept.length === 4 && partClean.suppressed.length === 0);
@@ -247,6 +247,14 @@ async function main() {
   const aiWin = S.windowForAsOf(iso(0), S.EVIDENCE_WINDOWS.aiAgent);
   const engWin = S.windowForAsOf(iso(0), S.EVIDENCE_WINDOWS.engine);
   check('windows: engine = 14 days ending 2 days before as-of; AI agent = 30 days ending as-of', engWin.to === iso(2) && engWin.from === iso(15) && aiWin.to === iso(0) && aiWin.from === iso(29), [engWin, aiWin]);
+
+  // the AI agent reads up to 30 days; the deterministic engines 14 (ending 2 days before as-of)
+  const windowDb = fakeDb({ account: [{ day: iso(20), spend: 1000 }, { day: iso(3), spend: 1000 }], raws: [{ day: iso(3), spend: 1000 }] });
+  const byWindow = await S.partitionRecommendationsBySpendEvidence(windowDb, [
+    rec({ id: 'ai-30d', actionCode: 'DECREASE_BUDGET', source: 'AI_AGENT' }),
+    rec({ id: 'v1-14d', actionCode: 'REVIEW_BUDGET_PACING', source: 'V1_RULES' }),
+  ] as any);
+  check('an unverified day 20 days ago is inside the AI agent\'s 30-day window (withheld) but outside the engines\' 14-day window (kept)', same(byWindow.suppressed.map((x) => x.id), ['ai-30d']) && same(byWindow.kept.map((r: any) => r.id), ['v1-14d']), [byWindow.suppressed.map((x) => x.id), byWindow.kept.map((r: any) => r.id)]);
 
   // ── 6. generation ────────────────────────────────────────────────────
   console.log('\n── 6. generation: spend-independent recommendations keep working, clean and non-IQD are untouched ──');
@@ -354,6 +362,23 @@ async function main() {
   const sig = { ctrTrend: null, cpmTrend: null, frequencyTrend: null, resultsTrend: -0.4, spendTrend: 0.1, currentCtr: null, currentFrequency: null, currentCpm: null, currentResults: 0, currentSpend: 0 };
   check('the detector itself declines when its Signals say spend is withheld (defence in depth)', detectRisingCostPerResult(sig as any) !== null && detectRisingCostPerResult({ ...sig, spendWithheld: 'SPEND_SCALE_UNVERIFIED' } as any) === null);
 
+  // The Brain's period signals (loadCampaignSignalsBatch) — real windows, fake prisma
+  const { loadCampaignSignalsBatch } = await import('./src/engines/rules/loadCampaignSignals');
+  const sigAsOf = new Date('2026-06-14T12:00:00Z');
+  const sigRows: any[] = [];
+  for (let i = 2; i <= 15; i++) {
+    const d = new Date(Date.UTC(2026, 5, 14) - i * 86_400_000);
+    const prior = i >= 9;
+    sigRows.push({ entityType: 'CAMPAIGN', entityId: 'c1', date: d, spend: prior ? 100_000n : 160_000n, messages: prior ? 20n : 10n, impressions: 25_000n, reach: 20_000n, clicks: 500n, linkClicks: 500n, ctr: prior ? 2.0 : 1.2, cpm: prior ? 4000 : 6400, frequency: prior ? 2.0 : 3.0, purchases: 0n, leads: 0n });
+  }
+  const sigPrisma: any = { dailyStat: { findMany: async () => sigRows }, campaign: { findMany: async () => [{ id: 'c1', objective: 'MESSAGES', messagingCtaAds: 0, adSets: [] }] } };
+  const sigPlain = (await loadCampaignSignalsBatch(sigPrisma, ['c1'], { asOf: sigAsOf })).get('c1')!;
+  const sigNull = (await loadCampaignSignalsBatch(sigPrisma, ['c1'], { asOf: sigAsOf, spendWithheld: null })).get('c1')!;
+  const sigHeld = (await loadCampaignSignalsBatch(sigPrisma, ['c1'], { asOf: sigAsOf, spendWithheld: 'SPEND_SCALE_UNVERIFIED' })).get('c1')!;
+  check('precondition: the fixture has real spend / CPM trends', sigPlain.spendTrend != null && sigPlain.cpmTrend != null && sigPlain.currentCpm != null, sigPlain);
+  check('period signals: with no verdict (or a null one) the result is byte-identical to before', same(sigPlain, sigNull) && !('spendWithheld' in sigPlain));
+  check('period signals: with a verdict, spendTrend / cpmTrend / currentCpm are null and spendWithheld is stamped — CTR, frequency and results trends are untouched', sigHeld.spendTrend === null && sigHeld.cpmTrend === null && sigHeld.currentCpm === null && sigHeld.spendWithheld === 'SPEND_SCALE_UNVERIFIED' && sigHeld.ctrTrend === sigPlain.ctrTrend && sigHeld.frequencyTrend === sigPlain.frequencyTrend && sigHeld.resultsTrend === sigPlain.resultsTrend && sigHeld.currentCtr === sigPlain.currentCtr && sigHeld.currentFrequency === sigPlain.currentFrequency, sigHeld);
+
   // ── 7. the Brain ─────────────────────────────────────────────────────
   console.log('\n── 7. the Brain: cost-based verdicts are withheld, the rest is untouched ──');
   const { runBrainForCampaign } = await import('./src/engine/AdlyticBrain');
@@ -444,7 +469,7 @@ async function main() {
   const dash = code(read('src/services/getDashboard.ts'));
   check('getDashboard evaluates the window and gates priorityAction, issues, KB metrics, diagnose signals, drain, forecast, bleed alert and steady-state',
     /evaluateSpendWindow\(prisma,\s*account,\s*sinceDate,\s*null,\s*'ACCOUNT'\)/.test(dash) && /partitionRecommendationsBySpendEvidence/.test(dash) && /isSpendDependentIssueCode/.test(dash) && /withholdSpendDerivedMetrics/.test(dash)
-      && /drainRaw && !spendGated/.test(dash) && /forecastRaw\.daysLeft > 0 && !spendGated/.test(dash) && /bleedRaw && !spendGated/.test(dash) && /spendWithheld: spendReason/.test(dash) && /roas: spendGated \? null/.test(dash));
+      && /drainRaw && !spendGated/.test(dash) && /forecastRaw\.daysLeft > 0 && !spendGated/.test(dash) && /bleedRaw && !spendGated/.test(dash) && /spendWithheld: spendReason/.test(dash) && /roas: spendGated \? null/.test(dash) && /cpm: spendGated \? null : cpmWindow/.test(dash) && /totalMsgs > 0 && !spendGated/.test(dash) && /kbMetrics: CampaignMetrics = spendGated \? withholdSpendDerivedMetrics\(kbMetricsAll\)/.test(dash));
   const brainWorker = code(read('src/workers/runBrainOrchestrator.ts'));
   check('the Brain orchestrator evaluates the CAMPAIGN-level window and passes the verdict to the period signals AND to the Brain',
     /evaluateSpendWindow\([^)]*'CAMPAIGN'\)/.test(brainWorker) && /\{ asOf: now, spendWithheld \}/.test(brainWorker) && /periodSignals: periodSignalsByCampaign\.get\(campaign\.id\) \?\? null, spendWithheld/.test(brainWorker));

@@ -340,6 +340,8 @@ async function main() {
       { code: 'PAUSE_AND_RELAUNCH', priority: 'CRITICAL', ago: 1, issues: ['AUDIENCE_FATIGUE', 'DECLINING_RESULTS', 'RISING_COST_PER_RESULT'] },
       { code: 'BROADEN_AUDIENCE', priority: 'MEDIUM', ago: 1, issues: ['AUDIENCE_FATIGUE', 'HIGH_FREQUENCY'] },
     ]);
+    // a trend row with a real CPM / spend story, as AnalyticsEngine would have written it
+    await prisma.metricTrend.create({ data: { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(0), ctrTrend: -0.33, cpmTrend: 0.4, frequencyTrend: 0.46, resultsTrend: -0.33, spendTrend: 0 } });
     await prisma.detectedIssue.createMany({ data: [
       { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(0), issueCode: IssueCode.RISING_COST_PER_RESULT, severity: 'HIGH', evidenceJson: [] },
       { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(0), issueCode: IssueCode.HIGH_FREQUENCY, severity: 'MEDIUM', evidenceJson: [] },
@@ -361,6 +363,15 @@ async function main() {
   const surfaces = (bU.body.dataQuality?.withheld ?? []).map((w: any) => w.surface);
   check('…and dataQuality names the flag and every withheld surface: SPEND_SCALE_UNVERIFIED, priorityAction, issues, drain, bleedAlert',
     bU.body.dataQuality?.flags?.[0]?.code === 'SPEND_SCALE_UNVERIFIED' && ['priorityAction', 'issues', 'drain', 'bleedAlert'].every((s) => surfaces.includes(s)) && bU.body.dataQuality.withheld.every((w: any) => w.reason === 'SPEND_SCALE_UNVERIFIED'), bU.body.dataQuality);
+  const diagCodes = (b: { body: any }) => (b.body.diagnoses ?? []).map((d: any) => d.code);
+  check('…the cost diagnosis (RISING_COST_PER_RESULT, from the CPM / spend trends) is built on verified IQD and USD spend only', diagCodes(bV).includes('RISING_COST_PER_RESULT') && diagCodes(bD).includes('RISING_COST_PER_RESULT') && !diagCodes(bU).includes('RISING_COST_PER_RESULT'), [diagCodes(bV), diagCodes(bD), diagCodes(bU)]);
+  check('…the knowledge-base cost breaches (cost_per_message, cpm) are not evaluated on unverified spend, and are named', surfaces.includes('knowledgeBase') && bU.body.dataQuality.withheld.filter((w: any) => w.surface === 'knowledgeBase').map((w: any) => w.detail).sort().join() === 'cost_per_message,cpm' && !(bU.body.priorityAction?.details?.metricBreaches ?? []).some((b: any) => S.SPEND_DERIVED_KB_METRICS.has(b.metricKey)) && (bV.body.priorityAction?.details?.metricBreaches ?? []).some((b: any) => S.SPEND_DERIVED_KB_METRICS.has(b.metricKey)), [bU.body.priorityAction?.details, bV.body.priorityAction?.details]);
+  // no stored recommendation at all: the knowledge base alone would have produced a cost-based priority action
+  const kbAcc = async (label: string, currency: string, factor: number, rawFor: (a: number) => RawMode) => seed(label, { currency, factor, account: steady(20, rawFor) });
+  const kU = await dash(await kbAcc('k-unver', 'IQD', 1, (a) => (a >= 3 && a <= 5 ? 'none' : 'match')));
+  const kV = await dash(await kbAcc('k-ver', 'IQD', 1, () => 'match'));
+  const kD = await dash(await kbAcc('k-usd', 'USD', 100, () => 'none'));
+  check('with NO stored recommendation: verified IQD and USD get the knowledge-base cost action as their priority action; unverified IQD gets none', kV.body.priorityAction?.actionCode === 'CPMSG_PAUSE_BLEEDERS' && kD.body.priorityAction?.actionCode === 'CPMSG_PAUSE_BLEEDERS' && (kU.body.priorityAction == null) && kV.body.dataQuality === undefined && kD.body.dataQuality === undefined, [kV.body.priorityAction?.actionCode, kD.body.priorityAction?.actionCode, kU.body.priorityAction]);
   check('…the KPI numbers themselves are still shown as stored (the gate withholds advice, it does not rewrite money)', bU.body.kpis?.find((k: any) => k.key === 'spend')?.value === bV.body.kpis?.find((k: any) => k.key === 'spend')?.value);
 
   // ═════════════════════════════════════════════════════════════════════
@@ -392,18 +403,23 @@ async function main() {
   }
   const bTU = await brainTenant('b-unver', (a) => (a % 2 === 0 ? 'none' : 'match'));
   const bTV = await brainTenant('b-ver', () => 'match');
+  // account rows PROVEN by raw Meta spend, but the campaigns add up to only half of them: unverified at CAMPAIGN level only
+  const bTC = await seed('b-camp', { factor: 1, account: Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: 2 * (8 * 200_000 - 160_000), raw: 'match' as RawMode, messages: 8 * 60 - 40 })), campaigns: Array.from({ length: 8 }, (_, c) => Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: c === 0 ? 40_000 : 200_000, messages: c === 0 ? 100 : 40 }))) });
   const bTD = await seed('b-usd', { currency: 'USD', factor: 100, account: Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: 8 * 200_000 - 160_000, raw: 'none' as RawMode, messages: 8 * 60 - 40 })), campaigns: Array.from({ length: 8 }, (_, c) => Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: c === 0 ? 40_000 : 200_000, messages: c === 0 ? 100 : 40 }))) });
   const brainOf = async (t: Tenant) => {
     const res = await quiet(() => runBrainOrchestrator(prisma, noMeta, t.account.id))();
     const snaps = await prisma.campaignBrainSnapshot.findMany({ where: { campaignId: { in: t.campaigns.map((c) => c.id) } } });
     return { res, snaps };
   };
-  const brU = await brainOf(bTU), brV = await brainOf(bTV), brD = await brainOf(bTD);
+  const brU = await brainOf(bTU), brV = await brainOf(bTV), brD = await brainOf(bTD), brC = await brainOf(bTC);
   const actionsOf = (b: { snaps: Array<{ action: string }> }) => b.snaps.map((s) => s.action).sort();
   const spendDep = (a: string) => S.BRAIN_SPEND_DEPENDENT_ACTIONS.has(a);
   check('precondition: on VERIFIED IQD spend the Brain issues at least one cost-based verdict (scale / pause / rescue / refresh)', brV.res.ok && brV.snaps.length === 8 && actionsOf(brV).some(spendDep), actionsOf(brV));
   check('USD twin: the very same verdicts as the verified IQD account (the gate does not touch non-IQD)', same(actionsOf(brD), actionsOf(brV)), [actionsOf(brD), actionsOf(brV)]);
   check('UNVERIFIED IQD spend: NO cost-based verdict is issued — every one is HOLD_AND_MONITOR / KEEP_COLLECTING', brU.res.ok && brU.snaps.length === 8 && !actionsOf(brU).some(spendDep), actionsOf(brU));
+  const accLevel = await S.evaluateSpendWindow(prisma, { id: bTC.account.id, currency: 'IQD' }, iso(15), iso(0), 'ACCOUNT');
+  check('campaigns that do not add up to a VERIFIED account row: ACCOUNT level is clean, but the Brain (CAMPAIGN level) withholds every cost-based verdict and says why',
+    accLevel.clean && brC.res.ok && !actionsOf(brC).some(spendDep) && brC.res.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && brC.res.spendEvidence.unverified === 16, [accLevel.clean, actionsOf(brC), brC.res.spendEvidence]);
   const withheldPayloads = brU.snaps.filter((s) => (s.payload as any)?.decision?.spendEvidence?.withheld === true);
   check('…each withheld one keeps the original verdict in payload.decision.overriddenAction + spendEvidence (visible, not silent), and the orchestrator result says so',
     withheldPayloads.length > 0 && withheldPayloads.every((s) => spendDep((s.payload as any).decision.overriddenAction) && (s.payload as any).decision.spendEvidence.reason === 'SPEND_SCALE_UNVERIFIED') && brU.res.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && brV.res.spendEvidence === undefined && brD.res.spendEvidence === undefined, [brU.res.spendEvidence, withheldPayloads.length]);
