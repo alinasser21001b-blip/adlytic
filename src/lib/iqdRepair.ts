@@ -31,7 +31,7 @@
 //  module.
 // ════════════════════════════════════════════════════════════════════════
 
-import { EntityType, type Prisma, type PrismaClient } from "@prisma/client";
+import { EntityType, Prisma, type PrismaClient } from "@prisma/client";
 import { currencyMinorFactorFor } from "./currency";
 
 /** Over-scale is exactly ×100 (the schema default factor applied to an IQD major). */
@@ -43,7 +43,9 @@ const ID_CHUNK = 500;
 const TX_TIMEOUT_MS = 60_000;
 const TX_MAX_WAIT_MS = 10_000;
 
-type Reader = Pick<PrismaClient, "rawInsight" | "dailyStat" | "campaign">;
+// `$queryRaw` because the evidence is ONE number inside a JSON payload: selecting
+// raw_json whole would pull the heaviest table in the database into memory.
+type Reader = Pick<PrismaClient, "dailyStat" | "campaign" | "$queryRaw">;
 
 export type ScaleVerdict = "OVERSCALED" | "VERIFIED" | "UNVERIFIABLE";
 
@@ -127,26 +129,28 @@ export async function collectScaleEvidence(
     out.entitiesChecked += ids.length;
     for (const idChunk of chunk(ids, ID_CHUNK)) {
       if (idChunk.length === 0) continue;
-      const dateFilter = opts.sinceDate ? { date: { gte: opts.sinceDate } } : {};
-      const raws = await db.rawInsight.findMany({
-        where: { entityType, entityId: { in: idChunk }, ...dateFilter },
-        select: { entityId: true, date: true, rawJson: true },
-      });
+      const since = opts.sinceDate ? Prisma.sql`AND date >= ${opts.sinceDate}` : Prisma.empty;
+      const raws = await db.$queryRaw<Array<{ entity_id: string; day: string; spend: string | null }>>`
+        SELECT entity_id, to_char(date, 'YYYY-MM-DD') AS day, raw_json->>'spend' AS spend
+        FROM raw_insights
+        WHERE entity_type = ${entityType}::"EntityType" AND entity_id = ANY(${idChunk}) ${since}`;
       if (raws.length === 0) continue;
 
       // (entity, date) -> every raw spend seen. Disagreement is NOT resolved by
       // guessing which fetch is newer; it is treated as no evidence.
       const spendsByKey = new Map<string, number[]>();
-      let minDate = raws[0]!.date, maxDate = raws[0]!.date;
+      let minDay = raws[0]!.day, maxDay = raws[0]!.day;
       for (const r of raws) {
-        const s = parseMetaSpend(r.rawJson);
-        const key = `${r.entityId}|${dayKey(r.date)}`;
+        const s = parseMetaSpend({ spend: r.spend });
+        const key = `${r.entity_id}|${r.day}`;
         const list = spendsByKey.get(key) ?? [];
         if (s != null) list.push(s);
         spendsByKey.set(key, list);
-        if (r.date < minDate) minDate = r.date;
-        if (r.date > maxDate) maxDate = r.date;
+        if (r.day < minDay) minDay = r.day;
+        if (r.day > maxDay) maxDay = r.day;
       }
+      const minDate = new Date(`${minDay}T00:00:00.000Z`);
+      const maxDate = new Date(`${maxDay}T00:00:00.000Z`);
 
       const stats = await db.dailyStat.findMany({
         where: { entityType, entityId: { in: idChunk }, date: { gte: minDate, lte: maxDate } },
