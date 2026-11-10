@@ -277,6 +277,12 @@ function unknown(unknownReason: UnknownReason, shipped: number | null, extra: Pa
 
 // ── readiness probe ──────────────────────────────────────────────────────
 
+/** True while `at` is less than `windowMs` in the past. A clock that stepped BACKWARD (negative age) is outside the window, not inside it. */
+function withinWindow(now: number, at: number, windowMs: number): boolean {
+  const age = now - at;
+  return age >= 0 && age < windowMs;
+}
+
 const READY_CACHE_MS = 30_000;
 let readyCache = new WeakMap<object, { at: number; value: Readiness }>();
 
@@ -303,7 +309,7 @@ export async function probeReadiness(prisma: PrismaClient, opts: ProbeOptions = 
   const now = (opts.now ?? Date.now)();
   const cacheMs = opts.cacheMs ?? READY_CACHE_MS;
   const hit = readyCache.get(prisma);
-  if (hit && now - hit.at < cacheMs) return hit.value;
+  if (hit && withinWindow(now, hit.at, cacheMs)) return hit.value;
 
   const shipped = opts.shipped === undefined ? shippedMigrationNames() : opts.shipped;
   const required = opts.requiredTables === undefined ? requiredTableNames() : opts.requiredTables;
@@ -382,7 +388,7 @@ function describeError(err: unknown): NonNullable<Readiness['cause']> {
 
 function throttled(key: string, now: number): boolean {
   const last = lastLogged.get(key);
-  if (last !== undefined && now - last < LOG_EVERY_MS) return true;
+  if (last !== undefined && withinWindow(now, last, LOG_EVERY_MS)) return true;
   lastLogged.set(key, now);
   return false;
 }

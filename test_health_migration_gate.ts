@@ -117,6 +117,7 @@ const LEAK = /svc|S3CR3T|db\.internal|postgresql:|password|5432|SELECT|FROM publ
 
 type Resp = { status: number; body: Record<string, any>; logs: string[] };
 let H: typeof import('./src/lib/dbHealth');
+type Readiness = import('./src/lib/dbHealth').Readiness;
 let buildRoutes: typeof import('./src/api/server').buildRoutes;
 
 async function hit(p: import('@prisma/client').PrismaClient): Promise<Resp> {
@@ -526,6 +527,39 @@ async function main() {
   fresh();
   const none = await hit(fakePrisma({ ...healthyDb(), liveness: new Error(SECRET_TEXT) }));
   check('an error with no structure at all logs "-" for both', /prismaCode=- adapterKind=-$/.test(none.logs[0] ?? ''), none.logs);
+
+  // ── 10. a wall clock that steps BACKWARD must not extend the windows ───
+  //  `now - at < window` is true for every negative difference. After an NTP step
+  //  back of an hour a READY result would have been served for an hour, and a log
+  //  line would have been suppressed for an hour.
+  console.log('\n── 10. clock stepping backward ──');
+  await unit('clock regression', async () => {
+    fresh();
+    const calls = { n: 0, sql: [] as string[] };
+    const p = fakePrisma({ ...healthyDb(), calls });
+    let t = 5_000_000_000;
+    const opts = { shipped: SHIPPED, requiredTables: REQUIRED, now: () => t, cacheMs: 30_000 };
+    await H.probeReadiness(p, opts);
+    const n1 = calls.n;
+    t += 10_000;
+    await H.probeReadiness(p, opts);
+    check('control: 10 s later the READY result is still cached', calls.n === n1, { n1, n: calls.n });
+    t -= 3_600_000;
+    await H.probeReadiness(p, opts);
+    check('the clock steps back one hour: the cached READY result is NOT trusted, the database is asked again', calls.n > n1, { n1, n: calls.n });
+
+    fresh();
+    const notReady: Readiness = { state: 'pending', ready: false, applied: 1, shipped: 2, missingMigrations: ['m2'], unexpectedMigrations: [], failedMigrations: [], missingTables: [] };
+    const lines: string[] = [];
+    const ow = console.warn; console.warn = (...a: unknown[]) => { lines.push(a.join(' ')); };
+    try {
+      const first = H.logNotReady(notReady, 7_000_000_000);
+      const same = H.logNotReady(notReady, 7_000_000_000 + 5_000);
+      const back = H.logNotReady(notReady, 7_000_000_000 - 3_600_000);
+      check('control: the same state 5 s later is rate-limited', first === true && same === false, [first, same]);
+      check('the clock steps back one hour: the state is logged again instead of staying silent for an hour', back === true && lines.length === 2, { back, lines: lines.length });
+    } finally { console.warn = ow; }
+  });
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
