@@ -2,12 +2,18 @@
 /**
  * Upsert a specific owner login (create or reset password + activate).
  *
- * Usage (production):
- *   railway run --service adlytic npx tsx scripts/upsert-owner-login.ts
+ * Usage (production) — BOTH variables are required; there is no default account and no default password:
+ *   OWNER_EMAIL='owner@example.com' OWNER_PASSWORD='<a new strong password>' \
+ *   OWNER_NAME='Owner' railway run --service adlytic npx tsx scripts/upsert-owner-login.ts
  *
- * Or with env:
- *   OWNER_EMAIL=i6900612@gmail.com OWNER_PASSWORD='Aa213213' \
- *   OWNER_NAME='Ali' DATABASE_URL=... npx tsx scripts/upsert-owner-login.ts
+ * Or against any database:
+ *   OWNER_EMAIL=... OWNER_PASSWORD=... DATABASE_URL=... npx tsx scripts/upsert-owner-login.ts
+ *
+ * This creates the login, or RESETS the password of an existing one and activates it. It used to fall back
+ * to an e-mail and a password committed in this repository when the variables were unset, so running it
+ * with only DATABASE_URL set silently handed a known password to a real account. It now refuses.
+ * To make the account a platform administrator also put its address in PLATFORM_ADMIN_EMAILS
+ * (see delivery/core/RECOMMENDATION_WRITE_AUTH.md section 6).
  *
  * Never prints the password.
  */
@@ -17,12 +23,16 @@ import { PrismaPg } from '@prisma/adapter-pg';
 import pg from 'pg';
 import { hashPassword, verifyPassword } from '../src/services/jwtAuth';
 
-const email = (process.env['OWNER_EMAIL'] || 'i6900612@gmail.com').trim().toLowerCase();
-const password = process.env['OWNER_PASSWORD'] || 'Aa213213';
+const email = (process.env['OWNER_EMAIL'] ?? '').trim().toLowerCase();
+const password = process.env['OWNER_PASSWORD'] ?? '';
 const name = (process.env['OWNER_NAME'] || 'Ali').trim() || 'Ali';
 const workspaceName = (process.env['OWNER_WORKSPACE'] || 'Ali Workspace').trim();
 
 async function main() {
+  if (!email || !password) {
+    console.error('OWNER_EMAIL and OWNER_PASSWORD must both be set. There is no default account and no default password: this script creates a login or RESETS an existing one.');
+    process.exit(1);
+  }
   const dbUrl = process.env['DATABASE_URL'];
   if (!dbUrl) {
     console.error('DATABASE_URL is not set');

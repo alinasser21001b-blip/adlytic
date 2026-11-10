@@ -185,6 +185,22 @@ async function main() {
   const ungated = adminRoutes.filter((m) => !/requirePlatformAdmin\(/.test(m[0])).map((m) => `${m[1]!.toUpperCase()} ${m[2]}`);
   check(`every one of the ${adminRoutes.length} /api/admin/* routes calls requirePlatformAdmin`, adminRoutes.length >= 30 && ungated.length === 0, ungated);
 
+  // ── 6. the out-of-band path the runbook names carries no credential of its own ──
+  console.log('\n── 6. scripts/upsert-owner-login.ts: no committed default account or password ──');
+  {
+    const script = src('scripts/upsert-owner-login.ts');
+    const live = script.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+    check('no literal fallback for OWNER_EMAIL / OWNER_PASSWORD remains in the code (it used to be `|| \'<address>\'` / `|| \'<password>\'`)', !/OWNER_(EMAIL|PASSWORD)'\]\s*(\|\||\?\?)\s*['"`][^'"`]/.test(live), live.match(/.*OWNER_(EMAIL|PASSWORD).*/g));
+    check('…and no e-mail address or password literal is left in the file at all, comments included', !/[A-Za-z0-9._%+-]+@(?!example\.com)[A-Za-z0-9.-]+\.[a-z]{2,}/.test(script) && !/OWNER_PASSWORD=['"][^<'"\s][^'"]*['"]/.test(script), script.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[a-z]{2,}/g));
+    const { spawnSync } = await import('node:child_process');
+    const base = { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '', DATABASE_URL: 'postgresql://nobody@127.0.0.1:1/never_connected' };
+    const run = (extra: Record<string, string>) => spawnSync('npx', ['tsx', 'scripts/upsert-owner-login.ts'], { env: { ...base, ...extra }, encoding: 'utf8', timeout: 60_000 });
+    for (const [label, extra] of [['neither variable', {}], ['only OWNER_EMAIL', { OWNER_EMAIL: 'someone@example.com' }], ['only OWNER_PASSWORD', { OWNER_PASSWORD: 'a-long-enough-password' }], ['both blank', { OWNER_EMAIL: ' ', OWNER_PASSWORD: '' }]] as Array<[string, Record<string, string>]>) {
+      const r = run(extra);
+      check(`run with ${label}: exits non-zero and says what is missing — before any connection is attempted`, r.status === 1 && /OWNER_EMAIL and OWNER_PASSWORD must both be set/.test(r.stderr) && !/ECONNREFUSED|connect/i.test(r.stderr), { status: r.status, stderr: r.stderr.slice(0, 200) });
+    }
+  }
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail > 0 ? 1 : 0);
 }
