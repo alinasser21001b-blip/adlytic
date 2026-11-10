@@ -258,7 +258,7 @@ async function main() {
     oU.rules.spendWithheld === 'SPEND_SCALE_UNVERIFIED' && oV.rules.spendWithheld === undefined && oD.rules.spendWithheld === undefined
     && oU.r.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && oU.r.spendEvidence.withheldMetrics.includes('cpc') && (oU.recs[0]!.detailsJson as any)?.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && (oU.recs[0]!.detailsJson as any).spendEvidence.window.unverified === 6, [oU.rules.spendWithheld, oU.r.spendEvidence, oU.recs[0]!.detailsJson]);
   // The engine can also be run on issues that were persisted BEFORE the gate (or by another run): it drops them itself.
-  await prisma.detectedIssue.create({ data: { entityType: EntityType.ACCOUNT, entityId: eUnver.account.id, date: day(0), issueCode: IssueCode.RISING_COST_PER_RESULT, severity: 'HIGH', evidenceJson: [] } });
+  await prisma.detectedIssue.createMany({ data: [{ entityType: EntityType.ACCOUNT, entityId: eUnver.account.id, date: day(0), issueCode: IssueCode.RISING_COST_PER_RESULT, severity: 'HIGH', evidenceJson: [] }], skipDuplicates: true });
   const reRun = await quiet(() => new RecommendationEngine(prisma).run(EntityType.ACCOUNT, eUnver.account.id, { asOf }))();
   check('a RISING_COST_PER_RESULT issue already stored for the day (written before the gate existed) is dropped by the recommendation engine itself, and named', reRun.spendEvidence?.withheldIssueCodes?.includes('RISING_COST_PER_RESULT') && reRun.recommendation?.actionCode === 'REFRESH_CREATIVES' && !reRun.recommendation.sourceIssues.includes('RISING_COST_PER_RESULT'), [reRun.spendEvidence, reRun.recommendation?.sourceIssues]);
 
@@ -303,13 +303,13 @@ async function main() {
   check('unverified IQD window: the budget-pacing and the AI budget recommendation are withheld; the audience and hook ones come back', same(codesOf(gU.body), ['BROADEN_AUDIENCE', 'IMPROVE_HOOKS']), codesOf(gU.body));
   check('…and the response says so: X-Data-Quality + X-Recommendations-Withheld: 2', dq(gU.r) === 'SPEND_SCALE_UNVERIFIED' && gU.r.headers.get('x-recommendations-withheld') === '2', [dq(gU.r), gU.r.headers.get('x-recommendations-withheld')]);
   const gUs = await recsOf(rUnver, '?include=suppressed');
-  check('?include=suppressed lists what was withheld, each with reason code, basis, entity, date and the evidence window', gUs.body.suppressed?.length === 2 && gUs.body.suppressed.every((x: any) => x.reason === 'SPEND_SCALE_UNVERIFIED' && x.window.unverified >= 1) && same(gUs.body.suppressed.map((x: any) => x.actionCode).sort(), ['INCREASE_BUDGET', 'REVIEW_BUDGET_PACING']) && gUs.body.recommendations.length === 2 && gUs.body.dataQuality?.spendWithheldCount === 2, gUs.body.suppressed);
+  check('?include=suppressed lists what was withheld, each with reason code, basis, entity, date and the evidence window', gUs.body.suppressed?.length === 2 && (gUs.body.suppressed ?? []).every((x: any) => x.reason === 'SPEND_SCALE_UNVERIFIED' && x.window.unverified >= 1) && same((gUs.body.suppressed ?? []).map((x: any) => x.actionCode).sort(), ['INCREASE_BUDGET', 'REVIEW_BUDGET_PACING']) && gUs.body.recommendations?.length === 2 && gUs.body.dataQuality?.spendWithheldCount === 2, gUs.body.suppressed);
   const repairU = await quiet(() => post(`/api/workspaces/${rUnver.ws.id}/repair-iqd`, rUnver.token))();
   check('running the repair does not bring them back (the gate follows the rows, not the factor)', repairU.status === 200 && same(codesOf((await recsOf(rUnver)).body), ['BROADEN_AUDIENCE', 'IMPROVE_HOOKS']));
   const rOver = await seed('r-over', { factor: 1, account: steady(20, () => 'x100').map((r) => ({ ...r, spend: 10_000_000 })) });
   await store(rOver, stored);
   const gO = await recsOf(rOver, '?include=suppressed');
-  check('proven x100 rows: withheld with reason SPEND_SCALE_OVERSCALED', gO.body.suppressed?.length === 2 && gO.body.suppressed.every((x: any) => x.reason === 'SPEND_SCALE_OVERSCALED') && dq(gO.r) === 'SPEND_SCALE_OVERSCALED', [gO.body.suppressed, dq(gO.r)]);
+  check('proven x100 rows: withheld with reason SPEND_SCALE_OVERSCALED', gO.body.suppressed?.length === 2 && (gO.body.suppressed ?? []).every((x: any) => x.reason === 'SPEND_SCALE_OVERSCALED') && dq(gO.r) === 'SPEND_SCALE_OVERSCALED', [gO.body.suppressed, dq(gO.r)]);
   // each stored recommendation is judged by its OWN window
   const rAged = await seed('r-aged', { factor: 1, account: [...steady(8, () => 'none'), ...Array.from({ length: 20 }, (_, i) => ({ ago: 40 + i, spend: 100_000, raw: 'match' as RawMode }))] });
   await store(rAged, [
@@ -317,7 +317,7 @@ async function main() {
     { code: 'PAUSE_AND_RELAUNCH', priority: 'HIGH', ago: 1, issues: ['RISING_COST_PER_RESULT'] },     // built on an unverified one
   ]);
   const gA = await recsOf(rAged, '?include=suppressed');
-  check('an OLD spend-dependent recommendation built on a verified window stays; a NEW one built on an unverified window goes', same(gA.body.recommendations.map((x: any) => x.actionCode), ['REVIEW_BUDGET_PACING']) && same(gA.body.suppressed.map((x: any) => x.actionCode), ['PAUSE_AND_RELAUNCH']), [gA.body.recommendations, gA.body.suppressed]);
+  check('an OLD spend-dependent recommendation built on a verified window stays; a NEW one built on an unverified window goes', same((gA.body.recommendations ?? []).map((x: any) => x.actionCode), ['REVIEW_BUDGET_PACING']) && same((gA.body.suppressed ?? []).map((x: any) => x.actionCode), ['PAUSE_AND_RELAUNCH']), [gA.body.recommendations, gA.body.suppressed]);
   // knowledge-base rows: judged by the metric that owns the action
   const kbT = await seed('r-kb', { factor: 1, account: steady(20, () => 'none') });
   const breach = (metricKey: string, id: string) => ({ metricKey, recommended_optimization_actions: [{ id }] });
