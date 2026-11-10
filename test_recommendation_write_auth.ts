@@ -29,6 +29,7 @@ import { RecommendationService } from './src/services/recommendation.service';
 import { ExecutionService } from './src/services/execution.service';
 import { runRefresh } from './src/services/refresh/refreshEngine';
 import { saveRecommendationHandler } from './src/services/agent/tools/saveRecommendation';
+import { bearerTokenFrom } from './src/api/adapter';
 
 let pass = 0;
 let fail = 0;
@@ -105,11 +106,36 @@ async function main() {
     ['adAccountId an object', { ...good, adAccountId: { in: ['x'] } }], ['adAccountId with a slash', { ...good, adAccountId: 'a/b' }],
     ['actionCode an object', { ...good, actionCode: { contains: '' } }], ['actionCode an array', { ...good, actionCode: ['A'] }], [`actionCode over ${LIMITS.actionCode}`, { ...good, actionCode: 'A'.repeat(LIMITS.actionCode + 1) }],
     ['itemKind an object', { ...good, itemKind: { x: 1 } }], ['feedKey a number', { ...good, feedKey: 7 }], [`title over ${LIMITS.title}`, { ...good, title: 't'.repeat(LIMITS.title + 1) }], ['title with NUL', { ...good, title: 'a\u0000' }],
+    // a LONE surrogate is valid JSON ("\ud800") but unstorable: it used to pass the guards, fail at the INSERT (500)
+    // after recordExecution had already written (review finding authz-F3)
+    ['itemKey with a lone high surrogate', { ...good, itemKey: 'a\uD800b' }], ['itemKey with a lone low surrogate', { ...good, itemKey: 'a\uDC00b' }],
+    ['itemKind with a lone surrogate', { ...good, itemKind: 'x\uD800' }], ['feedKey with a lone surrogate', { ...good, feedKey: '\uDFFF' }],
+    ['title with a lone surrogate', { ...good, title: 't\uD83D' }], ['actionCode with a lone surrogate', { ...good, actionCode: 'A\uD800' }],
   ];
+  const pAstral = parseRecommendationActionBody({ ...good, title: 'حملة 🚀 ناجحة', itemKey: 'priority:\u{1F680}' });
+  check('a well-formed surrogate PAIR (an emoji) is still accepted — only a lone half is refused', pAstral.ok && pAstral.value.title === 'حملة 🚀 ناجحة', pAstral);
   const accepted = bad.filter(([, b]) => parseRecommendationActionBody(b).ok).map(([n]) => n);
   check(`${bad.length} malformed bodies are all refused`, accepted.length === 0, accepted);
   const lp = parseLogActionBody({ action: 'IGNORED' });
   check('parseLogActionBody accepts EXECUTED/IGNORED and refuses everything else', lp.ok && ['null', '[]', '{}', '{"action":"x"}', '{"action":{"a":1}}', '"EXECUTED"'].every((raw) => !parseLogActionBody(JSON.parse(raw)).ok) && parseLogActionBody({ action: 'EXECUTED' }).ok);
+
+  // ── 1b. one Authorization parser for the gate and the handlers ───────
+  console.log('\n── 1b. the active-user gate and the handlers parse "Authorization" with ONE function ──');
+  for (const [name, hdr, want] of [
+    ['one space', 'Bearer tok', 'tok'], ['two spaces', 'Bearer  tok', 'tok'], ['three spaces', 'Bearer   tok', 'tok'], ['space then tab', 'Bearer \ttok', 'tok'],
+    ['trailing space', 'Bearer tok ', 'tok'], ['lower-case scheme', 'bearer tok', null], ['no scheme', 'tok', null], ['scheme only', 'Bearer ', null],
+    ['scheme and blanks only', 'Bearer    ', null], ['Basic', 'Basic dG9r', null], ['empty', '', null], ['undefined', undefined, null],
+  ] as Array<[string, string | undefined, string | null]>) {
+    check(`bearerTokenFrom(${name}) → ${JSON.stringify(want)}`, bearerTokenFrom(hdr) === want, bearerTokenFrom(hdr));
+  }
+  {
+    const server = src('src/api/server.ts');
+    const adapter = src('src/api/adapter.ts');
+    const gateEnd = server.indexOf('const gate = await requireActiveUser(prisma, userId);');
+    const gate = server.slice(Math.max(0, gateEnd - 900), gateEnd);
+    check('the global active-user gate takes its token from bearerTokenFrom (never from its own slice/trim)', gateEnd > 0 && /bearerTokenFrom\(/.test(gate) && !/\.slice\(7\)/.test(gate), gate.slice(-400));
+    check('…and so does the request adapter the handlers use', /bearerTokenFrom\(c\.req\.header\('authorization'\)\)/.test(adapter));
+  }
 
   // ── 2. services, against a recording fake ────────────────────────────
   console.log('\n── 2. the services refuse a foreign id on their own, and touch nothing else ──');
@@ -230,6 +256,8 @@ async function main() {
   check('only server.ts emits a user-originated refresh event (RecommendationExecuted / RecommendationDismissed)', JSON.stringify(userRefreshers) === JSON.stringify(['src/api/server.ts']), userRefreshers);
   const dashWriters = files.filter((p) => /\.(recordDashboardAction|trackUserAction|recordExecution)\(/.test(src(p)) && !/src\/services\/(recommendation|execution)\.service\.ts$/.test(p));
   check('only server.ts calls recordDashboardAction / trackUserAction / recordExecution', JSON.stringify(dashWriters) === JSON.stringify(['src/api/server.ts']), dashWriters);
+  const bearerSlicers = files.filter((p) => /startsWith\('Bearer '\)|\.slice\(7\)/.test(src(p)) && p !== 'src/api/adapter.ts');
+  check('no code outside src/api/adapter.ts parses an Authorization header on its own (a second parser is how the gate and the handlers once disagreed)', bearerSlicers.length === 0, bearerSlicers);
 
   // ── 4. the AI agent's write tool ──────────────────────────────────────
   console.log('\n── 4. save_recommendation (AI chat v2) is a recommendation write too ──');

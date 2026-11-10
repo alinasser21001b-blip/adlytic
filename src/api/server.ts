@@ -48,7 +48,7 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { EntityType, WorkspaceRole, SyncJobStatus } from '@prisma/client';
 import { signToken, verifyToken, verifyPassword, hashPassword } from '../services/jwtAuth';
 import type { PrismaClient } from '@prisma/client';
-import { honoToApiRequest } from './adapter';
+import { bearerTokenFrom, honoToApiRequest } from './adapter';
 import { getDashboard, getDashboardPulse, loadCurrentIssues, DashboardStageTimeoutError, resolveAccountResultColumns, EMPTY_DASHBOARD_DTO } from '../services/getDashboard';
 import { diagnoseRelevance, rankingLabel } from '../knowledge/adRelevanceIntelligence';
 import { generateWeeklyReport } from '../services/weeklyReport';
@@ -913,10 +913,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return next();
     }
 
-    const authHeader = c.req.header('authorization') ?? c.req.header('Authorization');
-    if (!authHeader?.startsWith('Bearer ')) return next();
+    // The SAME parse the handlers use (bearerTokenFrom) — a second, differently-trimming parse here
+    // let "Bearer  <jwt>" (two spaces) skip this gate and still authenticate in the handler.
+    const bearer = bearerTokenFrom(c.req.header('authorization') ?? c.req.header('Authorization'));
+    if (!bearer) return next();
 
-    const userId = await getUserId(authHeader.slice(7));
+    const userId = await getUserId(bearer);
     if (!userId) return next();
 
     const gate = await requireActiveUser(prisma, userId);

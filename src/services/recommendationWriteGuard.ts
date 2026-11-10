@@ -95,6 +95,17 @@ function isPlainObject(raw: unknown): raw is Record<string, unknown> {
   return typeof raw === 'object' && raw !== null && !Array.isArray(raw);
 }
 
+/**
+ * Characters Postgres cannot store in text/jsonb: NUL, and a LONE surrogate half (valid JSON can
+ * carry one as "\ud800", JSON.parse accepts it, and the later INSERT fails with a 500 — after the
+ * execution row was already written: the half-write the review reproduced for itemKey, title,
+ * feedKey and itemKind). Refused at the door so the answer is 400 and nothing is written.
+ */
+const UNSTORABLE_TEXT = /\u0000|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+export function hasUnstorableText(v: string): boolean {
+  return UNSTORABLE_TEXT.test(v);
+}
+
 /** `undefined`, `null` and '' all mean "not supplied". Anything else must be a string within `max`. */
 function optionalString(
   body: Record<string, unknown>,
@@ -105,7 +116,7 @@ function optionalString(
   if (v === undefined || v === null || v === '') return { ok: true, value: null };
   if (typeof v !== 'string') return { ok: false, error: `${field} must be a string` };
   if (v.length > max) return { ok: false, error: `${field} is too long (max ${max} characters)` };
-  if (v.includes('\u0000')) return { ok: false, error: `${field} contains an invalid character` };
+  if (hasUnstorableText(v)) return { ok: false, error: `${field} contains an invalid character` };
   return { ok: true, value: v };
 }
 
@@ -126,7 +137,7 @@ export function parseRecommendationActionBody(raw: unknown): ParseResult<Recomme
   const itemKey = raw['itemKey'];
   if (typeof itemKey !== 'string' || itemKey.length === 0) return { ok: false, error: 'itemKey is required' };
   if (itemKey.length > LIMITS.itemKey) return { ok: false, error: `itemKey is too long (max ${LIMITS.itemKey} characters)` };
-  if (itemKey.includes('\u0000')) return { ok: false, error: 'itemKey contains an invalid character' };
+  if (hasUnstorableText(itemKey)) return { ok: false, error: 'itemKey contains an invalid character' };
 
   const itemKind = optionalString(raw, 'itemKind', LIMITS.itemKind);
   if (!itemKind.ok) return itemKind;

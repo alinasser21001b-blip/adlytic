@@ -60,6 +60,20 @@ export type ApiHandler = (req: ApiRequest) => Promise<ApiResponse>;
  * Converts a Hono Context into an ApiRequest.
  * Call this at the top of every handler that needs the normalised shape.
  */
+
+/**
+ * The ONE place an Authorization header becomes a token. Both the handlers (via
+ * honoToApiRequest) and the global active-user gate in server.ts use it: when the
+ * gate parsed the header its own way ("Bearer  <jwt>", two spaces, verified the
+ * untrimmed string, failed, and let the request through) an unactivated or suspended
+ * account could call every non-exempt route while the handler — which trims —
+ * authenticated it normally. One parser, so the two can never disagree again.
+ */
+export function bearerTokenFrom(authHeader: string | null | undefined): string | null {
+  if (typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) return null;
+  return authHeader.slice(7).trim() || null;
+}
+
 export async function honoToApiRequest(c: Context): Promise<ApiRequest> {
   const url = new URL(c.req.url);
 
@@ -101,11 +115,7 @@ export async function honoToApiRequest(c: Context): Promise<ApiRequest> {
   }
 
   // Bearer token resolution — Authorization header only, no cookie fallback.
-  const authHeader = c.req.header('authorization') ?? '';
-  let bearerToken: string | null = null;
-  if (authHeader.startsWith('Bearer ')) {
-    bearerToken = authHeader.slice(7).trim() || null;
-  }
+  const bearerToken = bearerTokenFrom(c.req.header('authorization'));
 
   return {
     method: c.req.method,
