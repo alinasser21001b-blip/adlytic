@@ -50,7 +50,7 @@ hex=""; for ((i = 0; i < \${#PGPASSWORD}; i++)); do printf -v x '%02x' "'\${PGPA
 { echo "ARGS:$*"; echo "ENV:PGHOST=$PGHOST PGPORT=$PGPORT PGUSER=$PGUSER PGDATABASE=$PGDATABASE PGSSLMODE=\${PGSSLMODE:-}"; echo "PASSWORD_SET:\${PGPASSWORD:+yes}"; echo "PASSWORD_VALUE:\${PGPASSWORD:-}"; echo "PASSWORD_HEX:$hex"; echo "USER_HEX:$(printf '%s' "$PGUSER" | od -An -tx1 | tr -d ' \\n')"; } >> "$SHIM_LOG"
 if [ -f "$DUMP_DIR/$SHIM_MODE.sql" ]; then                 # data-driven modes: the exact bytes pg_dump writes, what it says on stderr, and how it exits
   cat "$DUMP_DIR/$SHIM_MODE.sql"
-  if [ -f "$DUMP_DIR/$SHIM_MODE.err" ]; then e="$(cat "$DUMP_DIR/$SHIM_MODE.err")"; e="\${e//@USER@/$PGUSER}"; e="\${e//@PASS@/$PGPASSWORD}"; echo "$e" >&2; fi
+  if [ -f "$DUMP_DIR/$SHIM_MODE.err" ]; then e="$(cat "$DUMP_DIR/$SHIM_MODE.err")"; e="\${e//@USER_ENC@/\${ENC_USER:-}}"; e="\${e//@PASS_ENC@/\${ENC_PASS:-}}"; e="\${e//@USER@/$PGUSER}"; e="\${e//@PASS@/$PGPASSWORD}"; echo "$e" >&2; fi
   exit "$(cat "$DUMP_DIR/$SHIM_MODE.exit")"
 fi
 case "$SHIM_MODE" in
@@ -72,6 +72,7 @@ case " $* " in
       if [ "$n" -gt "$GZIP_DEC_FAIL_AFTER" ]; then "$REAL_GZIP" "$@" | head -c 100; echo "gzip: shim: read error" >&2; exit 1; fi; fi
     exec "$REAL_GZIP" "$@";;
 esac
+echo "GZIP_ENV: PGPASSWORD=\${PGPASSWORD:+set} PGUSER=\${PGUSER:+set}" >> "$SHIM_LOG"
 if [ -n "\${GZIP_MODE:-}" ] && [ "$GZIP_MODE" != lie_t ]; then exec "$NODE_BIN" "$DAMAGE_JS" "$GZIP_MODE"; fi
 exec "$REAL_GZIP" "$@"`);
 shim('date', 'echo 20260101_000000');                     // a fixed clock: two runs in the "same second"
@@ -100,12 +101,14 @@ const dumps: Record<string, { sql: string; exit?: number; err?: string }> = {
   cut_after_marker_far:     { sql: `${TOP}SELECT 1;\n${END_OLD}SELECT 2;\nSELECT 3;\nSELECT 4;\nSELECT 5;\nSELECT 6;\nSELECT 7;\nSELECT 8;\n` },   // …and 8 lines
   garbage_after_complete:   { sql: `${TOP}${END_NEW}DROP TABLE public.users;\n` },
   second_dump_cut:          { sql: `${TOP}${END_NEW}COPY public.u (a) FROM stdin;\nx\n` },
+  second_copy_closed:       { sql: `${TOP}${END_NEW}COPY public.u (a) FROM stdin;\nx\n\\.\n` },     // a complete dump, then another COPY that is closed but has no marker after it
   // refused: pg_dump itself reports a failure
   complete_then_exit1:      { sql: TOP + END_NEW, exit: 1, err: 'pg_dump: error: connection to the server was lost' },
   // messages that name the user and the password (a libpq that says who failed; a build that echoes the password)
   auth_failed:    { sql: '', exit: 1, err: 'pg_dump: error: connection to server at "db.example.invalid" (10.0.0.9), port 6543 failed: FATAL:  password authentication failed for user "@USER@"' },
   role_missing:   { sql: '', exit: 1, err: 'pg_dump: error: connection to server at "db.example.invalid" (10.0.0.9), port 6543 failed: FATAL:  role "@USER@" does not exist' },
   echo_both:      { sql: '', exit: 1, err: 'pg_dump: error: could not connect as @USER@ with password @PASS@ (user=@USER@ password=@PASS@)' },
+  echo_enc:       { sql: '', exit: 1, err: 'pg_dump: error: invalid connection string postgresql://@USER_ENC@:@PASS_ENC@@db.example.invalid/prod_db' },
 };
 const DUMP_DIR = path.join(work, 'dumps');
 mkdirSync(DUMP_DIR);
@@ -246,6 +249,7 @@ for (const [label, mode] of [
   ['…and 8 lines before the cut', 'cut_after_marker_far'],
   ['a complete dump followed by more SQL (the marker is not the end)', 'garbage_after_complete'],
   ['a complete dump followed by the start of another COPY that never ends', 'second_dump_cut'],
+  ['a complete dump followed by another COPY block that ends but is not followed by a marker', 'second_copy_closed'],
 ] as const) {
   r = run({ env: dotenv(), mode });
   check(`refused (pg_dump exits 0): ${label}`, r.status !== null && r.status !== 0 && !/Backup complete/.test(r.all) && r.files.length === 0 && /incomplete/.test(r.err) && /no backup was written/i.test(r.err), [r.status, r.files, r.all.slice(-200)]);
@@ -265,10 +269,10 @@ check('refused: pg_dump writes a COMPLETE dump (marker and all) and then exits 1
 // ── 8. nothing that identifies the login is printed: not the password in any form, not the user name ──
 console.log('\n── 8. no part of the password and not the user name is printed, whatever shape of URL carries them ──');
 const frags = (v: string) => { const o = new Set<string>(); for (let i = 0; i < v.length; i++) for (let j = i + 3; j <= v.length; j++) o.add(v.slice(i, j)); return [...o]; };
-const leaks = (out: string, pw: string, pwEnc: string, user: string, userEnc: string) => [...frags(pw).filter((f) => out.includes(f)), ...[pwEnc, user, userEnc].filter((f) => f.length >= 3 && out.includes(f))];
+const leaks = (out: string, pw: string, pwEnc: string, user: string, userEnc: string, userFrags = false) => [...frags(pw).filter((f) => out.includes(f)), ...(userFrags ? frags(user).filter((f) => out.includes(f)) : []), ...[pwEnc, user, userEnc].filter((f) => f.length >= 3 && out.includes(f))];
 // every alphanumeric run is at most 2 long, so no 3-character fragment is plain text that could occur in a path or a message
 const PW_ALL = ['Zq', '@', '7x', ':', 'Kd', '\'', '9m', '"', 'Wp', '$', 'Rt', ' ', 'Lv', '%', 'Xn', '\\', 'Bc', '!', '4h', '*', 'Jy'].join('');
-const pwCases: Array<{ label: string; userinfo: string; user: string; pw: string }> = [
+const pwCases: Array<{ label: string; userinfo: string; user: string; pw: string; userFrags?: boolean }> = [
   { label: 'every URL-hostile character, percent-encoded', userinfo: `${USER}:${encodeURIComponent(PW_ALL)}`, user: USER, pw: PW_ALL },
   { label: 'a RAW @ and : in the password (the review\'s repro shape: user:Zq7@Hx4Kd@host)', userinfo: `${USER}:Zq@7x:Kd`, user: USER, pw: 'Zq@7x:Kd' },
   { label: 'two raw @ in the password', userinfo: `${USER}:Tr@0u@Hx`, user: USER, pw: 'Tr@0u@Hx' },
@@ -276,6 +280,8 @@ const pwCases: Array<{ label: string; userinfo: string; user: string; pw: string
   { label: '%40 (an encoded @) and %3A', userinfo: `${USER}:Zq%407x%3AKd`, user: USER, pw: 'Zq@7x:Kd' },
   { label: 'the literal text %40 in the password (encoded as %2540)', userinfo: `${USER}:Zq%25407xKd`, user: USER, pw: 'Zq%407xKd' },
   { label: 'quotes, $ and a space (%20), and a user name with a space', userinfo: `we%20ird-user:Pw'9m"Wp$Rt%20Lv`, user: 'we ird-user', pw: 'Pw\'9m"Wp$Rt Lv' },
+  { label: 'a newline inside the password (%0A): a message that wraps it must not show either half', userinfo: `${USER}:Zq%0A7x`, user: USER, pw: 'Zq\n7x' },
+  { label: 'the password is a piece of the user name (svc-Zq7Kd / Zq7): redacting the password first would leave the rest of the user name', userinfo: 'svc-Zq7Kd:Zq7', user: 'svc-Zq7Kd', pw: 'Zq7', userFrags: true },
 ];
 for (const c of pwCases) {
   const url = `postgresql://${c.userinfo}@db.example.invalid:6543/prod_db`;
@@ -284,11 +290,17 @@ for (const c of pwCases) {
   const ok = run({ env: null, mode: 'real_trailer', extraEnv: { DATABASE_URL: url } });
   check(`[${c.label}] exit 0, and pg_dump got exactly this password (in its environment) and this host`, ok.status === 0 && ok.shimLog.includes(`PASSWORD_VALUE:${c.pw}\n`) && /PGHOST=db\.example\.invalid PGPORT=6543 /.test(ok.shimLog), [ok.status, ok.shimLog, ok.all.slice(-200)]);
   check('   …nothing printed contains the password (any 3+ character piece of it, or its encoded form), the user name, or the URL', leaks(ok.all + ok.files.join('\n'), c.pw, pwEnc, c.user, userEnc).length === 0 && !/postgres(ql)?:\/\//.test(ok.all), leaks(ok.all, c.pw, pwEnc, c.user, userEnc));
-  for (const mode of ['echo_both', 'auth_failed', 'role_missing'] as const) {
-    const f = run({ env: null, mode, extraEnv: { DATABASE_URL: url } });
-    check(`   …[${mode}: pg_dump names the user${mode === 'echo_both' ? ' and echoes the password' : ''}] the failure is relayed with both redacted`, f.status !== null && f.status !== 0 && /no backup was written/i.test(f.err) && /<user>/.test(f.err) && leaks(f.all + f.files.join('\n'), c.pw, pwEnc, c.user, userEnc).length === 0, [f.status, f.err.slice(-300), leaks(f.all, c.pw, pwEnc, c.user, userEnc)]);
+  for (const mode of ['echo_both', 'echo_enc', 'auth_failed', 'role_missing'] as const) {
+    const f = run({ env: null, mode, extraEnv: { DATABASE_URL: url, ENC_USER: userEnc, ENC_PASS: pwEnc } });
+    const what = mode === 'echo_both' ? ' and echoes the password' : mode === 'echo_enc' ? ' and the password in their %-encoded URL form' : '';
+    const lk = leaks(f.all + f.files.join('\n'), c.pw, pwEnc, c.user, userEnc, c.userFrags);
+    check(`   …[${mode}: pg_dump names the user${what}] the failure is relayed with both redacted`, f.status !== null && f.status !== 0 && /no backup was written/i.test(f.err) && /<user>/.test(f.err) && lk.length === 0, [f.status, f.err.slice(-300), lk]);
   }
 }
+r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: 'postgresql://u@h.example.invalid/db', PGPASSWORD: 'ambient-from-the-caller' } });
+check('a URL without a password never picks up a PGPASSWORD of the caller\'s environment (it would be sent to whatever host the URL names)', r.status === 0 && /PASSWORD_SET:\n/.test(r.shimLog) && !r.shimLog.includes('ambient-from-the-caller'), r.shimLog);
+r = run({ env: dotenv(), mode: 'ok' });
+check('the password and the user reach pg_dump ONLY: the gzip that reads its output has neither in its environment', /GZIP_ENV: PGPASSWORD= PGUSER=\n/.test(r.shimLog) && /PASSWORD_SET:yes/.test(r.shimLog), r.shimLog);
 r = run({ env: null, mode: 'auth_failed', extraEnv: { DATABASE_URL: URL_FULL } });
 check('the relayed message keeps its meaning (what failed, host and port) and has no doubled "pg_dump: pg_dump:" prefix', /password authentication failed for user "<user>"/.test(r.err) && /db\.example\.invalid/.test(r.err) && !/pg_dump: pg_dump:/.test(r.err), r.err);
 r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: 'postgresql://u:Zq7Kd@Hx4@127.0.0.1:54391/bkdb' } });
@@ -357,14 +369,14 @@ const sqlCut = (s: string) => { const i = s.indexOf('COPY public.t (id) FROM std
 const goodGz = readFileSync(goodFile);
 const flipAt = (b: Buffer, i: number, bit: number) => { const z = Buffer.from(b); z[i] ^= bit; return z; };
 const cutSql = gzipSync(Buffer.from(sqlCut(realSql)));
-const variants: Array<[string, Buffer]> = [
-  ['the file cut at 60% (a download that stopped)', goodGz.subarray(0, Math.floor(goodGz.length * 0.6))],
-  ['the gzip of a prefix of the SQL that ends right after a data row, with its 8-byte trailer missing (gunzip prints "unexpected end of file" but has already produced the whole prefix)', cutSql.subarray(0, cutSql.length - 8)],
-  ['a bit flipped in the middle of the compressed data', flipAt(goodGz, Math.floor(goodGz.length / 2), 0x04)],
-  ['a bit flipped in the CRC (all the data decompresses, but nothing vouches for it)', flipAt(goodGz, goodGz.length - 7, 0x01)],
-  ['a VALID gzip of an SQL file cut right after a data row (no completion marker)', cutSql],
-  ['a valid gzip whose SQL is cut and ends in the marker text as a row of an open COPY', gzipSync(Buffer.from(`${TOP}COPY public.n (note) FROM stdin;\nrow 1\n${MARK}\n`))],
-  ['an empty file', Buffer.alloc(0)],
+const variants: Array<[string, Buffer, 'gzip' | 'marker']> = [
+  ['the file cut at 60% (a download that stopped)', goodGz.subarray(0, Math.floor(goodGz.length * 0.6)), 'gzip'],
+  ['the gzip of a prefix of the SQL that ends right after a data row, with its 8-byte trailer missing (gunzip prints "unexpected end of file" but has already produced the whole prefix)', cutSql.subarray(0, cutSql.length - 8), 'gzip'],
+  ['a bit flipped in the middle of the compressed data', flipAt(goodGz, Math.floor(goodGz.length / 2), 0x04), 'gzip'],
+  ['a bit flipped in the CRC (all the data decompresses, but nothing vouches for it)', flipAt(goodGz, goodGz.length - 7, 0x01), 'gzip'],
+  ['a VALID gzip of an SQL file cut right after a data row (no completion marker)', cutSql, 'marker'],
+  ['a valid gzip whose SQL is cut and ends in the marker text as a row of an open COPY', gzipSync(Buffer.from(`${TOP}COPY public.n (note) FROM stdin;\nrow 1\n${MARK}\n`)), 'marker'],
+  ['an empty file', Buffer.alloc(0), 'gzip'],
 ];
 const PSQL_IN = path.join(work, 'psql.stdin');
 const runPrinted = (cmdLine: string, extra: Record<string, string> = {}, shell = path.join(binDir, 'bash'), cwd = base.dir) => {
@@ -416,10 +428,10 @@ const vdir = path.join(work, 'vfiles'); mkdirSync(vdir);
 const verify = (file: string, cwd = base.dir) => run({ env: null, noPgDump: true, args: ['--verify', file], cwd, extraEnv: {} });
 let v = verify(goodFile);
 check('an intact complete backup: exit 0, says OK, needs no DATABASE_URL and no pg_dump, writes and prints nothing secret', v.status === 0 && /OK/.test(v.out) && !/Backup complete/.test(v.out) && v.shimLog === '', [v.status, v.all]);
-for (const [label, bytes] of variants) {
+for (const [label, bytes, kind] of variants) {
   const f = path.join(vdir, 'v.sql.gz'); writeFileSync(f, bytes);
   v = verify(f);
-  check(`--verify refuses ${label}`, v.status !== null && v.status !== 0 && v.out === '' && /✗/.test(v.err), [v.status, v.all]);
+  check(`--verify refuses ${label}, and says which check failed (${kind === 'gzip' ? 'not a valid gzip stream' : 'incomplete: no completion marker'})`, v.status !== null && v.status !== 0 && v.out === '' && (kind === 'gzip' ? /not a valid gzip/.test(v.err) : /incomplete/.test(v.err)), [v.status, v.all]);
 }
 v = verify(path.join(vdir, 'missing.sql.gz'));
 check('--verify refuses a file that does not exist', v.status !== null && v.status !== 0, v.status);

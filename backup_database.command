@@ -82,8 +82,9 @@ MARKER='-- PostgreSQL database dump complete'
 gzip_intact() { gzip -t "$1" 2>/dev/null; }
 
 # 0 only if the decompressed SQL ENDS with pg_dump's completion marker: after the marker line only
-# `--`, blank and `\unrestrict <key>` lines may follow, and no COPY block may be open. A marker-looking
-# line inside a COPY block is data. pipefail makes a gzip that fails part-way fail the check as well.
+# `--`, blank and `\unrestrict <key>` lines may follow. A marker-looking line inside a COPY block is data,
+# and a COPY block that starts after the marker (or never ends) means the marker was not the end.
+# pipefail makes a gzip that fails part-way fail the check as well.
 dump_ends_complete() {
   gzip -dc "$1" 2>/dev/null | LC_ALL=C awk -v marker="$MARKER" '
     in_copy { if ($0 == "\\.") in_copy = 0; next }
@@ -91,7 +92,7 @@ dump_ends_complete() {
     $0 == marker { ok = 1; next }
     $0 == "" || $0 == "--" || /^\\unrestrict [^ ]+$/ { next }
     { ok = 0 }
-    END { exit (ok && !in_copy) ? 0 : 1 }'
+    END { exit ok ? 0 : 1 }'
 }
 
 if [ "$#" -gt 0 ]; then
