@@ -358,6 +358,17 @@ async function main() {
   check('IQD with a fully verified window: the very same issues, byte for byte', same(outClean.issues, outUsd.issues));
   check('IQD, spend NOT verified: RISING_COST_PER_RESULT is not detected…', outGated.ok && !codesOf(outGated).includes('RISING_COST_PER_RESULT'), codesOf(outGated));
   check('…while fatigue, high frequency and declining results — which do not rest on spend — still are', ['AUDIENCE_FATIGUE', 'HIGH_FREQUENCY', 'DECLINING_RESULTS'].every((c) => codesOf(outGated).includes(c)), codesOf(outGated));
+  // Signals as the engine builds them — read through a probe detector, so this does not lean on the detector's own guard
+  const probeOf = async (currency: string, evidence: FakeOpts) => {
+    let seen: any = null;
+    const probe = (sg: any) => { seen = sg; return null; };
+    await new RulesEngine(rulesDb(currency, evidence).db).run(EntityType.ACCOUNT, 'acct_1', { asOf, windowDays: 7, attributionLagDays: 2, detectors: [probe] });
+    return seen;
+  };
+  const sgUsd = await probeOf('USD', uncleanEv), sgClean = await probeOf('IQD', { account: [{ day: '2026-06-10', spend: 13000 }], raws: [{ day: '2026-06-10', spend: 13000 }] }), sgHeld = await probeOf('IQD', uncleanEv);
+  check('Signals, non-IQD and verified IQD: spendTrend / cpmTrend / currentCpm are the real values and there is no spendWithheld key', sgUsd.spendTrend === 0 && sgUsd.cpmTrend === 0.3 && sgUsd.currentCpm === 5.2 && !('spendWithheld' in sgUsd) && same(sgClean, sgUsd), [sgUsd, sgClean]);
+  check('Signals, unverified IQD: spendTrend, cpmTrend and currentCpm are ALL null, spendWithheld is stamped, and the non-spend signals are untouched',
+    sgHeld.spendTrend === null && sgHeld.cpmTrend === null && sgHeld.currentCpm === null && sgHeld.spendWithheld === 'SPEND_SCALE_UNVERIFIED' && sgHeld.ctrTrend === sgUsd.ctrTrend && sgHeld.frequencyTrend === sgUsd.frequencyTrend && sgHeld.resultsTrend === sgUsd.resultsTrend && sgHeld.currentCtr === sgUsd.currentCtr && sgHeld.currentFrequency === sgUsd.currentFrequency, sgHeld);
   const { detectRisingCostPerResult } = await import('./src/engines/rules/detectRisingCostPerResult');
   const sig = { ctrTrend: null, cpmTrend: null, frequencyTrend: null, resultsTrend: -0.4, spendTrend: 0.1, currentCtr: null, currentFrequency: null, currentCpm: null, currentResults: 0, currentSpend: 0 };
   check('the detector itself declines when its Signals say spend is withheld (defence in depth)', detectRisingCostPerResult(sig as any) !== null && detectRisingCostPerResult({ ...sig, spendWithheld: 'SPEND_SCALE_UNVERIFIED' } as any) === null);

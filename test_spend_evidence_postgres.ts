@@ -78,7 +78,7 @@ async function main() {
   type RawMode = 'match' | 'none' | 'x100';
   interface Row { ago: number; spend: number; raw: RawMode; messages?: number; clicks?: number; freq?: number; ctr?: number }
   interface CampRow { ago: number; spend: number; messages?: number }
-  interface SeedOpts { currency?: string; factor?: number; account: Row[]; campaigns?: CampRow[][]; trend?: 'furniture' | 'fatigue'; budgets?: boolean }
+  interface SeedOpts { currency?: string; factor?: number; account: Row[]; campaigns?: CampRow[][]; trend?: 'furniture' | 'fatigue'; budgets?: boolean; objective?: string }
 
   async function seed(label: string, o: SeedOpts) {
     const n = `${label}-${++seq}-${Math.random().toString(36).slice(2, 7)}`;
@@ -90,7 +90,7 @@ async function main() {
     });
     const campaigns = [];
     for (let c = 0; c < (o.campaigns?.length ?? 0); c++) {
-      campaigns.push(await prisma.campaign.create({ data: { adAccountId: account.id, externalCampaignId: `c${c}_${n}`, name: `Campaign ${c}`, objective: 'OUTCOME_ENGAGEMENT', dailyBudget: o.budgets ? 5_000_000n : null } }));
+      campaigns.push(await prisma.campaign.create({ data: { adAccountId: account.id, externalCampaignId: `c${c}_${n}`, name: `Campaign ${c}`, objective: o.objective ?? 'OUTCOME_ENGAGEMENT', dailyBudget: o.budgets ? 5_000_000n : null } }));
     }
     for (const r of o.account) {
       const clicks = r.clicks ?? 500;
@@ -392,20 +392,18 @@ async function main() {
 
   // the Brain, through the real orchestrator (no Meta: every client call throws, V2 falls back to V1-only)
   const noMeta: any = new Proxy({}, { get: () => () => { throw new Error('no network in this test'); } });
-  const brainRows = (a: number, spendIqd: number, msgs: number, ctr: number) => ({ ago: a, spend: spendIqd, messages: msgs, ctr });
+  // Latest rows (ago 0–1) are what the Brain's physics reads; the window rows (ago 2–8 vs 9–15) carry the period signals:
+  // results fall 40 % at flat spend — the textbook RISING_COST_PER_RESULT shape that rule grounding detects from real trends.
+  const brainCampaignRows = (c: number): CampRow[] => Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: c === 0 ? 40_000 : 200_000, messages: c === 0 ? 100 : (i >= 2 && i <= 8 ? 24 : 40) }));
+  const brainAccountRows = (rawFor: (a: number) => RawMode, k = 1): Row[] => Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: k * (8 * 200_000 - 160_000), raw: rawFor(i), messages: 8 * 60 - 40 }));
   async function brainTenant(label: string, rawFor: (a: number) => RawMode) {
     // eight campaigns; one is a clear winner (cost per message a fifth of the others', CTR 3 %)
-    const accountRows: Row[] = Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: 8 * 200_000 - 160_000, raw: rawFor(i), messages: 8 * 60 - 40 }));
-    const campaigns: CampRow[][] = Array.from({ length: 8 }, (_, c) => Array.from({ length: 16 }, (_, i) => (c === 0 ? { ago: i, spend: 200_000, messages: 100 } : { ago: i, spend: 200_000, messages: 40 })).map((r) => ({ ...r, spend: c === 0 ? 40_000 : 200_000 })));
-    const t = await seed(label, { factor: 1, account: accountRows, campaigns, budgets: false });
-    void brainRows;
-    return t;
+    return seed(label, { factor: 1, account: brainAccountRows(rawFor), campaigns: Array.from({ length: 8 }, (_, c) => brainCampaignRows(c)), budgets: false, objective: 'MESSAGES' });
   }
   const bTU = await brainTenant('b-unver', (a) => (a % 2 === 0 ? 'none' : 'match'));
   const bTV = await brainTenant('b-ver', () => 'match');
-  // account rows PROVEN by raw Meta spend, but the campaigns add up to only half of them: unverified at CAMPAIGN level only
-  const bTC = await seed('b-camp', { factor: 1, account: Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: 2 * (8 * 200_000 - 160_000), raw: 'match' as RawMode, messages: 8 * 60 - 40 })), campaigns: Array.from({ length: 8 }, (_, c) => Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: c === 0 ? 40_000 : 200_000, messages: c === 0 ? 100 : 40 }))) });
-  const bTD = await seed('b-usd', { currency: 'USD', factor: 100, account: Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: 8 * 200_000 - 160_000, raw: 'none' as RawMode, messages: 8 * 60 - 40 })), campaigns: Array.from({ length: 8 }, (_, c) => Array.from({ length: 16 }, (_, i) => ({ ago: i, spend: c === 0 ? 40_000 : 200_000, messages: c === 0 ? 100 : 40 }))) });
+  const bTC = await seed('b-camp', { factor: 1, account: brainAccountRows(() => 'match', 2), campaigns: Array.from({ length: 8 }, (_, c) => brainCampaignRows(c)), objective: 'MESSAGES' });
+  const bTD = await seed('b-usd', { currency: 'USD', factor: 100, account: brainAccountRows(() => 'none'), campaigns: Array.from({ length: 8 }, (_, c) => brainCampaignRows(c)), objective: 'MESSAGES' });
   const brainOf = async (t: Tenant) => {
     const res = await quiet(() => runBrainOrchestrator(prisma, noMeta, t.account.id))();
     const snaps = await prisma.campaignBrainSnapshot.findMany({ where: { campaignId: { in: t.campaigns.map((c) => c.id) } } });
@@ -420,6 +418,9 @@ async function main() {
   const accLevel = await S.evaluateSpendWindow(prisma, { id: bTC.account.id, currency: 'IQD' }, iso(15), iso(0), 'ACCOUNT');
   check('campaigns that do not add up to a VERIFIED account row: ACCOUNT level is clean, but the Brain (CAMPAIGN level) withholds every cost-based verdict and says why',
     accLevel.clean && brC.res.ok && !actionsOf(brC).some(spendDep) && brC.res.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && brC.res.spendEvidence.unverified === 16, [accLevel.clean, actionsOf(brC), brC.res.spendEvidence]);
+  const groundedIssues = (b: { snaps: Array<{ payload: any }> }) => b.snaps.flatMap((x) => (x.payload?.ruleGrounding?.issues ?? []).map((i: any) => i.code));
+  check('rule grounding reads the period signals: on verified IQD and USD spend it detects RISING_COST_PER_RESULT from the real trends; on unverified spend (account- or campaign-level) it cannot — the spend-derived signals were withheld',
+    groundedIssues(brV).includes('RISING_COST_PER_RESULT') && groundedIssues(brD).includes('RISING_COST_PER_RESULT') && !groundedIssues(brU).includes('RISING_COST_PER_RESULT') && !groundedIssues(brC).includes('RISING_COST_PER_RESULT'), [groundedIssues(brV), groundedIssues(brD), groundedIssues(brU), groundedIssues(brC)]);
   const withheldPayloads = brU.snaps.filter((s) => (s.payload as any)?.decision?.spendEvidence?.withheld === true);
   check('…each withheld one keeps the original verdict in payload.decision.overriddenAction + spendEvidence (visible, not silent), and the orchestrator result says so',
     withheldPayloads.length > 0 && withheldPayloads.every((s) => spendDep((s.payload as any).decision.overriddenAction) && (s.payload as any).decision.spendEvidence.reason === 'SPEND_SCALE_UNVERIFIED') && brU.res.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && brV.res.spendEvidence === undefined && brD.res.spendEvidence === undefined, [brU.res.spendEvidence, withheldPayloads.length]);
