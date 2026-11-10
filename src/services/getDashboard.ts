@@ -441,7 +441,7 @@ export interface DashboardDTO {
    */
   dataQuality?: {
     flags: SpendScaleFlag[];
-    withheld: Array<{ surface: "priorityAction" | "issues" | "knowledgeBase" | "drain" | "forecast" | "bleedAlert" | "steadyState"; reason: SpendGateReason; detail?: string }>;
+    withheld: Array<{ surface: "priorityAction" | "issues" | "knowledgeBase" | "drain" | "forecast" | "bleedAlert" | "steadyState" | "predictions"; reason: SpendGateReason; detail?: string }>;
   };
 }
 
@@ -1748,6 +1748,14 @@ export async function getDashboard(
     priorityAction != null ||
     (brain?.cmoFeedV2 ?? []).some((it) => it.generatedAt);
 
+  // Budget-exhaustion predictions are pace / budget advice from today's spend against the burn rate: left
+  // out while the window's spend is unverified (creative-fatigue predictions do not rest on spend and stay).
+  let predictionsOut = predictions;
+  if (spendGated && predictions && predictions.budgetExhaustion.length > 0) {
+    spendWithheldSurfaces.push({ surface: "predictions", reason: spendReason, detail: "budgetExhaustion" });
+    predictionsOut = { ...predictions, budgetExhaustion: [] };
+  }
+
   const roasAvg = avg(daily, "roas");
   if (spendGated && !hasActionItems && (cpmWindow != null || totalMsgs > 0 || roasAvg != null)) {
     spendWithheldSurfaces.push({ surface: "steadyState", reason: spendReason, detail: "cpa,cpm,roas benchmarks" });
@@ -1856,7 +1864,7 @@ export async function getDashboard(
     lifetimeSpend,
     ...(brain && { brain }),
     ...(steadyState && { steadyState }),
-    ...(predictions && { predictions }),
+    ...(predictionsOut && { predictions: predictionsOut }),
     ...(aiRecommendations && { aiRecommendations }),
     ...(weeklyReport && { weeklyReport }),
     ...(spendGated && {
