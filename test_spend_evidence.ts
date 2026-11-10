@@ -551,8 +551,8 @@ async function main() {
 
   // SE-1 — aiRecommendations (fake prisma: it reads Brain snapshots only)
   const { computeAIRecommendations, snapshotSpendWithheld } = await import('./src/services/aiRecommendations');
-  const snap = (id: string, name: string, pattern: string, action: string, score: number, priority = 'NORMAL', payload: any = {}) =>
-    ({ campaignId: id, action, priority, patternSignature: pattern, finalScore: score, payload: { campaignName: name, ...payload }, tickDate: new Date() });
+  const snap = (id: string, name: string, pattern: string, action: string, score: number, priority = 'NORMAL', payload: any = {}, daysOld = 0) =>
+    ({ campaignId: id, action, priority, patternSignature: pattern, finalScore: score, payload: { campaignName: name, ...payload }, tickDate: new Date(Date.now() - daysOld * 86_400_000) });
   const aiSnaps = [
     snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'SCALE_BUDGET', 81, 'HIGH'),
     snap('c_dying', 'Dying', 'DYING_CREATIVE', 'REFRESH_CREATIVE', 30, 'CRITICAL'),
@@ -578,6 +578,13 @@ async function main() {
   const aiPer: any = await (computeAIRecommendations as any)(aiFake(perCamp), 'ws_1', { spendWithheld: null });
   const scaleCard = aiPer.recommendations.find((r: any) => r.id === 'det-scale');
   check('SE-1: a campaign whose stored Brain decision was withheld for spend is left out of the scale card by itself — the other beast stays', same(scaleCard?.campaignIds, ['c_beast2']) && aiPer.spendWithheld?.reason === REASON && same(aiPer.spendWithheld.ids, ['det-scale']), [scaleCard, aiPer.spendWithheld]);
+  // only the LATEST tick of a campaign counts: an older withheld tick next to a newer clean one (the window was repaired) is not a verdict
+  const staleHeld = [snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', heldPayload, 3), snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'SCALE_BUDGET', 82, 'HIGH', {}, 0)];
+  const aiStale: any = await (computeAIRecommendations as any)(aiFake(staleHeld), 'ws_1', { spendWithheld: null });
+  const newerHeld = [snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'SCALE_BUDGET', 82, 'HIGH', {}, 3), snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', heldPayload, 0)];
+  const aiNewerHeld: any = await (computeAIRecommendations as any)(aiFake(newerHeld), 'ws_1', { spendWithheld: null });
+  check('SE-1: a withheld OLDER snapshot does not hide the scale card when the campaign\'s LATEST snapshot is clean…', aiStale.recommendations.some((r: any) => r.id === 'det-scale') && !('spendWithheld' in aiStale), aiStale);
+  check('SE-1: …and a withheld LATEST snapshot does, whatever an older clean one said', !aiNewerHeld.recommendations.some((r: any) => r.id === 'det-scale') && aiNewerHeld.spendWithheld?.ids?.includes('det-scale'), aiNewerHeld);
   check('SE-1: snapshotSpendWithheld reads payload.decision.spendEvidence and nothing else', typeof snapshotSpendWithheld === 'function' && snapshotSpendWithheld(heldPayload) === REASON && snapshotSpendWithheld({}) === null && snapshotSpendWithheld(null) === null && snapshotSpendWithheld({ decision: { spendEvidence: { withheld: false } } }) === null);
   const aiClean: any = await (computeAIRecommendations as any)(aiFake([aiSnaps[3]!, aiSnaps[4]!]), 'ws_1', { spendWithheld: REASON });
   check('SE-1: nothing to withhold (no scale / dying campaign) → the DTO carries no spendWithheld key even when gated', !('spendWithheld' in aiClean) && aiClean.recommendations.length === 2, aiClean);
@@ -718,7 +725,7 @@ async function main() {
   }
   for (const [label, src] of [['dashboard', dashPage], ['recommendations', recPage]] as const) {
     check(`SE-5: the ${label} page has the banner element and calls renderDataQualityBanner on the payload it already loads`,
-      /id="data-quality-banner"/.test(src) && /renderDataQualityBanner\(dashData\)/.test(src) && lift(src, 'renderDataQualityBanner') !== null, []);
+      /id="data-quality-banner"/.test(src) && /(?<!function )renderDataQualityBanner\(dashData\)/.test(src) && lift(src, 'renderDataQualityBanner') !== null, []);
     const hostile = { dataQuality: { flags: [{ code: REASON, message: 'EN <img src=x onerror=alert(1)>', messageAr: '٤ أيام <script>alert(1)</script> غير موثَّقة', window: undefined }], withheld: [{ surface: 'priorityAction', reason: REASON }] } };
     const shown = runBanner(src, 'AR', hostile);
     check(`SE-5: the ${label} banner shows the server's Arabic text, ESCAPED, when dataQuality is present`, !!shown && shown.style.display === 'flex' && shown.innerHTML.includes('٤ أيام') && !shown.innerHTML.includes('<script') && !shown.innerHTML.includes('<img') && shown.innerHTML.includes('&lt;script&gt;'), shown);

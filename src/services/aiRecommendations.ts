@@ -90,10 +90,17 @@ export async function computeAIRecommendations(
 
   // Spend gate: the caller's window verdict, and/or a verdict the Brain itself withheld for a campaign (its
   // CAMPAIGN-level window can be unclean while the account-level one is clean).
-  const perCampaign = new Map<string, SpendGateReason>();
+  // Only a campaign's LATEST snapshot counts (the same one the pattern is read from): an older tick that was withheld
+  // while the window was unverified says nothing about a newer one computed after it was repaired.
+  const latestTick = new Map<string, typeof snapshots[0]>();
   for (const s of snapshots) {
+    const seen = latestTick.get(s.campaignId);
+    if (!seen || s.tickDate > seen.tickDate) latestTick.set(s.campaignId, s);
+  }
+  const perCampaign = new Map<string, SpendGateReason>();
+  for (const s of latestTick.values()) {
     const r = snapshotSpendWithheld(s.payload);
-    if (r && !perCampaign.has(s.campaignId)) perCampaign.set(s.campaignId, r);
+    if (r) perCampaign.set(s.campaignId, r);
   }
   const gateReason: SpendGateReason | null = opts.spendWithheld
     ?? ([...perCampaign.values()].includes(SPEND_SCALE_OVERSCALED) ? SPEND_SCALE_OVERSCALED : perCampaign.size > 0 ? SPEND_SCALE_UNVERIFIED : null);
