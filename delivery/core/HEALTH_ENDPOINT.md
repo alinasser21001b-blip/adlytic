@@ -1,6 +1,6 @@
 # `/api/health` — investigation (separate from heal-on-GET)
 
-Status: **reproduced locally; fix implemented and tested locally on `local/railway-recovery` (commit `fea80e4`); not deployed; not observed live.**
+Status: **superseded in part by section 6 (owner decisions applied on `local/health-gate`): the public body no longer carries `dbReason` or `schema`, and readiness is gated on migration identities, not a count. Sections 1-5 describe the first fix (`fea80e4`) and the investigation. Not pushed, not deployed, not observed live.**
 Base: `main @ 3f61e40`. Evidence files (scratchpad): `health_matrix_BEFORE.json`, `health_matrix_AFTER.json`.
 Reproduction: `scripts/repro/health_matrix.ts` (+ `_prepare.sh`), loopback Postgres only.
 
@@ -60,7 +60,7 @@ After (same matrix): H1/H2 `unreachable`, H3 `database_missing`, H4 `auth`, H5 *
 Tests: `test_health_diagnostics.ts` — 43 assertions, no database; **9 fail on the previous route, 0 on the new one**; added to `test:all`.
 Full `npm run typecheck` ✓ and `npm run test:all` ✓ (exit 0, 78 s) on the branch.
 
-## 4. Decisions left to the owner
+## 4. Decisions left to the owner (RESOLVED, see section 6)
 
 1. **Public `dbReason`.** The endpoint is unauthenticated by design (same reasoning as the public commit SHA). A coarse reason such as `auth` tells an anonymous caller that credentials are wrong. Keep (recommended: the people who need it often cannot log in) or make it log-only.
 2. **Gate deploys on `pending` / `failed`?** Currently report-only. Making them 503 would stop promotion of an unmigrated or half-migrated release, but production has not been exercised against that gate.
@@ -69,3 +69,28 @@ Full `npm run typecheck` ✓ and `npm run test:all` ✓ (exit 0, 78 s) on the br
 ## 5. Not covered (UNVERIFIED)
 
 Live behaviour of Railway's healthcheck against this change; TLS classification against a real TLS-failing server (the classifier is unit-tested on the adapter's `TlsConnectionError` kind, which the investigator observed, but I did not provoke it myself).
+
+## 6. Owner decisions applied (`local/health-gate`)
+
+| Decision | What was done |
+|---|---|
+| Keep `dbReason` in sanitised internal logs | Removed from the public JSON. Connectivity failures log `[adlytic:health] database probe failed reason=<unreachable\|database_missing\|auth\|tls\|timeout\|unknown> prismaCode=.. adapterKind=..`, once per reason per minute. No driver text, host, port, user, URL or SQL. |
+| Preserve public verify-live fields | The body has exactly `status, service, version, timestamp, db, role, runsBackgroundSync, bullmq, build` (asserted by key list and order, and cross-checked against the `jq` fields `verify-live.yml` reads). The `schema` block is gone too. |
+| Gate release readiness on required migration identities and schema | `src/lib/dbHealth.ts`: shipped = directories under `prisma/migrations` holding a `migration.sql`; applied = `_prisma_migrations` rows finished and not rolled back; required tables = every Prisma model's table. READY = `ok` or `ahead`. |
+| Test pending, failed and equal-count wrong histories before enabling | `test_health_migration_gate.ts` was written first and run against `858339d`: 53 of 73 assertions failed (including the equal-count wrong history answering 200 with `schema.state: "ok"`); 0 of 93 fail on the new code. |
+
+Public contract: ready 200 `status ok, db ok`; reachable but not ready 503 `status degraded, db ok`; unreachable 503 `status degraded, db unavailable`.
+
+| State | Meaning | HTTP |
+|---|---|---|
+| ok | every shipped identity applied, nothing else | 200 |
+| ahead | every shipped identity applied plus identities this build does not ship (older release, newer database) | 200 |
+| pending | a shipped identity is not applied, no extras | 503 |
+| diverged | a shipped identity is not applied and extras exist (includes equal-count wrong histories) | 503 |
+| failed | any unfinished, not-rolled-back row | 503 |
+| missing | a required table is absent, or the database is empty | 503 |
+| unknown | shipped or table list unreadable, history table absent, or the probe errored | 503 |
+
+Local matrix on synthetic Postgres 16 (`scripts/repro/health_matrix.ts`, H0-H9): H0, H9 200; H1-H4 503 `db: unavailable`; H5-H8 503 `db: ok`; every public body has only the legacy keys.
+
+Before the gate is enabled against production, compare its `_prisma_migrations` identities with `ls prisma/migrations` (read-only). A renamed or squashed history there is `diverged` and would hold every release. Not verified: Railway's healthcheck behaviour, the live production history, TLS classification against a real TLS-failing server.
