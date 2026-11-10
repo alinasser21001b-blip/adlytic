@@ -2956,7 +2956,10 @@ export function dashboardPage(): string {
         cta.disabled = false;
         cta.textContent = priorCtaText || item.buttonText || lbl('Fix Now', 'تطبيق الحل فوراً');
       }
-      toast(lbl('Could not record action. Try again.', 'تعذّر تسجيل الإجراء. حاول مرة أخرى.'), 'error');
+      // A VIEWER may not record actions (server: 403, code INSUFFICIENT_ROLE) — say that, not "try again".
+      toast(e && e.code === 'INSUFFICIENT_ROLE'
+        ? lbl('Viewers cannot record actions — ask a workspace owner or manager.', 'صلاحية المشاهدة لا تسمح بتسجيل الإجراءات — اطلب من مالك أو مدير مساحة العمل.')
+        : lbl('Could not record action. Try again.', 'تعذّر تسجيل الإجراء. حاول مرة أخرى.'), 'error');
     } finally {
       if (confirmBtn) confirmBtn.disabled = false;
     }

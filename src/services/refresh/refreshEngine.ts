@@ -39,6 +39,7 @@ import { runBrainOrchestrator } from '../../workers/runBrainOrchestrator';
 import { RecommendationEngine } from '../../engines/recommendation/RecommendationEngine';
 import { HealthScoreEngine } from '../../engines/health/HealthScoreEngine';
 import { bustPlatformStatsCache } from '../getPlatformStats';
+import { assertAdAccountInWorkspace } from '../recommendationWriteGuard';
 
 // ── Events ───────────────────────────────────────────────────────────────
 
@@ -250,14 +251,26 @@ export interface RefreshRunResult {
 
 /**
  * Execute a refresh event end-to-end: plan → scoped recalculation →
- * dirty-state update → refresh_logs row. Never throws — a refresh failure
+ * dirty-state update → refresh_logs row. A refresh FAILURE never throws — it
  * must not break the sync loop or an API response; it lands in the log.
+ *
+ * One thing does throw, before anything is read or written: a user-originated
+ * event (RecommendationExecuted / RecommendationDismissed) names a workspace AND
+ * an ad account, and the account must belong to that workspace —
+ * WorkspaceOwnershipError otherwise. That is an authorisation bug in the
+ * caller, not a refresh failure, and swallowing it would recalculate (and
+ * write recommendations, health and logs for) another tenant's account.
+ * MetaSyncCompleted is system-originated (sync worker / scheduler), carries no
+ * workspace, and is not reachable from any HTTP route.
  */
 export async function runRefresh(
   prisma: PrismaClient,
   metaClient: MetaClient | null,
   event: RefreshEvent,
 ): Promise<RefreshRunResult> {
+  if (event.type === 'RecommendationExecuted' || event.type === 'RecommendationDismissed') {
+    await assertAdAccountInWorkspace(prisma, event.workspaceId, event.adAccountId);
+  }
   const started = Date.now();
   const plan = planRefresh(event);
   const targetsRun: string[] = [];

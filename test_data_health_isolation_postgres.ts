@@ -144,11 +144,15 @@ async function main() {
   check('runDataIntegrityCheck(B\'s workspace, A\'s account) throws; with A\'s own workspace it runs', mismatch && matched, [mismatch, matched]);
 
   // ── 2b. a member of B cannot veto or claim A's orphans by writing recommendation logs ──
-  console.log('\n── 2b. forged ownership claims (POST …/recommendations/action takes a client-supplied campaignId) ──');
+  console.log('\n── 2b. forged ownership claims (rows that name a campaign the workspace does not own) ──');
+  // POST …/recommendations/action used to store a client-supplied campaignId unchecked. It no longer does
+  // (test_recommendation_write_auth_postgres.ts), and a VIEWER may not call it at all. Databases that ran the
+  // old route still HOLD such rows, so the ownership rule must keep ignoring them: they are inserted directly.
   const forge = async (cid: string) => req('POST', `/api/workspaces/${B.ws.id}/recommendations/action`, bViewer.token, { action: 'IGNORED', itemKey: `forge:${cid}`, campaignId: cid });
   const fr1 = await forge(ID.f1); const fr2 = await forge(ID.f2); const fr3 = await forge(ID.a1);
-  check('the forged claims are accepted as ordinary dashboard actions (the route does not validate campaignId — a known, documented residual)', fr1.status === 200 && fr2.status === 200 && fr3.status === 200, [fr1.status, fr2.status, fr3.status]);
-  check('B\'s recommendation_logs now really name A\'s orphan ids', (await prisma.recommendationLog.count({ where: { workspaceId: B.ws.id, campaignId: { in: [ID.f1, ID.f2, ID.a1] } } })) === 3);
+  check('the forged claims are now REFUSED at the route (B\'s VIEWER → 403) and write nothing', fr1.status === 403 && fr2.status === 403 && fr3.status === 403 && (await prisma.recommendationLog.count({ where: { workspaceId: B.ws.id, campaignId: { in: [ID.f1, ID.f2, ID.a1] } } })) === 0, [fr1.status, fr2.status, fr3.status]);
+  for (const cid of [ID.f1, ID.f2, ID.a1]) await reco(B.ws.id, cid);   // legacy rows, as the old route would have left them
+  check('B\'s recommendation_logs (legacy rows) really name A\'s orphan ids', (await prisma.recommendationLog.count({ where: { workspaceId: B.ws.id, campaignId: { in: [ID.f1, ID.f2, ID.a1] } } })) === 3);
   const aAfterForge = await req('GET', `/api/workspaces/${A.ws.id}/data-health`, aViewer.token);
   const bAfterForge = await req('GET', `/api/workspaces/${B.ws.id}/data-health`, B.owner.token);
   check('VETO: A still sees a1 and f1 — a log written by B does not make them ambiguous', same(seen(aAfterForge.body), ['a1', 'f1']), seen(aAfterForge.body));

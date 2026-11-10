@@ -55,7 +55,7 @@ import { generateWeeklyReport } from '../services/weeklyReport';
 import { attributeChange } from '../engines/analytics/attributeChange';
 import { getPlatformStats, bustPlatformStatsCache } from '../services/getPlatformStats';
 import { getAdminOpsSnapshot } from '../services/adminOpsHealth';
-import { requirePlatformAdmin, isPlatformAdminEmail } from './adminGuard';
+import { requirePlatformAdmin, isPlatformAdminEmail, isReservedForPlatformAdmin } from './adminGuard';
 import { getBuildIdentity } from '../lib/buildIdentity';
 import { classifyDbError, logDbFailure, logNotReady, probeReadiness } from '../lib/dbHealth';
 import { runCapabilityProbeForWorkspace, redactProbeError, classifyProbeRunFailure } from '../services/metaCapabilityRunner';
@@ -175,6 +175,10 @@ import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, M
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { ExecutionService } from '../services/execution.service';
+import {
+  WorkspaceOwnershipError, assertAdAccountInWorkspace, assertCampaignInWorkspace,
+  parseLogActionBody, parseRecommendationActionBody,
+} from '../services/recommendationWriteGuard';
 import { currencyMinorFactorFor, moneyFormatterFor, resolveCurrencyMinorFactor } from '../lib/currency';
 // The ONLY write path into stored IQD money is the explicit repair route below
 // (and the sync workers). No GET handler or shared read helper may import it —
@@ -1084,14 +1088,27 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     let body: { email?: string; password?: string; name?: string };
     try { body = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
+    if (!body || typeof body !== 'object') return c.json({ error: 'Invalid request body' }, 400);
     if (!body.email || !body.password) return c.json({ error: 'email and password are required' }, 400);
+    if (typeof body.email !== 'string' || typeof body.password !== 'string') return c.json({ error: 'email and password must be strings' }, 400);
     if (body.password.length < 8) return c.json({ error: 'Password must be at least 8 characters' }, 400);
     if (body.password.length > 128) return c.json({ error: 'Password too long' }, 400);
     const email = body.email.toLowerCase().trim();
     if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       return c.json({ error: 'Invalid email address' }, 400);
     }
+    if (body.name !== undefined && body.name !== null && typeof body.name !== 'string') return c.json({ error: 'Invalid name' }, 400);
     if (body.name && body.name.length > 100) return c.json({ error: 'Name too long (max 100 chars)' }, 400);
+    // PLATFORM-ADMIN ADDRESSES ARE NOT SELF-SERVICE. Admin authority is "the
+    // address is in PLATFORM_ADMIN_EMAILS" and registration does not verify an
+    // address, so whoever registered an allowlisted address first would have
+    // become a platform admin. Refused here, BEFORE anything is read or written
+    // (no user, workspace or membership, no token, no cookie), with the same
+    // answer as an address that is already taken so the refusal does not reveal
+    // which addresses are admins. Admins are provisioned out of band
+    // (scripts/upsert-owner-login.ts, scripts/create-user.ts) — see
+    // delivery/core/RECOMMENDATION_WRITE_AUTH.md.
+    if (isReservedForPlatformAdmin(email)) return c.json({ error: 'Email already in use' }, 409);
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) return c.json({ error: 'Email already in use' }, 409);
     const passwordHash = await hashPassword(body.password);
@@ -4762,7 +4779,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     const workspaceId = req.params['workspaceId'];
-    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
     const { account } = await getAccount(workspaceId);
     if (!account) return c.json([]);
     const allRecs = await prisma.recommendation.findMany({
@@ -4802,8 +4820,13 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // emit zeros — never `undefined`. `computePrimaryDelta` in the rec service
     // treats `b > 0` as the gate, so 0-baselines correctly skip delta scoring
     // without poisoning the JSON shape.
+    //
+    // The log is a recommendation WRITE (an INSERT per fetch), so it follows the
+    // same rule as every other recommendation write: OWNER and MANAGER only. A
+    // VIEWER still gets the list; the fetch simply leaves no row behind (and no
+    // X-Recommendation-Log-Id header, which no client reads).
     let latestLogId: string | null = null;
-    if (recs.length > 0) {
+    if (recs.length > 0 && wsm.role !== 'VIEWER') {
       const top = recs[0]!;
       try {
         const latestStat = await prisma.dailyStat.findFirst({
@@ -4846,8 +4869,17 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   });
 
   /** POST /api/workspaces/:workspaceId/recommendations/action
-   *  Body: { action, itemKey, itemKind?, actionCode?, campaignId?, feedKey?, title? }
+   *  Body: { action, itemKey, itemKind?, actionCode?, campaignId?, adAccountId?, feedKey?, title? }
    *  Records a dashboard Main Move action with stable itemKey for closed-loop filtering.
+   *
+   *  GUARD ORDER (delivery/core/RECOMMENDATION_WRITE_AUTH.md) — every step
+   *  precedes the next, and NOTHING is written until the last check has passed:
+   *    1 authenticate (401) → 2 workspace member (403) → 3 role OWNER/MANAGER
+   *    (403, code INSUFFICIENT_ROLE) → 4 body shape (400) → 5 ownership of every
+   *    identifier the body carries: campaignId, adAccountId (404, identical for
+   *    a foreign and an unknown id) → 6 only then: execution record, log row,
+   *    synchronous refresh.
+   *  This is a WRITE, so a VIEWER is refused exactly as on data-health/cleanup.
    */
   app.post('/api/workspaces/:workspaceId/recommendations/action', async (c) => {
     const req = await honoToApiRequest(c);
@@ -4855,86 +4887,101 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     const workspaceId = req.params['workspaceId'];
-    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions', code: 'INSUFFICIENT_ROLE' }, 403);
 
-    const body = await c.req.json<{
-      action?: string;
-      itemKey?: string;
-      itemKind?: string;
-      actionCode?: string | null;
-      campaignId?: string | null;
-      feedKey?: string | null;
-      title?: string | null;
-    }>();
-    const action = body?.action;
-    if (action !== 'EXECUTED' && action !== 'IGNORED') {
-      return c.json({ error: 'action must be EXECUTED or IGNORED' }, 400);
+    let rawBody: unknown;
+    try { rawBody = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
+    const parsedBody = parseRecommendationActionBody(rawBody);
+    if (!parsedBody.ok) return c.json({ error: parsedBody.error }, 400);
+    const body = parsedBody.value;
+    const action = body.action;
+
+    // Ownership of every identifier the request carries — BEFORE any write.
+    // A foreign id and an unknown id get the same 404: whether another tenant's
+    // id exists is not the caller's to learn.
+    try {
+      if (body.campaignId) await assertCampaignInWorkspace(prisma, workspaceId, body.campaignId);
+      if (body.adAccountId) await assertAdAccountInWorkspace(prisma, workspaceId, body.adAccountId);
+    } catch (err) {
+      if (err instanceof WorkspaceOwnershipError) {
+        return c.json({ error: err.kind === 'campaign' ? 'Campaign not found' : 'Ad account not found' }, 404);
+      }
+      throw err;
     }
-    if (!body?.itemKey || typeof body.itemKey !== 'string') {
-      return c.json({ error: 'itemKey is required' }, 400);
-    }
 
-    const { account } = await getAccount(workspaceId);
-    let metricsSnapshot: Record<string, unknown> = {};
-    if (account && action === 'EXECUTED') {
-      const latestStat = await prisma.dailyStat.findFirst({
-        where: { entityType: EntityType.ACCOUNT, entityId: account.id },
-        orderBy: { date: 'desc' },
-      });
-      metricsSnapshot = {
-        ctr: latestStat?.ctr ?? 0,
-        cpm: latestStat?.cpm ?? 0,
-        spend: latestStat ? Number(latestStat.spend) : 0,
-        impressions: latestStat ? Number(latestStat.impressions) : 0,
-        ...(await resultSnapshotFields(prisma, account.id, latestStat as never, new Date(Date.now() - 30 * 86400_000))),
-      };
-
-      if (body.actionCode) {
-        const rec = await prisma.recommendation.findFirst({
-          where: {
-            entityType: EntityType.ACCOUNT,
-            entityId: account.id,
-            actionCode: body.actionCode,
-          },
-          orderBy: [{ priority: 'desc' }, { date: 'desc' }],
+    try {
+      const { account } = await getAccount(workspaceId);
+      let metricsSnapshot: Record<string, unknown> = {};
+      if (account && action === 'EXECUTED') {
+        const latestStat = await prisma.dailyStat.findFirst({
+          where: { entityType: EntityType.ACCOUNT, entityId: account.id },
+          orderBy: { date: 'desc' },
         });
-        if (rec) {
-          try {
-            await execService.recordExecution(rec.id, metricsSnapshot);
-          } catch (err) {
-            console.error('[RecAction] recordExecution failed:', err);
+        metricsSnapshot = {
+          ctr: latestStat?.ctr ?? 0,
+          cpm: latestStat?.cpm ?? 0,
+          spend: latestStat ? Number(latestStat.spend) : 0,
+          impressions: latestStat ? Number(latestStat.impressions) : 0,
+          ...(await resultSnapshotFields(prisma, account.id, latestStat as never, new Date(Date.now() - 30 * 86400_000))),
+        };
+
+        if (body.actionCode) {
+          // Scoped by THIS workspace's account id (never by anything the body
+          // says), so an actionCode cannot address another workspace's row.
+          const rec = await prisma.recommendation.findFirst({
+            where: {
+              entityType: EntityType.ACCOUNT,
+              entityId: account.id,
+              actionCode: body.actionCode,
+            },
+            orderBy: [{ priority: 'desc' }, { date: 'desc' }],
+          });
+          if (rec) {
+            try {
+              await execService.recordExecution(rec.id, metricsSnapshot, workspaceId);
+            } catch (err) {
+              if (err instanceof WorkspaceOwnershipError) throw err;
+              console.error('[RecAction] recordExecution failed:', err);
+            }
           }
         }
       }
-    }
 
-    const log = await recService.recordDashboardAction({
-      workspaceId,
-      action,
-      itemKey: body.itemKey,
-      itemKind: body.itemKind,
-      actionCode: body.actionCode ?? null,
-      campaignId: body.campaignId ?? null,
-      feedKey: body.feedKey ?? null,
-      title: body.title ?? null,
-      metricsSnapshot,
-    });
-
-    // Smart Refresh Engine — recalculate intelligence NOW, not on next sync.
-    // Synchronous by design: the client refetches the dashboard right after
-    // this response, and that refetch must see recommendations/health that
-    // already reflect the action. Scoped: only the engines a user action can
-    // affect run (see planRefresh); DB-only work, bounded to a few seconds.
-    let refresh: Awaited<ReturnType<typeof runRefresh>> | null = null;
-    if (account) {
-      refresh = await runRefresh(prisma, null, {
-        type: action === 'EXECUTED' ? 'RecommendationExecuted' : 'RecommendationDismissed',
-        adAccountId: account.id,
+      const log = await recService.recordDashboardAction({
         workspaceId,
+        action,
         itemKey: body.itemKey,
+        itemKind: body.itemKind ?? undefined,
+        actionCode: body.actionCode,
+        campaignId: body.campaignId,
+        feedKey: body.feedKey,
+        title: body.title,
+        metricsSnapshot,
       });
+
+      // Smart Refresh Engine — recalculate intelligence NOW, not on next sync.
+      // Synchronous by design: the client refetches the dashboard right after
+      // this response, and that refetch must see recommendations/health that
+      // already reflect the action. Scoped: only the engines a user action can
+      // affect run (see planRefresh); DB-only work, bounded to a few seconds.
+      let refresh: Awaited<ReturnType<typeof runRefresh>> | null = null;
+      if (account) {
+        refresh = await runRefresh(prisma, null, {
+          type: action === 'EXECUTED' ? 'RecommendationExecuted' : 'RecommendationDismissed',
+          adAccountId: account.id,
+          workspaceId,
+          itemKey: body.itemKey,
+        });
+      }
+      return c.json(safeJson({ ...log, refresh: refresh ? { targetsRun: refresh.targetsRun, durationMs: refresh.durationMs } : null }));
+    } catch (err) {
+      // The services re-check ownership (defence in depth). Reaching this means
+      // an id the route derived disagreed with the workspace — refuse, never 500.
+      if (err instanceof WorkspaceOwnershipError) return c.json({ error: 'Not found' }, 404);
+      throw err;
     }
-    return c.json(safeJson({ ...log, refresh: refresh ? { targetsRun: refresh.targetsRun, durationMs: refresh.durationMs } : null }));
   });
 
   /** GET /api/workspaces/:workspaceId/refresh-log — Smart Refresh Engine
@@ -4959,6 +5006,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
   /** POST /api/workspaces/:workspaceId/recommendations/:logId/action
    *  Body: { action: "EXECUTED" | "IGNORED" }
    *  Tracks the user's response to a surfaced recommendation.
+   *
+   *  Same guard order as …/recommendations/action: authenticate → member →
+   *  OWNER/MANAGER → the log must belong to THIS workspace (404, same for a
+   *  foreign and an unknown id) → body shape (400) → write.
    */
   app.post('/api/workspaces/:workspaceId/recommendations/:logId/action', async (c) => {
     const req = await honoToApiRequest(c);
@@ -4966,19 +5017,23 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const userId = await getUserId(req.bearerToken);
     if (!userId) return c.json({ error: 'Invalid token' }, 401);
     const workspaceId = req.params['workspaceId'];
-    if (!await checkMember(userId, workspaceId)) return c.json({ error: 'Access denied' }, 403);
+    const wsm = await checkMember(userId, workspaceId);
+    if (!wsm) return c.json({ error: 'Access denied' }, 403);
+    if (wsm.role === 'VIEWER') return c.json({ error: 'Insufficient permissions', code: 'INSUFFICIENT_ROLE' }, 403);
     const logId = req.params['logId'];
-    const existing = await prisma.recommendationLog.findUnique({ where: { id: logId } });
-    if (!existing || existing.workspaceId !== workspaceId) {
-      return c.json({ error: 'Recommendation log not found' }, 404);
+    const existing = await prisma.recommendationLog.findFirst({ where: { id: logId, workspaceId }, select: { id: true } });
+    if (!existing) return c.json({ error: 'Recommendation log not found' }, 404);
+    let rawBody: unknown;
+    try { rawBody = await c.req.json(); } catch { return c.json({ error: 'Invalid request body' }, 400); }
+    const parsedBody = parseLogActionBody(rawBody);
+    if (!parsedBody.ok) return c.json({ error: parsedBody.error }, 400);
+    try {
+      const updated = await recService.trackUserAction(logId, parsedBody.value.action, workspaceId);
+      return c.json(safeJson(updated));
+    } catch (err) {
+      if (err instanceof WorkspaceOwnershipError) return c.json({ error: 'Recommendation log not found' }, 404);
+      throw err;
     }
-    const body = await c.req.json<{ action?: string }>();
-    const action = body?.action;
-    if (action !== 'EXECUTED' && action !== 'IGNORED') {
-      return c.json({ error: 'action must be EXECUTED or IGNORED' }, 400);
-    }
-    const updated = await recService.trackUserAction(logId, action);
-    return c.json(safeJson(updated));
   });
 
   /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output).

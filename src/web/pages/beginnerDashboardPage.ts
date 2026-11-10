@@ -817,7 +817,10 @@ export function beginnerDashboardPage(): string {
           await refreshBeginnerDashboard(false);
         } catch (err) {
           doBtn.disabled = false;
-          if (typeof toast === 'function') toast('تعذّر تسجيل المهمة', 'error');
+          // A VIEWER may not record actions (server: 403, code INSUFFICIENT_ROLE).
+          if (typeof toast === 'function') toast(err && err.code === 'INSUFFICIENT_ROLE'
+            ? 'صلاحية المشاهدة لا تسمح بتسجيل المهام — اطلب من مالك أو مدير مساحة العمل.'
+            : 'تعذّر تسجيل المهمة', 'error');
         }
       })();
       return;

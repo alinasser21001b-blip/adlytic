@@ -721,6 +721,14 @@ export function recommendationsPage(): string {
     document.getElementById('rec-task-modal').style.display = 'flex';
   }
 
+  // A VIEWER may read recommendations but not record actions on them: the server
+  // answers 403 with code INSUFFICIENT_ROLE. Say so, instead of a generic failure.
+  var VIEWER_CANNOT_RECORD = 'صلاحية المشاهدة لا تسمح بتسجيل الإجراءات — اطلب من مالك أو مدير مساحة العمل تسجيلها.';
+  function actionErrorText(e, fallback) {
+    if (e && e.code === 'INSUFFICIENT_ROLE') return VIEWER_CANNOT_RECORD;
+    return (e && e.message) || fallback;
+  }
+
   async function postAction(action, task) {
     await apiFetch('/api/workspaces/' + encodeURIComponent(wsId) + '/recommendations/action', {
       method: 'POST',
@@ -744,7 +752,7 @@ export function recommendationsPage(): string {
       closeRecTaskModal();
       await loadData();
     } catch (e) {
-      toast(e.message || 'تعذّر تسجيل الإجراء', 'error');
+      toast(actionErrorText(e, 'تعذّر تسجيل الإجراء'), 'error');
     } finally { if (btn) btn.disabled = false; }
   }
 
@@ -755,7 +763,7 @@ export function recommendationsPage(): string {
       await postAction('IGNORED', task);
       toast('تم تجاهل التوصية', 'info');
       await loadData();
-    } catch (e) { toast(e.message || 'تعذّر التجاهل', 'error'); }
+    } catch (e) { toast(actionErrorText(e, 'تعذّر التجاهل'), 'error'); }
   }
 
   document.getElementById('issues-container').addEventListener('click', function (e) {

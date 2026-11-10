@@ -122,6 +122,9 @@ function makeFakePrisma(table: Row[]) {
     recommendation,
     campaign: { findFirst: async () => ({ id: 'camp_1' }) },
     adAccount: { findFirst: async () => ({ id: 'acct_1' }) },
+    // save_recommendation refuses callers who are not OWNER/MANAGER of the
+    // workspace; this suite's caller (u_1 in ws_1) is the workspace's OWNER.
+    workspaceMember: { findFirst: async () => ({ role: 'OWNER' }) },
     async $transaction(ops: Op[]) {
       // Snapshot-and-roll-back, matching Prisma's array-form atomicity.
       const snapshot = table.slice();

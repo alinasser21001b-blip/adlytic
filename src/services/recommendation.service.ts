@@ -6,7 +6,8 @@
 //  performance deltas once outcome data is available.
 // ════════════════════════════════════════════════════════════════════════
 
-import { RecommendationSource, UserActionStatus, type PrismaClient } from '@prisma/client';
+import { Prisma, RecommendationSource, UserActionStatus, type PrismaClient } from '@prisma/client';
+import { WorkspaceOwnershipError, assertCampaignInWorkspace } from './recommendationWriteGuard';
 
 export interface MetricsSnapshot {
   ctr?: number | null;
@@ -78,19 +79,41 @@ export class RecommendationService {
 
   /**
    * Record whether the user acted on the recommendation.
+   *
+   * `workspaceId` is the workspace the caller has been authorised for. The
+   * update is ONE statement scoped by (id, workspace_id), so a log of another
+   * workspace — or one that does not exist — is refused with
+   * WorkspaceOwnershipError and nothing is written, even if the route forgot to
+   * look the log up first.
    */
-  async trackUserAction(logId: string, action: 'EXECUTED' | 'IGNORED') {
-    return this.prisma.recommendationLog.update({
-      where: { id: logId },
-      data: {
-        userAction: action === 'EXECUTED' ? UserActionStatus.EXECUTED : UserActionStatus.IGNORED,
-        actionAppliedAt: action === 'EXECUTED' ? new Date() : null,
-      },
-    });
+  async trackUserAction(logId: string, action: 'EXECUTED' | 'IGNORED', workspaceId: string) {
+    if (typeof logId !== 'string' || !logId || typeof workspaceId !== 'string' || !workspaceId) {
+      throw new WorkspaceOwnershipError('recommendationLog');
+    }
+    try {
+      return await this.prisma.recommendationLog.update({
+        where: { id: logId, workspaceId },
+        data: {
+          userAction: action === 'EXECUTED' ? UserActionStatus.EXECUTED : UserActionStatus.IGNORED,
+          actionAppliedAt: action === 'EXECUTED' ? new Date() : null,
+        },
+      });
+    } catch (err) {
+      if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === 'P2025') {
+        throw new WorkspaceOwnershipError('recommendationLog');
+      }
+      throw err;
+    }
   }
 
   /**
    * Log a dashboard Main Move action with a stable itemKey for closed-loop filtering.
+   *
+   * A `campaignId` must be a campaign of an ad account of `params.workspaceId`
+   * (WorkspaceOwnershipError otherwise, before anything is written). The route
+   * checks this first; this is the second line, because recommendation_logs
+   * rows are read back as evidence about a campaign and must never name a
+   * campaign the workspace does not own.
    */
   async recordDashboardAction(params: {
     workspaceId: string;
@@ -103,6 +126,9 @@ export class RecommendationService {
     title?: string | null;
     metricsSnapshot?: MetricsSnapshot;
   }) {
+    if (params.campaignId != null) {
+      await assertCampaignInWorkspace(this.prisma, params.workspaceId, params.campaignId);
+    }
     const snapshot: MetricsSnapshot = {
       ...(params.metricsSnapshot ?? {}),
       itemKey: params.itemKey,

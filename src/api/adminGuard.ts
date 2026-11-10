@@ -35,6 +35,7 @@ export type AdminGuardResult =
  * as "lock not installed" and refuses to serve (fail closed).
  */
 let _allowlist: ReadonlySet<string> | null | undefined;
+let _foldedAllowlist: ReadonlySet<string> | undefined;
 function getAllowlist(): ReadonlySet<string> | null {
   if (_allowlist !== undefined) return _allowlist;
   const raw = process.env['PLATFORM_ADMIN_EMAILS'];
@@ -56,6 +57,51 @@ function getAllowlist(): ReadonlySet<string> | null {
  */
 export function _resetAdminAllowlistCache(): void {
   _allowlist = undefined;
+  _foldedAllowlist = undefined;
+}
+
+/**
+ * Comparison key for "is this address one a platform admin could sign in as?".
+ * The guard itself compares `trim().toLowerCase()` (above, and in
+ * requirePlatformAdmin); the extra NFKC step maps compatibility look-alikes
+ * (full-width letters, ligatures, …) onto their plain form. It is used ONLY to
+ * refuse signups, never to grant anything, so being wider than the guard is the
+ * safe direction.
+ */
+function foldAddress(email: string): string {
+  return email.trim().toLowerCase().normalize('NFKC').toLowerCase().trim();
+}
+
+function getFoldedAllowlist(): ReadonlySet<string> | null {
+  const allowlist = getAllowlist();
+  if (!allowlist) return null;
+  if (_foldedAllowlist === undefined) _foldedAllowlist = new Set([...allowlist].map(foldAddress));
+  return _foldedAllowlist;
+}
+
+/**
+ * True when a public signup (or any self-service change of a user's address)
+ * must be REFUSED because the address is, or reads as, a platform admin's.
+ *
+ *   1. `isPlatformAdminEmail(email)` — the exact predicate requirePlatformAdmin
+ *      applies to a stored address. Any string for which it is true would make
+ *      the new account an admin, so it can never be registered. Using the guard's
+ *      own function (not a re-implementation) is what keeps the two from drifting.
+ *   2. the NFKC-folded forms are equal — so a later widening of the guard's
+ *      normalisation cannot silently re-open the door.
+ *
+ * Plus-addressing (`admin+x@…`) and dots (`a.dmin@…`) are NOT folded: the guard
+ * compares whole addresses, so such an account is an ordinary customer and cannot
+ * become an admin; refusing them would only lock the admin's own aliases out.
+ *
+ * Fails open when PLATFORM_ADMIN_EMAILS is unset — there is no admin to
+ * impersonate and the guard itself fails closed (503) in that state.
+ */
+export function isReservedForPlatformAdmin(email: unknown): boolean {
+  if (typeof email !== 'string') return false;
+  if (isPlatformAdminEmail(email)) return true;
+  const folded = getFoldedAllowlist();
+  return folded !== null && folded.has(foldAddress(email));
 }
 
 /**

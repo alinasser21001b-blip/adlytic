@@ -94,7 +94,24 @@ export function saveRecommendationHandler(): ToolHandler<SaveRecommendationArgs,
     cacheTtlSeconds: 0,   // write tool — never cache
     timeoutMs: 5000,
     async run(args, ctx) {
-      const { prisma, workspaceId } = ctx;
+      const { prisma, workspaceId, userId } = ctx;
+
+      // Role gate — FIRST, before anything is looked up or written. Saving a
+      // recommendation is a write, and the agent acts with the authority of the
+      // person chatting: a VIEWER (or a user who is not a member at all) must
+      // not be able to make the agent write on their behalf. `userId` must be a
+      // real string: Prisma treats `{ userId: undefined }` as "no filter", which
+      // would match ANY member of the workspace.
+      const member = typeof userId === 'string' && userId.length > 0 && typeof workspaceId === 'string' && workspaceId.length > 0
+        ? await prisma.workspaceMember.findFirst({ where: { workspaceId, userId }, select: { role: true } })
+        : null;
+      if (!member || member.role === 'VIEWER') {
+        return fail(
+          'FORBIDDEN',
+          'Only workspace owners and managers can save recommendations.',
+          { retryable: false },
+        );
+      }
 
       // Entity-scope check: campaign must belong to a workspace ad account.
       if (args.entityType === 'CAMPAIGN') {

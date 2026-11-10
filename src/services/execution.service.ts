@@ -9,6 +9,7 @@
 // ════════════════════════════════════════════════════════════════════════
 
 import { PrismaClient, UserActionStatus, EntityType } from '@prisma/client';
+import { WorkspaceOwnershipError } from './recommendationWriteGuard';
 
 export interface MetricsSnapshot {
   ctr?:       number | null;
@@ -25,17 +26,27 @@ export class ExecutionService {
   /**
    * Record that a recommendation was executed by the user.
    * Upserts the execution row; metricsSnapshot is IMMUTABLE after first write.
+   *
+   * `workspaceId` is the workspace the caller has been authorised for. The
+   * recommendation must belong to it (its ad account's workspace) — otherwise
+   * WorkspaceOwnershipError and nothing is written. Without this, the execution
+   * row was stamped with whatever workspace the recommendation's account
+   * happened to have, so a caller holding a foreign recommendation id could
+   * overwrite that tenant's execution record.
    */
-  async recordExecution(recommendationId: string, snapshot: MetricsSnapshot) {
+  async recordExecution(recommendationId: string, snapshot: MetricsSnapshot, workspaceId: string) {
+    if (typeof workspaceId !== 'string' || !workspaceId) throw new WorkspaceOwnershipError('recommendation');
     // Resolve workspaceId: recommendation.entityId is an AdAccount.id
-    const rec = await this.prisma.recommendation.findUniqueOrThrow({
+    const rec = await this.prisma.recommendation.findUnique({
       where: { id: recommendationId },
       select: { entityId: true },
     });
-    const account = await this.prisma.adAccount.findUniqueOrThrow({
+    if (!rec) throw new WorkspaceOwnershipError('recommendation');
+    const account = await this.prisma.adAccount.findUnique({
       where: { id: rec.entityId },
       select: { workspaceId: true },
     });
+    if (!account || account.workspaceId !== workspaceId) throw new WorkspaceOwnershipError('recommendation');
 
     return this.prisma.recommendationExecution.upsert({
       where:  { recommendationId },
