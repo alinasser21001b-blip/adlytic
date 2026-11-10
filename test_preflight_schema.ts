@@ -438,11 +438,11 @@ async function main() {
     check('no arguments → ok, defaults off', a.ok === true && !a.json && !a.counts && a.volumeBytes === undefined && !a.acknowledged, a);
     const b = P.parseArgs(['--json', '--counts', '--volume-bytes', '524288000', '--i-understand-this-reads-a-real-database']);
     check('all flags parse', b.ok === true && b.json === true && b.counts === true && b.volumeBytes === 524288000 && b.acknowledged === true, b);
-    check('--volume-bytes=N form parses', P.parseArgs(['--volume-bytes=1000']).volumeBytes === 1000);
+    check('--volume-bytes=N form parses', (P.parseArgs(['--volume-bytes=1000']) as { volumeBytes?: number }).volumeBytes === 1000);
     for (const bad of [['--nope'], ['--volume-bytes'], ['--volume-bytes', '0'], ['--volume-bytes', '-5'], ['--volume-bytes', 'abc'], ['--volume-bytes', '1.5'], ['--volume-bytes', '9007199254740993'], ['positional']]) {
       check(`rejects ${JSON.stringify(bad)}`, P.parseArgs(bad).ok === false, P.parseArgs(bad));
     }
-    check('--help is recognised', P.parseArgs(['--help']).help === true);
+    check('--help is recognised', (P.parseArgs(['--help']) as { help?: boolean }).help === true);
   });
 
   // ── 8. counts ───────────────────────────────────────────────────────────
