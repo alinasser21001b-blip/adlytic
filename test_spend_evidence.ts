@@ -486,7 +486,7 @@ async function main() {
     /partitionRecommendationsBySpendEvidence\(prisma,\s*permittedRecs\)/.test(recRoute) && /const recs = spendGate\.kept/.test(recRoute) && /X-Recommendations-Withheld/.test(recRoute) && /include'\]\s*===\s*'suppressed'/.test(recRoute) && /DATA_QUALITY_HEADER/.test(recRoute));
   const insightsRoute = /app\.get\('\/api\/workspaces\/:workspaceId\/insights'[\s\S]*?\n {2}\}\);/.exec(server)?.[0] ?? '';
   const campaignsRoute = /app\.get\('\/api\/workspaces\/:workspaceId\/campaigns'[\s\S]*?\n {2}\}\);/.exec(server)?.[0] ?? '';
-  check('the period reads /insights and /campaigns carry the data-quality header for the requested range', /spendScaleFlagForRange\(prisma,\s*account,\s*sinceDate,\s*null\)/.test(insightsRoute) && /spendScaleFlagForRange\(prisma,\s*account,\s*sinceDate,\s*null,\s*'CAMPAIGN'\)/.test(campaignsRoute) && /DATA_QUALITY_HEADER/.test(insightsRoute) && /DATA_QUALITY_HEADER/.test(campaignsRoute));
+  check('the period reads /insights and /campaigns carry the data-quality header for the requested range', /spendScaleFlagFailClosed\(prisma,\s*account,\s*sinceDate,\s*null\)/.test(insightsRoute) && /spendScaleFlagFailClosed\(prisma,\s*account,\s*sinceDate,\s*null,\s*'CAMPAIGN'\)/.test(campaignsRoute) && /DATA_QUALITY_HEADER/.test(insightsRoute) && /DATA_QUALITY_HEADER/.test(campaignsRoute));
   const dash = code(read('src/services/getDashboard.ts'));
   check('getDashboard evaluates the window and gates priorityAction, issues, KB metrics, diagnose signals, drain, forecast, bleed alert and steady-state',
     /evaluateSpendWindow\(prisma,\s*account,\s*sinceDate,\s*null,\s*'ACCOUNT'\)/.test(dash) && /partitionRecommendationsBySpendEvidence/.test(dash) && /isSpendDependentIssueCode/.test(dash) && /withholdSpendDerivedMetrics/.test(dash)
@@ -506,6 +506,237 @@ async function main() {
   const monitor = code(read('src/services/dataIntegrityMonitor.ts'));
   check('data-health: the spendScale report carries the periods (listSpendPeriods) next to the old keys', /listSpendPeriods\(prisma,\s*account\.id\)/.test(monitor) && /\.\.\.periods/.test(monitor) && /window: \{ days: windowDays/.test(monitor) && /history: \{ accountRows/.test(monitor));
   check('the existing WARN/CRITICAL checks are unchanged in code and severity', /code: 'SPEND_SCALE_OVERSCALED',\s*severity: 'CRITICAL'/.test(monitor) && /code: 'SPEND_SCALE_UNVERIFIED',\s*severity: 'WARN'/.test(monitor));
+
+
+  // ── 10. second review round: the paths the first gate missed (SE-1, SE-2, SE-4, SE-5, SE-6) ─────────────
+  console.log('\n── 10. review round 2: aiRecommendations, weekly report, prior window, the visible reason, fail-closed reads ──');
+  const SX: any = S;
+  const REASON = 'SPEND_SCALE_UNVERIFIED';
+
+  // SE-6 — an unreadable evidence read flags the range; it never throws into a data endpoint
+  const failClosed: undefined | ((...a: any[]) => Promise<any>) = SX.spendScaleFlagFailClosed;
+  check('SE-6: spendScaleFlagFailClosed exists', typeof failClosed === 'function');
+  if (typeof failClosed === 'function') {
+    const broken = fakeDb({ currency: 'IQD', throwOnQuery: true });
+    const origErr = console.error; console.error = () => {};
+    let threw = false; let fc: any = null;
+    try { fc = await failClosed(broken, { id: 'acct_1', currency: 'IQD' }, iso(10), null, 'CAMPAIGN'); } catch { threw = true; } finally { console.error = origErr; }
+    check('SE-6: IQD, evidence unreadable → no throw, an `unreadable` SPEND_SCALE_UNVERIFIED flag at the asked level', !threw && fc?.code === REASON && fc.unreadable === true && fc.level === 'CAMPAIGN' && /could not be read/.test(fc.message) && /تعذّرت/.test(fc.messageAr), [threw, fc]);
+    const usdBroken = fakeDb({ currency: 'USD', throwOnQuery: true });
+    check('SE-6: USD → null, and not one query was made (an unreadable table cannot matter to it)', (await failClosed(usdBroken, { id: 'acct_1', currency: 'USD' }, iso(10), null)) === null && usdBroken.log.queries === 0);
+    const okVer = fakeDb({ currency: 'IQD', account: [{ day: iso(3), spend: 1000 }], raws: [{ day: iso(3), spend: 1000 }] });
+    const okBad = fakeDb({ currency: 'IQD', account: [{ day: iso(3), spend: 1000 }], raws: [] });
+    check('SE-6: a readable window behaves exactly like spendScaleFlagForRange (clean → null; unverified → the normal flag, not `unreadable`)',
+      (await failClosed(okVer, { id: 'acct_1', currency: 'IQD' }, iso(10), null)) === null
+      && same(await failClosed(okBad, { id: 'acct_1', currency: 'IQD' }, iso(10), null), await S.spendScaleFlagForRange(okBad, { id: 'acct_1', currency: 'IQD' }, iso(10), null)));
+  }
+  const server2 = code(read('src/api/server.ts'));
+  const insights2 = /app\.get\('\/api\/workspaces\/:workspaceId\/insights'[\s\S]*?\n {2}\}\);/.exec(server2)?.[0] ?? '';
+  const campaigns2 = /app\.get\('\/api\/workspaces\/:workspaceId\/campaigns'[\s\S]*?\n {2}\}\);/.exec(server2)?.[0] ?? '';
+  check('SE-6: /insights and /campaigns read the evidence through the fail-closed helper — no bare `await spendScaleFlagForRange` left in server.ts',
+    /await spendScaleFlagFailClosed\(/.test(insights2) && /await spendScaleFlagFailClosed\(/.test(campaigns2) && !/spendScaleFlagForRange/.test(server2), [/spendScaleFlagForRange/.test(server2)]);
+
+  // SE-5a — GET /recommendations judges the account window itself, whatever is stored
+  const recRoute2 = /app\.get\('\/api\/workspaces\/:workspaceId\/recommendations'[\s\S]*?\n {2}\}\);/.exec(server2)?.[0] ?? '';
+  check('SE-5: GET /recommendations evaluates the account window (30-day ACCOUNT, fail closed) and sets X-Data-Quality + the count from it — not only from rows it suppressed',
+    /spendScaleFlagFailClosed\(prisma,\s*account,\s*accountLocalDateFloor\(account\.timezone,\s*30\),\s*null,\s*'ACCOUNT'\)/.test(recRoute2) && /windowFlag/.test(recRoute2) && /dataQualityCodes\.length > 0/.test(recRoute2) && /X-Recommendations-Withheld/.test(recRoute2) && /flags: windowFlag/.test(recRoute2), recRoute2.slice(-900));
+
+  // SE-4 — the prior window's flag (pure)
+  const priorW = S.summarizeWindow([{ day: iso(40), account: 'UNVERIFIED', accountSpend: 1, campaignSpend: 0, campaignRows: 0 }, { day: iso(41), account: 'VERIFIED', accountSpend: 1, campaignSpend: 0, campaignRows: 0 }], 'ACCOUNT', iso(60), iso(31));
+  const priorFlag = S.flagFromWindow(priorW, { prior: true });
+  const curFlag = S.flagFromWindow(priorW);
+  check('SE-4: a prior-window flag carries the same code, is marked window: "prior", says "prior window" / الفترة السابقة, and lists its unverified period',
+    priorFlag?.code === REASON && priorFlag.window === 'prior' && /^prior window:/.test(priorFlag.message) && /^الفترة السابقة/.test(priorFlag.messageAr) && same(priorFlag.periods, [{ from: iso(40), to: iso(40), rows: 1 }]), priorFlag);
+  check('SE-4: the current-window flag is untouched — no `window` key, the same text as before', curFlag && !('window' in curFlag) && curFlag.message.endsWith('spend-based advice for this period is withheld'), curFlag);
+
+  // SE-1 — aiRecommendations (fake prisma: it reads Brain snapshots only)
+  const { computeAIRecommendations, snapshotSpendWithheld } = await import('./src/services/aiRecommendations');
+  const snap = (id: string, name: string, pattern: string, action: string, score: number, priority = 'NORMAL', payload: any = {}) =>
+    ({ campaignId: id, action, priority, patternSignature: pattern, finalScore: score, payload: { campaignName: name, ...payload }, tickDate: new Date() });
+  const aiSnaps = [
+    snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'SCALE_BUDGET', 81, 'HIGH'),
+    snap('c_dying', 'Dying', 'DYING_CREATIVE', 'REFRESH_CREATIVE', 30, 'CRITICAL'),
+    snap('c_noise', 'Noise', 'UNSTABLE_NOISE', 'KEEP_COLLECTING', 40),
+    snap('c_stable', 'Stable', 'STABLE_PERFORMER', 'HOLD_AND_MONITOR', 75),
+    snap('c_new', 'Newborn', 'UNDER_OBSERVATION', 'KEEP_COLLECTING', 10),
+  ];
+  const aiFake = (snaps: any[]) => ({ campaignBrainSnapshot: { findMany: async () => snaps } }) as any;
+  const stripAt = (o: any) => { const c = { ...o }; delete c.generatedAt; return c; };
+  const aiPlain = await computeAIRecommendations(aiFake(aiSnaps), 'ws_1');
+  const aiNull = await (computeAIRecommendations as any)(aiFake(aiSnaps), 'ws_1', { spendWithheld: null });
+  check('SE-1 baseline: with no verdict the cards are the five, scale and fix/pause among them, and there is NO spendWithheld key', aiPlain.recommendations.map((r) => r.id).join() === 'det-scale,det-dying,det-unstable,det-stable,det-collecting' && !('spendWithheld' in aiPlain), aiPlain.recommendations.map((r) => r.id));
+  check('SE-1: a null verdict is byte-identical to no verdict at all', same(stripAt(aiPlain), stripAt(aiNull)));
+  const aiGated: any = await (computeAIRecommendations as any)(aiFake(aiSnaps), 'ws_1', { spendWithheld: REASON });
+  check('SE-1: on an unverified window the scale card and the pause / creative-refresh card are NOT emitted — no budget advice, no `scale` / `pause` / `fix` category left',
+    aiGated.recommendations.map((r: any) => r.id).join() === 'det-unstable,det-stable,det-collecting' && !aiGated.recommendations.some((r: any) => ['scale', 'pause', 'fix'].includes(r.category)) && !JSON.stringify(aiGated).includes('زِد ميزانيتها'), aiGated.recommendations.map((r: any) => r.id));
+  check('SE-1: …and the DTO says what it left out and why (spendWithheld: reason + the card ids), source deterministic', aiGated.spendWithheld?.reason === REASON && same(aiGated.spendWithheld.ids, ['det-scale', 'det-dying']) && aiGated.source === 'deterministic', aiGated.spendWithheld);
+  const aiOver: any = await (computeAIRecommendations as any)(aiFake(aiSnaps), 'ws_1', { spendWithheld: 'SPEND_SCALE_OVERSCALED' });
+  check('SE-1: the reason follows the verdict (OVERSCALED outranks nothing here, it is passed through)', aiOver.spendWithheld?.reason === 'SPEND_SCALE_OVERSCALED');
+  // a verdict the Brain itself withheld for ONE campaign (its CAMPAIGN-level window) — read from the stored decision
+  const heldPayload = { decision: { spendEvidence: { withheld: true, reason: REASON, withheldAction: 'SCALE_BUDGET' } } };
+  const perCamp = [snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', heldPayload), snap('c_beast2', 'Beast2', 'SCALABLE_BEAST', 'SCALE_BUDGET', 82, 'HIGH'), snap('c_stable', 'Stable', 'STABLE_PERFORMER', 'HOLD_AND_MONITOR', 75)];
+  const aiPer: any = await (computeAIRecommendations as any)(aiFake(perCamp), 'ws_1', { spendWithheld: null });
+  const scaleCard = aiPer.recommendations.find((r: any) => r.id === 'det-scale');
+  check('SE-1: a campaign whose stored Brain decision was withheld for spend is left out of the scale card by itself — the other beast stays', same(scaleCard?.campaignIds, ['c_beast2']) && aiPer.spendWithheld?.reason === REASON && same(aiPer.spendWithheld.ids, ['det-scale']), [scaleCard, aiPer.spendWithheld]);
+  check('SE-1: snapshotSpendWithheld reads payload.decision.spendEvidence and nothing else', typeof snapshotSpendWithheld === 'function' && snapshotSpendWithheld(heldPayload) === REASON && snapshotSpendWithheld({}) === null && snapshotSpendWithheld(null) === null && snapshotSpendWithheld({ decision: { spendEvidence: { withheld: false } } }) === null);
+  const aiClean: any = await (computeAIRecommendations as any)(aiFake([aiSnaps[3]!, aiSnaps[4]!]), 'ws_1', { spendWithheld: REASON });
+  check('SE-1: nothing to withhold (no scale / dying campaign) → the DTO carries no spendWithheld key even when gated', !('spendWithheld' in aiClean) && aiClean.recommendations.length === 2, aiClean);
+
+  // The AI narrative is not used on an unverified window: a stubbed provider proves it (no network). The provider
+  // adapter caches its client (and so the fetch it was built with), so ONE stub serves the whole section and the key
+  // is set only inside `withProvider` — outside it isAIAvailable() is false and nothing reaches the stub.
+  const realFetch = globalThis.fetch; const realKeys = [process.env['ANTHROPIC_API_KEY'], process.env['OPENAI_API_KEY']];
+  let providerCalls = 0;
+  (globalThis as any).fetch = async (_url: unknown, init: any) => {
+    providerCalls++;
+    const system = JSON.stringify(JSON.parse(String(init?.body ?? '{}')).system ?? '');
+    const text = /weekly performance summary/.test(system)
+      ? JSON.stringify({ summaryAr: 'ملخص ذكي', recommendationsAr: ['زِد ميزانية Alpha'] })
+      : JSON.stringify([{ priority: 'high', category: 'scale', titleAr: 'زيادة', bodyAr: 'زِد ميزانية Beast', campaignNames: ['Beast'] }]);
+    return new Response(JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-haiku-4-5', content: [{ type: 'text', text }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const withProvider = async <T,>(fn: () => Promise<T>): Promise<T> => {
+    process.env['ANTHROPIC_API_KEY'] = 'sk-ant-test-not-real'; delete process.env['OPENAI_API_KEY'];
+    try { return await fn(); } finally {
+      if (realKeys[0] === undefined) delete process.env['ANTHROPIC_API_KEY']; else process.env['ANTHROPIC_API_KEY'] = realKeys[0];
+      if (realKeys[1] === undefined) delete process.env['OPENAI_API_KEY']; else process.env['OPENAI_API_KEY'] = realKeys[1];
+    }
+  };
+  const aiAvail: any = await withProvider(() => computeAIRecommendations(aiFake(aiSnaps), 'ws_1'));
+  const callsAfterControl = providerCalls;
+  const aiGatedWithKey: any = await withProvider(() => (computeAIRecommendations as any)(aiFake(aiSnaps), 'ws_1', { spendWithheld: REASON }));
+  check('SE-1 control: with a provider configured and a verified window the AI narrative IS used (source ai, one provider call) — so the next check proves something', aiAvail?.source === 'ai' && callsAfterControl === 1, [aiAvail?.source, callsAfterControl]);
+  check('SE-1: …and on an unverified window the provider is NOT called at all and the scale card the model would have written is not there', providerCalls === callsAfterControl && aiGatedWithKey?.source === 'deterministic' && !aiGatedWithKey.recommendations.some((r: any) => r.category === 'scale'), [providerCalls, callsAfterControl, aiGatedWithKey?.source]);
+
+  // SE-2 — the weekly report (fake prisma: the 7+7 day window, CAMPAIGN rows)
+  const { generateWeeklyReport } = await import('./src/services/weeklyReport');
+  const localMidnight = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); d.setHours(0, 0, 0, 0); return d; };
+  const dayOf = (n: number) => localMidnight(n).toISOString().slice(0, 10);
+  const campRows = (n: number, id: string) => ({ entityId: id, date: localMidnight(n), spend: n <= 7 ? 100_000n : 50_000n, impressions: 10_000n, clicks: id === 'c_a' ? 400n : 100n, messages: n <= 7 ? 10n : 30n, purchases: 0n, leads: 0n, frequency: 2 });
+  const wkStats = Array.from({ length: 14 }, (_, i) => i + 1).flatMap((n) => [campRows(n, 'c_a'), campRows(n, 'c_b')]);
+  const wkSnaps = [
+    { campaignId: 'c_a', action: 'SCALE_BUDGET', priority: 'HIGH', patternSignature: 'SCALABLE_BEAST', finalScore: 81, payload: {} },
+    { campaignId: 'c_b', action: 'PAUSE_CAMPAIGN', priority: 'CRITICAL', patternSignature: 'UNSTABLE_NOISE', finalScore: 30, payload: {} },
+  ];
+  function weeklyDb(currency: string, ev: { raw: (n: number) => boolean; throwOnQuery?: boolean }) {
+    const days = Array.from({ length: 14 }, (_, i) => i + 1);
+    const evidence = fakeDb({
+      currency,
+      throwOnQuery: ev.throwOnQuery,
+      account: days.map((n) => ({ day: dayOf(n), spend: n <= 7 ? 200_000 : 100_000 })),
+      raws: days.filter(ev.raw).map((n) => ({ day: dayOf(n), spend: n <= 7 ? 200_000 : 100_000 })),
+      campaigns: days.map((n) => ({ day: dayOf(n), total: n <= 7 ? 200_000 : 100_000, n: 2 })),
+    });
+    const db: any = {
+      ...evidence,
+      adAccount: { findFirst: async () => ({ id: 'acct_1', currency, currencyMinorFactor: 1 }) },
+      campaign: { findMany: async () => [
+        { id: 'c_a', name: 'Alpha', status: 'ACTIVE', objective: 'OUTCOME_ENGAGEMENT', messagingCtaAds: 0, adSets: [{ optimizationGoal: 'CONVERSATIONS', destinationType: 'WHATSAPP' }] },
+        { id: 'c_b', name: 'Beta', status: 'ACTIVE', objective: 'OUTCOME_ENGAGEMENT', messagingCtaAds: 0, adSets: [{ optimizationGoal: 'CONVERSATIONS', destinationType: 'WHATSAPP' }] },
+      ] },
+      dailyStat: {
+        findMany: async ({ where }: any) => wkStats.filter((r) => {
+          const d = where.date ?? {};
+          return (!d.gte || r.date >= d.gte) && (!d.lt || r.date < d.lt) && (!d.lte || r.date <= d.lte);
+        }),
+      },
+      campaignBrainSnapshot: { findMany: async () => wkSnaps },
+    };
+    return db;
+  }
+  const noise = console.warn; console.warn = () => {};
+  const wkUsd = await generateWeeklyReport(weeklyDb('USD', { raw: () => false }), 'ws_1');
+  const wkVer = await generateWeeklyReport(weeklyDb('IQD', { raw: () => true }), 'ws_1');
+  const unverDb = weeklyDb('IQD', { raw: (n) => n !== 3 && n !== 10 });
+  const wkBad: any = await generateWeeklyReport(unverDb, 'ws_1');
+  const wkBroken: any = await generateWeeklyReport(weeklyDb('IQD', { raw: () => true, throwOnQuery: true }), 'ws_1');
+  console.warn = noise;
+  const pick = (r: any) => r && ({ recommendationsAr: r.recommendationsAr, delta: r.delta, best: r.bestCampaign, worst: r.worstCampaign, brain: r.brainActions, source: r.source });
+  check('SE-2 baseline (USD): the report advises a budget increase for the best CTR campaign and a pause for the worst, shows both cost deltas, and has no dataQuality key',
+    wkUsd != null && wkUsd.recommendationsAr.some((x) => x.includes('فكّر بزيادة ميزانيتها')) && wkUsd.recommendationsAr.some((x) => x.includes('أوقفها مؤقتاً')) && wkUsd.delta.spendPct === 100 && wkUsd.delta.costPerResultPct != null && wkUsd.bestCampaign?.pattern === 'SCALABLE_BEAST' && wkUsd.bestCampaign.healthScore === 81 && !('dataQuality' in wkUsd), wkUsd && pick(wkUsd));
+  check('SE-2: a FULLY VERIFIED IQD window gives the very same advice, deltas, highlights and Brain counts as the USD twin, and no dataQuality key', wkVer != null && same(pick(wkVer), pick(wkUsd)) && !('dataQuality' in wkVer), [wkVer && pick(wkVer), wkUsd && pick(wkUsd)]);
+  check('SE-2: an UNVERIFIED window (two days without raw evidence) carries dataQuality: SPEND_SCALE_UNVERIFIED at CAMPAIGN level over exactly the 7+7 days, with the periods',
+    wkBad?.dataQuality?.flags?.length === 1 && wkBad.dataQuality.flags[0].code === REASON && wkBad.dataQuality.flags[0].level === 'CAMPAIGN' && wkBad.dataQuality.flags[0].from === dayOf(14) && wkBad.dataQuality.flags[0].to === dayOf(1) && wkBad.dataQuality.flags[0].rows === 2 && wkBad.dataQuality.flags[0].of === 14 && wkBad.dataQuality.flags[0].periods.length === 2, wkBad?.dataQuality);
+  const recsBad: string[] = wkBad?.recommendationsAr ?? [];
+  check('SE-2: …no budget-increase advice and no pause advice remains in recommendationsAr (the strings the old code produced are gone)',
+    wkBad != null && !recsBad.some((x) => x.includes('فكّر بزيادة ميزانيتها') || x.includes('أوقفها') || x.includes('لحماية الميزانية')) && !/ميزانية|زيادة/.test(recsBad.filter((x) => !x.includes('محجوبة')).join(' ')), recsBad);
+  check('SE-2: …what does not rest on spend is KEPT: the creative-refresh line for the weakest-CTR campaign and the results-dropped line',
+    recsBad.some((x) => x.includes('«Beta»') && x.includes('جدّد إبداعها')) && recsBad.some((x) => x.includes('انخفضت النتائج')), recsBad);
+  check('SE-2: …and the report says it withheld the spend-based advice (a line in recommendationsAr naming the reason)', recsBad.some((x) => x.includes('محجوبة') && x.includes('لم يُتحقق منه')), recsBad);
+  check('SE-2: the spend and cost-per-result CHANGES are withheld (null), the results and CTR changes are not; the absolute figures are shown as stored',
+    wkBad?.delta.spendPct === null && wkBad.delta.costPerResultPct === null && wkBad.delta.resultsPct === wkUsd?.delta.resultsPct && wkBad.delta.ctrPct === wkUsd?.delta.ctrPct && wkBad.thisWeek.spendDisplay === wkVer?.thisWeek.spendDisplay && wkBad.thisWeek.costPerResult === wkVer?.thisWeek.costPerResult, [wkBad?.delta, wkUsd?.delta]);
+  check('SE-2: the cost-blended Brain fields of the highlights (pattern, healthScore) are withheld, and so is a spend-dependent verdict (SCALE_BUDGET / PAUSE_CAMPAIGN left over from before the gate); the CTR ranking itself is unchanged',
+    wkBad?.bestCampaign?.campaignName === 'Alpha' && wkBad.bestCampaign.pattern === null && wkBad.bestCampaign.healthScore === null && wkBad.bestCampaign.action === null && wkBad.worstCampaign?.campaignName === 'Beta' && wkBad.worstCampaign.action === null && wkBad.bestCampaign.ctr === wkUsd?.bestCampaign?.ctr, [wkBad?.bestCampaign, wkBad?.worstCampaign]);
+  check('SE-2: every withheld part is named in dataQuality.withheld, each with the reason', ['recommendations', 'delta', 'summary', 'campaignHighlights'].every((sf) => wkBad?.dataQuality?.withheld?.some((w: any) => w.surface === sf && w.reason === REASON)), wkBad?.dataQuality?.withheld);
+  check('SE-2: the spend-trend sentence ("بزيادة في الإنفاق…") is not in the summary of the unverified report, and is in the verified one', wkVer != null && wkVer.summaryAr.includes('بزيادة في الإنفاق') && wkBad != null && !wkBad.summaryAr.includes('الإنفاق مقارنة'), [wkVer?.summaryAr, wkBad?.summaryAr]);
+  check('SE-2: evidence UNREADABLE → the report is still served, treated as unverified (fail closed on the advice, open on the data), the flag says it could not be read',
+    wkBroken?.dataQuality?.flags?.[0]?.unreadable === true && wkBroken.dataQuality.flags[0].code === REASON && wkBroken.thisWeek.spend === wkVer?.thisWeek.spend && !wkBroken.recommendationsAr.some((x: string) => x.includes('فكّر بزيادة ميزانيتها')), wkBroken?.dataQuality);
+  check('SE-2: USD makes no evidence query at all', (weeklyDb('USD', { raw: () => false }) as any).log.queries === 0);
+  // the AI narrative gets the spend figures: not used when unverified (the same stubbed provider)
+  providerCalls = 0;
+  const wkAiVer: any = await withProvider(() => generateWeeklyReport(weeklyDb('IQD', { raw: () => true }), 'ws_1'));
+  const wkAiCallsAfterVer = providerCalls;
+  const wkAiBad: any = await withProvider(() => generateWeeklyReport(unverDb, 'ws_1'));
+  const wkAiCalls = providerCalls;
+  (globalThis as any).fetch = realFetch;
+  check('SE-2 control: a verified window with a provider configured uses the AI narrative (one call); an unverified one does NOT call it and is deterministic', wkAiVer?.source === 'ai' && wkAiCallsAfterVer === 1 && wkAiCalls === 1 && wkAiBad?.source === 'deterministic' && !wkAiBad.recommendationsAr.some((x: string) => x.includes('زِد ميزانية')), [wkAiVer?.source, wkAiCalls, wkAiBad?.source]);
+
+  // wiring: the dashboard, the weekly route, the prior window
+  const dash2 = code(read('src/services/getDashboard.ts'));
+  check('SE-1/SE-2: getDashboard hands the verdict to computeAIRecommendations and lists the cards / report parts it withheld in dataQuality.withheld',
+    /computeAIRecommendations\(prisma,\s*ws\.id,\s*\{\s*spendWithheld:\s*spendGated \? spendReason : null\s*\}\)/.test(dash2) && /surface: "aiRecommendations"/.test(dash2) && /surface: "weeklyReport"/.test(dash2) && /"aiRecommendations" \| "weeklyReport"/.test(dash2), []);
+  check('SE-4: getDashboard evaluates the PRIOR window (priorSinceDate → the day before sinceDate, ACCOUNT) and puts its flag, marked prior, into dataQuality — without gating anything on it',
+    /evaluateSpendWindow\(prisma,\s*account,\s*priorSinceDate,\s*addDaysIso\(isoDay\(sinceDate\),\s*-1\),\s*'ACCOUNT'\)/.test(dash2) && /flagFromWindow\(priorSpendWindow,\s*\{\s*prior:\s*true\s*\}\)/.test(dash2) && !/spendGated\s*=\s*[^;]*priorSpendWindow/.test(dash2), []);
+  const wkRoute = /app\.get\('\/api\/weekly-report\/:workspaceId'[\s\S]*?\n {2}\}\);/.exec(server2)?.[0] ?? '';
+  check('SE-2: GET /api/weekly-report/:ws sets X-Data-Quality from the report\'s own dataQuality', /report\.dataQuality/.test(wkRoute) && /DATA_QUALITY_HEADER/.test(wkRoute), wkRoute);
+  const wkSrc = code(read('src/services/weeklyReport.ts'));
+  check('SE-2: the weekly report evaluates the 7+7 day window at CAMPAIGN level, treats an unreadable read as unverified, and skips the AI narrative when gated',
+    /evaluateSpendWindow\(prisma,\s*account,\s*evidenceFrom,\s*evidenceTo,\s*'CAMPAIGN'\)/.test(wkSrc) && /unreadableWindow\(/.test(wkSrc) && /isAIAvailable\(\) && !spendGated/.test(wkSrc), []);
+
+  // SE-5b — the visible reason: both pages render dataQuality (the function is lifted out of the page source and RUN)
+  const pageOf = (rel: string) => read(rel);
+  const dashPage = pageOf('src/web/pages/dashboardPage.ts');
+  const recPage = pageOf('src/web/pages/recommendationsPage.ts');
+  function lift(src: string, name: string): string | null {
+    const at = src.indexOf(`function ${name}(`);
+    if (at < 0) return null;
+    let depth = 0; let started = false;
+    for (let i = src.indexOf('{', at); i < src.length; i++) {
+      if (src[i] === '{') { depth++; started = true; } else if (src[i] === '}') { depth--; if (started && depth === 0) return src.slice(at, i + 1); }
+    }
+    return null;
+  }
+  const esc = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  function runBanner(src: string, locale: 'AR' | 'EN', payload: any) {
+    const fn = lift(src, 'renderDataQualityBanner');
+    if (!fn) return null;
+    const box: any = { style: { display: 'none' }, innerHTML: '' };
+    const doc = { getElementById: (id: string) => (id === 'data-quality-banner' ? box : null) };
+    // eslint-disable-next-line no-new-func
+    new Function('document', 'escHtml', 'lbl', `${fn}; renderDataQualityBanner(${JSON.stringify(payload)});`)(doc, esc, (en: string, ar: string) => (locale === 'AR' ? ar : en));
+    return box as { style: { display: string }; innerHTML: string };
+  }
+  for (const [label, src] of [['dashboard', dashPage], ['recommendations', recPage]] as const) {
+    check(`SE-5: the ${label} page has the banner element and calls renderDataQualityBanner on the payload it already loads`,
+      /id="data-quality-banner"/.test(src) && /renderDataQualityBanner\(dashData\)/.test(src) && lift(src, 'renderDataQualityBanner') !== null, []);
+    const hostile = { dataQuality: { flags: [{ code: REASON, message: 'EN <img src=x onerror=alert(1)>', messageAr: '٤ أيام <script>alert(1)</script> غير موثَّقة', window: undefined }], withheld: [{ surface: 'priorityAction', reason: REASON }] } };
+    const shown = runBanner(src, 'AR', hostile);
+    check(`SE-5: the ${label} banner shows the server's Arabic text, ESCAPED, when dataQuality is present`, !!shown && shown.style.display === 'flex' && shown.innerHTML.includes('٤ أيام') && !shown.innerHTML.includes('<script') && !shown.innerHTML.includes('<img') && shown.innerHTML.includes('&lt;script&gt;'), shown);
+    const hidden = runBanner(src, 'AR', {});
+    const hidden2 = runBanner(src, 'AR', { dataQuality: { flags: [], withheld: [] } });
+    check(`SE-5: the ${label} banner stays hidden when there is no dataQuality (verified IQD, USD) — and when it is empty`, !!hidden && hidden.style.display === 'none' && hidden.innerHTML === '' && !!hidden2 && hidden2.style.display === 'none', [hidden, hidden2]);
+    const onlyWithheld = runBanner(src, 'AR', { dataQuality: { flags: [], withheld: [{ surface: 'aiRecommendations', reason: REASON }] } });
+    check(`SE-5: the ${label} banner says so even when only a surface was withheld (no flag text) — a generic Arabic line, not nothing`, !!onlyWithheld && onlyWithheld.style.display === 'flex' && /لم يُتحقق منه/.test(onlyWithheld.innerHTML), onlyWithheld);
+  }
+  const priorOnlyDash = runBanner(dashPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
+  const priorOnlyRec = runBanner(recPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
+  check('SE-5/SE-4: a prior-window flag alone IS shown on the dashboard (its KPI deltas are in doubt) but NOT on the recommendations page (it is about advice)', priorOnlyDash?.style.display === 'flex' && priorOnlyDash.innerHTML.includes('الفترة السابقة') && priorOnlyRec?.style.display === 'none', [priorOnlyDash, priorOnlyRec]);
+  check('SE-5: the dashboard withholds the "Scale this" budget link of the best campaign in the weekly report while report.dataQuality is set', /spendWithheld \? '' : '<a class="weekly-highlight-action best-action"/.test(dashPage) && /report\.dataQuality/.test(dashPage));
+
+  // the doc says what the code does (the first version's claims were wrong)
+  const docSrc = read('delivery/core/SPEND_EVIDENCE_GATING.md');
+  check('DOC: the claim that aiRecommendations is "already judged at its own tick" is gone, and aiRecommendations / weeklyReport are in the gated list',
+    !/already judged at its own tick/.test(docSrc) && /aiRecommendations/.test(docSrc) && /weeklyReport/.test(docSrc) && /SE-3/.test(docSrc), []);
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);

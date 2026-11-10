@@ -220,7 +220,7 @@ import {
   resolveEntityIntelligenceForGuard,
 } from '../services/entityIntelligence';
 import { permitAction } from '../analytics/intelligence/hierarchy';
-import { DATA_QUALITY_HEADER, partitionRecommendationsBySpendEvidence, spendScaleFlagForRange } from '../lib/spendEvidence';
+import { DATA_QUALITY_HEADER, partitionRecommendationsBySpendEvidence, spendScaleFlagFailClosed } from '../lib/spendEvidence';
 import { buildBrainObservatory } from '../services/brainObservatory';
 import { getCampaignWhy } from '../services/campaignWhy';
 import {
@@ -1721,6 +1721,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     if (!member) return c.json({ error: 'Access denied' }, 403);
     const report = await generateWeeklyReport(prisma, workspaceId);
     if (!report) return c.json({ empty: true }, 200);
+    // The 7+7 day window this report is computed from holds unverified IQD spend: the body says so (`dataQuality`),
+    // and so does the header every other spend-bearing read carries.
+    if (report.dataQuality && report.dataQuality.flags.length > 0) c.header(DATA_QUALITY_HEADER, [...new Set(report.dataQuality.flags.map((f) => f.code))].join(','));
     return c.json(safeJson(report));
   });
 
@@ -3457,7 +3460,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       scopeRaw === 'live' || scopeRaw === 'historical' ? scopeRaw : 'all';
     const sinceDate = accountLocalDateFloor(account.timezone, windowDays);
     // The window's campaign spend is shown as stored; say so when it is not verified (header: array body).
-    const spendFlag = await spendScaleFlagForRange(prisma, account, sinceDate, null, 'CAMPAIGN');
+    // Fail closed on the FLAG, open on the DATA: an unreadable evidence read flags the range, it does not 500 the page.
+    const spendFlag = await spendScaleFlagFailClosed(prisma, account, sinceDate, null, 'CAMPAIGN');
     if (spendFlag) c.header(DATA_QUALITY_HEADER, spendFlag.code);
     // Sparkline window: last 7 days of per-campaign daily spend, zero-filled
     // so every campaign gets exactly 7 chronological points.
@@ -4623,8 +4627,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: sinceDate } },
       orderBy: { date: 'desc' },
     });
-    // A period read that overlaps unverified IQD spend says so (array body: header only).
-    const spendFlag = await spendScaleFlagForRange(prisma, account, sinceDate, null);
+    // A period read that overlaps unverified IQD spend says so (array body: header only). Fail closed on the
+    // FLAG, open on the DATA: an unreadable evidence read flags the range, it does not 500 the chart.
+    const spendFlag = await spendScaleFlagFailClosed(prisma, account, sinceDate, null);
     if (spendFlag) c.header(DATA_QUALITY_HEADER, spendFlag.code);
     return c.json(safeJson(stats));
   });
@@ -4880,13 +4885,18 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
 
     if (latestLogId) c.header('X-Recommendation-Log-Id', latestLogId);
-    if (spendGate.suppressed.length > 0) {
-      // The array shape cannot grow a key: the withholding is on the headers, and in full on ?include=suppressed.
-      c.header(DATA_QUALITY_HEADER, [...new Set(spendGate.suppressed.map((x) => x.reason))].join(','));
+    // The account's own window, judged whatever is stored: the engines DECLINE to write spend-dependent rows on
+    // unverified spend, so "nothing stored" must not read as "nothing to do". Same 30-day ACCOUNT window the
+    // dashboard states its dataQuality for. Unreadable evidence flags the window (fail closed) and keeps serving.
+    const windowFlag = await spendScaleFlagFailClosed(prisma, account, accountLocalDateFloor(account.timezone, 30), null, 'ACCOUNT');
+    const dataQualityCodes = [...new Set([...spendGate.suppressed.map((x) => x.reason), ...(windowFlag ? [windowFlag.code] : [])])];
+    if (dataQualityCodes.length > 0) {
+      // The array shape cannot grow a key: the flag and the count are on the headers, and in full on ?include=suppressed.
+      c.header(DATA_QUALITY_HEADER, dataQualityCodes.join(','));
       c.header('X-Recommendations-Withheld', String(spendGate.suppressed.length));
     }
     if (req.query['include'] === 'suppressed') {
-      return c.json(safeJson({ recommendations: recs, suppressed: spendGate.suppressed, dataQuality: { spendWithheldCount: spendGate.suppressed.length } }));
+      return c.json(safeJson({ recommendations: recs, suppressed: spendGate.suppressed, dataQuality: { spendWithheldCount: spendGate.suppressed.length, flags: windowFlag ? [windowFlag] : [] } }));
     }
     return c.json(safeJson(recs));
   });

@@ -91,6 +91,8 @@ export interface SpendWindowEvidence {
   reason: SpendGateReason | null;
   /** Unverified runs inside the window, newest first, capped at SPEND_PERIODS_CAP. */
   periods: SpendPeriod[];
+  /** true ONLY for a verdict made up because the evidence could not be READ (never for one read from the rows). */
+  unreadable?: true;
 }
 
 // ── dates ───────────────────────────────────────────────────────────────
@@ -158,6 +160,16 @@ export function dayStatusAtLevel(d: DayEvidence, level: EvidenceLevel): DayStatu
 export const notApplicable = (level: EvidenceLevel, from: string | null, to: string | null): SpendWindowEvidence => ({
   applies: false, level, from, to, rows: 0, verified: 0, overscaled: 0, unverified: 0, clean: true, reason: null, periods: [],
 });
+
+/**
+ * Pure. The verdict used when the evidence cannot be READ: an IQD window is then NOT clean (never
+ * shown on a guess, reason SPEND_SCALE_UNVERIFIED), any other currency is not applicable. The
+ * `unreadable` marker lets the flag say "could not be read" rather than "0 of 0 rows".
+ */
+export const unreadableWindow = (currency: string | null | undefined, level: EvidenceLevel, from: string | null, to: string | null): SpendWindowEvidence =>
+  isIqd(currency)
+    ? { applies: true, level, from, to, rows: 0, verified: 0, overscaled: 0, unverified: 0, clean: false, reason: SPEND_SCALE_UNVERIFIED, periods: [], unreadable: true }
+    : notApplicable(level, from, to);
 
 /** Pure. Summarise per-day evidence over [from, to] (inclusive; null = open) at one level. */
 export function summarizeWindow(
@@ -313,10 +325,17 @@ export interface SpendScaleFlag {
   to: string | null;
   /** Unverified runs inside the range, newest first, capped. */
   periods: SpendPeriod[];
+  /**
+   * 'prior' = the window BEFORE the one that was read, which period-over-period comparisons (KPI
+   * deltas) are computed against. Absent = the window that was read itself.
+   */
+  window?: 'prior';
+  /** true = the evidence could not be READ, so the window is treated as unverified (fail closed). */
+  unreadable?: true;
 }
 
-/** Pure. null for a clean or not-applicable window. */
-export function flagFromWindow(w: SpendWindowEvidence): SpendScaleFlag | null {
+/** Pure. null for a clean or not-applicable window. `opts.prior` marks the flag as the comparison window's. */
+export function flagFromWindow(w: SpendWindowEvidence, opts: { prior?: boolean } = {}): SpendScaleFlag | null {
   if (!w.applies || w.clean || !w.reason) return null;
   const over = w.reason === SPEND_SCALE_OVERSCALED;
   const n = over ? w.overscaled : w.unverified;
@@ -324,6 +343,29 @@ export function flagFromWindow(w: SpendWindowEvidence): SpendScaleFlag | null {
   const campaign = w.level === 'CAMPAIGN';
   const what = campaign ? 'campaign-level day(s)' : 'account-level spend row(s)';
   const whatAr = campaign ? 'يوم على مستوى الحملات' : 'صف إنفاق على مستوى الحساب';
+  if (w.unreadable) {
+    return {
+      code: w.reason,
+      severity: 'WARN',
+      message: `the raw Meta evidence for ${span} could not be read — spend is treated as unverified, shown as stored, and spend-based advice for this period is withheld`,
+      messageAr: `تعذّرت قراءة بيانات Meta الخام للتحقق من الإنفاق في ${span} — يُعامل الإنفاق كغير موثَّق، ويُعرض كما هو، وتُحجب التوصيات المبنية على الإنفاق لهذه الفترة`,
+      level: w.level, rows: 0, of: 0, from: w.from, to: w.to, periods: [], unreadable: true,
+      ...(opts.prior ? { window: 'prior' as const } : {}),
+    };
+  }
+  if (opts.prior) {
+    return {
+      code: w.reason,
+      severity: over ? 'CRITICAL' : 'WARN',
+      message: over
+        ? `prior window: ${n} of ${w.rows} ${what} in ${span} are exactly 100x raw Meta spend — period-over-period spend comparisons against it are inflated`
+        : `prior window: ${n} of ${w.rows} ${what} in ${span} cannot be checked against raw Meta data — period-over-period comparisons against it are shown as stored and may be wrong`,
+      messageAr: over
+        ? `الفترة السابقة: ${n} من ${w.rows} ${whatAr} في ${span} أكبر ×100 من بيانات Meta الخام — مقارنات الإنفاق معها مضخّمة`
+        : `الفترة السابقة: ${n} من ${w.rows} ${whatAr} في ${span} لا يمكن التحقق منها ببيانات Meta الخام — المقارنات معها تُعرض كما هي وقد لا تكون دقيقة`,
+      level: w.level, rows: n, of: w.rows, from: w.from, to: w.to, periods: w.periods, window: 'prior',
+    };
+  }
   return {
     code: w.reason,
     severity: over ? 'CRITICAL' : 'WARN',
@@ -350,6 +392,28 @@ export async function spendScaleFlagForRange(
   level: EvidenceLevel = 'ACCOUNT',
 ): Promise<SpendScaleFlag | null> {
   return flagFromWindow(await evaluateSpendWindow(db, account, from, to, level));
+}
+
+/**
+ * READ-ONLY. spendScaleFlagForRange for the READS THAT SERVE DATA (/insights, /campaigns, /recommendations):
+ * it never throws. If the evidence cannot be read the FLAG fails closed — an IQD account gets an
+ * `unreadable` SPEND_SCALE_UNVERIFIED flag — while the caller goes on serving its (readable) data.
+ * A failing evidence read must not blank a page whose own rows are fine.
+ */
+export async function spendScaleFlagFailClosed(
+  db: Db,
+  account: { id: string; currency: string | null | undefined },
+  from: string | Date | null,
+  to: string | Date | null,
+  level: EvidenceLevel = 'ACCOUNT',
+): Promise<SpendScaleFlag | null> {
+  try {
+    return await spendScaleFlagForRange(db, account, from, to, level);
+  } catch (err) {
+    if (!isIqd(account.currency)) return null;
+    console.error('[spend-evidence] evidence read failed — flagging the range as unverified and serving the data:', err instanceof Error ? err.message : err);
+    return flagFromWindow(unreadableWindow(account.currency, level, from == null ? null : isoDay(from), to == null ? null : isoDay(to)));
+  }
 }
 
 /** Header value for array-shaped reads, which cannot grow a key. */

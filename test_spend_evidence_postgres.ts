@@ -22,6 +22,9 @@
 //    5. stored recommendations: GET /recommendations withholds, says so, and keeps the rest
 //    6. the dashboard: priorityAction, drain, forecast, bleed, issues withheld — visibly
 //    7. the AI agent and the Brain
+//    8. review round 2 (SE-1, SE-2, SE-4, SE-5, SE-6): an IQD twin — verified vs unverified vs USD — through the real
+//       app: dashboard aiRecommendations + weeklyReport, GET /api/weekly-report/:ws, GET /recommendations with no
+//       stored row, the prior window, and a raw_insights that cannot be read
 // ═════════════════════════════════════════════════════════════════════════
 
 process.env['NODE_ENV'] = 'test';
@@ -431,6 +434,80 @@ async function main() {
   const withheldPayloads = brU.snaps.filter((s) => (s.payload as any)?.decision?.spendEvidence?.withheld === true);
   check('…each withheld one keeps the original verdict in payload.decision.overriddenAction + spendEvidence (visible, not silent), and the orchestrator result says so',
     withheldPayloads.length > 0 && withheldPayloads.every((s) => spendDep((s.payload as any).decision.overriddenAction) && (s.payload as any).decision.spendEvidence.reason === 'SPEND_SCALE_UNVERIFIED') && brU.res.spendEvidence?.reason === 'SPEND_SCALE_UNVERIFIED' && brV.res.spendEvidence === undefined && brD.res.spendEvidence === undefined, [brU.res.spendEvidence, withheldPayloads.length]);
+
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n── 8. review round 2: the advice paths the first gate missed — an IQD twin, verified vs unverified vs USD ──');
+  const REASON = 'SPEND_SCALE_UNVERIFIED';
+  const [dsU, dsV, dsD] = [await dash(bTU), await dash(bTV), await dash(bTD)];
+  const weekly = async (t: Tenant) => { const r = await quiet(() => get(`/api/weekly-report/${t.ws.id}`, t.token))(); return { r, body: (await r.json()) as any }; };
+  const [xU, xV, xD] = [await weekly(bTU), await weekly(bTV), await weekly(bTD)];
+  const cards = (b: any) => (b.aiRecommendations?.recommendations ?? []) as any[];
+  /** The cards without their campaign ids (a twin tenant has its own ids). */
+  const cardText = (b: any) => cards(b).map(({ campaignIds: _ids, ...c }) => c);
+  const advice = (b: any) => ({ recs: b?.recommendationsAr, delta: b?.delta, best: b?.bestCampaign && { n: b.bestCampaign.campaignName, p: b.bestCampaign.pattern, h: b.bestCampaign.healthScore, a: b.bestCampaign.action }, worst: b?.worstCampaign && { n: b.worstCampaign.campaignName, p: b.worstCampaign.pattern, a: b.worstCampaign.action }, brain: b?.brainActions });
+  check('all three dashboards and weekly-report routes answer 200', [dsU, dsV, dsD].every((b) => b.status === 200) && [xU, xV, xD].every((x) => x.r.status === 200), [dsU.status, dsV.status, dsD.status, xU.r.status, xV.r.status, xD.r.status]);
+
+  // SE-1 — dashboard aiRecommendations
+  check('SE-1 baseline: on VERIFIED IQD spend the winner gets the budget-increase card (det-scale, category scale)', cards(dsV.body).some((c) => c.id === 'det-scale' && c.category === 'scale' && /زِد ميزانيتها/.test(c.bodyAr)), cards(dsV.body).map((c) => c.id));
+  check('SE-1: the USD twin gets exactly the same cards as the verified IQD account, and neither carries a dataQuality key or a spendWithheld key', same(cardText(dsD.body), cardText(dsV.body)) && dsV.body.dataQuality === undefined && dsD.body.dataQuality === undefined && dsV.body.aiRecommendations?.spendWithheld === undefined && dsD.body.aiRecommendations?.spendWithheld === undefined, [cards(dsD.body).map((c) => c.id), cards(dsV.body).map((c) => c.id)]);
+  check('SE-1: on UNVERIFIED IQD spend the Brain gate held (no cost-based verdict) — and so now does the card: NO budget-increase card, no scale / pause / fix category at all',
+    !cards(dsU.body).some((c) => c.id === 'det-scale' || ['scale', 'pause', 'fix'].includes(c.category)) && !JSON.stringify(dsU.body.aiRecommendations).includes('زِد ميزانيتها'), cards(dsU.body));
+  check('SE-1: …the DTO and dataQuality.withheld both name it (aiRecommendations: det-scale), with the reason', dsU.body.aiRecommendations?.spendWithheld?.reason === REASON && dsU.body.aiRecommendations.spendWithheld.ids.includes('det-scale') && dsU.body.dataQuality?.withheld?.some((w: any) => w.surface === 'aiRecommendations' && w.reason === REASON && /det-scale/.test(w.detail ?? '')), [dsU.body.aiRecommendations?.spendWithheld, dsU.body.dataQuality?.withheld]);
+  check('SE-1: …the spend-free cards of the same payload are untouched (the unverified dashboard still has the watch card for the campaigns under observation)', cards(dsU.body).some((c) => c.category === 'watch') === cards(dsV.body).some((c) => c.category === 'watch'), [cards(dsU.body).map((c) => c.id), cards(dsV.body).map((c) => c.id)]);
+
+  // SE-2 — weekly report, embedded and served
+  check('SE-2 baseline: on VERIFIED IQD spend the report advises raising the best campaign\'s budget and carries the spend / cost-per-result changes', xV.body.recommendationsAr?.some((x: string) => x.includes('فكّر بزيادة ميزانيتها')) && xV.body.delta?.spendPct != null && xV.body.delta?.costPerResultPct != null && xV.body.dataQuality === undefined, advice(xV.body));
+  check('SE-2: the USD twin\'s report has the same advice, changes, highlights and Brain counts as the verified IQD one; no dataQuality, no header on either route', same(advice(xD.body), advice(xV.body)) && xD.body.dataQuality === undefined && dq(xV.r) === null && dq(xD.r) === null, [advice(xD.body), advice(xV.body)]);
+  check('SE-2: on UNVERIFIED spend the route answers 200 with X-Data-Quality: SPEND_SCALE_UNVERIFIED and the same flag in the body (CAMPAIGN level over the 7+7 days)', xU.r.status === 200 && dq(xU.r) === REASON && xU.body.dataQuality?.flags?.[0]?.code === REASON && xU.body.dataQuality.flags[0].level === 'CAMPAIGN' && xU.body.dataQuality.flags[0].of >= 10, [dq(xU.r), xU.body.dataQuality?.flags]);
+  check('SE-2: …no budget-increase / pause advice in recommendationsAr; the worst-campaign line is the creative-only one; the reason is stated', !xU.body.recommendationsAr?.some((x: string) => /فكّر بزيادة ميزانيتها|أوقفها|لحماية الميزانية/.test(x)) && xU.body.recommendationsAr?.some((x: string) => x.includes('جدّد إبداعها')) && xU.body.recommendationsAr?.some((x: string) => x.includes('محجوبة')), xU.body.recommendationsAr);
+  check('SE-2: …the spend and cost-per-result changes are null (results / CTR changes are not), pattern / healthScore / spend-dependent action of the highlights are withheld, the ranking is the verified one\'s',
+    xU.body.delta?.spendPct === null && xU.body.delta?.costPerResultPct === null && xU.body.delta?.resultsPct === xV.body.delta?.resultsPct && xU.body.bestCampaign?.pattern === null && xU.body.bestCampaign?.healthScore === null && xU.body.bestCampaign?.action !== 'SCALE_BUDGET' && xU.body.bestCampaign?.ctr === xV.body.bestCampaign?.ctr, advice(xU.body));
+  check('SE-2: the figures themselves are still shown as stored (the gate withholds advice and comparisons, not money)', xU.body.thisWeek?.spend === xV.body.thisWeek?.spend && xU.body.thisWeek?.spendDisplay === xV.body.thisWeek?.spendDisplay, [xU.body.thisWeek?.spendDisplay, xV.body.thisWeek?.spendDisplay]);
+  check('SE-2: the SAME report is inside the unverified dashboard (advice identical to the route\'s), and the dashboard lists each withheld part under surface weeklyReport',
+    same(dsU.body.weeklyReport?.recommendationsAr, xU.body.recommendationsAr) && dsU.body.weeklyReport?.dataQuality?.flags?.[0]?.code === REASON && ['recommendations', 'delta', 'campaignHighlights'].every((sf) => dsU.body.dataQuality?.withheld?.some((w: any) => w.surface === 'weeklyReport' && new RegExp(`^${sf}`).test(w.detail ?? ''))) && dsV.body.weeklyReport?.dataQuality === undefined, [dsU.body.weeklyReport?.recommendationsAr, dsU.body.dataQuality?.withheld]);
+
+  // SE-5a — GET /recommendations says the window is not clean although nothing is stored
+  const storedU = await prisma.recommendation.count({ where: { entityId: bTU.account.id } });
+  const rcU = await recsOf(bTU), rcV = await recsOf(bTV), rcD = await recsOf(bTD);
+  const rcUs = await recsOf(bTU, '?include=suppressed');
+  check('SE-5 precondition: the unverified tenant has NO stored recommendation (the engines declined to write one)', storedU === 0, storedU);
+  check('SE-5: GET /recommendations on it: 200, an empty list — AND X-Data-Quality: SPEND_SCALE_UNVERIFIED plus the withheld count header (0 stored rows suppressed)', rcU.r.status === 200 && same(rcU.body, []) && dq(rcU.r) === REASON && rcU.r.headers.get('x-recommendations-withheld') === '0', [rcU.r.status, rcU.body, dq(rcU.r), rcU.r.headers.get('x-recommendations-withheld')]);
+  check('SE-5: ?include=suppressed carries the window flag in the body too (dataQuality.flags) for a client that cannot read headers', rcUs.body.dataQuality?.flags?.[0]?.code === REASON && rcUs.body.dataQuality.spendWithheldCount === 0 && same(rcUs.body.recommendations, []), rcUs.body);
+  check('SE-5: the verified IQD twin and the USD twin send neither header', dq(rcV.r) === null && dq(rcD.r) === null && rcV.r.headers.get('x-recommendations-withheld') === null && rcD.r.headers.get('x-recommendations-withheld') === null, [dq(rcV.r), dq(rcD.r)]);
+
+  // SE-6 — an evidence read that fails must not 500 the data endpoints
+  const origQueryRaw = (prisma as any).$queryRaw.bind(prisma);
+  let rawBroken = false;
+  (prisma as any).$queryRaw = (q: any, ...v: any[]) => { const text = Array.isArray(q) ? q.join('?') : String(q?.strings?.join?.('?') ?? q); if (rawBroken && text.includes('raw_insights')) return Promise.reject(new Error('injected: raw_insights unreadable')); return origQueryRaw(q, ...v); };
+  const read = async (path: string, t: Tenant) => { const r = await quiet(() => get(path, t.token))(); const text = await r.text(); let body: any = null; try { body = JSON.parse(text); } catch { /* not JSON */ } return { r, body }; };
+  const [insOk, camOk] = [await read(`/api/workspaces/${bTV.ws.id}/insights?days=30`, bTV), await read(`/api/workspaces/${bTV.ws.id}/campaigns?days=30`, bTV)];
+  rawBroken = true;
+  const [insBr, camBr, recBr, dshBr, wkBr] = [
+    await read(`/api/workspaces/${bTV.ws.id}/insights?days=30`, bTV), await read(`/api/workspaces/${bTV.ws.id}/campaigns?days=30`, bTV),
+    await read(`/api/workspaces/${bTV.ws.id}/recommendations`, bTV), await read(`/api/dashboard/${bTV.ws.id}`, bTV), await read(`/api/weekly-report/${bTV.ws.id}`, bTV),
+  ];
+  const [insUsd, camUsd] = [await read(`/api/workspaces/${bTD.ws.id}/insights?days=30`, bTD), await read(`/api/workspaces/${bTD.ws.id}/campaigns?days=30`, bTD)];
+  rawBroken = false;
+  check('SE-6 control: with raw_insights readable, a verified IQD account\'s /insights and /campaigns answer 200 with no header', insOk.r.status === 200 && camOk.r.status === 200 && dq(insOk.r) === null && dq(camOk.r) === null && Array.isArray(insOk.body) && insOk.body.length > 0, [insOk.r.status, camOk.r.status]);
+  check('SE-6: with raw_insights UNREADABLE, /insights answers 200 (not 500), the same rows as before, and X-Data-Quality: SPEND_SCALE_UNVERIFIED — fail closed on the flag, open on the data', insBr.r.status === 200 && dq(insBr.r) === REASON && same(insBr.body, insOk.body), [insBr.r.status, dq(insBr.r)]);
+  check('SE-6: …and so does /campaigns', camBr.r.status === 200 && dq(camBr.r) === REASON && Array.isArray(camBr.body) && camBr.body.length === (camOk.body?.length ?? -1), [camBr.r.status, dq(camBr.r), camBr.body?.length, camOk.body?.length]);
+  check('SE-6: …/recommendations, the dashboard (flag + withheld) and the weekly report (flag, report still served) keep answering 200 and fail closed too',
+    recBr.r.status === 200 && dq(recBr.r) === REASON && dshBr.r.status === 200 && dshBr.body.dataQuality?.flags?.length >= 1 && wkBr.r.status === 200 && wkBr.body.dataQuality?.flags?.[0]?.unreadable === true && dq(wkBr.r) === REASON, [recBr.r.status, dq(recBr.r), dshBr.r.status, dshBr.body.dataQuality?.flags?.map((f: any) => f.code), wkBr.r.status, wkBr.body.dataQuality?.flags?.[0]]);
+  check('SE-6: a USD account never touches raw_insights, so it is unaffected', insUsd.r.status === 200 && camUsd.r.status === 200 && dq(insUsd.r) === null && dq(camUsd.r) === null);
+
+  // SE-4 — the prior window (the 30 days BEFORE the one the dashboard shows, which KPI deltas compare against)
+  const priorRows = (priorScale: number, priorRaw: RawMode): Row[] => Array.from({ length: 62 }, (_, i) => ({ ago: i + 1, spend: (i < 30 ? 1 : priorScale) * 100_000, raw: (i < 30 ? 'match' : priorRaw) as RawMode, messages: 10 }));
+  const pBad = await seed('prior-x100', { factor: 1, account: priorRows(100, 'none'), objective: 'MESSAGES' });
+  const pOk = await seed('prior-verified', { factor: 1, account: priorRows(1, 'match'), objective: 'MESSAGES' });
+  const pUsd = await seed('prior-usd', { currency: 'USD', factor: 100, account: priorRows(100, 'none'), objective: 'MESSAGES' });
+  const [dpB, dpO, dpU] = [await dash(pBad), await dash(pOk), await dash(pUsd)];
+  const priorFlag = (dpB.body.dataQuality?.flags ?? []).find((f: any) => f.window === 'prior');
+  check('SE-4: current 30 days verified, prior 30 days stored x100 with no raws → dataQuality carries a flag marked window "prior" (SPEND_SCALE_UNVERIFIED, 30 of 30 rows, its period listed), and NO current-window flag',
+    !!priorFlag && priorFlag.code === REASON && priorFlag.rows === 30 && priorFlag.of === 30 && priorFlag.periods?.length === 1 && priorFlag.periods[0].rows === 30 && /^prior window:/.test(priorFlag.message) && dpB.body.dataQuality.flags.length === 1, dpB.body.dataQuality);
+  check('SE-4: it gates nothing — nothing is withheld (current window verified), and the KPI deltas are still shown as stored (as documented), so the flag is the only warning', (dpB.body.dataQuality?.withheld ?? []).length === 0 && !!dpB.body.kpis?.find((k: any) => k.key === 'spend'), dpB.body.dataQuality?.withheld);
+  check('SE-4 control: the same account with a VERIFIED prior window has no dataQuality key at all; neither does the USD twin with the same unverified-looking prior rows', dpO.body.dataQuality === undefined && dpU.body.dataQuality === undefined, [dpO.body.dataQuality, dpU.body.dataQuality]);
+  check('SE-4: a current-window flag, when there is one, comes FIRST and is not marked prior (the unverified Brain-twin dashboard)', dsU.body.dataQuality?.flags?.[0]?.window === undefined && dsU.body.dataQuality?.flags?.[0]?.code === REASON, dsU.body.dataQuality?.flags);
 
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect();

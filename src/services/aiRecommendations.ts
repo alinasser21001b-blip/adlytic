@@ -16,6 +16,7 @@
 
 import type { PrismaClient } from '@prisma/client';
 import { generateStructured, isAIAvailable } from './ai/aiService';
+import { SPEND_SCALE_OVERSCALED, SPEND_SCALE_UNVERIFIED, type SpendGateReason } from '../lib/spendEvidence';
 
 export interface AIRecommendation {
   id: string;
@@ -31,11 +32,36 @@ export interface AIRecommendationsDTO {
   recommendations: AIRecommendation[];
   generatedAt: string;
   source: 'ai' | 'deterministic';
+  /**
+   * Present ONLY when a card was left out (or cut down) because the spend it rests on is not verified (IQD).
+   * `ids` names each card (det-scale, det-dying). Absent = nothing was withheld, the DTO is exactly as before.
+   * src/lib/spendEvidence.ts · delivery/core/SPEND_EVIDENCE_GATING.md
+   */
+  spendWithheld?: { reason: SpendGateReason; ids: string[] };
+}
+
+/**
+ * Pure. Did the Brain withhold this snapshot's verdict because its spend was unverified? Read from the payload
+ * the orchestrator stored (decision.spendEvidence), so it follows the CAMPAIGN-level window the Brain judged.
+ */
+export function snapshotSpendWithheld(payload: unknown): SpendGateReason | null {
+  const d = (payload as { decision?: { spendEvidence?: { withheld?: unknown; reason?: unknown } } } | null | undefined)?.decision?.spendEvidence;
+  if (!d || d.withheld !== true) return null;
+  return d.reason === SPEND_SCALE_OVERSCALED ? SPEND_SCALE_OVERSCALED : SPEND_SCALE_UNVERIFIED;
 }
 
 export async function computeAIRecommendations(
   prisma: PrismaClient,
   workspaceId: string,
+  opts: {
+    /**
+     * Set by the caller when the spend window the dashboard is built from is not verified (IQD). The patterns
+     * come from the Brain's physics score, which blends cost per message into EVERY verdict, so the scale and the
+     * pause / creative-refresh cards (the Brain's own spend-dependent verdicts) are left out and the AI narrative —
+     * handed those scores and free to answer with a budget move — is not used.
+     */
+    spendWithheld?: SpendGateReason | null;
+  } = {},
 ): Promise<AIRecommendationsDTO> {
   const since = daysAgo(7);
 
@@ -61,6 +87,29 @@ export async function computeAIRecommendations(
   }
 
   const patterns = analyzePatterns(snapshots);
+
+  // Spend gate: the caller's window verdict, and/or a verdict the Brain itself withheld for a campaign (its
+  // CAMPAIGN-level window can be unclean while the account-level one is clean).
+  const perCampaign = new Map<string, SpendGateReason>();
+  for (const s of snapshots) {
+    const r = snapshotSpendWithheld(s.payload);
+    if (r && !perCampaign.has(s.campaignId)) perCampaign.set(s.campaignId, r);
+  }
+  const gateReason: SpendGateReason | null = opts.spendWithheld
+    ?? ([...perCampaign.values()].includes(SPEND_SCALE_OVERSCALED) ? SPEND_SCALE_OVERSCALED : perCampaign.size > 0 ? SPEND_SCALE_UNVERIFIED : null);
+  if (gateReason) {
+    const everyCampaign = opts.spendWithheld != null;
+    const gated = withholdSpendDependentPatterns(patterns, everyCampaign ? null : new Set(perCampaign.keys()));
+    const full = buildDeterministicRecommendations(patterns);
+    const kept = buildDeterministicRecommendations(gated);
+    const ids = full.filter((r) => { const k = kept.find((x) => x.id === r.id); return !k || k.campaignIds.length !== r.campaignIds.length; }).map((r) => r.id);
+    return {
+      recommendations: kept,
+      generatedAt: new Date().toISOString(),
+      source: 'deterministic',
+      ...(ids.length > 0 && { spendWithheld: { reason: gateReason, ids } }),
+    };
+  }
 
   if (isAIAvailable()) {
     try {
@@ -161,6 +210,24 @@ function analyzePatterns(snapshots: Array<{
     criticalCount,
     highCount,
   };
+}
+
+/**
+ * Pure. A copy of the analysis without the campaigns whose scale / pause / creative-refresh card rests on unverified
+ * spend: the Brain verdicts it mirrors are SCALE_BUDGET (SCALABLE_BEAST) and REFRESH_CREATIVE / PAUSE_CAMPAIGN
+ * (DYING_CREATIVE), all withheld by the Brain itself on unverified spend. `only` = just those campaigns; null = all.
+ * The watch / optimize cards mirror HOLD_AND_MONITOR / KEEP_COLLECTING, which the Brain keeps, and stay.
+ */
+function withholdSpendDependentPatterns(p: PatternAnalysis, only: Set<string> | null): PatternAnalysis {
+  const strip = (g: PatternGroup): PatternGroup => {
+    const campaigns = g.campaigns.filter((c) => (only ? !only.has(c.campaignId) : false));
+    return {
+      ...g,
+      campaigns,
+      avgScore: campaigns.length > 0 ? Math.round(campaigns.reduce((a, c) => a + c.score, 0) / campaigns.length) : 0,
+    };
+  };
+  return { ...p, scalable: strip(p.scalable), dying: strip(p.dying) };
 }
 
 async function generateAIRecommendations(patterns: PatternAnalysis): Promise<AIRecommendation[]> {

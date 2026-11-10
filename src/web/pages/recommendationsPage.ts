@@ -46,6 +46,10 @@ export function recommendationsPage(): string {
     </button>
   </header>
 
+  <!-- Data-quality banner — unverified IQD spend (dashData.dataQuality); filled by renderDataQualityBanner.
+       An empty list below is not "nothing to do" while this is showing. -->
+  <div class="alert alert-warning" id="data-quality-banner" style="display:none;" role="status"></div>
+
   <!-- Measured context. Per-unit rows only — results of different kinds are
        never added together. -->
   <section class="rec-context" id="rec-context" style="display:none;" aria-label="نتائج حسابك">
@@ -635,6 +639,26 @@ export function recommendationsPage(): string {
     host.style.display = 'block';
   }
 
+  // Unverified IQD spend. The server (src/lib/spendEvidence.ts) decides which periods cannot be checked against raw
+  // Meta data and which advice it therefore withheld, and ships it as dashData.dataQuality (apiFetch hands a page the
+  // body, not the X-Data-Quality header); this only shows it. Server text is escaped, nothing is recomputed here.
+  function renderDataQualityBanner(d) {
+    var box = document.getElementById('data-quality-banner');
+    if (!box) return;
+    var dq = d && d.dataQuality;
+    // The prior-window flag is about KPI comparisons on the dashboard, not about advice.
+    var flags = (dq && Array.isArray(dq.flags) ? dq.flags : []).filter(function (f) { return f && f.window !== 'prior'; });
+    var withheld = (dq && Array.isArray(dq.withheld)) ? dq.withheld : [];
+    if (!flags.length && !withheld.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var lines = flags.map(function (f) { return '<div>' + escHtml(f.messageAr || '') + '</div>'; });
+    if (!lines.length) {
+      lines.push('<div>' + escHtml('حُجبت بعض التوصيات المبنية على الإنفاق لأن الإنفاق لم يُتحقق منه ببيانات Meta الخام.') + '</div>');
+    }
+    lines.push('<div style="font-size:12px;margin-top:2px;color:var(--text-2);">' + escHtml('قائمة التوصيات قد تكون ناقصة عمداً: التوصيات التي تعتمد على الإنفاق (الميزانية، الإيقاف، تكلفة النتيجة) لا تُعرض حتى يُتحقق منه.') + '</div>');
+    box.innerHTML = '<div style="flex:1;"><div style="font-weight:600;">' + escHtml('الإنفاق غير موثَّق') + '</div>' + lines.join('') + '</div>';
+    box.style.display = 'flex';
+  }
+
   function render() {
     var q = (document.getElementById('search-input').value || '').toLowerCase();
     var tasks = buildTasks();
@@ -786,6 +810,7 @@ export function recommendationsPage(): string {
       dashData = results[0] || {};
       flatRecs = Array.isArray(results[1]) ? results[1] : [];
       renderContext(dashData);
+      renderDataQualityBanner(dashData);
       render();
     } catch (e) {
       document.getElementById('issues-container').innerHTML =

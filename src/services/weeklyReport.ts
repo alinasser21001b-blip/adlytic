@@ -18,6 +18,11 @@ import { type PrismaClient, EntityType } from '@prisma/client';
 import { generateStructured, isAIAvailable } from './ai/aiService';
 import { resolveAccountResultKey } from '../analytics/accountResultKey';
 import { resolveCurrencyMinorFactor } from '../lib/currency';
+import {
+  BRAIN_SPEND_DEPENDENT_ACTIONS, SPEND_SCALE_OVERSCALED, SPEND_SCALE_UNVERIFIED,
+  addDaysIso, evaluateSpendWindow, flagFromWindow, isoDay, unreadableWindow,
+  type SpendGateReason, type SpendScaleFlag,
+} from '../lib/spendEvidence';
 
 export interface WeeklyMetrics {
   spend: number;
@@ -72,6 +77,18 @@ export interface WeeklyReportDTO {
   recommendationsAr: string[];
   generatedAt: string;
   source: 'ai' | 'deterministic';
+  /**
+   * Data-quality signal (additive; present ONLY when the 7+7 day window this report is computed from holds
+   * IQD spend that is unverified or proven x100 — never for another currency or a fully verified window).
+   * `flags` is the same SPEND_SCALE_* flag the data-health check uses, judged at CAMPAIGN level (the report
+   * sums campaign rows). `withheld` names each part of THIS report that was left out because of it. The
+   * absolute figures (spend, cpm, cost per result) are still shown as stored: the gate withholds advice and
+   * comparisons, it does not rewrite money. src/lib/spendEvidence.ts · delivery/core/SPEND_EVIDENCE_GATING.md
+   */
+  dataQuality?: {
+    flags: SpendScaleFlag[];
+    withheld: Array<{ surface: 'recommendations' | 'delta' | 'summary' | 'campaignHighlights'; reason: SpendGateReason; detail?: string }>;
+  };
 }
 
 export async function generateWeeklyReport(
@@ -143,6 +160,19 @@ export async function generateWeeklyReport(
 
   if (thisWeekStats.length === 0) return null;
 
+  // Spend evidence for EXACTLY the rows below: the 7 + 7 days, CAMPAIGN level (the report sums campaign rows).
+  // `date >= prevWeekStart && date < weekEnd` as the queries above read it, so the inclusive end is the day before
+  // weekEnd. IQD only; an unreadable read is treated as unverified (the report is still served, its advice is not).
+  const evidenceFrom = isoDay(prevWeekStart);
+  const evidenceTo = addDaysIso(isoDay(weekEnd), -1);
+  const evidence = await evaluateSpendWindow(prisma, account, evidenceFrom, evidenceTo, 'CAMPAIGN').catch((err) => {
+    console.warn('[weekly-report] spend evidence unreadable, treating the window as unverified:', err instanceof Error ? err.message : err);
+    return unreadableWindow(currency, 'CAMPAIGN', evidenceFrom, evidenceTo);
+  });
+  const spendGated = evidence.applies && !evidence.clean;
+  const spendReason: SpendGateReason = evidence.reason ?? SPEND_SCALE_UNVERIFIED;
+  const withheld: NonNullable<WeeklyReportDTO['dataQuality']>['withheld'] = [];
+
   // The account's single result column, or null when purposes mix — resolved
   // once, over the full two-week comparison window, and reused for both
   // weeks' aggregates so "this week" and "last week" are never accidentally
@@ -152,11 +182,25 @@ export async function generateWeeklyReport(
   const thisWeek = aggregateMetrics(thisWeekStats, factor, currency, resultKey);
   const lastWeek = aggregateMetrics(lastWeekStats, factor, currency, resultKey);
   const delta = computeDeltas(thisWeek, lastWeek);
+  // Spend and cost-per-result CHANGES compare two windows of unverified spend (across a x100 boundary they read
+  // as a 99 % swing): withheld. The results / CTR comparisons do not rest on spend and stay.
+  const spendPctBefore = delta.spendPct;
+  if (spendGated && (delta.spendPct != null || delta.costPerResultPct != null)) {
+    withheld.push({ surface: 'delta', reason: spendReason, detail: 'spendPct,costPerResultPct' });
+    delta.spendPct = null;
+    delta.costPerResultPct = null;
+  }
 
   const campaignPerformance = buildCampaignPerformance(thisWeekStats, snapshots, factor, nameMap, resultKey);
   const sorted = [...campaignPerformance].sort((a, b) => (b.ctr ?? 0) - (a.ctr ?? 0));
-  const bestCampaign = sorted[0] ?? null;
-  const worstCampaign = sorted.length > 1 ? sorted[sorted.length - 1]! : null;
+  // Best / worst are ranked by CTR (no spend in the ranking). What they carry from the Brain is another matter:
+  // the pattern and the health score are the physics score, which blends cost per message, and no gate touched
+  // them at their tick — withheld; a spend-dependent verdict left over from before the gate is withheld too.
+  const bestCampaign = gateHighlight(sorted[0] ?? null, spendGated);
+  const worstCampaign = gateHighlight(sorted.length > 1 ? sorted[sorted.length - 1]! : null, spendGated);
+  if (spendGated && (bestCampaign || worstCampaign)) {
+    withheld.push({ surface: 'campaignHighlights', reason: spendReason, detail: 'pattern,healthScore,action' });
+  }
 
   const activeCampaigns = campaigns.filter(c => c.status === 'ACTIVE').length;
   const pausedCampaigns = campaigns.filter(c => c.status === 'PAUSED').length;
@@ -167,7 +211,9 @@ export async function generateWeeklyReport(
   let recommendationsAr: string[];
   let source: 'ai' | 'deterministic' = 'deterministic';
 
-  if (isAIAvailable()) {
+  // The AI narrative is handed the spend figures and may answer with a budget or pause move; it cannot be
+  // post-checked, so an unverified window uses the deterministic builder, which knows what to leave out.
+  if (isAIAvailable() && !spendGated) {
     try {
       const aiResult = await generateAISummary({
         thisWeek, lastWeek, delta,
@@ -192,9 +238,13 @@ export async function generateWeeklyReport(
       thisWeek, lastWeek, delta,
       bestCampaign, worstCampaign,
       activeCampaigns, brainActions, currency,
-    });
+    }, spendGated ? spendReason : null);
     summaryAr = det.summaryAr;
     recommendationsAr = det.recommendationsAr;
+    if (spendGated) {
+      withheld.push({ surface: 'recommendations', reason: spendReason, detail: 'budget increase, pause, cost-per-result' });
+      if (spendPctBefore != null) withheld.push({ surface: 'summary', reason: spendReason, detail: 'spend trend sentence' });
+    }
   }
 
   return {
@@ -212,6 +262,22 @@ export async function generateWeeklyReport(
     recommendationsAr,
     generatedAt: now.toISOString(),
     source,
+    ...(spendGated && { dataQuality: { flags: [flagFromWindow(evidence)].filter((f): f is SpendScaleFlag => f !== null), withheld } }),
+  };
+}
+
+/**
+ * Pure. A best / worst campaign with what the Brain stored about it made safe for an unverified window: the
+ * pattern and the health score (the cost-blended physics score) are dropped, and so is a spend-dependent
+ * verdict. Not gated: returned untouched, the very same object.
+ */
+function gateHighlight(h: WeeklyCampaignHighlight | null, gated: boolean): WeeklyCampaignHighlight | null {
+  if (!h || !gated) return h;
+  return {
+    ...h,
+    healthScore: null,
+    pattern: null,
+    action: h.action != null && BRAIN_SPEND_DEPENDENT_ACTIONS.has(h.action) ? null : h.action,
   };
 }
 
@@ -347,7 +413,7 @@ function countBrainActions(snapshots: Array<{ action: string }>): WeeklyReportDT
   return counts;
 }
 
-interface SummaryInput {
+export interface SummaryInput {
   thisWeek: WeeklyMetrics;
   lastWeek: WeeklyMetrics;
   delta: WeeklyDelta;
@@ -391,7 +457,15 @@ async function generateAISummary(input: SummaryInput): Promise<{ summaryAr: stri
   return result.data;
 }
 
-function buildDeterministicSummary(input: SummaryInput): { summaryAr: string; recommendationsAr: string[] } {
+/**
+ * Pure. `spendWithheld` set = the window's spend is not verified: no budget-increase / pause advice, no sentence
+ * about the spend trend (the spend / cost comparisons are already null in `delta`), and a line that says so. The
+ * advice that does not rest on spend — refresh the creative of the weakest CTR, a drop in results — stays.
+ */
+export function buildDeterministicSummary(
+  input: SummaryInput,
+  spendWithheld: SpendGateReason | null = null,
+): { summaryAr: string; recommendationsAr: string[] } {
   const { thisWeek, delta, bestCampaign, worstCampaign, activeCampaigns, brainActions } = input;
 
   const parts: string[] = [];
@@ -415,19 +489,25 @@ function buildDeterministicSummary(input: SummaryInput): { summaryAr: string; re
   const summaryAr = parts.join('، ') + '.';
 
   const recs: string[] = [];
-  if (bestCampaign) {
+  if (bestCampaign && !spendWithheld) {
     recs.push(`حملة «${bestCampaign.campaignName}» هي الأفضل أداءً — فكّر بزيادة ميزانيتها.`);
   }
   if (worstCampaign && worstCampaign.campaignId !== bestCampaign?.campaignId) {
-    recs.push(`حملة «${worstCampaign.campaignName}» تحتاج مراجعة — جدّد إبداعها أو أوقفها مؤقتاً.`);
+    recs.push(spendWithheld
+      ? `حملة «${worstCampaign.campaignName}» تحتاج مراجعة — جدّد إبداعها.`
+      : `حملة «${worstCampaign.campaignName}» تحتاج مراجعة — جدّد إبداعها أو أوقفها مؤقتاً.`);
   }
-  if (brainActions.paused > 0) {
+  if (brainActions.paused > 0 && !spendWithheld) {
     recs.push(`تم إيقاف ${brainActions.paused} حملة تلقائياً هذا الأسبوع لحماية الميزانية.`);
   }
   if (delta.resultsPct != null && delta.resultsPct < -10) {
     recs.push(`انخفضت النتائج مقارنة بالأسبوع الماضي — راجع استهداف الجمهور وجودة الإبداعات.`);
   }
-  if (recs.length === 0) {
+  if (spendWithheld) {
+    recs.push(spendWithheld === SPEND_SCALE_OVERSCALED
+      ? `التوصيات المبنية على الإنفاق (زيادة الميزانية أو الإيقاف أو تكلفة النتيجة) محجوبة لهذا الأسبوع لأن الإنفاق في هذه الفترة مضخّم ×100 عن بيانات Meta الخام.`
+      : `التوصيات المبنية على الإنفاق (زيادة الميزانية أو الإيقاف أو تكلفة النتيجة) محجوبة لهذا الأسبوع لأن الإنفاق في هذه الفترة لم يُتحقق منه ببيانات Meta الخام.`);
+  } else if (recs.length === 0) {
     recs.push(`أداء حسابك مستقر — استمر في المراقبة وجرّب إبداعات جديدة لتحسين النتائج.`);
   }
 

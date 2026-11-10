@@ -161,6 +161,9 @@ export function dashboardPage(): string {
         <a href="/workspace" class="btn btn-primary btn-sm">إعادة الربط</a>
       </div>
 
+      <!-- Data-quality banner — unverified IQD spend (dashData.dataQuality); filled by renderDataQualityBanner -->
+      <div class="alert alert-warning" id="data-quality-banner" style="display:none;" role="status"></div>
+
       <!-- 0a ▸ Bleed alert — spending with zero results TODAY -->
       <section class="bleed-alert" id="bleed-alert" style="display:none;" dir="auto"></section>
 
@@ -2654,6 +2657,33 @@ export function dashboardPage(): string {
       return (primary && primary.decision) || '';
     }
   }
+  // Unverified IQD spend. The server (src/lib/spendEvidence.ts) decides which periods cannot be checked against raw
+  // Meta data and which advice it therefore withheld, and ships it as dashData.dataQuality; this only shows it, so
+  // an empty advice area is never read as "nothing to do". Server text is escaped, nothing is recomputed here.
+  function renderDataQualityBanner(dashData) {
+    var box = document.getElementById('data-quality-banner');
+    if (!box) return;
+    var dq = dashData && dashData.dataQuality;
+    var flags = (dq && Array.isArray(dq.flags)) ? dq.flags : [];
+    var withheld = (dq && Array.isArray(dq.withheld)) ? dq.withheld : [];
+    if (!flags.length && !withheld.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var lines = flags.map(function (f) { return '<div>' + escHtml(lbl(f.message, f.messageAr)) + '</div>'; });
+    if (!lines.length) {
+      lines.push('<div>' + escHtml(lbl(
+        'Some spend-based advice is withheld because the spend could not be verified against raw Meta data.',
+        'حُجبت بعض التوصيات المبنية على الإنفاق لأن الإنفاق لم يُتحقق منه ببيانات Meta الخام.'
+      )) + '</div>');
+    }
+    if (withheld.length) {
+      lines.push('<div style="font-size:12px;margin-top:2px;color:var(--text-2);">' + escHtml(lbl(
+        withheld.length + ' spend-based item(s) withheld from this page.',
+        'عدد المخرجات المبنية على الإنفاق المحجوبة من هذه الصفحة: ' + withheld.length
+      )) + '</div>');
+    }
+    box.innerHTML = '<div style="flex:1;"><div style="font-weight:600;">' + escHtml(lbl('Spend is not verified', 'الإنفاق غير موثَّق')) + '</div>' + lines.join('') + '</div>';
+    box.style.display = 'flex';
+  }
+
   function renderBleedAlert(dashData) {
     var box = document.getElementById('bleed-alert');
     if (!box) return;
@@ -3587,6 +3617,7 @@ export function dashboardPage(): string {
     var tw = report.thisWeek || {};
     var lw = report.lastWeek || {};
     var d = report.delta || {};
+    var spendWithheld = !!(report.dataQuality && Array.isArray(report.dataQuality.flags) && report.dataQuality.flags.length);
 
     function deltaChip(val, goodWhenUp) {
       if (val == null) return '';
@@ -3662,9 +3693,10 @@ export function dashboardPage(): string {
             + '<span>' + lbl('Spend', 'إنفاق') + ' <b>' + escHtml(String(best.spend || '—')) + '</b></span>'
             + '<span>' + lbl('Results', 'نتائج') + ' <b>' + escHtml(String(best.results || '—')) + '</b></span>'
           + '</div>'
-          + '<a class="weekly-highlight-action best-action" href="/ai?q=' + encodeURIComponent('زيادة ميزانية حملة ' + (best.campaignName || '')) + '">'
+          // "Scale this" is a budget move: not offered while the report's own spend is unverified (report.dataQuality).
+          + (spendWithheld ? '' : '<a class="weekly-highlight-action best-action" href="/ai?q=' + encodeURIComponent('زيادة ميزانية حملة ' + (best.campaignName || '')) + '">'
             + lbl('Scale this', 'وسّع هذه') + ' 📈'
-          + '</a>'
+          + '</a>')
         + '</div>';
       }
       if (worst && (!best || worst.campaignId !== best.campaignId)) {
@@ -4121,6 +4153,7 @@ export function dashboardPage(): string {
       // previously re-declared it and re-ran renderMainMove, so the decision
       // card was built twice on every load — one wasted full render pass.
       safeRender('commandCenter', function () { renderCommandCenter(dashData); });
+      safeRender('dataQuality', function () { renderDataQualityBanner(dashData); });
       safeRender('bleedAlert', function () { renderBleedAlert(dashData); });
       safeRender('morningStory', function () { renderMorningStory(dashData); });
       safeRender('insightStrip', function () { renderInsightStrip(dashData); });

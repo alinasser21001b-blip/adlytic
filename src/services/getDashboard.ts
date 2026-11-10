@@ -109,12 +109,13 @@ import type { IssueRecord } from "../repositories/detectedIssuesRepo";
 import { issueEvidenceFieldsFromJson } from "../analytics/evidence";
 import { attributeChange, type Attribution } from "../engines/analytics/attributeChange";
 import {
+  addDaysIso,
   evaluateSpendWindow,
   flagFromWindow,
-  isIqd,
+  isoDay,
   isSpendDependentIssueCode,
-  notApplicable,
   partitionRecommendationsBySpendEvidence,
+  unreadableWindow,
   withholdSpendDerivedMetrics,
   SPEND_SCALE_UNVERIFIED,
   type SpendGateReason,
@@ -432,16 +433,18 @@ export interface DashboardDTO {
   weeklyReport?: WeeklyReportDTO;
 
   /**
-   * Data-quality signal (additive; present ONLY when the 30-day window holds IQD spend that
-   * is unverified or proven ×100 — never for another currency or a fully verified window).
-   * `flags` carries the same SPEND_SCALE_UNVERIFIED / SPEND_SCALE_OVERSCALED code the
-   * data-health check uses, for this read's window. `withheld` names every spend-dependent
-   * surface of THIS dashboard that was left out because of it — none is silent.
+   * Data-quality signal (additive; present ONLY when the 30-day window — or the 30 days BEFORE it, which the
+   * KPI deltas are computed against, or the 7+7 day weekly-report window — holds IQD spend that is unverified
+   * or proven ×100, or a surface was withheld for it. Never for another currency or a fully verified account).
+   * `flags` carries the same SPEND_SCALE_UNVERIFIED / SPEND_SCALE_OVERSCALED code the data-health check uses:
+   * the window of this read first, then the prior one marked `window: 'prior'` (shown as stored; only the
+   * comparison against it is in doubt). `withheld` names every spend-dependent surface of THIS dashboard that
+   * was left out because of it — none is silent.
    * src/lib/spendEvidence.ts · delivery/core/SPEND_EVIDENCE_GATING.md
    */
   dataQuality?: {
     flags: SpendScaleFlag[];
-    withheld: Array<{ surface: "priorityAction" | "issues" | "knowledgeBase" | "drain" | "forecast" | "bleedAlert" | "steadyState" | "predictions"; reason: SpendGateReason; detail?: string }>;
+    withheld: Array<{ surface: "priorityAction" | "issues" | "knowledgeBase" | "drain" | "forecast" | "bleedAlert" | "steadyState" | "predictions" | "aiRecommendations" | "weeklyReport"; reason: SpendGateReason; detail?: string }>;
   };
 }
 
@@ -869,11 +872,8 @@ function dimensionLabel(key: string, ar: boolean): string {
 }
 
 /** The verdict used when the evidence cannot be read: an IQD window is then NOT clean (never shown on a guess). */
-function spendEvidenceUnreadable(currency: string, since: Date): SpendWindowEvidence {
-  const from = since.toISOString().slice(0, 10);
-  return isIqd(currency)
-    ? { applies: true, level: 'ACCOUNT', from, to: null, rows: 0, verified: 0, overscaled: 0, unverified: 0, clean: false, reason: SPEND_SCALE_UNVERIFIED, periods: [] }
-    : notApplicable('ACCOUNT', from, null);
+function spendEvidenceUnreadable(currency: string, since: Date, to: string | null = null): SpendWindowEvidence {
+  return unreadableWindow(currency, 'ACCOUNT', since.toISOString().slice(0, 10), to);
 }
 
 export async function getDashboard(
@@ -921,7 +921,7 @@ export async function getDashboard(
   const priorSinceDate = accountLocalDateFloor(account.timezone, windowDays * 2);
 
   // 2. Independent account reads in parallel (biggest latency win).
-  const [allDaily, healthRow, detected, latestTrend, recStored, accountFunnel, spendWindow] = await Promise.all([
+  const [allDaily, healthRow, detected, latestTrend, recStored, accountFunnel, spendWindow, priorSpendWindow] = await Promise.all([
     timedStage('accountDailyStats', () =>
       prisma.dailyStat.findMany({
         where: { entityType: EntityType.ACCOUNT, entityId: account.id, date: { gte: priorSinceDate } },
@@ -965,6 +965,12 @@ export async function getDashboard(
     // the spend-dependent surfaces are withheld, never shown on a guess.
     softStage('spendEvidence', spendEvidenceUnreadable(account.currency, sinceDate), () =>
       evaluateSpendWindow(prisma, account, sinceDate, null, 'ACCOUNT').catch(() => spendEvidenceUnreadable(account.currency, sinceDate)),
+    ),
+    // …and for the window BEFORE it, which the KPI deltas (deltaPct) are computed against. It gates nothing — the
+    // advice below rests on the current window — it only lets `dataQuality` say that a comparison is in doubt.
+    softStage('spendEvidencePrior', spendEvidenceUnreadable(account.currency, priorSinceDate, addDaysIso(isoDay(sinceDate), -1)), () =>
+      evaluateSpendWindow(prisma, account, priorSinceDate, addDaysIso(isoDay(sinceDate), -1), 'ACCOUNT')
+        .catch(() => spendEvidenceUnreadable(account.currency, priorSinceDate, addDaysIso(isoDay(sinceDate), -1))),
     ),
   ]);
 
@@ -1511,7 +1517,7 @@ export async function getDashboard(
       }),
     ),
     softStage('aiRecommendations', null, () =>
-      computeAIRecommendations(prisma, ws.id).catch((err) => {
+      computeAIRecommendations(prisma, ws.id, { spendWithheld: spendGated ? spendReason : null }).catch((err) => {
         console.warn('[dashboard] aiRecommendations failed:', err);
         return null;
       }),
@@ -1529,6 +1535,14 @@ export async function getDashboard(
       }),
     ),
   ]);
+
+  // The AI-recommendation cards and the weekly report say for themselves what they left out; the dashboard lists it.
+  if (aiRecommendations?.spendWithheld) {
+    spendWithheldSurfaces.push({ surface: "aiRecommendations", reason: aiRecommendations.spendWithheld.reason, detail: aiRecommendations.spendWithheld.ids.join(",") });
+  }
+  for (const w of weeklyReport?.dataQuality?.withheld ?? []) {
+    spendWithheldSurfaces.push({ surface: "weeklyReport", reason: w.reason, ...(w.detail ? { detail: `${w.surface}: ${w.detail}` } : {}) });
+  }
 
   // accountIntelligence / accountFunnel: computed earlier now (right after
   // the first Promise.all, alongside the detected_issues suppression filter)
@@ -1819,6 +1833,18 @@ export async function getDashboard(
         source: 'legacy' as const,
       };
 
+  // dataQuality: only when something is in doubt — the current window (spendGated), the prior one the KPI deltas
+  // compare against, or the weekly report's own 7+7 day window — or a surface was withheld for it. A fully
+  // verified IQD account and every non-IQD account carry no key at all.
+  const dataQualityFlags = [
+    flagFromWindow(spendWindow),
+    flagFromWindow(priorSpendWindow, { prior: true }),
+  ].filter((f): f is SpendScaleFlag => f !== null);
+  if (dataQualityFlags.length === 0) dataQualityFlags.push(...(weeklyReport?.dataQuality?.flags ?? []));
+  const dataQuality = dataQualityFlags.length > 0 || spendWithheldSurfaces.length > 0
+    ? { flags: dataQualityFlags, withheld: spendWithheldSurfaces }
+    : undefined;
+
   return {
     workspace: {
       id: ws.id,
@@ -1867,9 +1893,7 @@ export async function getDashboard(
     ...(predictionsOut && { predictions: predictionsOut }),
     ...(aiRecommendations && { aiRecommendations }),
     ...(weeklyReport && { weeklyReport }),
-    ...(spendGated && {
-      dataQuality: { flags: [flagFromWindow(spendWindow)].filter((f): f is SpendScaleFlag => f !== null), withheld: spendWithheldSurfaces },
-    }),
+    ...(dataQuality && { dataQuality }),
   };
 }
 
