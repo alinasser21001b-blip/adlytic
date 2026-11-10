@@ -15,10 +15,10 @@
 // ═════════════════════════════════════════════════════════════════════════
 
 import { spawnSync } from 'node:child_process';
-import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { gunzipSync } from 'node:zlib';
+import { gunzipSync, gzipSync } from 'node:zlib';
 
 let pass = 0;
 let fail = 0;
@@ -38,7 +38,7 @@ const work = mkdtempSync(path.join(tmpdir(), 'adlytic-backup-test-'));
 const binDir = path.join(work, 'bin');            // the tools the script may use — and no pg_dump, npx or prisma
 const shimDir = path.join(work, 'shims');         // pg_dump / npx / prisma / pg_restore / psql shims
 mkdirSync(binDir); mkdirSync(shimDir);
-for (const t of ['bash', 'sh', 'env', 'sed', 'tail', 'head', 'grep', 'gzip', 'gunzip', 'cat', 'rm', 'mv', 'mkdir', 'mktemp', 'date', 'ls', 'awk', 'dirname', 'basename', 'cut', 'tr', 'wc', 'chmod', 'cp', 'true', 'false']) {
+for (const t of ['bash', 'sh', 'env', 'sed', 'tail', 'head', 'grep', 'gzip', 'gunzip', 'cat', 'rm', 'mv', 'mkdir', 'mktemp', 'date', 'ls', 'awk', 'dirname', 'basename', 'cut', 'tr', 'wc', 'chmod', 'cp', 'true', 'false', 'printf', 'od']) {
   const r = spawnSync('sh', ['-c', `command -v ${t}`], { encoding: 'utf8' });
   const p = r.stdout.trim();
   if (p) symlinkSync(p, path.join(binDir, t));
@@ -46,7 +46,13 @@ for (const t of ['bash', 'sh', 'env', 'sed', 'tail', 'head', 'grep', 'gzip', 'gu
 const SHIM_LOG = path.join(work, 'shim.log');
 const shim = (name: string, body: string) => { const f = path.join(shimDir, name); writeFileSync(f, `#!/bin/bash\n${body}\n`); chmodSync(f, 0o755); };
 shim('pg_dump', `
-{ echo "ARGS:$*"; echo "ENV:PGHOST=$PGHOST PGPORT=$PGPORT PGUSER=$PGUSER PGDATABASE=$PGDATABASE PGSSLMODE=\${PGSSLMODE:-}"; echo "PASSWORD_SET:\${PGPASSWORD:+yes}"; echo "PASSWORD_VALUE:\${PGPASSWORD:-}"; } >> "$SHIM_LOG"
+hex=""; for ((i = 0; i < \${#PGPASSWORD}; i++)); do printf -v x '%02x' "'\${PGPASSWORD:i:1}"; hex+=$x; done
+{ echo "ARGS:$*"; echo "ENV:PGHOST=$PGHOST PGPORT=$PGPORT PGUSER=$PGUSER PGDATABASE=$PGDATABASE PGSSLMODE=\${PGSSLMODE:-}"; echo "PASSWORD_SET:\${PGPASSWORD:+yes}"; echo "PASSWORD_VALUE:\${PGPASSWORD:-}"; echo "PASSWORD_HEX:$hex"; echo "USER_HEX:$(printf '%s' "$PGUSER" | od -An -tx1 | tr -d ' \\n')"; } >> "$SHIM_LOG"
+if [ -f "$DUMP_DIR/$SHIM_MODE.sql" ]; then                 # data-driven modes: the exact bytes pg_dump writes, what it says on stderr, and how it exits
+  cat "$DUMP_DIR/$SHIM_MODE.sql"
+  if [ -f "$DUMP_DIR/$SHIM_MODE.err" ]; then e="$(cat "$DUMP_DIR/$SHIM_MODE.err")"; e="\${e//@USER@/$PGUSER}"; e="\${e//@PASS@/$PGPASSWORD}"; echo "$e" >&2; fi
+  exit "$(cat "$DUMP_DIR/$SHIM_MODE.exit")"
+fi
 case "$SHIM_MODE" in
   ok)        printf -- '-- PostgreSQL database dump\\nCREATE TABLE t (id int);\\nCOPY t FROM stdin;\\n1\\n\\\\.\\n-- PostgreSQL database dump complete\\n'; exit 0;;
   fail)      echo "pg_dump: error: connection to server failed: FATAL:  no pg_hba.conf entry" >&2; exit 1;;
@@ -56,15 +62,73 @@ case "$SHIM_MODE" in
   echopass)  echo "pg_dump: error: password authentication failed (password was: $PGPASSWORD)" >&2; exit 1;;
 esac
 exit 3`);
+// gzip: delegates to the real one, except that it can damage the stream it WRITES (flip a byte, drop the trailer, append garbage),
+// or claim that `gzip -t` fails (GZIP_MODE=lie_t: the only way to tell the -t check apart from the decompress-and-read-it check)
+shim('gzip', `
+case " $* " in
+  *" -t "*) if [ "\${GZIP_MODE:-}" = lie_t ]; then echo "gzip: shim says the stream is corrupt" >&2; exit 1; fi; exec "$REAL_GZIP" "$@";;
+  *" -d"*|*" -c "*)   # GZIP_DEC_FAIL_AFTER=N: the (N+1)th decompression dies half-way (a file that changed or a read error AFTER it was verified)
+    if [ -n "\${GZIP_DEC_FAIL_AFTER:-}" ]; then n=$(( $(cat "$GZIP_COUNTER" 2>/dev/null || echo 0) + 1 )); echo "$n" > "$GZIP_COUNTER"
+      if [ "$n" -gt "$GZIP_DEC_FAIL_AFTER" ]; then "$REAL_GZIP" "$@" | head -c 100; echo "gzip: shim: read error" >&2; exit 1; fi; fi
+    exec "$REAL_GZIP" "$@";;
+esac
+if [ -n "\${GZIP_MODE:-}" ] && [ "$GZIP_MODE" != lie_t ]; then exec "$NODE_BIN" "$DAMAGE_JS" "$GZIP_MODE"; fi
+exec "$REAL_GZIP" "$@"`);
 shim('date', 'echo 20260101_000000');                     // a fixed clock: two runs in the "same second"
 shim('npx', 'echo "npx $*" >> "$SHIM_LOG_CALLS"; exit 0');
 shim('prisma', 'echo "prisma $*" >> "$SHIM_LOG_CALLS"; exit 0');
-shim('psql', 'echo "psql $*" >> "$SHIM_LOG_CALLS"; exit 0');
+shim('psql', 'echo "psql $*" >> "$SHIM_LOG_CALLS"; if [ -n "${PSQL_STDIN_LOG:-}" ]; then cat > "$PSQL_STDIN_LOG"; fi; exit "${PSQL_EXIT:-0}"');
 const CALLS_LOG = path.join(work, 'calls.log');
+
+// ── fixtures: what a pg_dump writes, byte for byte (modes of the shim above) ──
+// A real pg_dump 16 ends   `--` / `-- PostgreSQL database dump complete` / `--` / blank / `\unrestrict <key>` / blank.
+const MARK = '-- PostgreSQL database dump complete';
+const KEY = 'Zk3Qm9Wr7TbXc2Lp';
+const TOP = `--\n-- PostgreSQL database dump\n--\n\n\\restrict ${KEY}\n\nCREATE TABLE public.t (id integer);\n\nCOPY public.t (id) FROM stdin;\n1\n2\n\\.\n\n`;
+const END_NEW = `\n--\n${MARK}\n--\n\n\\unrestrict ${KEY}\n\n`;     // pg_dump >= the 2025-08 minor releases
+const END_OLD = `\n--\n${MARK}\n--\n\n`;                         // older pg_dump: no \unrestrict
+const dumps: Record<string, { sql: string; exit?: number; err?: string }> = {
+  // accepted: a complete dump
+  real_trailer:        { sql: TOP + END_NEW },
+  old_trailer:         { sql: TOP + END_OLD },
+  marker_row_but_closed: { sql: `${TOP}CREATE TABLE public.n (note text);\n\nCOPY public.n (note) FROM stdin;\n${MARK}\n\\.\n${END_NEW}` },   // a table whose ROW is the marker text, COPY closed, dump complete: must not be refused
+  // refused: pg_dump exits 0, the stream is not a complete dump — every one of them has the marker text in it
+  cut_marker_row_open_copy: { sql: `${TOP}COPY public.n (note) FROM stdin;\nrow 1\n${MARK}\n` },                    // one-column table, a row that IS the marker, cut right there: a line-anchored check alone accepts it
+  cut_marker_row_then_rows: { sql: `${TOP}COPY public.n (id, note) FROM stdin;\n1\tx\n2\t${MARK}\n3\ty\n4\tz\n` },    // marker inside the last 5 lines, mid-table
+  cut_marker_substring:     { sql: `${TOP}COPY public.n (id, note) FROM stdin;\n1\tx\n2\tfoo ${MARK} bar\n` },
+  cut_after_marker_stuff:   { sql: `${TOP}SELECT 1;\n${END_OLD}SELECT 2;\nSELECT 3;\n` },                              // a marker mid-stream, 4 lines before the cut
+  cut_after_marker_far:     { sql: `${TOP}SELECT 1;\n${END_OLD}SELECT 2;\nSELECT 3;\nSELECT 4;\nSELECT 5;\nSELECT 6;\nSELECT 7;\nSELECT 8;\n` },   // …and 8 lines
+  garbage_after_complete:   { sql: `${TOP}${END_NEW}DROP TABLE public.users;\n` },
+  second_dump_cut:          { sql: `${TOP}${END_NEW}COPY public.u (a) FROM stdin;\nx\n` },
+  // refused: pg_dump itself reports a failure
+  complete_then_exit1:      { sql: TOP + END_NEW, exit: 1, err: 'pg_dump: error: connection to the server was lost' },
+  // messages that name the user and the password (a libpq that says who failed; a build that echoes the password)
+  auth_failed:    { sql: '', exit: 1, err: 'pg_dump: error: connection to server at "db.example.invalid" (10.0.0.9), port 6543 failed: FATAL:  password authentication failed for user "@USER@"' },
+  role_missing:   { sql: '', exit: 1, err: 'pg_dump: error: connection to server at "db.example.invalid" (10.0.0.9), port 6543 failed: FATAL:  role "@USER@" does not exist' },
+  echo_both:      { sql: '', exit: 1, err: 'pg_dump: error: could not connect as @USER@ with password @PASS@ (user=@USER@ password=@PASS@)' },
+};
+const DUMP_DIR = path.join(work, 'dumps');
+mkdirSync(DUMP_DIR);
+for (const [name, d] of Object.entries(dumps)) {
+  writeFileSync(path.join(DUMP_DIR, `${name}.sql`), d.sql);
+  writeFileSync(path.join(DUMP_DIR, `${name}.exit`), String(d.exit ?? 0));
+  if (d.err !== undefined) writeFileSync(path.join(DUMP_DIR, `${name}.err`), d.err);
+}
+// the stream the gzip shim writes when it is told to damage it (stdin = what pg_dump wrote)
+const DAMAGE_JS = path.join(work, 'damage.js');
+writeFileSync(DAMAGE_JS, `const zlib = require('zlib'); const mode = process.argv[2]; const chunks = [];
+process.stdin.on('data', (c) => chunks.push(c));
+process.stdin.on('end', () => { let z = zlib.gzipSync(Buffer.concat(chunks));
+  if (mode === 'flip') z[Math.floor(z.length / 2)] ^= 0x40;
+  else if (mode === 'notrailer') z = z.subarray(0, z.length - 8);
+  else if (mode === 'garbage') z = Buffer.concat([z, Buffer.from('trailing-garbage')]);
+  else if (mode === 'truncate') z = z.subarray(0, Math.floor(z.length * 0.6));
+  process.stdout.write(z); });\n`);
+const REAL_GZIP = spawnSync('sh', ['-c', 'command -v gzip'], { encoding: 'utf8' }).stdout.trim();
 
 interface Run { status: number | null; out: string; err: string; all: string; files: string[]; dir: string; shimLog: string; calls: string }
 let seq = 0;
-function run(opts: { env?: string | null; mode?: string; noPgDump?: boolean; extraEnv?: Record<string, string>; before?: (dir: string) => void }): Run {
+function run(opts: { env?: string | null; mode?: string; noPgDump?: boolean; extraEnv?: Record<string, string>; before?: (dir: string) => void; args?: string[]; cwd?: string }): Run {
   const dir = path.join(work, `case${++seq}`);
   mkdirSync(dir);
   const script = path.join(dir, 'backup_database.command');
@@ -77,9 +141,10 @@ function run(opts: { env?: string | null; mode?: string; noPgDump?: boolean; ext
   const noPgDir = path.join(work, 'shims_no_pgdump');
   if (opts.noPgDump && !existsSync(noPgDir)) { mkdirSync(noPgDir); for (const n of ['npx', 'prisma', 'psql']) symlinkSync(path.join(shimDir, n), path.join(noPgDir, n)); }
   const env: Record<string, string> = {
-    PATH: opts.noPgDump ? `${noPgDir}:${binDir}` : pathVar, HOME: work, TMPDIR: work, SHIM_MODE: opts.mode ?? 'ok', SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG, ...(opts.extraEnv ?? {}),
+    PATH: opts.noPgDump ? `${noPgDir}:${binDir}` : pathVar, HOME: work, TMPDIR: work, SHIM_MODE: opts.mode ?? 'ok', SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG,
+    DUMP_DIR, REAL_GZIP, NODE_BIN: process.execPath, DAMAGE_JS, GZIP_COUNTER: path.join(work, 'gzip.counter'), ...(opts.extraEnv ?? {}),
   };
-  const r = spawnSync(path.join(binDir, 'bash'), [script], { cwd: dir, env, encoding: 'utf8', timeout: 60_000 });
+  const r = spawnSync(path.join(binDir, 'bash'), [script, ...(opts.args ?? [])], { cwd: opts.cwd ?? dir, env, encoding: 'utf8', timeout: 60_000 });
   const bdir = path.join(dir, 'backups');
   return {
     status: r.status, out: r.stdout ?? '', err: r.stderr ?? '', all: `${r.stdout ?? ''}${r.stderr ?? ''}`,
@@ -158,12 +223,235 @@ const keep = (d: string) => { mkdirSync(path.join(d, 'backups')); writeFileSync(
 r = run({ env: dotenv(), mode: 'fail', before: keep });
 check('a failed run leaves the earlier backup exactly as it was, and removes only its own partial file', r.files.length === 1 && r.files[0] === 'adlytic_backup_older.sql.gz' && readFileSync(path.join(r.dir, 'backups', 'adlytic_backup_older.sql.gz'), 'utf8') === 'previous good backup', r.files);
 const a = run({ env: dotenv(), mode: 'ok' });
-const b = spawnSync(path.join(binDir, 'bash'), [path.join(a.dir, 'backup_database.command')], { cwd: a.dir, env: { PATH: `${shimDir}:${binDir}`, HOME: work, TMPDIR: work, SHIM_MODE: 'ok', SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG }, encoding: 'utf8' });
+const b = spawnSync(path.join(binDir, 'bash'), [path.join(a.dir, 'backup_database.command')], { cwd: a.dir, env: { PATH: `${shimDir}:${binDir}`, HOME: work, TMPDIR: work, SHIM_MODE: 'ok', SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG, DUMP_DIR, REAL_GZIP, NODE_BIN: process.execPath, DAMAGE_JS }, encoding: 'utf8' });
 const both = readdirSync(path.join(a.dir, 'backups')).sort();
 check('two successful runs in the SAME second (fixed clock) produce two distinct files — the first is not overwritten', a.status === 0 && b.status === 0 && JSON.stringify(both) === JSON.stringify(['adlytic_backup_20260101_000000.sql.gz', 'adlytic_backup_20260101_000000_1.sql.gz']), both);
 
-// ── 6. the default output directory holds the whole customer database: never committed, never in the image ──
-console.log('\n── 6. everything the script can create in its default directory is ignored by git and by docker ──');
+// ── 6. "complete" means the dump ENDS with pg_dump's marker, not that the marker text occurs near the end ──
+console.log('\n── 6. a dump is complete only if it ENDS with pg_dump\'s completion marker ──');
+const readBackup = (x: Run) => gunzipSync(readFileSync(path.join(x.dir, 'backups', x.files[0]!))).toString();
+for (const [label, mode] of [
+  ['a real pg_dump 16 ending: marker, --, blank, \\unrestrict <key>, blank', 'real_trailer'],
+  ['an older pg_dump ending: marker, --, blank (no \\unrestrict)', 'old_trailer'],
+  ['a table with a ROW that is the marker text, COPY closed, dump complete (must not be refused)', 'marker_row_but_closed'],
+] as const) {
+  r = run({ env: dotenv(), mode });
+  check(`accepted: ${label}`, r.status === 0 && /Backup complete/.test(r.out) && r.files.length === 1 && r.files[0]!.endsWith('.sql.gz') && readBackup(r) === dumps[mode]!.sql, [r.status, r.files, r.all.slice(-200)]);
+}
+for (const [label, mode] of [
+  ['the marker text is the LAST LINE but it is a row of an unfinished COPY (one-column table, cut right there)', 'cut_marker_row_open_copy'],
+  ['the marker text is a data row with 2 more rows after it, inside the last 5 lines', 'cut_marker_row_then_rows'],
+  ['the marker text is inside a data cell (a substring of the last line)', 'cut_marker_substring'],
+  ['a real-looking ending in the MIDDLE of the stream, 4 lines before the cut', 'cut_after_marker_stuff'],
+  ['…and 8 lines before the cut', 'cut_after_marker_far'],
+  ['a complete dump followed by more SQL (the marker is not the end)', 'garbage_after_complete'],
+  ['a complete dump followed by the start of another COPY that never ends', 'second_dump_cut'],
+] as const) {
+  r = run({ env: dotenv(), mode });
+  check(`refused (pg_dump exits 0): ${label}`, r.status !== null && r.status !== 0 && !/Backup complete/.test(r.all) && r.files.length === 0 && /incomplete/.test(r.err) && /no backup was written/i.test(r.err), [r.status, r.files, r.all.slice(-200)]);
+}
+
+// ── 7. the gzip stream is verified, and pg_dump's exit status counts even when the stream looks complete ──
+console.log('\n── 7. a damaged gzip, or a pg_dump that failed after writing a complete-looking dump, is refused ──');
+for (const [label, gz] of [['one byte flipped in the middle', 'flip'], ['the 8-byte CRC/length trailer missing', 'notrailer'], ['garbage appended after the stream', 'garbage'], ['cut at 60%', 'truncate']] as const) {
+  r = run({ env: dotenv(), mode: 'real_trailer', extraEnv: { GZIP_MODE: gz } });
+  check(`refused: gzip output with ${label} (the dump itself is complete)`, r.status !== null && r.status !== 0 && !/Backup complete/.test(r.all) && r.files.length === 0 && /not a valid gzip/.test(r.err), [r.status, r.files, r.err.slice(-200)]);
+}
+r = run({ env: dotenv(), mode: 'real_trailer', extraEnv: { GZIP_MODE: 'lie_t' } });
+check('refused: `gzip -t` reports the stream corrupt (decompressing it still works): the verdict of gzip -t is honoured', r.status !== null && r.status !== 0 && r.files.length === 0 && /not a valid gzip/.test(r.err), [r.status, r.files, r.err]);
+r = run({ env: dotenv(), mode: 'complete_then_exit1' });
+check('refused: pg_dump writes a COMPLETE dump (marker and all) and then exits 1 — pipefail, not the stream, decides', r.status !== null && r.status !== 0 && !/Backup complete/.test(r.all) && r.files.length === 0 && /pg_dump failed/.test(r.err), [r.status, r.files, r.err]);
+
+// ── 8. nothing that identifies the login is printed: not the password in any form, not the user name ──
+console.log('\n── 8. no part of the password and not the user name is printed, whatever shape of URL carries them ──');
+const frags = (v: string) => { const o = new Set<string>(); for (let i = 0; i < v.length; i++) for (let j = i + 3; j <= v.length; j++) o.add(v.slice(i, j)); return [...o]; };
+const leaks = (out: string, pw: string, pwEnc: string, user: string, userEnc: string) => [...frags(pw).filter((f) => out.includes(f)), ...[pwEnc, user, userEnc].filter((f) => f.length >= 3 && out.includes(f))];
+// every alphanumeric run is at most 2 long, so no 3-character fragment is plain text that could occur in a path or a message
+const PW_ALL = ['Zq', '@', '7x', ':', 'Kd', '\'', '9m', '"', 'Wp', '$', 'Rt', ' ', 'Lv', '%', 'Xn', '\\', 'Bc', '!', '4h', '*', 'Jy'].join('');
+const pwCases: Array<{ label: string; userinfo: string; user: string; pw: string }> = [
+  { label: 'every URL-hostile character, percent-encoded', userinfo: `${USER}:${encodeURIComponent(PW_ALL)}`, user: USER, pw: PW_ALL },
+  { label: 'a RAW @ and : in the password (the review\'s repro shape: user:Zq7@Hx4Kd@host)', userinfo: `${USER}:Zq@7x:Kd`, user: USER, pw: 'Zq@7x:Kd' },
+  { label: 'two raw @ in the password', userinfo: `${USER}:Tr@0u@Hx`, user: USER, pw: 'Tr@0u@Hx' },
+  { label: 'a raw @ right at the end of the password', userinfo: `${USER}:Qv9Lm@`, user: USER, pw: 'Qv9Lm@' },
+  { label: '%40 (an encoded @) and %3A', userinfo: `${USER}:Zq%407x%3AKd`, user: USER, pw: 'Zq@7x:Kd' },
+  { label: 'the literal text %40 in the password (encoded as %2540)', userinfo: `${USER}:Zq%25407xKd`, user: USER, pw: 'Zq%407xKd' },
+  { label: 'quotes, $ and a space (%20), and a user name with a space', userinfo: `we%20ird-user:Pw'9m"Wp$Rt%20Lv`, user: 'we ird-user', pw: 'Pw\'9m"Wp$Rt Lv' },
+];
+for (const c of pwCases) {
+  const url = `postgresql://${c.userinfo}@db.example.invalid:6543/prod_db`;
+  const userEnc = c.userinfo.split(':')[0]!;
+  const pwEnc = c.userinfo.slice(userEnc.length + 1);
+  const ok = run({ env: null, mode: 'real_trailer', extraEnv: { DATABASE_URL: url } });
+  check(`[${c.label}] exit 0, and pg_dump got exactly this password (in its environment) and this host`, ok.status === 0 && ok.shimLog.includes(`PASSWORD_VALUE:${c.pw}\n`) && /PGHOST=db\.example\.invalid PGPORT=6543 /.test(ok.shimLog), [ok.status, ok.shimLog, ok.all.slice(-200)]);
+  check('   …nothing printed contains the password (any 3+ character piece of it, or its encoded form), the user name, or the URL', leaks(ok.all + ok.files.join('\n'), c.pw, pwEnc, c.user, userEnc).length === 0 && !/postgres(ql)?:\/\//.test(ok.all), leaks(ok.all, c.pw, pwEnc, c.user, userEnc));
+  for (const mode of ['echo_both', 'auth_failed', 'role_missing'] as const) {
+    const f = run({ env: null, mode, extraEnv: { DATABASE_URL: url } });
+    check(`   …[${mode}: pg_dump names the user${mode === 'echo_both' ? ' and echoes the password' : ''}] the failure is relayed with both redacted`, f.status !== null && f.status !== 0 && /no backup was written/i.test(f.err) && /<user>/.test(f.err) && leaks(f.all + f.files.join('\n'), c.pw, pwEnc, c.user, userEnc).length === 0, [f.status, f.err.slice(-300), leaks(f.all, c.pw, pwEnc, c.user, userEnc)]);
+  }
+}
+r = run({ env: null, mode: 'auth_failed', extraEnv: { DATABASE_URL: URL_FULL } });
+check('the relayed message keeps its meaning (what failed, host and port) and has no doubled "pg_dump: pg_dump:" prefix', /password authentication failed for user "<user>"/.test(r.err) && /db\.example\.invalid/.test(r.err) && !/pg_dump: pg_dump:/.test(r.err), r.err);
+r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: 'postgresql://u:Zq7Kd@Hx4@127.0.0.1:54391/bkdb' } });
+check('the review\'s exact repro shape: host is 127.0.0.1, not "Hx4@127.0.0.1" — it is not echoed as a host', r.status === 0 && /PGHOST=127\.0\.0\.1 PGPORT=54391 PGUSER=u PGDATABASE=bkdb/.test(r.shimLog) && /Database: bkdb on 127\.0\.0\.1:54391/.test(r.out) && !/Hx4|Zq7Kd/.test(r.all), [r.out, r.shimLog]);
+for (const [label, u] of [
+  ['@ in the host position cannot happen: nothing after the last @ may contain one', 'postgresql://u:pw@ho$t/db'],
+  ['a host with a space', 'postgresql://u:pw@host name/db'],
+  ['an empty host', 'postgresql://u:pw@/db'],
+  ['a non-numeric port', 'postgresql://u:pw@host:port/db'],
+  ['an IPv6 literal (documented as unsupported)', 'postgresql://u:pw@[::1]:5432/db'],
+  ['no @ at all', 'postgresql://hostonly/db'],
+  ['an unescaped / in the password', 'postgresql://u:pa/ss@host/db'],
+  ['a fragment', 'postgresql://u:pw@host/db#frag'],
+  ['an empty user', 'postgresql://:pw@host/db'],
+  ['an empty database name', 'postgresql://u:pw@host/'],
+  ['another scheme', 'mysql://u:pw@host/db'],
+] as const) {
+  r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: u } });
+  check(`refused without echoing it: ${label}`, r.status !== null && r.status !== 0 && /not of the form/.test(r.err) && r.shimLog === '' && r.files.length === 0 && !/ho\$t|host name|frag|pa\/ss|mysql|pw/.test(r.all), [r.status, r.all, r.shimLog]);
+}
+r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: `postgresql://u:pw@h.example.invalid/${'d'.repeat(9000)}` } });
+check('a DATABASE_URL of 9000+ characters is refused (an oversized environment makes every later exec fail with E2BIG); the value is not shown', r.status !== null && r.status !== 0 && /too long/.test(r.err) && r.shimLog === '' && !/ddddd/.test(r.all), [r.status, r.all.slice(0, 200)]);
+
+// ── 9. a database or user name cannot forge output lines or drive the terminal; a malformed %-escape is refused ──
+console.log('\n── 9. control characters in names and malformed %-escapes are refused without being echoed ──');
+const REVIEW_NAME = 'x%0A%1B[0;32m%E2%9C%93%20Backup%20complete%1B[0m%0A%20%20File:%20backups/fake.sql.gz';
+for (const [label, u] of [
+  ['the review\'s forged database name: a fake "Backup complete" line, a fake "File:" line and ESC sequences', `postgresql://u:pw@h.example.invalid/${REVIEW_NAME}`],
+  ['a newline in the database name', 'postgresql://u:pw@h.example.invalid/a%0Ab'],
+  ['a carriage return in the database name', 'postgresql://u:pw@h.example.invalid/a%0Db'],
+  ['ESC in the database name', 'postgresql://u:pw@h.example.invalid/a%1Bb'],
+  ['a tab in the database name', 'postgresql://u:pw@h.example.invalid/a%09b'],
+  ['DEL in the database name', 'postgresql://u:pw@h.example.invalid/a%7Fb'],
+  ['the C1 control U+009B (CSI) in the database name', 'postgresql://u:pw@h.example.invalid/a%C2%9Bb'],
+  ['a control character in the USER name', 'postgresql://bk%0Auser:pw@h.example.invalid/db'],
+  ['ESC in the USER name', 'postgresql://bk%1B[2Juser:pw@h.example.invalid/db'],
+] as const) {
+  r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: u } });
+  check(`refused, nothing echoed: ${label}`, r.status !== null && r.status !== 0 && /control character/.test(r.err) && r.shimLog === '' && r.files.length === 0 && !/Backup complete/.test(r.all) && !r.all.replace(/\u001b\[0(;3\d)?m/g, '').includes('\u001b') && !/fake\.sql\.gz|File:/.test(r.all) && !/bk|\bb\b/.test(r.out), [r.status, JSON.stringify(r.all)]);
+}
+for (const [label, u] of [
+  ['%ZZ in the password', 'postgresql://u:p%ZZw@h.example.invalid/db'],
+  ['a lone % at the end of the password', 'postgresql://u:100%@h.example.invalid/db'],
+  ['%4 (one hex digit) in the user', 'postgresql://u%4:pw@h.example.invalid/db'],
+  ['%00 (NUL) in the password', 'postgresql://u:pw%00x@h.example.invalid/db'],
+  ['%%41 in the database name', 'postgresql://u:pw@h.example.invalid/d%%41'],
+] as const) {
+  r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: u } });
+  check(`refused, nothing echoed: ${label}`, r.status !== null && r.status !== 0 && /malformed %-escape/.test(r.err) && r.shimLog === '' && r.files.length === 0 && !/ZZ|100|%4|%%41/.test(r.all), [r.status, r.all, r.shimLog]);
+}
+r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: 'postgresql://u%2Bx:ab%0A@h.example.invalid/db%20n%E2%9C%93me' } });
+check('a trailing newline (%0A) in the password is kept, %2B decodes in the user, a space and a non-ASCII letter in the database name are accepted and shown as they are', r.status === 0 && /PASSWORD_HEX:61620a\n/.test(r.shimLog) && /PGUSER=u\+x /.test(r.shimLog) && /PGDATABASE=db n✓me\b/.test(r.shimLog) && /Database: db n✓me on h\.example\.invalid:5432/.test(r.out), [r.status, r.shimLog, r.out]);
+r = run({ env: null, mode: 'ok', extraEnv: { DATABASE_URL: 'postgresql://u:a%2541%25%5Cx41@h.example.invalid/db' } });
+check('%25 decodes to a literal %, so %2541 is the text "%41", and %5C is a backslash that is not re-interpreted ("a%41%\\x41")', r.status === 0 && r.shimLog.includes('PASSWORD_VALUE:a%41%\\x41\n'), r.shimLog);
+
+// ── 10. the restore command the script prints cannot commit a partial restore ──
+console.log('\n── 10. the printed restore command verifies first and commits only a complete stream ──');
+const printedRestore = (out: string) => { const m = out.split('\n'); const i = m.findIndex((l) => /^Restore \(/.test(l)); return i >= 0 ? (m[i + 1] ?? '').replace(/^ {2}/, '') : ''; };
+const base = run({ env: dotenv(), mode: 'real_trailer' });
+const goodFile = path.join(base.dir, 'backups', base.files[0]!);
+const printed = printedRestore(base.out);
+const realSql = gunzipSync(readFileSync(goodFile)).toString();
+check('the script prints ONE restore command line naming the file, the script itself (--verify), gzip -dc, BEGIN/COMMIT, ON_ERROR_STOP and the target placeholder', printed.includes(goodFile) && printed.includes('--verify') && printed.includes('backup_database.command') && /gzip -dc/.test(printed) && /BEGIN;/.test(printed) && /COMMIT;/.test(printed) && /ON_ERROR_STOP=1/.test(printed) && printed.includes('<target-connection-string>') && !printed.includes('\n'), printed);
+check('…it is not the old "gunzip < file | psql --single-transaction", which commits whatever psql read before the end of a cut-off stream', !/gunzip </.test(printed) && !/--single-transaction/.test(printed), printed);
+const sqlCut = (s: string) => { const i = s.indexOf('COPY public.t (id) FROM stdin;\n1\n'); return s.slice(0, i + 'COPY public.t (id) FROM stdin;\n1\n'.length); };   // right after a data row: psql treats EOF inside COPY as the end of the data
+const goodGz = readFileSync(goodFile);
+const flipAt = (b: Buffer, i: number, bit: number) => { const z = Buffer.from(b); z[i] ^= bit; return z; };
+const cutSql = gzipSync(Buffer.from(sqlCut(realSql)));
+const variants: Array<[string, Buffer]> = [
+  ['the file cut at 60% (a download that stopped)', goodGz.subarray(0, Math.floor(goodGz.length * 0.6))],
+  ['the gzip of a prefix of the SQL that ends right after a data row, with its 8-byte trailer missing (gunzip prints "unexpected end of file" but has already produced the whole prefix)', cutSql.subarray(0, cutSql.length - 8)],
+  ['a bit flipped in the middle of the compressed data', flipAt(goodGz, Math.floor(goodGz.length / 2), 0x04)],
+  ['a bit flipped in the CRC (all the data decompresses, but nothing vouches for it)', flipAt(goodGz, goodGz.length - 7, 0x01)],
+  ['a VALID gzip of an SQL file cut right after a data row (no completion marker)', cutSql],
+  ['a valid gzip whose SQL is cut and ends in the marker text as a row of an open COPY', gzipSync(Buffer.from(`${TOP}COPY public.n (note) FROM stdin;\nrow 1\n${MARK}\n`))],
+  ['an empty file', Buffer.alloc(0)],
+];
+const PSQL_IN = path.join(work, 'psql.stdin');
+const runPrinted = (cmdLine: string, extra: Record<string, string> = {}, shell = path.join(binDir, 'bash'), cwd = base.dir) => {
+  writeFileSync(PSQL_IN, ''); writeFileSync(CALLS_LOG, ''); rmSync(path.join(work, 'gzip.counter'), { force: true });
+  const x = spawnSync(shell, ['-c', cmdLine.replace('<target-connection-string>', "'postgresql://target@127.0.0.1:1/empty_db'")], {
+    encoding: 'utf8', timeout: 60_000, cwd,
+    env: { PATH: `${shimDir}:${binDir}`, HOME: work, TMPDIR: work, REAL_GZIP, NODE_BIN: process.execPath, DAMAGE_JS, GZIP_COUNTER: path.join(work, 'gzip.counter'), SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG, DUMP_DIR, PSQL_STDIN_LOG: PSQL_IN, ...extra },
+  });
+  return { status: x.status, err: x.stderr, sent: readFileSync(PSQL_IN, 'utf8'), calls: readFileSync(CALLS_LOG, 'utf8') };
+};
+let rr = runPrinted(printed);
+check('(a) the intact backup: the command exits 0 and psql is sent BEGIN; + the whole dump + COMMIT;', rr.status === 0 && rr.sent === `BEGIN;\n${realSql}COMMIT;\n` && /ON_ERROR_STOP=1/.test(rr.calls) && /postgresql:\/\/target@/.test(rr.calls), [rr.status, rr.sent.slice(0, 40), rr.sent.slice(-60), rr.calls]);
+for (const [label, bytes] of variants) {
+  writeFileSync(goodFile, bytes);                       // the damaged bytes sit where the intact backup was: the printed command is run exactly as printed
+  rr = runPrinted(printed);
+  check(`(refused) ${label}: non-zero exit, and COMMIT is never sent`, rr.status !== null && rr.status !== 0 && !/COMMIT;/.test(rr.sent), [rr.status, rr.sent.slice(-60)]);
+}
+rmSync(goodFile);
+rr = runPrinted(printed);
+check('(refused) a file that does not exist: non-zero exit, nothing sent to psql', rr.status !== null && rr.status !== 0 && !/COMMIT;/.test(rr.sent), [rr.status, rr.calls]);
+writeFileSync(goodFile, goodGz);
+rr = runPrinted(printed, { GZIP_DEC_FAIL_AFTER: '1' });
+check('(refused) a file that verifies but then fails mid-read (the second decompression dies): non-zero exit, psql got BEGIN; and part of the dump but NO COMMIT;, so nothing is committed', rr.status !== null && rr.status !== 0 && rr.sent.startsWith('BEGIN;\n') && !/COMMIT;/.test(rr.sent) && rr.sent.length > 10, [rr.status, rr.sent.slice(0, 60), rr.calls]);
+rr = runPrinted(printed, { PSQL_EXIT: '3' });
+check('(refused) psql itself fails (ON_ERROR_STOP exit 3): the command exits non-zero', rr.status !== null && rr.status !== 0, rr.status);
+{
+  const zsh = spawnSync('sh', ['-c', 'command -v zsh'], { encoding: 'utf8' }).stdout.trim();
+  if (zsh) {
+    rr = runPrinted(printed, {}, zsh);
+    check('(zsh) the same command line, run by zsh, exits 0 on the intact backup and sends BEGIN/COMMIT', rr.status === 0 && rr.sent === `BEGIN;\n${realSql}COMMIT;\n`, [rr.status, rr.err]);
+    writeFileSync(goodFile, variants[0]![1]); rr = runPrinted(printed, {}, zsh); writeFileSync(goodFile, goodGz);
+    check('(zsh) …and refuses the cut file without sending COMMIT', rr.status !== null && rr.status !== 0 && !/COMMIT;/.test(rr.sent), rr.status);
+  } else console.log('  · NOT_RUN: zsh is not installed here — the printed line uses only ( ), { }, &&, set -o pipefail and quoted words, which zsh and bash share');
+}
+{
+  // a path with a space: the printed line must still work when pasted
+  const spaced = path.join(work, 'with space'); mkdirSync(spaced);
+  const x = run({ env: dotenv(), mode: 'real_trailer', extraEnv: { BACKUP_DIR: path.join(spaced, 'my backups') } });
+  const line = printedRestore(x.out);
+  const dumped = readdirSync(path.join(spaced, 'my backups'));
+  rr = runPrinted(line, {}, path.join(binDir, 'bash'), x.dir);
+  check('a backup directory with a space in its name: the printed command is quoted so that it still verifies and restores', x.status === 0 && dumped.length === 1 && rr.status === 0 && rr.sent.startsWith('BEGIN;\n') && rr.sent.endsWith('COMMIT;\n'), [x.status, line, rr.status, rr.err]);
+}
+
+// ── 11. the verifier is the script's own, usable on any file: ./backup_database.command --verify FILE ──
+console.log('\n── 11. --verify FILE: exit 0 only for an intact gzip that ends with the completion marker ──');
+const scriptOf = (x: Run) => path.join(x.dir, 'backup_database.command');
+const vdir = path.join(work, 'vfiles'); mkdirSync(vdir);
+const verify = (file: string, cwd = base.dir) => run({ env: null, noPgDump: true, args: ['--verify', file], cwd, extraEnv: {} });
+let v = verify(goodFile);
+check('an intact complete backup: exit 0, says OK, needs no DATABASE_URL and no pg_dump, writes and prints nothing secret', v.status === 0 && /OK/.test(v.out) && !/Backup complete/.test(v.out) && v.shimLog === '', [v.status, v.all]);
+for (const [label, bytes] of variants) {
+  const f = path.join(vdir, 'v.sql.gz'); writeFileSync(f, bytes);
+  v = verify(f);
+  check(`--verify refuses ${label}`, v.status !== null && v.status !== 0 && v.out === '' && /✗/.test(v.err), [v.status, v.all]);
+}
+v = verify(path.join(vdir, 'missing.sql.gz'));
+check('--verify refuses a file that does not exist', v.status !== null && v.status !== 0, v.status);
+v = run({ env: null, noPgDump: true, args: ['--verify'] });
+check('--verify without a file is a usage error (exit 2)', v.status === 2 && /usage/i.test(v.err), [v.status, v.err]);
+v = run({ env: null, noPgDump: true, args: ['--restore', 'x'] });
+check('an unknown argument is a usage error (exit 2), not a silent backup', v.status === 2 && /usage/i.test(v.err) && v.files.length === 0, [v.status, v.err]);
+{
+  const cwd = path.join(work, 'elsewhere'); mkdirSync(cwd); copyFileSync(goodFile, path.join(cwd, 'rel.sql.gz'));
+  v = verify('rel.sql.gz', cwd);
+  check('--verify resolves a relative FILE against the caller\'s directory (the script changes directory to its own)', v.status === 0, [v.status, v.all]);
+}
+
+// ── 12. relative BACKUP_DIR / ENV_FILE are the caller's; the printed paths are absolute ──
+console.log('\n── 12. relative BACKUP_DIR and ENV_FILE belong to the directory the command was run from ──');
+{
+  const sd = path.join(work, 'scriptdir'); mkdirSync(sd);
+  const sc = path.join(sd, 'backup_database.command'); copyFileSync(SCRIPT, sc); chmodSync(sc, 0o755);
+  const caller = path.join(work, 'caller'); mkdirSync(caller);
+  writeFileSync(path.join(caller, 'my.env'), dotenv());
+  const env = { PATH: `${shimDir}:${binDir}`, HOME: work, TMPDIR: work, SHIM_MODE: 'real_trailer', SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG, DUMP_DIR, REAL_GZIP, NODE_BIN: process.execPath, DAMAGE_JS, GZIP_COUNTER: path.join(work, 'gzip.counter') };
+  const x = spawnSync(path.join(binDir, 'bash'), [sc], { cwd: caller, env: { ...env, BACKUP_DIR: 'mine', ENV_FILE: 'my.env' }, encoding: 'utf8' });
+  const landed = existsSync(path.join(caller, 'mine')) ? readdirSync(path.join(caller, 'mine')) : [];
+  check('from another directory: ENV_FILE=my.env is read from there, BACKUP_DIR=mine is created there (not in the script\'s directory)', x.status === 0 && landed.length === 1 && !existsSync(path.join(sd, 'mine')), [x.status, landed, x.stderr]);
+  check('…and the printed File: path is absolute and exists', (() => { const m = /File: (\S+)/.exec(x.stdout); return !!m && path.isAbsolute(m[1]!) && existsSync(m[1]!); })(), x.stdout);
+  writeFileSync(path.join(sd, '.env'), dotenv());
+  const y = spawnSync(path.join(binDir, 'bash'), [sc], { cwd: caller, env, encoding: 'utf8' });
+  check('with neither set, the defaults are still the script\'s own directory (.env and backups/ next to the script), wherever it is run from (a double-click starts in $HOME)', y.status === 0 && existsSync(path.join(sd, 'backups')) && readdirSync(path.join(sd, 'backups')).length === 1 && !existsSync(path.join(caller, 'backups')), [y.status, y.stderr]);
+}
+
+// ── 13. the default output directory holds the whole customer database: never committed, never in the image ──
+console.log('\n── 13. everything the script can create in its default directory is ignored by git and by docker ──');
 {
   // The paths the script can create: the directory itself, a finished dump, the *.partial it writes first.
   const created = ['backups/adlytic_backup_20260101_000000.sql.gz', 'backups/adlytic_backup_20260101_000000_1.sql.gz', 'backups/adlytic_backup_20260101_000000.sql.gz.partial'];
