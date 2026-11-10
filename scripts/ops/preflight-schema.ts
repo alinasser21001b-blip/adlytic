@@ -709,9 +709,6 @@ async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
 
     const size = await step(() => send(SQL.dbSize), (r) => { out.sizeError = r; });
     if (size) out.dbBytes = toInt((size[0] ?? {})['bytes']);
-    const big = await step(() => send(SQL.largestTables), () => { /* informational */ });
-    if (big) out.largest = big.map((r) => ({ name: safeName(r['name']), bytes: toInt(r['bytes']) ?? 0 }));
-
     if (wantCounts && out.counts) {
       const c = out.counts;
       for (const q of COUNT_QUERIES) {
@@ -722,6 +719,11 @@ async function collect(conn: DbConn, wantCounts: boolean): Promise<Collected> {
         if (rows) parseCount(c, q, rows);
       }
     }
+
+    // Last on purpose: pg_total_relation_size takes an ACCESS SHARE lock on every table, so behind any ACCESS EXCLUSIVE
+    // lock it waits for lock_timeout and kills the transaction. It is informational; nothing may depend on it running.
+    const big = await step(() => send(SQL.largestTables), () => { /* informational */ });
+    if (big) out.largest = big.map((r) => ({ name: safeName(r['name']), bytes: toInt(r['bytes']) ?? 0 }));
   } finally {
     try { await send(SQL.rollback); } catch { /* the transaction dies with the connection */ }
   }

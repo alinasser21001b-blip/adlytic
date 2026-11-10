@@ -113,7 +113,8 @@
   "test:health-migration-gate": "tsx test_health_migration_gate.ts",
   "test:data-health-isolation": "tsx test_data_health_isolation.ts",
   "test:data-health-isolation-pg": "tsx test_data_health_isolation_postgres.ts",
-  "test:preflight-schema": "tsx test_preflight_schema.ts"
+  "test:preflight-schema": "tsx test_preflight_schema.ts",
+  "test:preflight-schema-pg": "tsx test_preflight_schema_pg.ts"
  },
  "prisma": {
   "seed": "tsx prisma/seed.ts"
