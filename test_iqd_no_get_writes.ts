@@ -104,6 +104,7 @@ async function main() {
   const getAccountText = code(/async function getAccount\([\s\S]*?\n {2}}\n/.exec(server)?.[0] ?? '');
   check('getAccount() is found', getAccountText.length > 100, getAccountText.length);
   check('getAccount() contains no write call', !/\.(update|updateMany|create|createMany|upsert|delete|deleteMany)\(|\$executeRaw|\$transaction/.test(getAccountText), getAccountText.match(/\.(update|create|upsert|delete)\w*\(/g));
+  check('getAccount() does not reach the repair module either (a helper shared by ~20 GET routes)', !/repairIqd|reconcileAccountScale|iqdRepair|healAccount|currencyFactorNeedsHeal/.test(getAccountText), getAccountText.match(/repairIqd\w*|reconcile\w*|heal\w*/g));
 
   const dash = read('src/services/getDashboard.ts');
   check('getDashboard.ts does not import or call any repair writer', !/iqdRepair|healAccountCurrencyAndSpend|reconcileAccountScale|repairIqd/.test(code(dash)));
