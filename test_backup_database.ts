@@ -492,5 +492,6 @@ console.log('\n── 13. everything the script can create in its default direct
   check('control: .dockerignore does not exclude src/index.ts (the matcher is not vacuous)', !dockerIgnored('src/index.ts'));
 }
 
+rmSync(work, { recursive: true, force: true });
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);
