@@ -104,8 +104,10 @@ export const SESSION_ROUTER_JS = `
     //
     // THIS IS NOT AN INACTIVE-USER AUTHORIZATION BYPASS. Nothing here
     // authorizes anything; it decides which screen to show. The admin kill
-    // switch is removal from PLATFORM_ADMIN_EMAILS or a tokenVersion bump —
-    // both proven in test_admin_revocation.ts. If you are here because
+    // switch is removal from PLATFORM_ADMIN_EMAILS (read once per process:
+    // redeploy). A tokenVersion bump only ends the live sessions — the admin
+    // logs in again and is an admin again — so pair it with removal (and a
+    // password reset or row deletion to stop re-entry). If you are here because
     // "an inactive user reached the admin surface" looks alarming, the
     // question to ask is whether their email is still on the allowlist.
     if (me && me.isPlatformAdmin === true) return { kind: 'ADMIN', me: me };

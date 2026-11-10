@@ -8,9 +8,12 @@
 //  otherwise "isActive does not revoke admins" would just mean "admins
 //  cannot be revoked".
 //
-//  This gate proves the two authorities that DO revoke, against the real
-//  requirePlatformAdmin(), with real signed tokens. It is the evidence the
-//  frozen role policy points at.
+//  This gate proves, against the real requirePlatformAdmin() with real signed
+//  tokens, (B) removal from the allowlist revokes authority and (C) a
+//  tokenVersion bump rejects the EXISTING token. (C) ends sessions only: the
+//  admin can log in again and is an admin again while the address stays on the
+//  allowlist, so only (B) removes authority. It is the evidence the frozen role
+//  policy points at.
 // ════════════════════════════════════════════════════════════════════════
 import { requirePlatformAdmin, isPlatformAdminEmail, _resetAdminAllowlistCache } from './src/api/adminGuard';
 import { signToken } from './src/services/jwtAuth';
@@ -64,7 +67,7 @@ async function main() {
     else ok('the UI hint helper also reports false after removal');
   }
 
-  console.log('\n── C. a tokenVersion bump revokes the existing token ──');
+  console.log('\n── C. a tokenVersion bump rejects the existing token (sessions only — authority is the allowlist) ──');
   {
     setAllowlist(ADMIN_EMAIL);
     const token = signToken({ sub: USER_ID, email: ADMIN_EMAIL, ver: 3 });

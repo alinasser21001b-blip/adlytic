@@ -1,6 +1,6 @@
 # Recommendation writes and platform-admin signup — role and ownership before any write
 
-**Scope.** Local release candidate, branch `local/rc-recs-auth` (based on `c25724d`). Everything below was run on synthetic Postgres 16 databases (`adlytic_repro_rc3*`, loopback only). Nothing was pushed, deployed or run against real customer data.
+**Scope.** Local release candidate: written on `local/rc-recs-auth` (based on `c25724d`), merged into `local/core-release-candidate`, then corrected after an independent adversarial review (§9). Everything below was run on synthetic Postgres 16 databases (`adlytic_repro_rc3*`, loopback only). Nothing was pushed, deployed or run against real customer data.
 
 **The requirement (owner, verbatim).** *"Before any recommendation write or refresh, enforce role and ownership. Prove with two tenants that foreign IDs and unauthorized roles produce zero writes. Prove public signup cannot grant platform-admin access."*
 
@@ -12,7 +12,7 @@
 |---|---|---|
 | 1 | `POST /api/workspaces/:id/recommendations/action` and `…/:logId/action` only checked **membership**: a VIEWER could write. | VIEWER → `200`, new `recommendation_logs` row, `recommendation_executions` upsert, synchronous refresh (`refresh_logs`, `refresh_states`, regenerated recommendations/health). |
 | 2 | `campaignId` from the body was stored **unvalidated**. | B's MANAGER posting A's campaign id → `200`; A's SECOND-account campaign, an id that exists nowhere, a 300-character string — all `200`. |
-| 3 | `recordExecution` ran **before** the log was written, so a request that then failed left a half-write. | `itemKey` containing a NUL character → `500`, **and** `recommendation_executions` already rewritten. |
+| 3 | `recordExecution` ran **before** the log was written, so a request that then failed left a half-write. | `itemKey` containing a NUL character → `500`, **and** `recommendation_executions` already rewritten. The review round found the same symptom for a **lone surrogate** (`"\ud800"`, valid JSON, unstorable): fixed in the parser (400). The two writes are still not one transaction — see §7 item 18. |
 | 4 | A malformed body was a `500`, not a `400`. | Invalid JSON, `campaignId` as a number/object/array, `actionCode` as an array → `500`. |
 | 5 | An `actionCode` that is an object reached a Prisma `where` (filter smuggling). | `{"actionCode":{"contains":""}}` → `200` and an execution recorded. |
 | 6 | `runRefresh({adAccountId, workspaceId})` never cross-checked the pair. | B's ad account under A's workspace → ran, wrote `refresh_logs`/`refresh_states` and regenerated B's recommendations. |
@@ -20,6 +20,8 @@
 | 8 | The AI agent's write tool (`save_recommendation`, chat v2) had an entity-scope check but **no role check**. | A VIEWER's agent call wrote a `recommendations` row. |
 | 9 | `GET /api/workspaces/:id/recommendations` inserts one `recommendation_logs` row **per fetch** — for any member. | VIEWER `GET` → one new row each time. |
 | 10 | `POST /api/auth/register` did not verify an address; admin authority is "address ∈ `PLATFORM_ADMIN_EMAILS`". | Registering the allowlisted address when no row existed → `201`, token, and `GET /api/admin/data-health/orphans` → `200`, `/api/admin/customers` → `200`. |
+| 11 | *(found by the review round, present before this work)* The global active-user gate and the handlers parsed `Authorization` differently: `Bearer␠␠<jwt>` (two spaces, or space+tab) skipped the gate and still authenticated in the handler, so an unactivated or suspended account could write recommendations. | not-yet-activated MANAGER: one space → `403 ACCOUNT_INACTIVE`; two spaces → `200` and 6 rows changed. **Fixed:** one parser (`bearerTokenFrom`, `src/api/adapter.ts`) for both. |
+| 12 | *(found by the review round, present before this work)* Chat v2 used `body.conversationId` to read history into the model prompt and to write messages with only a membership check: any member (a VIEWER too) of tenant B could read tenant A's AI conversation and write into it (flag-gated: `AI_AGENT_V2_ENABLED`). | B's OWNER and B's VIEWER → `200`, A's two messages in the model's prompt, A's conversation grew from 2 to 4 messages. **Fixed:** the id must be the caller's own conversation in this workspace (`{id, workspaceId, userId}`), else the same `404` as an unknown id, before any model call or write. |
 
 ## 2. Guard order — Part A
 
@@ -27,10 +29,10 @@ Every step precedes the next; **no write and no refresh happens until the last c
 
 `POST /api/workspaces/:workspaceId/recommendations/action`
 
-1. authenticate — no/invalid/revoked token → **401** (`getUserId`, which also enforces `tokenVersion`; the global active-user gate sits in front of it)
+1. authenticate — no/invalid/revoked token → **401** (`getUserId`, which also enforces `tokenVersion`; the global active-user gate sits in front of it and takes the token from the same `bearerTokenFrom()` as the handlers — before the review round it parsed the header its own way and `Bearer␠␠<jwt>` skipped it)
 2. workspace membership — not a member (including a workspace id that does not exist) → **403** `Access denied`
 3. role — VIEWER → **403** `{error:'Insufficient permissions', code:'INSUFFICIENT_ROLE'}` (the same `wsm.role === 'VIEWER'` rule as `POST …/data-health/cleanup`, `…/sync`, `…/repair-iqd`)
-4. body shape — not a JSON object, bad `action`, missing/oversized `itemKey`, non-string fields, ids outside `[A-Za-z0-9_.:-]{1,128}`, NUL characters → **400** (`src/services/recommendationWriteGuard.ts`, pure, no database)
+4. body shape — not a JSON object, bad `action`, missing/oversized `itemKey`, non-string fields, ids outside `[A-Za-z0-9_.:-]{1,128}`, NUL characters and lone surrogates → **400** (`src/services/recommendationWriteGuard.ts`, pure, no database)
 5. ownership of **every identifier the body carries** → **404**, same body for a foreign and an unknown id (whether another tenant's id exists is not the caller's to learn)
    * `campaignId` must belong to **any** ad account of **this** workspace (`campaign.adAccount.workspaceId`)
    * `adAccountId`, if present, must belong to this workspace
@@ -60,7 +62,7 @@ Two details worth knowing: (i) Prisma reads `{ id: undefined }` as "no filter", 
 | `POST …/recommendations/action` | **fixed** (above) | `recordExecution`, log row, `runRefresh` |
 | `POST …/recommendations/:logId/action` | **fixed** | |
 | `GET …/recommendations` | log INSERT now OWNER/MANAGER only | |
-| `save_recommendation` via `POST …/ai/chat/v2` (behind `AI_AGENT_V2_ENABLED`) | **fixed** in the tool; entity scope already existed | proved against Postgres by calling the tool; the route itself needs a live LLM and was not run |
+| `save_recommendation` via `POST …/ai/chat/v2` (behind `AI_AGENT_V2_ENABLED`) | **fixed** in the tool; entity scope already existed; the route now also refuses a `conversationId` that is not the caller's own | proved against Postgres: the tool directly, and the route with a stand-in OpenAI-compatible server on loopback (a foreign / other-user / unknown conversation id → `404`, no model call, zero writes). A real model was **not** run |
 | `POST …/sync`, `POST …/repair-iqd` | already OWNER/MANAGER; account derived from the workspace | pinned by the Postgres test (anonymous 401 / non-member 403 / viewer 403, zero writes) — these cases pass on the old code too |
 | Background scheduler, sync worker (`runRefresh(MetaSyncCompleted)`, `runEngines`, brain tick) | system-originated; no request identifier | out of scope; not changed |
 | `POST /api/admin/reconcile-actions` | `requirePlatformAdmin` | platform-wide by design |
@@ -78,7 +80,7 @@ Two details worth knowing: (i) Prisma reads `{ id: undefined }` as "no filter", 
 | `src/web/pages/dashboardPage.ts` | "I've applied this" in the Main Move modal (`confirmExecuteAction`) | `POST …/recommendations/action` (EXECUTED) |
 | `src/web/pages/beginnerDashboardPage.ts` | `#bgn-task-do` button | `POST …/recommendations/action` (EXECUTED) |
 
-Nothing in `src/web` calls `…/:logId/action`. **What a VIEWER now sees:** the buttons are still shown (hiding them needs the role in the DTO — not done); clicking one returns `403 {code:'INSUFFICIENT_ROLE'}` and each page now shows a clear message instead of a generic failure — *"صلاحية المشاهدة لا تسمح بتسجيل الإجراءات — اطلب من مالك أو مدير مساحة العمل تسجيلها"* (the dashboard also has the English line *"Viewers cannot record actions — ask a workspace owner or manager."*). The recommendations list, dashboard and everything else read-only is unchanged. Verified: every inline page script still parses (`test_page_scripts.mjs` → 31 scripts, 0 failed; that script's separate off-scale-breakpoint check already fails on `c25724d` and is unrelated) and `test_no_english_in_ar_pages.mjs` is clean. **Not verified in a browser.**
+Nothing in `src/web` calls `…/:logId/action`. **What a VIEWER now sees:** the buttons are still shown (hiding them needs the role in the DTO — not done); clicking one returns `403 {code:'INSUFFICIENT_ROLE'}` and each page shows a clear message instead of a generic failure (*this only became true in the review round: `apiFetch` read the 403 body for the inactive-account check and the code never reached the pages; it now reads the error body once, and a behavioural test drives the real function — still not seen in a browser*) — *"صلاحية المشاهدة لا تسمح بتسجيل الإجراءات — اطلب من مالك أو مدير مساحة العمل تسجيلها"* (the dashboard also has the English line *"Viewers cannot record actions — ask a workspace owner or manager."*). The recommendations list, dashboard and everything else read-only is unchanged. Verified: every inline page script still parses (`test_page_scripts.mjs` → 31 scripts, 0 failed; that script's separate off-scale-breakpoint check already fails on `c25724d` and is unrelated) and `test_no_english_in_ar_pages.mjs` is clean. **Not verified in a browser.**
 
 ## 4. Part B — public signup cannot grant platform-admin
 
@@ -90,7 +92,7 @@ Nothing in `src/web` calls `…/:logId/action`. **What a VIEWER now sees:** the 
 1. `isPlatformAdminEmail(email)` — the guard's **own** predicate, applied to the same string registration stores (`toLowerCase().trim()`): any string the guard would treat as an admin can never be registered, by construction, not by a second implementation that could drift;
 2. the NFKC-folded forms are equal (full-width letters, compatibility ligatures…) — defence in depth against a later widening of the guard's normalisation.
 
-The refusal is deliberately the **same answer as "address already in use"** (same status, same body), so it does not reveal which addresses are admins.
+The refusal is deliberately the **same answer as "address already in use"** (same status, same body). **That does not fully hide which addresses are admins:** the NFKC branch also refuses a *fold-equivalent variant* of an allowlisted address (e.g. full-width letters) with the same `409`, while the same kind of variant of an ordinary address registers (`201`) — so an unauthenticated caller who guesses an address can learn whether it is allowlisted (review finding adminsignup-F2; limit 15, owner decision 10).
 
 ### Variants checked (CI-safe unit test + Postgres through the real app)
 
@@ -132,7 +134,7 @@ So: the rule above closes the self-service path; the **already-squatted-row** ca
 
 ### `/api/auth/me`, `INACTIVE_ALLOWED_API`, the allowlist cache
 * `/api/auth/me` computes `isPlatformAdmin` from the stored address with the guard's own predicate (a UI hint only). Proved `false` for an ordinary new user and for every look-alike, `true` for a provisioned admin.
-* `INACTIVE_ALLOWED_API` (`/api/auth/me`, `/api/activation/whatsapp-link`, `/api/auth/session-cookie`) is unchanged and pinned; `/api/admin/*` is exempt from the active-user gate by design (an inactive admin keeps access — revoking an admin is removing the address or bumping `tokenVersion`).
+* `INACTIVE_ALLOWED_API` (`/api/auth/me`, `/api/activation/whatsapp-link`, `/api/auth/session-cookie`) is unchanged and pinned; `/api/admin/*` is exempt from the active-user gate by design (an inactive admin keeps access). **Revoking an admin is removing the address from `PLATFORM_ADMIN_EMAILS` and redeploying** (the list is read once per process). Bumping `tokenVersion` only ends the live sessions — the admin logs in again and is an admin again — and `is_active = false` changes nothing for an admin; to stop re-entry as well, remove the address, then reset the password or delete the row. (An earlier version of this document, a comment in `src/web/auth/sessionRouter.ts` and a line in `DATA_HEALTH_ISOLATION.md` called `tokenVersion` a kill switch; that was wrong.)
 * **The allowlist is read once per process** (module-level cache in `adminGuard.ts`). Adding or removing an admin takes effect on the next process start (a redeploy). The signup reservation uses the **same** cache, so within one process the guard and the reservation always agree; during a rolling deploy two replicas may briefly disagree. Pinned by a test that changes the variable at runtime and shows nothing changes until the (test-only) reset.
 
 ## 5. Evidence
@@ -196,7 +198,7 @@ Mutations M05 and M08 were first written with a perl delimiter that did not comp
 
 ## 6. Owner actions and read-only audits
 
-**Provisioning an admin now** (out of band): create the account with `scripts/upsert-owner-login.ts` (sets `is_active`, `activated_by`, owner workspace) or `npm run create-user`; **then** add the address to `PLATFORM_ADMIN_EMAILS`; **then** redeploy (the list is read once per process). The order matters only for an address nobody has registered: with the new rule nobody can register it in the meantime.
+**Provisioning an admin now** (out of band): create the account with `scripts/upsert-owner-login.ts` (sets `is_active`, `activated_by`, owner workspace) — **it now refuses to run unless both `OWNER_EMAIL` and `OWNER_PASSWORD` are set; it creates the login or RESETS an existing one's password, and before the review round it fell back to an e-mail and a password committed in the repository when they were unset** — or with `npm run create-user` (check its own requirements first: it reads `.env` through `tsx --env-file=.env`, which does not exist on a clean checkout); **then** add the address to `PLATFORM_ADMIN_EMAILS`; **then** redeploy (the list is read once per process). The order matters only for an address nobody has registered: with the new rule nobody can register it in the meantime.
 
 *Existing data — run read-only against production once, before relying on this (written against the schema, tested on a synthetic database):*
 
@@ -204,6 +206,8 @@ Mutations M05 and M08 were first written with a perl delimiter that did not comp
 -- 1. Does every allowlisted address map to a row YOU created? (the case the rule cannot fix: a row someone registered before the rule)
 SELECT id, email, is_active, activated_at, activated_by, created_at
 FROM users WHERE lower(btrim(email)) IN ('<admin address 1>', '<admin address 2>');
+-- btrim() strips only the space character, while the guard's trim() also strips tab, CR, LF, NBSP, BOM and other Unicode space. To be exact, run the application's own predicate instead of this SQL (isPlatformAdminEmail over every stored address), or widen the pattern:
+--   WHERE lower(regexp_replace(email, '^[[:space:]\ufeff]+|[[:space:]\ufeff]+$', '', 'g')) IN (...)
 -- a self-service signup looks like: is_active = f, activated_at IS NULL, activated_by IS NULL, created_at = the day they signed up
 
 -- 2. Non-ASCII addresses (look-alikes of an admin address would show here)
@@ -231,9 +235,16 @@ GROUP BY 1, 2;
 8. **`MetaSyncCompleted`** is not ownership-checked inside `runRefresh` (system event, no workspace); only user-originated events are.
 9. **Viewers still see the buttons** (they get a clear message on click). Hiding them needs the caller's role in the dashboard/recommendations DTO.
 10. **Old data**: `recommendation_logs` written through the old route can name foreign campaigns (query 3); nothing here rewrites history.
-11. **Registration rate limit** is per `X-Forwarded-For` (existing behaviour; spoofable unless the proxy overwrites it). Unchanged.
-12. **Not verified**: the chat-v2 route end to end (needs a live LLM — the tool was exercised against Postgres directly); the three page messages in a browser; anything against production data or a non-synthetic database; the guard order under concurrent requests (each request is checked independently; no cross-request state).
-13. `scripts/upsert-owner-login.ts` has a committed default owner e-mail and default password literal. Noticed, not touched.
+11. **Registration and login rate limits** key on the leftmost `X-Forwarded-For` hop (existing behaviour): per request spoofable unless the edge overwrites the header (not tested on Railway). Together with limit 15 this lets someone probe for an admin address and then guess its password without throttling. Unchanged (adminsignup-F5; owner decision 12).
+12. **Not verified**: the chat-v2 route with a real model (ownership is proved with a stand-in OpenAI-compatible server on loopback); the three page messages in a real browser (the helper that delivers the code is driven by a test); anything against production data or a non-synthetic database; Redis/BullMQ mode; the Meta OAuth callback and webhooks; timing side channels. A concurrent storm of 84 mixed requests in the review round wrote exactly the expected rows and nothing for the refused ones.
+13. `scripts/upsert-owner-login.ts` used to fall back to a committed e-mail and password literal. **Changed in the review round**: it exits before connecting unless `OWNER_EMAIL` and `OWNER_PASSWORD` are both set (tested). The literals remain in git history — rotate that password anywhere it was ever used.
+14. **The admin-address reservation is a property of ONE process's environment, not of the database.** `isReservedForPlatformAdmin` reads the allowlist of the process that handles the signup and fails open when it is empty. Any process on the same database with an empty or different `PLATFORM_ADMIN_EMAILS` accepts the signup, and the real instance later treats that row as an admin. The repository itself describes such topologies: `railway.setup.txt` adds a second public service on the same database whose `PLATFORM_ADMIN_EMAILS = ${{adlytic.PLATFORM_ADMIN_EMAILS}}` reference *resolves EMPTY* when the variable is a shared/environment variable, and `serve.ts` mentions a validation instance pointed at the production database. **Operational mitigation:** every process that can serve `POST /api/auth/register` against a database must carry the same non-empty `PLATFORM_ADMIN_EMAILS`; check it on each service. **Real fix:** owner decision 1 (marker column) or decision 9 (refuse registration when the list is empty outside development). (adminsignup-F1, HIGH.)
+15. **Admin-address oracle** through the NFKC branch (see §4). Dropping the NFKC fold removes it at no cost in safety (the guard compares exact strings) but changes what 20,000-string fuzz and 12 Postgres cases assert; not done — owner decision 10. (adminsignup-F2.)
+16. **`DELETE /api/auth/account` has no admin guard** and needs no password re-entry, while `DELETE /api/admin/customers/:id` refuses an admin with `ADMIN_ACCOUNT`. A platform admin (or a stolen admin token) can delete the sole admin account; with the reservation the address then cannot register again (the answer is the misleading `Email already in use`), so **recovery is script-only** (`scripts/upsert-owner-login.ts` with `OWNER_EMAIL`/`OWNER_PASSWORD`). Not changed — owner decision 11. (adminsignup-F6.)
+17. **A MANAGER can demote or delete an OWNER, including the sole OWNER** (`PATCH`/`DELETE /api/workspaces/:id/members/:memberId`: no check on the target's role, no last-owner guard on PATCH). Pre-existing, not changed, **HIGH**: it permanently removes the workspace's ability to grant OWNER. Recommendation writes treat OWNER and MANAGER alike, so §2 does not depend on it, but this document's OWNER/MANAGER wording must not be read as enforced in the members routes. Owner decision 8. (authz-F4.)
+18. **`recordExecution` and `recordDashboardAction` are not one transaction.** The known trigger (a body that cannot be stored) is now a 400, but any other failure of the log INSERT after `recordExecution` — a database error, a campaign deleted between the check and the INSERT — still leaves an execution row without a log row and without a refresh. (authz-F3.)
+19. **Authority is checked once, at the start of the request.** A request already in flight (tens of ms; longer when the synchronous refresh is slow) keeps writing after its caller is demoted, removed, token-revoked or deactivated. "Before any write the server enforces role" is true at check time, not at write time. (authz-F5.)
+20. **Smaller pre-existing items, not changed:** `GET /api/sync-jobs/:jobId` answers 403 for another tenant's job and 404 for an unknown one (existence oracle); a NUL in the `:workspaceId` path segment is a 500 instead of a 4xx (no row changes); the action route has no per-user rate limit and every accepted action synchronously recomputes recommendations and health and clears the process-wide platform-stats cache; `evaluateOutcome` in both services is unscoped by workspace but unreachable from any HTTP route; `POST …/members/invite` answers differently for a registered and an unregistered address (limit 5). (authz-F6, F7.)
 
 ## 8. Owner decisions
 
@@ -244,3 +255,29 @@ GROUP BY 1, 2;
 5. **Allow-list the write roles** in every mutating route instead of `=== 'VIEWER'`?
 6. **Run the three read-only queries in §6** against production before the release.
 7. **Accept that granting/revoking an admin is "edit env + redeploy"**, or add a TTL/refresh to the cache.
+8. **Make the members routes OWNER-aware** (only an OWNER may change or remove an OWNER; never demote the last one) — limit 17, HIGH.
+9. **Fail closed when the admin allowlist is empty?** Refuse registration (503) outside development/test when `PLATFORM_ADMIN_EMAILS` is empty — blocks public signup on any process without the list; or rely on decision 1. Meanwhile: the same non-empty list on every service sharing the database (limit 14).
+10. **Drop the NFKC fold** from the reservation (removes the admin-address oracle, limit 15)?
+11. **Guard `DELETE /api/auth/account`** for admin addresses and require the current password (limit 16)?
+12. **Trusted client IP for the rate limits** (right-most proxy hop or the platform header) and a per-account login backoff (limit 11)?
+
+## 9. Independent review round (after the first version of this document)
+
+A second, independent adversarial review (six lenses; every finding re-verified by two skeptics) attacked the whole release candidate at `2a5fb34`. What it found in the parts this document covers, and what happened to each:
+
+| Finding | Severity | Outcome |
+|---|---|---|
+| authz-F1 — `Bearer␠␠<jwt>` skips the global active-user gate (present before this work) | HIGH | **Fixed** (one shared parser). Red on the old code (6 gate cases fail), green after; 3 mutants killed. Finding 11. |
+| authz-F2 — chat v2 trusts `body.conversationId` (cross-tenant read into the prompt, write into the conversation) | HIGH | **Fixed**. 8 checks red on the old code, 128/128 green; stand-in LLM proves no secret reaches the model. Finding 12. |
+| authz-F3 — lone surrogate → 500 after `recordExecution` | MEDIUM | **Fixed** for the known trigger (400 at the parser; 4 field cases + 8 unit cases); the non-atomic pair remains — limit 18. |
+| authz-F4 — a MANAGER can demote/delete an OWNER | HIGH | **Not changed** (members management is outside the five requested items). Limit 17, owner decision 8. |
+| authz-F5, F6, F7 — in-flight window, `sync-jobs` oracle, residuals | LOW / INFO | Documented — limits 19, 20. |
+| adminsignup-F1 — reservation is per process and fails open | HIGH | **Not fixable without a migration or a policy decision.** Documented with the operational mitigation — limit 14, owner decisions 1 and 9. |
+| adminsignup-F2 — NFKC branch is an admin-address oracle | MEDIUM | Claim corrected (§4); limit 15, owner decision 10. |
+| adminsignup-F3 — `tokenVersion` is not a kill switch | MEDIUM | **Documentation corrected** (§4; also `DATA_HEALTH_ISOLATION.md` and the `sessionRouter.ts` comment). |
+| adminsignup-F4 / truth-F1 — the provisioning script applies a committed default e-mail and password; the doc did not say to set the variables | MEDIUM / HIGH | **Fixed**: the script refuses without `OWNER_EMAIL` and `OWNER_PASSWORD` (tested; the old script turns 6 checks red). §6 corrected. |
+| adminsignup-F5 — login and registration rate limits trust the leftmost `X-Forwarded-For` | MEDIUM | Documented — limit 11, owner decision 12. |
+| adminsignup-F6 — self-service account deletion has no admin guard | MEDIUM | Documented — limit 16, owner decision 11. |
+| truth-F2 — viewers did not actually see the message (`apiFetch` dropped the 403's code) | MEDIUM | **Fixed** (`apiFetch` reads the error body once; the real function is driven by a test; 2 mutants killed). Browser rendering still not seen. |
+
+What **held up** under attack, as reported by the reviewers: a foreign, unknown, malformed or under-privileged request never wrote a row through the two recommendation routes (foreign / unknown / huge / NUL / array / object / negative / homoglyph ids; duplicate JSON keys, `__proto__`, 10 MB bodies, path tricks, concurrent storm; 0 rows changed across all 47 tables by xmin snapshot; nothing written after the response); the role is judged before ownership; every other route that can write recommendation-family rows refuses a VIEWER and an outsider with zero rows changed; and a 34-variant address-normalisation matrix produced no admin escalation.
