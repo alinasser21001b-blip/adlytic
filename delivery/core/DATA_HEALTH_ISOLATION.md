@@ -28,11 +28,11 @@ An orphan = a campaign `daily_stats` row whose campaign row no longer exists. Th
 |---|---|---|
 | `GET /api/workspaces/:id/data-health` | any member | read-only. `orphanedCampaignIds`/`orphanedCount` = verified-owned only. `?cleanup=true` is acknowledged as **not performed**. Adds `spendScale` (§4) |
 | `POST /api/workspaces/:id/data-health/cleanup` | Owner/Manager (VIEWER → 403, non-member → 403, no token → 401) | one SQL statement deleting this workspace's verified-owned orphan stats; spares any campaign that exists again |
-| `GET /api/admin/data-health/orphans` | platform admin | **aggregate counts only**, across tenants (`orphanRows`, `orphanCampaignIds`, `campaignStatRows`) — never ids |
-| `POST /api/admin/data-health/orphans/cleanup?expectedRows=N` | platform admin | deletes every orphan, whoever's; **N must equal the `orphanRows` just read**, else 409 and nothing is deleted |
-| scheduler sweep | system | still sweeps globally, as an explicit system principal, and **refuses** when orphans exceed 20 % of all campaign stats (a restored database whose `campaigns` table is missing or behind) and logs why |
+| `GET /api/admin/data-health/orphans` | platform admin | the **dry run**: aggregate counts only, across tenants (`orphanRows`, `orphanCampaignIds`, `campaignStatRows`, `orphanFraction`) plus `batchId` — a SHA-256 over the ordered ids of every orphan row counted. Never ids. Deletes nothing |
+| `POST /api/admin/data-health/orphans/cleanup?expectedRows=N&batchId=H` | platform admin | deletes the orphans of **exactly the approved batch**, whoever's. One statement computes the digest and deletes in the same snapshot, and only if the digest equals `H` **and** the count equals `N`: a row more, fewer or *different* (same count) deletes nothing (409, with a fresh dry run). Rows that become orphans after the snapshot survive; an approval cannot be replayed |
+| scheduler sweep | system | **report only** (release candidate). It logs the orphan counts and share (`[adlytic:integrity] ORPHANED … REPORT ONLY — nothing was deleted`) and has no delete path; there is no scheduler principal. (At `229359b` it deleted below a 20 % guard; see §7) |
 
-`src/lib/platformOrphanCleanup.ts` is importable only by the admin routes and the scheduler; the integrity monitor additionally checks that the account belongs to the workspace it was asked about. Both are enforced by `test_data_health_isolation.ts` (in `test:all`).
+`src/lib/platformOrphanCleanup.ts` is importable only by the admin routes and the scheduler, and the scheduler imports only its read-only report; the integrity monitor additionally checks that the account belongs to the workspace it was asked about. All enforced by `test_data_health_isolation.ts` (in `test:all`).
 
 Response contract: all previous keys are kept. `?cleanup=true` still returns `orphanedRowsDeleted` (now `0`) plus `cleanup:{performed:false,…}`; new keys are additive.
 
@@ -59,7 +59,7 @@ Now the signal is driven by the **rows**:
 ## 5. Limits and owner decisions
 
 1. **Orphans nobody names — or that only a recommendation log names — become platform-only.** A tenant's banner now counts only verified-owned orphans. The rest wait for a platform admin or for the scheduler's sweep.
-2. **Decision — the scheduler still deletes unattributed orphans automatically** (below the 20 % guard). Keep, or require an admin to run the POST?
+2. ~~Decision — the scheduler still deletes unattributed orphans automatically~~ **Decided for the release candidate (§7): it does not; it only reports.** Unattributed orphans wait for a platform-admin dry run and batch approval.
 3. Only `daily_stats` are cleaned (as before); orphaned `raw_insights`, period insights etc. are untouched.
 4. Expect **new WARNs** on IQD accounts whose window rows have no raw counterpart (synced before raw capture, or `RAW_INSIGHTS_RETAIN_DAYS` < 30). That is the intended truthfulness, not a regression — but it is visible.
 5. `recommendation_logs.campaign_id` has no index, but the ownership query no longer reads that table (§6), so the missing index no longer costs a full scan per data-health call (it was 347 ms at 1 M rows). `campaign_brain_snapshots` is read through its existing `(campaign_id, tick_date)` unique index.
@@ -80,10 +80,21 @@ Reproduced on synthetic Postgres 16 databases (`adlytic_repro_rev_*`), through t
 
 * `POST …/recommendations/action` still stores an unvalidated `campaignId`. It no longer carries authority here, but the field is client-controlled for every other reader. Validating it against the workspace's campaigns is a code change at that one write site (no migration); existing rows can be audited read-only: `SELECT l.workspace_id, b.workspace_id, count(DISTINCT l.id) FROM recommendation_logs l JOIN campaign_brain_snapshots b ON b.campaign_id = l.campaign_id WHERE b.workspace_id <> l.workspace_id GROUP BY 1,2`.
 * The platform allowlist (`PLATFORM_ADMIN_EMAILS`) is the only authority for the admin routes. By design (`server.ts`, `INACTIVE_ALLOWED_API`) a **deactivated** admin row (`isActive=false`) keeps access — revoking an admin means removing the address from the variable (read once per process: redeploy) or bumping `tokenVersion`. Also, whoever registers an allowlisted address first becomes a platform admin (registration does not verify the address): the admin accounts must exist before the variable is set.
-* The scheduler's 20 % guard still lets a restore that lost up to 20 % of `campaigns` delete that share of campaign history. Lower it, or make the sweep report-only, before relying on it after a restore.
+* ~~The scheduler's 20 % guard still lets a restore that lost up to 20 % of `campaigns` delete that share of campaign history.~~ Closed in §7: the sweep is report-only.
 * `?cleanup=TRUE`, `=1` etc. are ignored silently (no `cleanup` block in the answer); only the exact `true` returns the "not performed" note. Both are read-only.
 * A VIEWER still sees the page's "clean" button when verified orphans exist; the click gets 403 and a generic error toast.
 * Tenant cleanup writes no log line (who deleted how many rows); the platform route does.
 * `judgeSpendScale` accepts ±2 % around ×100, so a 99× or 101× row is judged over-scaled and repaired to 990 / 1010 against a raw of 1000: the repaired row then matches no raw and stays UNVERIFIED. (Pre-existing; the tolerance is asserted by `test_iqd_no_get_writes.ts`.)
 * Sync writes raws for ACCOUNT rows only: campaign-level rows can never be verified or proven ×100 in production (`rowsLeftIntact` counts them; the account/campaign divergence check is what catches a split).
 * The repair's optimistic check compares `spend` only; a writer that re-stores the same over-scaled spend with fresh ratios would be overwritten with ratios derived from the older read (IQD sync cannot produce that today).
+
+## 7. Release candidate: report-only sweep and batch-bound approval
+
+Branch `local/core-release-candidate` (base `12d7ac5` + this branch + `local/railway-preflight`).
+
+* **The scheduler never deletes.** `runIntegritySweep` calls only `reportOrphanedCampaignStatsGlobal` (counts and share; no ids, no digest) and logs it. `PlatformAuthorization` has one member, `platform-admin`; the old `system-scheduler` principal and the 20 % guard (`skipped_orphan_fraction`) are gone. Reason: a restore that lost 19 % of its campaigns still deleted that share of history unattended, 30 s after boot; the guard could not tell "orphan" from "campaign the restore lost".
+* **Approval is bound to the exact dry-run batch.** `batchId = sha256('adlytic-orphan-batch:v1:' || ids of every orphan row, ordered)`. The POST's single `WITH orphan AS (…), batch AS (count, digest) DELETE … USING orphan, batch WHERE b.h = $batchId AND b.n = $expectedRows` decides the set and deletes it in one snapshot. Postgres test (`test_data_health_isolation_postgres.ts`, 45/45) proves: malformed/missing either number → 400; right batch + wrong count → 409; right count + wrong batch → 409; **one orphan row swapped for another (same count) → 409 and nothing deleted**; a row added after the dry run → 409; an orphan committed after the statement's snapshot (uncommitted insert held open while the POST runs) survives while the approved batch is deleted in full; replaying an approval → 409; a sweep with orphans at ~2 % of campaign stats (below the old guard) leaves every `daily_stats` row, with its `xmin`, unchanged.
+* **Cost.** The digest is a `string_agg` over the orphan ids (memory ~ rows × id length: a restore where every campaign stat is an orphan, a few million rows, is a few hundred MB for that one statement). Platform-only, on request; the scheduler's report does not compute it.
+* **Not changed.** A tenant's own cleanup (`POST /api/workspaces/:id/data-health/cleanup`) is still scoped to verified ownership and not batch-bound: it can touch only rows the workspace's own brain snapshots name. `raw_insights` pruning is unchanged; the recovery runbook (5.2a, R4) keeps it from running before the IQD evidence is reviewed.
+* **Process-level evidence.** `scripts/repro/raw_insights_hold.sh` (runbook A21): three real server processes on synthetic copies — orphans 2 → 2 in all, `raw_insights` 2 → 2 with `SERVICE_ROLE=api` and with `RAW_INSIGHTS_RETAIN_DAYS=36500`, 2 → 1 under the default role (the control).
+

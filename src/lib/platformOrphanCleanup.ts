@@ -120,7 +120,9 @@ export async function describeOrphanBatchGlobal(prisma: PrismaClient): Promise<O
  * ONE statement computes the digest of the orphan set and deletes that set in the same
  * snapshot, guarded by (digest = batchId AND count = expectedRows): rows that became
  * orphans after the snapshot are not in the set and survive; a batch that differs from
- * the approved one deletes nothing. Rows whose campaign exists are never deleted.
+ * the approved one deletes nothing. `orphan` (rows with no campaign) is decided once, in this
+ * statement's snapshot, and is the ONLY source of ids to delete: a row whose campaign exists
+ * is not in it.
  */
 export async function cleanupOrphanedCampaignStatsGlobal(
   prisma: PrismaClient,
@@ -154,8 +156,6 @@ export async function cleanupOrphanedCampaignStatsGlobal(
       DELETE FROM daily_stats d USING orphan o, batch b
       WHERE d.id = o.id
         AND b.h = ${batchId} AND b.n = ${expectedRows}
-        AND d.entity_type = 'CAMPAIGN'::"EntityType"
-        AND NOT EXISTS (SELECT 1 FROM campaigns c WHERE c.id = d.entity_id)
       RETURNING d.id
     )
     SELECT (SELECT count(*) FROM del)::int AS deleted, (SELECT n FROM batch) AS n, (SELECT h FROM batch) AS h`;

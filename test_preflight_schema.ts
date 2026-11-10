@@ -695,7 +695,7 @@ async function main() {
     const oc = P.evaluateCounts(o, NOW);
     const orphan = oc.find((c) => c.id.includes('orphan'));
     check('orphaned campaign daily_stats → WARN with ROW and DISTINCT-ID counts only', orphan?.status === 'WARN' && /40/.test(orphan.reason) && /7/.test(orphan.reason), orphan);
-    check('…the scheduler\'s GLOBAL cleanup is named in the warning', /global|scheduler|integrity sweep/i.test(orphan?.reason ?? ''), orphan?.reason);
+    check('…the warning says the scheduled sweep only REPORTS, that a restore may have lost campaigns, and that cleaning is a platform-admin dry run + batch approval (no "deletes globally" claim)', /only REPORTS/.test(orphan?.reason ?? '') && /restore may have lost|campaigns the restore lost/i.test(orphan?.reason ?? '') && /dry run and batch approval/.test(orphan?.reason ?? '') && !/deletes these GLOBALLY/.test(orphan?.reason ?? ''), orphan?.reason);
     check('…WARN does not block', P.combineVerdict([...P.decideVerdict(healthy()).checks, ...oc]) === 'GO');
 
     const q = goodCounts(); q.iqd = { total: 4, nonCanonical: 3 };

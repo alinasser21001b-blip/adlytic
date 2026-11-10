@@ -418,7 +418,7 @@ export function evaluateCounts(c: CountsData, now: Date): CheckResult[] {
     out.push({
       id: 'counts.orphans', status: c.orphans.rows > 0 ? 'WARN' : 'PASS', gating: false,
       reason: c.orphans.rows > 0
-        ? `${c.orphans.rows} orphaned campaign daily_stats row(s) across ${c.orphans.distinctIds} distinct campaign id(s) (ids are never printed); the scheduled integrity sweep deletes these GLOBALLY, across every tenant, once background work runs`
+        ? `${c.orphans.rows} orphaned campaign daily_stats row(s) across ${c.orphans.distinctIds} distinct campaign id(s) (ids are never printed); the scheduled integrity sweep only REPORTS them and deletes nothing. After a restore they may be campaigns the restore lost: compare campaigns with the source first, then clean only by a platform-admin dry run and batch approval`
         : 'no orphaned campaign daily_stats rows',
     });
   }
