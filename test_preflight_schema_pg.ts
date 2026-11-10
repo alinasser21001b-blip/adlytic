@@ -492,6 +492,28 @@ async function main() {
     await withDb(mig, (c) => c.query(`update users set name = name where email = 'tenant-a@repro.invalid'`));
     check('positive control: the same snapshot method detects an UPDATE that changes no value (xmin moves)', !sameSnapshot(ctl, await snapshot(mig)) && diffTables(ctl, await snapshot(mig)).includes('users'), diffTables(ctl, await snapshot(mig)));
 
+    // ── the runbook's helper scripts (digest and per-workspace counts) ──
+    console.log('\n── 3a. scripts/ops/table-digest.sh and per-workspace-counts.sql ──');
+    const shEnv = { PATH: process.env['PATH'] ?? '', HOME: process.env['HOME'] ?? '' };
+    const digest = (db: string) => spawnSync('bash', [path.join(ROOT, 'scripts', 'ops', 'table-digest.sh'), dbUrl(db)], { env: shEnv, encoding: 'utf8', timeout: 120_000 });
+    const d1 = digest(mig); const d2 = digest(mig);
+    check('table-digest.sh prints ONE 16-hex digest, and two runs on an untouched database are equal', d1.status === 0 && /^[0-9a-f]{16}\n$/.test(d1.stdout) && d1.stdout === d2.stdout, { status: d1.status, out: d1.stdout, err: d1.stderr.slice(0, 200) });
+    await withDb(mig, (c) => c.query(`update users set name = name where email = 'tenant-a@repro.invalid'`));
+    const d3 = digest(mig);
+    check('positive control: an UPDATE that changes no value changes the digest (xmin)', d3.status === 0 && d3.stdout !== d1.stdout, { before: d1.stdout, after: d3.stdout });
+    await withDb(mig, async (c) => { await c.query(`create table "x""; drop table users; --" (a int)`); await c.query(`insert into "x""; drop table users; --" values (1)`); });
+    const d4 = digest(mig);
+    const usersLeft = await withDb(mig, async (c) => (await c.query(`select count(*)::int as n from users`)).rows[0].n as number);
+    check('a table whose NAME is SQL (quote, semicolon, comment) is digested as a name, not executed: users still has its rows', d4.status === 0 && /^[0-9a-f]{16}\n$/.test(d4.stdout) && usersLeft === S.users, { status: d4.status, usersLeft, err: d4.stderr.slice(0, 200) });
+    await withDb(mig, (c) => c.query(`drop table "x""; drop table users; --"`));
+    const ro = spawnSync('psql', [dbUrl(mig), '-X', '-A', '-t', '-c', `insert into users (id, email, password_hash, name, updated_at) values ('zz', 'zz', 'x', 'x', now())`], { env: { ...shEnv, PGOPTIONS: '-c default_transaction_read_only=on' }, encoding: 'utf8' });
+    check('positive control: the read-only session option the script sets really makes psql refuse a write (25006)', ro.status !== 0 && /read-only transaction/.test(ro.stderr), ro.stderr.slice(0, 200));
+    check('the script itself sets default_transaction_read_only=on and never pastes a table name into SQL text', /PGOPTIONS='-c default_transaction_read_only=on'/.test(readFileSync(path.join(ROOT, 'scripts', 'ops', 'table-digest.sh'), 'utf8')) && /-v t="\$t"/.test(readFileSync(path.join(ROOT, 'scripts', 'ops', 'table-digest.sh'), 'utf8')));
+    const pw = spawnSync('psql', ['-q', dbUrl(mig), '-X', '-A', '-t', '-F', ' ', '-f', path.join(ROOT, 'scripts', 'ops', 'per-workspace-counts.sql')], { env: shEnv, encoding: 'utf8', timeout: 60_000 });
+    const rowsOut = pw.stdout.trim().split('\n');
+    check('per-workspace-counts.sql prints one row of COUNTS per workspace (ws_no, ad_accounts, campaigns, daily_stats, period_insights, sync_jobs): 1 1 2 5 2 1 / 2 2 4 10 4 4 for the two seeded tenants', pw.status === 0 && rowsOut.length === 2 && rowsOut[0] === '1 1 2 5 2 1' && rowsOut[1] === '2 2 4 10 4 4', { status: pw.status, out: pw.stdout, err: pw.stderr.slice(0, 200) });
+    check('…and nothing but numbers (no id, name, email)', rowsOut.every((l) => /^[0-9 ]+$/.test(l)), rowsOut);
+
     // ── a pg_dump / pg_restore round trip keeps the database GO (the runbook's restore point) ──
     console.log('\n── 3b. pg_dump -Fc → pg_restore --exit-on-error --single-transaction → preflight ──');
     const dumpFile = path.join(mkdtempSync(path.join(process.env['PREFLIGHT_TMPDIR'] ?? tmpdir(), 'adlytic_preflight_dump_')), 'restore_point.dump');

@@ -4,12 +4,15 @@ Audience: the **owner** decides, an **operator** executes. Written for a product
 (500 MB volume, about 0.497 GB used) while `/api/health` was failing.
 
 > **Nothing in this document was executed against Railway, Cloudflare, GitHub or production data.** Every command in Appendix A
-> was run by the author against synthetic Postgres 16 databases on loopback (`adlytic_repro_ops_*`). Every step that touches Railway
-> is marked `UNVERIFIED`: the dashboard wording, backup features, volume resizing and the name of the public connection variable
-> are not in this repository and were not checked.
+> was run against synthetic Postgres 16 databases on loopback (`adlytic_repro_ops_*`): first by the author, then re-run from scratch
+> by an independent adversarial reviewer (section 8). Every Railway-side step is either backed by a file in this repository (cited) or
+> marked `UNVERIFIED`: the dashboard wording, backup features, volume resizing and the name of the public connection variable are not
+> in this repository and were not checked.
 
 Build under test: branch `local/railway-preflight`, base `12d7ac5` (see `git log` for the tip). Tools added by this branch:
-`scripts/ops/preflight-schema.ts` (read-only go/no-go), `test_preflight_schema.ts`, `test_preflight_schema_pg.ts`.
+`scripts/ops/preflight-schema.ts` (read-only go/no-go), `scripts/ops/schema-shape.ts` + `scripts/ops/expected-schema.json` (the shape it compares
+against), `scripts/ops/schema-snapshot.ts` (regenerates that file), `scripts/ops/table-digest.sh` and `scripts/ops/per-workspace-counts.sql`
+(the two proofs of "nothing was written"), `test_preflight_schema.ts`, `test_preflight_schema_pg.ts`.
 Related: `delivery/core/HEALTH_ENDPOINT.md` (the readiness gate), `delivery/core/IQD_REPAIR.md` (IQD money repair),
 `delivery/core/HEAL_ON_GET.md` (history of the GET writers).
 
@@ -29,12 +32,14 @@ restored yourself on your own machine).
 | 5 | Restore the dump into a new production database; run the preflight against it | Production data (write by restore, read by preflight) | **Owner** | 5 |
 | 6 | Change the `DATABASE_URL` reference on any service | Railway (write) | **Owner** | 5 |
 | 7 | Disable / enable auto-deploy; stop or start `thriving-manifestation` (worker) and `lively-insight` (narration cron) | Railway (write) | **Owner** | 3, 5 |
-| 8 | Deploy (dashboard "deploy latest commit", or dispatch `deploy-adlytic.yml`) | Railway / GitHub (write) | **Owner** | 5 |
+| 8 | Deploy (dashboard "deploy latest commit" (`UNVERIFIED` wording), or dispatch `deploy-adlytic.yml`) | Railway / GitHub (write) | **Owner** | 5 |
 | 9 | Push or merge to the tracked branch (may auto-deploy, see risk R6) | GitHub, possibly Railway | **Owner** | 5 |
 | 10 | Set `SERVICE_ROLE` to anything other than `api` (turns background writers on) | Railway (write) | **Owner** | 5.6 |
 | 11 | `POST /api/workspaces/:id/sync` (calls Meta, writes rows) and `scripts/repair-iqd-factors.ts --apply` | Production data (write), Meta API (read) | **Owner** | 5.6 |
 | 12 | `prisma migrate resolve …` after a failed migration | Production data (write) | **Owner** | 2 |
 | 13 | Cloudflare (DNS / proxy / cache for the public domain) | Cloudflare | **No change is required by this runbook.** Any change is the owner's. Whether the domain is proxied is `UNVERIFIED`. | n/a |
+| 14 | Run the preflight (or `psql` / `pg_dump`) against a Railway or production database: read-only, but it needs that database's credentials and reads production aggregates | Production data (read) | **Owner**; credentials through the environment (`DATABASE_URL`, `PG*`), never in argv, chat, tickets or files | 3.3, 5.1, 5.5 |
+| 15 | Set or change a service variable (`DATABASE_URL`, `SERVICE_ROLE`, `BULLMQ_ENABLED`) | Railway (write) | **Owner** | 5.3 |
 
 ---
 
@@ -55,7 +60,7 @@ or production: **none**) · `BLOCKED` (cannot be known from this environment) ·
 | 7 | `prisma migrate deploy` on a restored database that is behind **is a write**: it applied 2 migrations (39 → 41 history rows, 4 tables created) | `LOCAL_PASS` | A12 |
 | 8 | Directly started server (no migrate): unreachable DB → 503 `db:"unavailable"`; reachable but not ready → 503 `db:"ok"` plus one log line naming the state | `LOCAL_PASS` | A10 |
 | 9 | `/api/health` cannot see a migration file edited after it was applied (answers 200 for a drifted history) | `LOCAL_PASS` | `test_preflight_schema_pg.ts`, scenario `checksumdb`: `probeReadiness` returned ready for the drifted database |
-| 10 | The preflight's state equals `dbHealth.probeReadiness`'s state for 13 databases (healthy, empty, failed, behind, equal-count wrong history, ahead, dropped column/table, rolled-back, checksum, file edit, extra table) | `LOCAL_PASS` | `test_preflight_schema_pg.ts` (every scenario asserts it) |
+| 10 | The preflight's state equals `dbHealth.probeReadiness`'s state for every scenario database of the Postgres test (healthy, empty, failed, behind, equal-count wrong history, ahead, dropped column/table, rolled-back, checksum, file edit, extra table, a copied history row, 17 shape breakages, 7 healthy differences) | `LOCAL_PASS` | `test_preflight_schema_pg.ts` (every scenario asserts it) |
 | 11 | sha256 of the raw `migration.sql` bytes equals the checksum Prisma stores, for all 41 rows. Prisma does **not** normalise line endings or a BOM (a CRLF file is stored with the CRLF hash) | `LOCAL_PASS` | `test_preflight_schema_pg.ts` section 0; scratch probe with LF / CRLF / BOM files |
 | 12 | The default role (`SERVICE_ROLE` unset = `combined`) writes within its first 45 s on a restored copy: flips old PENDING/PROCESSING sync jobs to FAILED, deletes `raw_insights` older than 90 days, and deletes orphaned campaign `daily_stats` **globally** (both tenants) | `CODE_PRESENT` + `LOCAL_PASS` | `src/api/serve.ts:106-112`, `src/workers/backgroundScheduler.ts:341,368,383-410,420-437`; A13 |
 | 13 | Background sync cannot be limited to one account by configuration: the pass takes every `ACTIVE` account that has a token | `CODE_PRESENT` | `src/workers/backgroundScheduler.ts:73-100` (`syncAllAccounts`) |
@@ -65,9 +70,11 @@ or production: **none**) · `BLOCKED` (cannot be known from this environment) ·
 | 17 | `backup_database.command` can report "Backup complete" for an empty backup, prints `DATABASE_URL` (password included), and its fallback runs `prisma db push` | `CODE_PRESENT` + `LOCAL_PASS` (pipeline pattern: exit 0, 20-byte file) | `backup_database.command:39,66-72,82`; A18 |
 | 18 | `scripts/count-undecryptable-tokens.ts` cannot run on this base (`new PrismaClient()` without the driver adapter → `PrismaClientInitializationError`) | `LOCAL_PASS` | A14. **Do not rely on it.** |
 | 19 | Railway keeps serving the previous deployment when a new one fails its healthcheck | `CODE_PRESENT` as a **comment** only (`.deploy/start.js` header). Documented, **not exercised** | `LIVE_VERIFIED`: none |
-| 20 | Auto-deploy on `main` for the `adlytic` service is ENABLED | Claimed by `railway.setup.txt`; `deploy-adlytic.yml` says a push no longer deploys. The Railway-side setting is `UNVERIFIED` | see R6 |
+| 20 | Auto-deploy on `main` for the `adlytic` service is ENABLED | `CODE_PRESENT` as claims: `railway.setup.txt` ("Auto Deploy: ENABLE on branch main") and the comment in `.github/workflows/deploy-adlytic.yml` ("Railway's own GitHub integration already deploys every push to main"; its push trigger only runs `verify`). The Railway-side setting is `UNVERIFIED` | see R6 |
 | 21 | The 500 MB volume is at 94.8% (if 500 MiB) to 99.4% (if 500 MB) of capacity | Arithmetic from the reported 0.497 GB; the real figures are `BLOCKED` | section 3.5 |
-| 22 | Unit tests of the preflight (no database): RED on a deliberately wrong stub (185 of 255 assertions failed), GREEN on the implementation (276/276); 20 single-line mutants all killed. Postgres tests: 153/153; 7 mutants all killed | `LOCAL_PASS` | A17 |
+| 22 | Unit tests of the preflight (no database): RED on a deliberately wrong stub and on every mutant tried (author: 20 single-line mutants; reviewer: 4 mutants of the verdict function and a stubbed / 7 mutated shape check, all killed), GREEN on the implementation. Postgres tests: all pass, mutants killed. Final counts are in Appendix A, A17 | `LOCAL_PASS` | A17, section 8 |
+| 23 | Before the review the preflight printed GO for a column of another type, a dropped default, a dropped or renamed enum value, a dropped enum type, a dropped UNIQUE / PRIMARY index, a dropped or re-targeted foreign key, and a migration identity recorded twice. `prisma migrate deploy` / `migrate status` and `/api/health` call all of these fine. Now: NO-GO (shape / identities), named | `LOCAL_PASS` | section 8, `test_preflight_schema_pg.ts` section 1b |
+| 24 | For a non-loopback host the preflight (and the app pool) verify the server certificate strictly (`src/lib/pgSsl.ts`: `rejectUnauthorized: true`, `DATABASE_CA_CERT` adds the CA). A Railway public proxy that does not present a publicly trusted chain therefore fails with `NOT RUN … reason=tls` | `CODE_PRESENT` + `LOCAL_PASS` (the classification, with simulated driver errors); whether the Railway proxy's certificate verifies is `UNVERIFIED` | `delivery/core/HEALTH_ENDPOINT.md` section 2 (self-signed TLS row), section 5.1 below |
 
 ---
 
@@ -103,7 +110,7 @@ Use only what the repository's behaviour can distinguish. Anything marked *hypot
 | Line (exact text or prefix) | Meaning |
 |---|---|
 | `Error: P1001: Can't reach database server at …` | Postgres not reachable from the service |
-| `Error: P1000` (authentication) / `P1003` (database does not exist) | Credentials rejected / database absent (the health classifier maps these the same way) |
+| `Error: P1000` (authentication) / `P1003` (database does not exist) | Credentials rejected / database absent (the health classifier maps these the same way). **Not reproduced here** (A11 ran P1001, P1002, P3005, P3009 and the unset variable); the meaning is Prisma's documented one and `src/lib/dbHealth.ts` `PRISMA_CODE_TO_REASON` |
 | `Error: P1002` (after about 10 s) | Another session holds Prisma's migration advisory lock, or the database timed out |
 | `Error: P3005` | Schema is not empty and there is no `_prisma_migrations` (a restore without the history table) |
 | `Error: P3009` + "migrate found failed migrations" | An unfinished row exists in `_prisma_migrations`; no new migration will apply until it is resolved (**owner**, `prisma migrate resolve`, not run here) |
@@ -150,7 +157,8 @@ pg_restore --list restore_point_<UTC>.dump > toc.txt; echo $?                   
 sha256sum restore_point_<UTC>.dump                                                       # store it next to the file
 ```
 `pg_dump` must be the same or a newer major version than the server (standard PostgreSQL rule; only 16 → 16 was run). Custom format is used because `pg_restore --list`
-validates the file and restores selectively.
+validates the file and restores selectively. Whether the Railway public proxy requires TLS for `pg_dump` / `psql` (libpq's `PGSSLMODE`) is `UNVERIFIED`; the **preflight** verifies the
+certificate strictly (section 4.2).
 
 If the Postgres service does **not** answer: there is nothing to dump. Use a volume backup or snapshot if the dashboard shows one (`UNVERIFIED`), and stop here for the owner.
 
@@ -181,7 +189,8 @@ destination ≥ 1.25 × `pg_database_size` of the restored copy (derived from th
 
 ### 4.1 Prerequisites
 Local Postgres of the same major version as production (`connect` line of the preflight prints the server version of whatever it connects to); Node 22; `npm ci`;
-check out **the commit you intend to deploy** (the preflight judges the database against *this checkout's* `prisma/migrations` and Prisma client); `npx tsc` (or `npm run build`) so `dist/` exists.
+check out **the commit you intend to deploy** (the preflight judges the database against *this checkout's* `prisma/migrations`, Prisma client and `scripts/ops/expected-schema.json`); `npx tsc` (or `npm run build`) so `dist/` exists.
+If the preflight answers `[NOT_RUN] shape: … expected-schema snapshot … generated for N migration(s)`, the commit's snapshot is stale (a migration was added without regenerating it; `test_preflight_schema.ts` fails on such a commit): use a commit whose snapshot matches, do **not** work around it.
 
 ### 4.2 Restore and preflight
 ```bash
@@ -191,9 +200,20 @@ pg_restore --exit-on-error --single-transaction --no-owner --no-privileges --dbn
 DATABASE_URL="$LOCAL/adlytic_restore_check" npx tsx scripts/ops/preflight-schema.ts --counts --volume-bytes <destination volume bytes>        # A6
 ```
 Exit 0 = GO, 1 = NO-GO, 2 = NOT RUN (could not connect, bad arguments, or a non-loopback URL without `--i-understand-this-reads-a-real-database`).
-Reading the output: every line is `[PASS|FAIL|WARN|NOT_RUN] <check>: <reason>`; `identities` lists missing / unexpected / unfinished migration **names**; `checksums` names edited migrations;
-the last two lines are the `/api/health` state this database would get and the verdict. `--json` prints the same as one JSON document. It prints no host, port, user, password, full database
-name, id or customer value; the database name is shown as its first 3 characters and its length.
+Reading the output: every line is `[PASS|FAIL|WARN|NOT_RUN] <check>: <reason>`; `identities` lists missing / unexpected / unfinished / **duplicated** migration **names**; `checksums` names edited migrations;
+`tables` / `columns` name absent tables and `table.column`; `shape` names every column whose type, NOT NULL or default differs, every enum value that is absent, every UNIQUE / PRIMARY KEY index and every
+foreign key that is absent (non-blocking WARN: a dropped plain index, a column that lost NOT NULL); the last two lines are the `/api/health` state this database would get and the verdict. `--json` prints the same as one JSON document. It prints no host, port, user, password, full database
+name, id or customer value; the database name is shown as its first 3 characters and its length; an argument it does not know is never echoed (a URL passed as an argument is refused, not printed).
+
+**Against a non-loopback host** (sections 3.3, 5.1, 5.5) pass `--i-understand-this-reads-a-real-database`; the connection verifies the server certificate (`src/lib/pgSsl.ts`). If it answers
+`NOT RUN: cannot connect (reason=tls code=…)`, the certificate chain is not publicly trusted: set `DATABASE_CA_CERT` to the server's CA certificate (PEM) in the environment. Whether Railway's proxy needs
+that is `UNVERIFIED`. Credentials go in `DATABASE_URL` (environment), never as an argument.
+
+**What the preflight does NOT cover** (so that a GO is not read as more than it is): privileges of the application role; extensions; the current value of sequences; CHECK constraints, triggers, functions,
+views; the order of columns and the names of indexes and constraints (ignored on purpose: a definition under another name is the same definition); extra tables / columns / indexes / enum values (ignored: a newer
+database is not a broken one); any schema other than `public` and any `?schema=` / `?sslmode=` parameter of the URL (ignored: the preflight always reads `public` and always applies the TLS rule above); whether a column that lost NOT NULL
+now holds NULLs; data correctness; the live Railway service. A PostgreSQL other than 16 was not tried (the production major version is `BLOCKED`). The read-only guarantee is the server's `BEGIN READ ONLY` plus two statement guards
+(an exact list of the tool's own statements, and a denylist); a function that opens its **own** connection (dblink) would escape a READ ONLY transaction, but the tool never calls a function by name or selects from a view.
 
 ### 4.3 IQD sizing and orphan counts (read-only)
 ```bash
@@ -217,7 +237,7 @@ the log shows `SERVICE_ROLE=api — startup orphaned-SyncJob sweep skipped`, `SE
 Do **not** call `GET …/data-health?cleanup=true`, `POST …/sync` or `POST …/repair-iqd` against the copy or anything else (they write).
 
 ### 4.5 Prove the validation step wrote nothing
-`digest.sh` (Appendix A, A0) prints one digest of every table's content **and** `xmin`. Run it on the copy before starting the API and after stopping it: identical digests (A9).
+`scripts/ops/table-digest.sh <url>` (Appendix A, A0) prints one digest of every table's content **and** `xmin`. Run it on the copy before starting the API and after stopping it: identical digests (A9).
 
 ### 4.6 GO / NO-GO table (every row must be GO to proceed to section 5)
 
@@ -225,16 +245,26 @@ Do **not** call `GET …/data-health?cleanup=true`, `POST …/sync` or `POST …
 |---|---|---|---|
 | V1 | R1-R3 of 3.4 | all pass | any fails |
 | V2 | Preflight exit status | **0** | 1 or 2 |
-| V3 | `identities` | `PASS` (or `WARN` "ahead" and the owner accepts running an older build on a newer database) | `FAIL`: pending, diverged, failed, or no history |
+| V3 | `identities` | `PASS` (or `WARN` "ahead" and the owner accepts running an older build on a newer database) | `FAIL`: pending, diverged, failed, no history, or a migration **recorded more than once**; or `NOT_RUN` (no shipped list) |
 | V4 | `checksums` | `PASS` (or `WARN` "line-endings only": a CRLF/LF checkout, identical SQL) | `FAIL` (an applied migration differs from the shipped file) or `NOT_RUN` |
-| V5 | `tables` and `columns` | `PASS` | `FAIL` |
+| V5 | `tables` and `columns` | `PASS` | `FAIL` or `NOT_RUN`; a `WARN` on `columns` means a required table is absent, which `tables` already fails |
+| V5b | `shape` | `PASS`. A `WARN` (a dropped plain index, a column that lost NOT NULL) needs the owner's explicit acceptance, recorded in the incident notes | `FAIL` (column type / NOT NULL / default, enum value, UNIQUE or PRIMARY KEY index, foreign key) or `NOT_RUN` (stale or missing snapshot, shape unreadable) |
 | V6 | Counts (R5) | the six tables ≥ 1 | any = 0 |
 | V7 | Freshness (R6) | within 7 days of the incident date | older (owner decides whether the data loss window is acceptable) |
 | V8 | `counts.duplicates` | `PASS` (0 groups) | `FAIL` |
 | V9 | Volume | destination `PASS`, or `WARN` accepted by the owner | `FAIL` (> 95%) |
-| V10 | `counts.sync_status` | no PENDING/PROCESSING, or the owner accepts they will be marked FAILED by the first non-`api` start | n/a |
+| V10 | `counts.sync_status` | no PENDING/PROCESSING, or the owner accepts they will be marked FAILED by the first non-`api` start | PENDING/PROCESSING present and not accepted by the owner |
 | V11 | `counts.orphans` / `counts.iqd` | recorded; decisions R3/R4 in section 7 taken **before** background work | not recorded |
+| V13 | `counts.rows` / `counts.unread` | every requested count was read | `counts.unread` is `NOT_RUN` (a requested count did not run; the exit status is 1) |
 | V12 | Validation API (4.4) | stays up 60 s; health 200 with `role:"api"`, `runsBackgroundSync:false`, `bullmq:"disabled"`, `build.commit` = intended SHA; digests equal; no migrate lines | anything else |
+
+### 4.8 The restored copy is BEHIND (`state pending`: the restore point is older than this build's migrations)
+
+This is the expected result when the dump predates the newest migrations. Do **not** let `.deploy/start.js` migrate the live database (4.7 item 1). Migrate the **copy**, where a failure costs nothing:
+1. On the local copy only: `DATABASE_URL="$LOCAL/adlytic_restore_check" npx prisma migrate deploy` (a write to the disposable copy; A12: applied the missing migrations, 39 → 41 history rows, the 4 missing tables created). Write down the wall time: `healthcheckTimeout` is 60 s (`railway.json`).
+2. Re-run the preflight on the copy: it must now be GO with `identities`, `checksums`, `tables`, `columns` and `shape` all `PASS` (A20).
+3. For the cut-over, restore a **dump of the migrated copy** (`pg_dump`, then `pg_restore --exit-on-error --single-transaction` into the empty target, A20), run the preflight on the target, and only then continue with section 5. The start path's `migrate deploy` is then a no-op.
+If a migration fails on the copy (`P3018` / `P3009`), stop: that is the evidence the owner needs before any production step.
 
 ### 4.7 Why `.deploy/start.js` must NOT be used against an unvalidated restored database
 1. It runs `prisma migrate deploy` first. On a database that is behind, that **writes**: it applied 2 migrations and changed the table digest (A12). A migration that fails halfway on real data leaves a `P3009` row.
@@ -249,7 +279,7 @@ Do **not** call `GET …/data-health?cleanup=true`, `POST …/sync` or `POST …
 
 Preconditions: section 4 all GO; the dump and its sha256 stored in two places; section 7 decisions R1-R6 taken.
 
-**5.1 Target database.** Either (a) the existing Postgres service/volume, if it is alive: run the preflight against it with `--i-understand-this-reads-a-real-database --counts --volume-bytes <bytes>`;
+**5.1 Target database.** Either (a) the existing Postgres service/volume, if it is alive: run the preflight against it with `--i-understand-this-reads-a-real-database --counts --volume-bytes <bytes>` (approval row 14; a `reason=tls` answer: see 4.2);
 or (b) a **new** Postgres service on a larger volume (`UNVERIFIED` how): restore into it *empty* with the 4.2 `pg_restore` command pointed at its public connection, then run the same preflight. Required: exit 0.
 
 **5.2 Keep other writers off.** `thriving-manifestation` and `lively-insight` stay stopped; auto-deploy of `adlytic` is off (R6) until 5.4.
@@ -257,7 +287,7 @@ or (b) a **new** Postgres service on a larger volume (`UNVERIFIED` how): restore
 **5.3 Point the service.** Set `DATABASE_URL` on `adlytic` to the validated database (the repository documents the reference form `${{<Postgres service>.DATABASE_URL}}`; service naming is `UNVERIFIED`).
 Set `SERVICE_ROLE=api` and `BULLMQ_ENABLED=false` on `adlytic` for this first deploy (the default role is `combined`, which starts the writers of 4.7 item 4).
 
-**5.4 Deploy with migrations** (dashboard "deploy latest commit" or dispatch of `deploy-adlytic.yml`; both build the tip of the branch the service tracks, so the owner confirms the tip **is** the intended SHA).
+**5.4 Deploy with migrations** (dashboard "deploy latest commit" (`UNVERIFIED` wording) or dispatch of `deploy-adlytic.yml`, whose own comment says it sends `latestCommit=true`: both build the tip of the branch the service tracks, so the owner confirms the tip **is** the intended SHA).
 `startCommand` is `node .deploy/start.js`; on the validated database it logs `No pending migrations to apply.` and starts the server (A11 healthy; `HEALTH_ENDPOINT.md` records about 1.6 s for a no-op migrate, not timed here; Railway's `healthcheckTimeout` is 60 s, so a migrate that has real work to do could exceed it: *hypothesis*).
 
 **5.5 Expected healthcheck result.** HTTP **200**, body `status:"ok"`, `db:"ok"`, `role:"api"`, `runsBackgroundSync:false`, `bullmq:"disabled"`, `build.commit` equal to the intended SHA (first 7 characters equal `git rev-parse --short`).
@@ -267,11 +297,11 @@ Then run `preflight --counts --i-understand-this-reads-a-real-database` against 
 
 **5.6 Background work: one account first.** There is **no** configuration that limits the scheduled pass to one account (`backgroundScheduler.ts:73-100`, `syncAllAccounts`: every `ACTIVE` account with a user or system-user token). The supported way to try one account is a manual sync through the API while the service stays `SERVICE_ROLE=api`:
 1. Take the section 7 decisions R3-R5 first (orphan sweep, IQD, raw_insights).
-2. As an OWNER/MANAGER member of **one** workspace: `POST /api/workspaces/<workspaceId>/sync` with `{"windowDays": 3}` (rate limit 3 per 15 min per workspace; the job runs in-process with `setImmediate`, `src/api/server.ts:6344`). This calls Meta (read) and writes rows; owner approval.
+2. As an OWNER/MANAGER member of **one** workspace: `POST /api/workspaces/<workspaceId>/sync` with `{"windowDays": 3}` (rate limit 3 per 15 min per workspace; the job runs in-process with `setImmediate` when `BULLMQ_ENABLED` is off, which 5.3 sets: `src/api/server.ts:6344-6480`). This calls Meta (read) and writes rows; owner approval.
 3. Poll `GET /api/sync-jobs/<jobId>` until COMPLETED. A `TokenDecryptError` or a Meta 190 here means the `TOKEN_ENCRYPTION_KEY` on this service is not the key that encrypted the restored tokens (or the token expired): **stop**. (`scripts/count-undecryptable-tokens.ts` is the documented read-only counter, but it cannot run on this base, A14.)
 4. Verify with aggregates only:
    - duplicates: `preflight --counts` → `counts.duplicates` still `PASS`;
-   - no tenant crossover: run `per_workspace.sql` (A15) before and after; **only the synced workspace's row may change**; every other `ws_no` row identical;
+   - no tenant crossover: run `scripts/ops/per-workspace-counts.sql` (A15) before and after; **only the synced workspace's row may change**; every other `ws_no` row identical;
    - PeriodInsight: `period_insights` for the synced workspace increased, and the `dup.period_insights` line stays 0;
    - IQD (if the account is IQD): `repair-iqd-factors.ts` report shows `proven-x100=0`;
    - `counts.sync_status` gained one COMPLETED job; no `[adlytic:sync]` failure lines in the log.
@@ -302,7 +332,7 @@ Exact revert steps for a bad deploy: (1) owner stops the new deployment / redepl
 | R3 | **The scheduled integrity sweep deletes orphaned campaign `daily_stats` of every tenant** (global), 30 s after boot of any non-`api` role and every 6 h; `GET …/data-health?cleanup=true` does the same at `12d7ac5` | A13; `backgroundScheduler.ts:383-410`, `server.ts:1522-1527` | Enable background work only on a build whose cleanup is tenant-scoped and platform-gated (core track, not in this branch), or accept the counts of `counts.orphans` as deletable |
 | R4 | Daily maintenance prunes `raw_insights` older than 90 days **relative to the day the service starts**, which is the evidence the IQD repair needs | A13; `backgroundScheduler.ts:341-352` | Run the IQD report (4.3) and, if rows are over-scaled, the repair **before** non-`api` roles run |
 | R5 | A restored database may hold IQD accounts with `currency_minor_factor <> 1` | A6 / A7 | Size it (4.3) and decide before any sync (sync also repairs from evidence) |
-| R6 | A push/merge to the tracked branch may deploy by itself: `railway.setup.txt` says Auto Deploy is ENABLED on `main` (`UNVERIFIED` on the Railway side), and `deploy-adlytic.yml` says a push only runs `verify` | `railway.setup.txt`, `.github/workflows/deploy-adlytic.yml` | Confirm the setting; keep auto-deploy off until 5.4 |
+| R6 | A push/merge to the tracked branch may deploy by itself: `railway.setup.txt` says Auto Deploy is ENABLED on `main` (`UNVERIFIED` on the Railway side), and the comment in `deploy-adlytic.yml` says "Railway's own GitHub integration already deploys every push to main … independently of this workflow" while its push trigger only runs `verify` | `railway.setup.txt`, `.github/workflows/deploy-adlytic.yml` | Confirm the setting; keep auto-deploy off until 5.4; treat a merge of this branch as a possible deployment |
 | R7 | The checkout used for the preflight must be the commit that will be deployed | 4.1 | Record both SHAs |
 | R8 | `TOKEN_ENCRYPTION_KEY` / `JWT_SECRET` must be unchanged from the original service or every stored token is undecryptable | `src/config.ts`, `AUDIT-REPORT.md` D-1 | Locate the original values **before** deleting any variable or service |
 | R9 | Rows written between the restore point and the cut-over are lost | 6 | Record the restore point's time |
@@ -324,14 +354,84 @@ Exact revert steps for a bad deploy: (1) owner stops the new deployment / redepl
 
 ---
 
+## 8. Adversarial review record (an independent reviewer, commits after `f7827e6`)
+
+The reviewer assumed the preflight and this runbook were wrong, built throw-away databases (`adlytic_repro_ops_rev_*`) from the migrated template, and re-ran every command of Appendix A. Exit codes are what the CLI printed.
+
+### 8.1 Fail-open search: states that were broken, and what the preflight said
+
+| State (one database each) | Exit before | Exit now |
+|---|---|---|
+| one identity renamed (equal count); name upper-cased; trailing / leading space; trailing newline | 1 | 1 |
+| `rolled_back_at` set on a shipped row; history truncated (20 rows, or empty) | 1 | 1 |
+| `_prisma_migrations` moved to another schema / copied there and emptied / dropped; a model table moved to another schema | 1 | 1 |
+| a column renamed (also to a different case) / dropped | 1 | 1 |
+| a table replaced by a view or a materialized view | 1 | 1 |
+| checksum edited; empty database; history present but no model tables | 1 | 1 |
+| **one identity recorded twice (same name, same checksum)** | **0** | 1 (`identities` FAIL, "duplicated") |
+| **column type changed** (bigint → integer / text / numeric(10,2); date → timestamp; timestamp(3) → timestamptz / timestamp(6)) | **0** | 1 (`shape` FAIL) |
+| **column DEFAULT dropped**; **NOT NULL added** where the model is optional | **0** | 1 |
+| **enum value dropped / renamed; enum type dropped** (column left as text) | **0** | 1 |
+| **UNIQUE index dropped / replaced by a plain index / made partial**; PRIMARY KEY dropped (Postgres test) | **0** | 1 |
+| **FOREIGN KEY dropped / re-created with ON DELETE NO ACTION** | **0** | 1 |
+| NOT NULL dropped (the column is nullable, the model requires a value) | 0 | 0 with `[WARN] shape` (reads work until a NULL appears; V5b needs the owner's acceptance) |
+| a plain (non-unique) index dropped | 0 | 0 with `[WARN] shape` (slower queries only) |
+
+Healthy-in-production states that must stay GO, observed GO: ahead (an applied migration this build does not ship, `[WARN] identities`); rolled-back attempt then re-applied; an extra table / column / index / foreign key / enum value / enum type;
+a column re-added at the end of its table (another column order); an index or foreign key under another name; a default the model does not have; a CRLF checkout of LF-applied migrations and the reverse (`[WARN] checksums … line endings only`, 41 of 41);
+a `pg_dump` / `pg_restore` round trip (A5/A6, A20).
+
+### 8.2 Read-only proof
+
+Every statement the tool sent was captured on the wire (`pg.Client.prototype.query` spy, `--counts --volume-bytes`, a database holding a table named `x"; drop table users; --`, a column and a table with quotes in their names and a `_prisma_migrations.migration_name` containing SQL):
+40 distinct statements (the capture was repeated on the final code, with the four shape statements), all constants, the first `BEGIN READ ONLY`, the last `ROLLBACK`, none containing a `;` or any of the hostile text; `users` and all 50 tables intact afterwards. Inside `BEGIN READ ONLY` the server refused an `INSERT` made by a function called from a row-level-security policy
+(25006, reported as `read_only_violation`; the log table stayed empty). **Found:** `assertReadOnlySql` is a denylist; `pg_stat_reset()`, `pg_logical_emit_message()` and any user function pass it, and a READ ONLY transaction does **not** forbid the first two (both ran). Fixed: every statement sent must also be byte-for-byte
+one the tool defines (`assertKnownStatement`). A function that opens its own connection (dblink) was **not** demonstrable here (trust authentication: dblink refuses a non-superuser, 2F003); it is documented as a limit in 4.2.
+
+### 8.3 Leaks
+
+A distinctive password, user and database name were put in `DATABASE_URL`; output (human and `--json`, stdout and stderr) was searched for them, for the host and the port on every path: success with `--counts`, a non-loopback URL without the flag, with the flag (DNS failure), closed port, missing database, missing role, unparseable URL, non-postgres URL.
+None appeared. **Found:** a URL passed as an *argument* was echoed for its first 40 characters (user name and the start of the password). Fixed: no argument text is echoed. `--counts` printed no id, e-mail, name, token or external id for the seeded two-tenant data.
+
+### 8.4 Mutations of the verdict function (reverted, never committed)
+
+| Mutation | Result of `test_preflight_schema.ts` |
+|---|---|
+| checksum drift not recorded | RED (5 failed) |
+| a count of identities instead of the identities | RED (7 failed) |
+| `NOT_RUN` (unknown) not blocking | RED (9 failed) |
+| missing columns ignored | RED (5 failed) |
+| shape check stubbed to PASS (the behaviour before the fix) | RED (35 unit + 38 Postgres assertions failed) |
+| shape: type / UNIQUE / enum value / foreign key / default / stale snapshot / unreadable shape ignored (7 mutants) | each RED |
+
+### 8.5 Runbook defects found and fixed
+
+| Defect | Fix |
+|---|---|
+| Appendix A0 and A15 described `digest.sh` and `per_workspace.sql` that were not in the repository; A15's observed row `(2,2,4,10,4,2)` could not be reproduced (the last column counted only COMPLETED jobs) | committed `scripts/ops/table-digest.sh` and `scripts/ops/per-workspace-counts.sql` (tested); observed `(2,2,4,10,4,4)` |
+| A13 did not say which columns to age: with `started_at` / `date` instead of `created_at` / `fetched_at` nothing is swept or pruned (the code filters on those two) | exact seed SQL and the code lines |
+| the approvals table had no row for reading a live database with the preflight, nor for setting service variables | rows 14 and 15 |
+| "deploy latest commit" and the redeploy step were not labelled `UNVERIFIED` everywhere; `P1000` / `P1003` were presented like observed codes | labelled |
+| the GO / NO-GO table had no row for the new shape check, nor for `NOT_RUN` of `identities` / `tables` / `columns`; V10 had no NO-GO condition | rows V3, V5, V5b, V10, V13 |
+| no procedure when the restore point is older than the build (`state pending`) | 4.8 |
+| R6 omitted that `deploy-adlytic.yml`'s own comment says Railway's integration deploys every push to `main` | R6, claim 20 |
+| no statement of what a GO does not cover; no mention of TLS verification for a Railway proxy | 4.2, claim 24 |
+
+### 8.6 Not fixed / not knowable here
+
+`BLOCKED`: every fact about live Railway or production (section 1); the production Postgres major version; whether the production schema equals what the migrations create (if it does not, the shape check answers NO-GO and the owner must read the named differences: there is no override flag);
+whether the Railway public proxy certificate verifies (`reason=tls`). Not detected: NOT NULL silently dropped with NULLs present; privileges, sequences, triggers, check constraints; `?schema=` in the URL (the preflight always reads `public`).
+
+---
+
 ## Appendix A. Commands that were run (synthetic loopback databases; secrets replaced by placeholders)
 
-Local Postgres 16.15 at `127.0.0.1:54329`; databases `adlytic_repro_ops_*` created by the author. Working directory: the repository checkout at `78f1a33`. `$B` = `postgresql://<user>@127.0.0.1:54329`.
+Local Postgres 16.15 at `127.0.0.1:54329`; databases `adlytic_repro_ops_*` created by the author, every row re-run by the reviewer on `adlytic_repro_ops_rev_*`. Working directory: the repository checkout at the tip of `local/railway-preflight` (`git log`). `$B` = `postgresql://<user>@127.0.0.1:54329`.
 
 | ID | Command | Observed |
 |---|---|---|
-| A0 | `digest.sh <url>`: for each table in schema `public`, `select count(*), md5(string_agg(md5(x::text)\|\|x.xmin::text, ',' order by x.ctid)) from public."<table>" x`, then `md5sum` of all lines | One 16-hex digest. Two runs on an untouched copy: equal. `xmin` moves on any write, even an `UPDATE` that changes no value. |
-| A1 | `git rev-parse --short HEAD; git status --short \| wc -l` | `78f1a33`, 0 |
+| A0 | `scripts/ops/table-digest.sh <url>`: for each table in schema `public`, the row count and `md5(string_agg(md5(x::text)\|\|x.xmin::text, ',' order by x.ctid))`, then `md5sum` of all lines; read-only session; table names passed as psql variables | One 16-hex digest. Two runs on an untouched copy: equal. `xmin` moves on any write, even an `UPDATE` that changes no value (positive control). A table named `x"; drop table users; --` is digested as a name. |
+| A1 | `git rev-parse --short HEAD; git status --short \| wc -l` | the tip's short SHA, 0 |
 | A2 | `psql "$B/adlytic_repro_ops_src" -Atc "select pg_size_pretty(pg_database_size(current_database()))"` | 10 MB |
 | A3 | `pg_dump --format=custom --no-owner --no-privileges --file=restore_point.dump "$B/adlytic_repro_ops_src"` | exit 0, 0.14 s, 133 730 bytes |
 | A4 | `pg_restore --list restore_point.dump > toc.txt; wc -l < toc.txt; grep -c "TABLE DATA" toc.txt; sha256sum restore_point.dump` | exit 0; 326 lines; 48; digest printed |
@@ -343,13 +443,14 @@ Local Postgres 16.15 at `127.0.0.1:54329`; databases `adlytic_repro_ops_*` creat
 | A10 | the same `serve.js` start against: a copy with the last two migrations removed and their 4 tables dropped / a copy with `_prisma_migrations` dropped / a copy with an unfinished row / `postgresql://<user>@127.0.0.1:1/<db>` | 503 `db:"ok"`, log `state=pending applied=39 shipped=41 missingMigrations=…,… missingTables=meta_usage_daily,meta_usage_outcomes,meta_usage_state,period_insights` / 503 `db:"ok"`, `state=unknown applied=? shipped=41 unknownReason=history_absent` / 503 `db:"ok"`, `state=failed applied=41 shipped=41 failedMigrations=…` / 503 `db:"unavailable"`, `reason=unreachable prismaCode=P2010 adapterKind=DatabaseNotReachable`. Every body has exactly the 9 public keys. |
 | A11 | `node .deploy/start.js` (with `SERVICE_ROLE=api`) against: closed port / no `_prisma_migrations` / unfinished row / advisory lock `72707369` held by another session / `DATABASE_URL` unset / the healthy copy | exit 1 `P1001` (2 s) / exit 1 `P3005` / exit 1 `P3009` / exit 1 `P1002` after 12 s / exit 1 "datasource.url property is required" (and `node dist/src/api/serve.js` with `DATABASE_URL` unset in a production environment: exit 1, `[adlytic:config] FATAL — 1 required configuration error(s) in production`) / **exit 0 path**: `No pending migrations to apply.`, `Server listening`, HTTP 200, digest before = after. Each failure ends with `[adlytic:start] prisma migrate deploy exited 1 — not starting the server`. |
 | A12 | `DATABASE_URL="$B/<behind copy>" npx prisma migrate deploy` | `Applying migration 20260822120000_add_period_insights`, `…23010000_add_meta_usage_telemetry`; exit 0; history rows 39 → 41; `period_insights` created; digest changed |
-| A13 | `env -u SERVICE_ROLE NODE_ENV=production DATABASE_URL="$B/<copy>" … node dist/src/api/serve.js`, stopped after 45 s. Copy = restore + one 100-day-old `raw_insight` + one 2-hour-old PROCESSING sync job | log: `Cleaned up 1 orphaned sync job(s)`, `Deleted 1 raw_insight rows older than 90 days`, `auto-cleaned 4 orphaned daily_stat row(s) globally`. Before/after: orphans 4 rows / 3 ids → **0 / 0** (both tenants); raw_insights 7 → 6; PROCESSING 1 → FAILED 1 |
+| A13 | `env -u SERVICE_ROLE NODE_ENV=production PORT=3220 DATABASE_URL="$B/<copy>" ALLOWED_ORIGINS=… JWT_SECRET=<throw-away> TOKEN_ENCRYPTION_KEY=<throw-away> node dist/src/api/serve.js`, stopped after 45 s. Copy = restore + `insert into raw_insights (id, entity_type, entity_id, date, raw_json, fetched_at) select 'old_raw_1', 'CAMPAIGN', id, (now() - interval '100 days')::date, '{}'::jsonb, now() - interval '100 days' from campaigns limit 1` + `insert into sync_jobs (id, ad_account_id, status, window_days, window_since, window_until, created_at) select 'old_proc_1', id, 'PROCESSING', 3, now()::date-3, now()::date-1, now() - interval '2 hours' from ad_accounts limit 1` (the code filters on `fetched_at`, `backgroundScheduler.ts:345`, and `created_at`, `backgroundScheduler.ts:62`; ageing any other column changes nothing) | log: `Cleaned up 1 orphaned sync job(s)`, `Deleted 1 raw_insight rows older than 90 days`, `auto-cleaned 4 orphaned daily_stat row(s) globally`. Before/after: orphans 4 rows / 3 ids → **0 / 0** (both tenants); raw_insights 7 → 6; PROCESSING 1 → FAILED 1 |
 | A14 | `DATABASE_URL=… TOKEN_ENCRYPTION_KEY=<throw-away> npx tsx scripts/count-undecryptable-tokens.ts` | exit 1: `PrismaClientInitializationError` (client built without the driver adapter). **BLOCKED**: not usable. |
-| A15 | `psql "$B/<copy>" -f per_workspace.sql` (per workspace, `row_number()` instead of ids: `ad_accounts`, `campaigns`, `daily_stats` (account + campaign rows via joins), `period_insights`, `sync_jobs`) | 2 rows: `(1,1,2,5,2,1)` and `(2,2,4,10,4,2)` |
+| A15 | `psql -q "$B/<copy>" -X -A -t -F ' ' -f scripts/ops/per-workspace-counts.sql` (per workspace, `row_number()` instead of ids: `ad_accounts`, `campaigns`, `daily_stats` (account + campaign rows via joins), `period_insights`, `sync_jobs`) | 2 rows: `1 1 2 5 2 1` and `2 2 4 10 4 4`; nothing but numbers |
 | A16 | `pg_dump --format=custom --data-only --table=public.daily_stats --file=daily_stats_before_iqd.dump "$B/<copy>"`; `pg_restore --list … \| grep -c "TABLE DATA"` | exit 0; 1 |
-| A17 | `npm run test:preflight-schema`; `PREFLIGHT_PG_URL=… npm run test:preflight-schema-pg` | 276 passed, 0 failed; 153 passed, 0 failed (final numbers are in the commit notes) |
+| A17 | `npm run test:preflight-schema`; `PREFLIGHT_PG_URL=… npm run test:preflight-schema-pg` | 447 passed, 0 failed; 380 passed, 0 failed |
 | A18 | `PGPASSWORD="" pg_dump -h 127.0.0.1 -p 1 -U x -d y --no-password 2>/dev/null \| gzip > f.gz; echo $?; ls -l f.gz` (the pipeline of `backup_database.command`) | exit 0, 20 bytes |
 | A19 | preflight on the "pending" copy / on a copy with one `_prisma_migrations.checksum` changed / `DATABASE_URL=postgresql://<user>:<password>@db.example.invalid:5432/<db>` without the flag / `--help` | exit 1: `[FAIL] identities … pending` (2 names), `[FAIL] tables` (4 names), `state pending` / exit 1: `[FAIL] checksums … drift: 20260710120000_add_platform_settings`, `state ok` / exit 2: `NOT RUN: DATABASE_URL is not a loopback address…`, nothing printed from the URL / exit 0 usage |
+| A20 | `DATABASE_URL="$B/<behind copy>" npx prisma migrate deploy`; preflight on it; `pg_dump --format=custom` of the migrated copy; `pg_restore --exit-on-error --single-transaction` into an empty database; preflight on the restored database | before: exit 1 `state pending`; after `migrate deploy` (2 migrations applied): exit 0, `identities`, `checksums`, `tables`, `columns`, `shape` all `PASS`; restore exit 0; restored database exit 0 (`shape` PASS) |
 
 ### Not run (`NOT_RUN`) and why
 Every Railway and Cloudflare action (no access); any `railway` CLI command (no flags were invented; none are needed by this runbook); dispatching `verify-live.yml` or `deploy-adlytic.yml` (GitHub, owner);
