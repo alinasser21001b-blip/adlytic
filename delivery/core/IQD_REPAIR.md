@@ -12,7 +12,7 @@ Two readers that were silently relying on the old write now resolve the factor t
 Without that, the weekly report printed **900 000 IQD instead of 9 000 IQD** for a stale account (found by mutation M6).
 
 **Signal.** Spend whose scale cannot be verified is reported through the existing data-integrity check (`GET …/data-health`, and the scheduler's integrity observer):
-`SPEND_SCALE_UNVERIFIED` (WARN) — an IQD account stores a non-canonical factor and its window rows are not proven;
+`SPEND_SCALE_UNVERIFIED` (WARN) — account-level window rows have no raw Meta counterpart to be checked against (**at any factor**: a stored factor of 1 certifies nothing, see `DATA_HEALTH_ISOLATION.md` §4);
 `SPEND_SCALE_OVERSCALED` (CRITICAL) — raw Meta spend proves rows are exactly 100×. Both are read-only; neither changes a number.
 
 **Repair (B's safeguards), only in sync and `POST /api/workspaces/:id/repair-iqd`** (`src/lib/iqdRepair.ts`):
@@ -45,9 +45,9 @@ Row B is the price of choosing A: a viewer no longer fixes data by looking at it
 ## 4. Limits the owner should know
 
 1. Repair covers **account and campaign** rows (as before). **Ad-set and ad rows are not repaired** (they never were).
-2. Rows older than `RAW_INSIGHTS_RETAIN_DAYS` (90) have no evidence and are **left as stored**. After the factor flips to 1 the UNVERIFIED warning clears — there is no persisted "unverified" marker (that needs a schema change, which is gated).
+2. Rows older than `RAW_INSIGHTS_RETAIN_DAYS` (90) have no evidence and are **left as stored**. The warning does **not** clear when the factor flips to 1 (it follows the rows); `spendScale.history.withoutEvidence` reports how many account-level rows of all time have no raw counterpart. A persisted per-row "unverified" mark would need a schema change (gated).
 3. A row is only rewritten if its *spend* is proven ×100; cpc/cpm/cost-per-message/revenue of that row are divided with it (same mapper scaling).
-4. **Another mutating GET, untouched:** `GET /api/workspaces/:id/data-health?cleanup=true` deletes orphaned campaign stats (`cleanupOrphanedCampaignStats`). Keep it out of live probes.
+4. The other mutating GET (`data-health?cleanup=true`, which deleted every tenant's orphaned stats) is **fixed**: see `DATA_HEALTH_ISOLATION.md`.
 5. Not verified live: production's stale-factor population, `raw_insights` coverage, Railway behaviour.
 
 ## 5. Operator procedure (NOT executed here; production repair is outside this execution)
