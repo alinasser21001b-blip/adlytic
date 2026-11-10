@@ -702,6 +702,12 @@ async function main() {
     const qc = P.evaluateCounts(q, NOW).find((c) => c.id.includes('iqd'));
     check('IQD accounts whose factor is not 1 → WARN with the number', qc?.status === 'WARN' && /3/.test(qc.reason), qc);
 
+    const nr = goodCounts(); nr.rows['users'] = null; nr.rows['workspaces'] = null;
+    const nrc = P.evaluateCounts(nr, NOW).find((x) => x.id === 'counts.rows');
+    check('a key-table count that was NOT READ is never summarised as "all non-empty" (PASS)', !!nrc && nrc.status !== 'PASS' && !/all non-empty/.test(nrc.reason) && /not read/.test(nrc.reason) && /users/.test(nrc.reason), nrc);
+    const allNull = goodCounts(); for (const k of Object.keys(allNull.rows)) allNull.rows[k] = null;
+    check('…not even when every one of them is unread', P.evaluateCounts(allNull, NOW).find((x) => x.id === 'counts.rows')?.status !== 'PASS');
+
     const e = goodCounts(); e.rows['daily_stats'] = 0;
     check('an empty key table → WARN', P.evaluateCounts(e, NOW).some((c) => c.status === 'WARN' && /daily_stats/.test(c.reason + (c.details ?? []).join(' '))));
 
@@ -887,6 +893,23 @@ async function main() {
       check(`${name} → says NOT RUN`, /NOT RUN/.test(c.all()), c.all());
       check(`${name} → no host, user, password, port, database name or URL printed`, leaked(c.all()).length === 0, leaked(c.all()));
       check(`${name} → driver message text is never printed (a marker the scrub does not know cannot appear)`, !c.all().includes(MARKER), c.all());
+    }
+    // The runbook connects to a Railway public proxy: a non-loopback host is verified strictly (src/lib/pgSsl.ts: rejectUnauthorized true,
+    // DATABASE_CA_CERT adds the CA). The failure the operator will meet first is a certificate one; "reason=unknown code=-" does not help.
+    const tlsCases: Array<[string, () => Error]> = [
+      ['self-signed certificate in the chain', () => Object.assign(new Error('self-signed certificate in certificate chain ' + MARKER), { code: 'SELF_SIGNED_CERT_IN_CHAIN' })],
+      ['self-signed leaf certificate', () => Object.assign(new Error('self-signed certificate'), { code: 'DEPTH_ZERO_SELF_SIGNED_CERT' })],
+      ['unable to verify the leaf signature', () => Object.assign(new Error('unable to verify the first certificate'), { code: 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' })],
+      ['unable to get the local issuer certificate', () => Object.assign(new Error('unable to get local issuer certificate'), { code: 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' })],
+      ['expired certificate', () => Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' })],
+      ['host name not in the certificate', () => Object.assign(new Error(`Hostname/IP does not match certificate's altnames: db.internal.example`), { code: 'ERR_TLS_CERT_ALTNAME_INVALID' })],
+      ['the server does not support TLS (pg: no code)', () => new Error('The server does not support SSL connections ' + MARKER)],
+    ];
+    for (const [name, mk] of tlsCases) {
+      const c = cap();
+      const code = await P.main(['--i-understand-this-reads-a-real-database'], { DATABASE_URL: SECRET_URL }, c.io, { connect: async () => { throw mk(); }, readBuild: SYN_BUILD });
+      check(`TLS failure (${name}) → exit 2 and "reason=tls"`, code === 2 && /reason=tls/.test(c.all()), c.all());
+      check(`…the operator is told what to do (DATABASE_CA_CERT) and nothing about the connection leaks`, /DATABASE_CA_CERT/.test(c.all()) && leaked(c.all()).length === 0 && !c.all().includes(MARKER), c.all());
     }
     const c = cap();
     const code = await P.main(['--json', '--i-understand-this-reads-a-real-database'], { DATABASE_URL: SECRET_URL }, c.io, { connect: async () => { throw Object.assign(new Error(SECRET_URL), { code: 'ECONNREFUSED' }); }, readBuild: SYN_BUILD });

@@ -368,9 +368,12 @@ export function evaluateCounts(c: CountsData, now: Date): CheckResult[] {
   const out: CheckResult[] = [];
   const keyTables = Object.keys(c.rows).sort();
   const empty = keyTables.filter((t) => c.rows[t] === 0);
+  const unread = keyTables.filter((t) => c.rows[t] === null);
   out.push({
-    id: 'counts.rows', status: empty.length > 0 ? 'WARN' : 'PASS', gating: false,
-    reason: empty.length > 0 ? `${empty.length} of ${keyTables.length} key tables are empty: ${empty.join(', ')}` : `${keyTables.length} key tables, all non-empty`,
+    id: 'counts.rows', status: unread.length > 0 ? 'NOT_RUN' : empty.length > 0 ? 'WARN' : 'PASS', gating: false,
+    reason: unread.length > 0
+      ? `${unread.length} of ${keyTables.length} key table counts were not read: ${unread.join(', ')}${empty.length > 0 ? `; ${empty.length} read as empty: ${empty.join(', ')}` : ''}`
+      : empty.length > 0 ? `${empty.length} of ${keyTables.length} key tables are empty: ${empty.join(', ')}` : `${keyTables.length} key tables, all non-empty`,
     details: keyTables.map((t) => `${t}: ${c.rows[t] === null ? 'not read' : c.rows[t]}`),
   });
 
@@ -671,11 +674,25 @@ function queryErrorReason(err: unknown): string {
   if (/Connection terminated|Client has encountered a connection error|query read timeout/i.test(msg)) return 'connection_lost';
   return 'error';
 }
+/**
+ * A TLS / certificate failure. src/lib/pgSsl.ts verifies the server certificate of every non-loopback host (rejectUnauthorized
+ * true; DATABASE_CA_CERT adds the CA), and classifyDbError knows none of Node's certificate codes, so without this the first
+ * failure an operator meets against a Railway public proxy reads "reason=unknown code=-". Only structure (code, and the message
+ * as a pattern) is inspected; the message itself is never printed.
+ */
+function isTlsFailure(err: unknown): boolean {
+  const e = err as { code?: unknown; message?: unknown } | null;
+  const code = typeof e?.code === 'string' ? e.code : '';
+  if (/^(ERR_TLS_|ERR_SSL_)/.test(code) || /^(SELF_SIGNED_CERT|DEPTH_ZERO_SELF_SIGNED_CERT|UNABLE_TO_VERIFY_LEAF_SIGNATURE|UNABLE_TO_GET_ISSUER_CERT|CERT_|HOSTNAME_MISMATCH)/.test(code)) return true;
+  const msg = typeof e?.message === 'string' ? e.message : '';
+  return /does not support SSL|self[- ]signed|certificate|\bSSL\b|\bTLS\b/i.test(msg);
+}
 function connectErrorText(err: unknown): string {
-  const reason = classifyDbError(err);
+  const reason = isTlsFailure(err) ? 'tls' : classifyDbError(err);
   const code = (err as { code?: unknown } | null)?.code;
-  const shown = typeof code === 'string' && /^([A-Z][A-Z0-9_]{2,15}|[0-9A-Z]{5})$/.test(code) ? code : '-';
-  return `reason=${reason} code=${shown}`;
+  const shown = typeof code === 'string' && /^([A-Z][A-Z0-9_]{2,39}|[0-9A-Z]{5})$/.test(code) ? code : '-';
+  const hint = reason === 'tls' ? '; the certificate of a non-loopback host is verified strictly: set DATABASE_CA_CERT to the server\'s CA certificate (PEM) if it is not publicly trusted' : '';
+  return `reason=${reason} code=${shown}${hint}`;
 }
 
 // ── collection ───────────────────────────────────────────────────────────
