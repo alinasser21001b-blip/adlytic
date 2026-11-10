@@ -41,6 +41,7 @@ import { assembleV2Inputs } from '../services/v2ContextAssembler';
 import { persistBrainBatch, BrainSnapshotInput } from '../services/BrainPersistence';
 import { loadCampaignSignalsBatch } from '../engines/rules/loadCampaignSignals';
 import { resolveCampaignPurpose } from '../lib/campaignPurpose';
+import { resolveCurrencyMinorFactor } from '../lib/currency';
 
 // ── Tuning dials ────────────────────────────────────────────────────────
 const ORCHESTRATOR_CONFIG = {
@@ -88,6 +89,7 @@ export async function runBrainOrchestrator(
         id: true,
         workspaceId: true,
         externalAccountId: true,
+        currency: true,
         currencyMinorFactor: true,
         timezone: true,
         campaigns: {
@@ -106,6 +108,9 @@ export async function runBrainOrchestrator(
     if (!account) {
       return failResult(adAccountId, start, `AdAccount ${adAccountId} not found`);
     }
+    // Resolve, never trust the stored column (an IQD account carrying the schema
+    // default of 100 reads as 1). That used to be masked by GET handlers healing it.
+    const accountFactor = resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor);
     const campaigns = account.campaigns;
     if (campaigns.length === 0) {
       console.log(`${tag} no campaigns under account — nothing to do`);
@@ -125,7 +130,7 @@ export async function runBrainOrchestrator(
     const rawByCampaignId = await loadRawDataForCampaigns(
       prisma,
       campaigns.map(c => c.id),
-      account.currencyMinorFactor,
+      accountFactor,
       now,
     );
 
@@ -181,7 +186,7 @@ export async function runBrainOrchestrator(
             adAccountId: account.id,
             externalAccountId: account.externalAccountId,
             timezone: account.timezone,
-            currencyMinorFactor: account.currencyMinorFactor,
+            currencyMinorFactor: accountFactor,
             dailyBudgetMinor: campaign.dailyBudget,
             nowUtc: now,
           });

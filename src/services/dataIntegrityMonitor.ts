@@ -8,6 +8,7 @@ import {
 } from '../lib/campaignDataIsolation';
 import { accountDeliveryHold, classifyCampaignDelivery, DELIVERY_WINDOW_DAYS } from '../lib/campaignLifecycle';
 import { accountLocalDateFloor } from '../lib/campaignSpending';
+import { collectScaleEvidence } from '../lib/iqdRepair';
 
 export type IntegritySeverity = 'OK' | 'INFO' | 'WARN' | 'CRITICAL';
 
@@ -224,6 +225,39 @@ export async function runDataIntegrityCheck(
       messageAr: `آخر مزامنة منذ ${syncAgeHours} ساعة`,
       value: syncAgeHours,
     });
+  }
+
+  // ── Spend scale (IQD) ─────────────────────────────────────────────────
+  // The signal that replaces the old heal-on-GET rewrite. READ-ONLY, judged
+  // from the same row-level evidence the repair uses (src/lib/iqdRepair.ts),
+  // and read from the DATABASE (the caller's account object may carry an
+  // in-memory canonical factor). Nothing here changes a number.
+  const storedAccount = await prisma.adAccount.findUnique({
+    where: { id: account.id },
+    select: { currency: true, currencyMinorFactor: true },
+  });
+  if (storedAccount && storedAccount.currency === 'IQD') {
+    const scale = await collectScaleEvidence(prisma, account.id, { sinceDate });
+    const factorStale = storedAccount.currencyMinorFactor !== 1;
+    if (scale.overscaled.length > 0) {
+      checks.push({
+        code: 'SPEND_SCALE_OVERSCALED',
+        severity: 'CRITICAL',
+        message: `${scale.overscaled.length} daily spend row(s) in the ${windowDays}d window are exactly 100x raw Meta spend — run the IQD repair`,
+        messageAr: `${scale.overscaled.length} صف إنفاق يومي خلال آخر ${windowDays} يوماً أكبر ×100 من بيانات Meta الخام — شغّل إصلاح IQD`,
+        value: scale.overscaled.length,
+        autoFixable: false,
+      });
+    } else if (factorStale && accountStats.length > 0 && scale.verified < accountStats.length) {
+      checks.push({
+        code: 'SPEND_SCALE_UNVERIFIED',
+        severity: 'WARN',
+        message: `IQD account stores currency factor ${storedAccount.currencyMinorFactor} and its spend scale cannot be verified from raw Meta data — figures are shown as stored, not rewritten`,
+        messageAr: `لا يمكن التحقق من مقياس الإنفاق لحساب IQD (المعامل المحفوظ ${storedAccount.currencyMinorFactor}) — الأرقام تُعرض كما هي ولا تُعدَّل تلقائياً`,
+        value: storedAccount.currencyMinorFactor,
+        autoFixable: false,
+      });
+    }
   }
 
   if (checks.length === 0) {

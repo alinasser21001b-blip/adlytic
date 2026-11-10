@@ -56,8 +56,7 @@ import { HEALTH_ALGORITHM_VERSION } from "../engines/health/HealthScoreEngine";
 import { diagnoseRelevance } from "../knowledge/adRelevanceIntelligence";
 import { pgSslFor } from "../lib/pgSsl";
 import { EntityStatus } from "@prisma/client";
-import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
-import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
+import { currencyMinorFactorFor, resolveCurrencyMinorFactor } from "../lib/currency";
 import { computePerformanceDrain } from "../lib/performanceDrain";
 import {
   benchmarkCtr,
@@ -871,16 +870,13 @@ export async function getDashboard(
   const account = ws.adAccounts[0]; // Phase 1: one account per workspace
   if (!account) return EMPTY_DASHBOARD_DTO;
 
-  // Auto-heal stale IQD rows that still carry the schema default factor=100.
-  if (currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
-    const healed = await timedStage('currencyHeal', () =>
-      healAccountCurrencyAndSpend(prisma, account),
-    );
-    account.currencyMinorFactor = healed;
-    console.log(
-      `[currency-heal] dashboard ${account.id.slice(0, 8)}… ${account.currency} factor → ${healed}`,
-    );
-  }
+  // READ-ONLY. This used to rewrite ad_accounts and daily_stats on every
+  // dashboard load (heal-on-GET). A read now only fixes the factor used for
+  // THIS response, in memory: the canonical one for the currency, which is what
+  // the old heal returned. Stored money is repaired only by sync or the explicit
+  // repair-iqd route, from row-level evidence (src/lib/iqdRepair.ts); spend
+  // whose scale cannot be verified is reported by the integrity signal.
+  account.currencyMinorFactor = currencyMinorFactorFor(account.currency);
 
   const curr = account.currency;
   const factor = resolveCurrencyMinorFactor(curr, account.currencyMinorFactor);

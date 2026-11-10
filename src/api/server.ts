@@ -175,9 +175,11 @@ import { buildMetaOAuth, getMetaOAuthConfigStatus, fetchMetaAdAccountsByToken, M
 import { isMockAuthEnabled, MOCK_ACCESS_TOKEN, MOCK_ACCOUNTS, seedMockAdAccountData } from '../services/mockMeta';
 import { RecommendationService } from '../services/recommendation.service';
 import { ExecutionService } from '../services/execution.service';
-import { currencyFactorNeedsHeal, currencyMinorFactorFor, moneyFormatterFor, resolveCurrencyMinorFactor } from '../lib/currency';
-import { healAccountCurrencyAndSpend } from '../lib/iqdRepair';
-import { healIqdAccountFactors, rescaleIqdSpendFromRaw } from '../lib/iqdRepair';
+import { currencyMinorFactorFor, moneyFormatterFor, resolveCurrencyMinorFactor } from '../lib/currency';
+// The ONLY write path into stored IQD money is the explicit repair route below
+// (and the sync workers). No GET handler or shared read helper may import it —
+// test_iqd_no_get_writes.ts enforces that.
+import { repairIqdAccountScale } from '../lib/iqdRepair';
 import { isCurrentlySpending, accountLocalTodayFloor, accountLocalDateFloor, getAccountLocalDateString } from '../lib/campaignSpending';
 import { classifyCampaignDelivery, accountDeliveryHold, matchesCampaignScope, type CampaignScopeFilter } from '../lib/campaignLifecycle';
 import {
@@ -921,10 +923,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       include: { adAccounts: { orderBy: { createdAt: 'asc' } } },
     });
     const account = ws.adAccounts[0] ?? null;
-    if (account && currencyFactorNeedsHeal(account.currency, account.currencyMinorFactor)) {
-      const healed = await healAccountCurrencyAndSpend(prisma, account);
-      account.currencyMinorFactor = healed;
-    }
+    // READ-ONLY. This helper is shared by ~20 GET routes and used to rewrite
+    // ad_accounts and daily_stats here (heal-on-GET: HEAL_ON_GET.md). It now
+    // only reports the factor every consumer should use for THIS response —
+    // the canonical one for the currency, exactly what the old heal returned —
+    // without persisting anything. Spend whose scale cannot be verified is
+    // surfaced by the data-integrity signal (SPEND_SCALE_*), and repaired only
+    // by sync or the explicit repair-iqd route, from row-level evidence.
+    if (account) account.currencyMinorFactor = currencyMinorFactorFor(account.currency);
     return { workspace: ws, account };
   }
 
@@ -3140,12 +3146,8 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         },
       },
     });
-    for (const acct of ws.adAccounts) {
-      if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
-        const healed = await healAccountCurrencyAndSpend(prisma, acct);
-        acct.currencyMinorFactor = healed;
-      }
-    }
+    // READ-ONLY: report the canonical factor for the response; never persist it here.
+    for (const acct of ws.adAccounts) acct.currencyMinorFactor = currencyMinorFactorFor(acct.currency);
     // The hold is computed HERE, not in the browser: the frontend renders
     // the verdict, it does not interpret Meta status codes.
     const payload = {
@@ -6213,8 +6215,14 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /**
    * POST /api/workspaces/:workspaceId/repair-iqd
-   * Heal currencyMinorFactor, rescale daily_stats from raw Meta spend, then
-   * enqueue a 90-day backfill. Owner/Manager only; IQD account required.
+   * Repair THIS workspace's IQD account from row-level raw-Meta evidence, in one
+   * transaction under a per-account lock (src/lib/iqdRepair.ts), then enqueue a
+   * 90-day backfill. Owner/Manager only; IQD account required.
+   *
+   * It used to heal and rescale EVERY IQD account in the database — any
+   * workspace member could rewrite other tenants' money. Scope is now the
+   * caller's account. Rows without evidence are left intact and counted in
+   * `rescale.rowsLeftIntact`.
    */
   app.post('/api/workspaces/:workspaceId/repair-iqd', async (c) => {
     const req = await honoToApiRequest(c);
@@ -6232,8 +6240,16 @@ export function buildRoutes(prisma: PrismaClient): Hono {
       return c.json({ error: 'Repair endpoint applies to IQD accounts only' }, 422);
     }
 
-    const factorsHealed = await healIqdAccountFactors(prisma);
-    const rescale = await rescaleIqdSpendFromRaw(prisma);
+    const repair = await repairIqdAccountScale(prisma, account.id);
+    // Response contract kept: same keys as before; `rowsLeftIntact` is additive.
+    const factorsHealed = repair.factorChanged ? 1 : 0;
+    const rescale = {
+      accountsChecked: 1,
+      rowsRescaled: repair.accountRowsRescaled,
+      rowsVerified: repair.rowsVerified,
+      campaignRowsRescaled: repair.campaignRowsRescaled,
+      rowsLeftIntact: repair.rowsUnverifiable,
+    };
 
     const resolvedToken = await resolveAccountToken(prisma, account);
     if (!resolvedToken.encrypted) {

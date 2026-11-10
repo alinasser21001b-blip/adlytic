@@ -17,6 +17,7 @@
 import { type PrismaClient, EntityType } from '@prisma/client';
 import { generateStructured, isAIAvailable } from './ai/aiService';
 import { resolveAccountResultKey } from '../analytics/accountResultKey';
+import { resolveCurrencyMinorFactor } from '../lib/currency';
 
 export interface WeeklyMetrics {
   spend: number;
@@ -87,7 +88,10 @@ export async function generateWeeklyReport(
   });
   if (!account) return null;
 
-  const factor = account.currencyMinorFactor;
+  // Resolve, never trust the stored column: an IQD account still carrying the
+  // schema default (100) must read as 1. This used to be masked because the
+  // dashboard's GET healed the column first; reads no longer write.
+  const factor = resolveCurrencyMinorFactor(account.currency, account.currencyMinorFactor);
   const currency = account.currency;
 
   const now = new Date();

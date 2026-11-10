@@ -25,7 +25,7 @@ import { mapMetaInsight, mapMetaBreakdownInsight, mapAdRelevance } from "../mapp
 import { mapMetaAdSet, mapMetaAd } from "../mappers/creativeMapper";
 import { RawInsightsRepo } from "../repositories/rawInsightsRepo";
 import { DailyStatsRepo } from "../repositories/dailyStatsRepo";
-import { healAccountCurrencyAndSpend } from "../lib/iqdRepair";
+import { reconcileAccountScaleForSync } from "../lib/iqdRepair";
 import { currencyFactorNeedsHeal, resolveCurrencyMinorFactor } from "../lib/currency";
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from "../lib/advisoryLock";
 import { freezeCampaign } from "../lib/campaignFreeze";
@@ -290,11 +290,10 @@ export class SyncAccountWorker {
     });
 
     if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
-      const healed = await healAccountCurrencyAndSpend(this.prisma, acct);
+      // Evidence-only, atomic, locked (src/lib/iqdRepair.ts). A failure rolls
+      // back and sync continues with the canonical factor; the next sync retries.
+      const healed = await reconcileAccountScaleForSync(this.prisma, acct);
       acct = { ...acct, currencyMinorFactor: healed };
-      console.log(
-        `[currency-heal] sync ${acct.externalAccountId} ${acct.currency} factor → ${healed}`,
-      );
     }
 
     const result: SyncResult = {
@@ -1620,11 +1619,8 @@ export class SyncAccountWorker {
 
     let acct = await this.prisma.adAccount.findUniqueOrThrow({ where: { id: adAccountId } });
     if (currencyFactorNeedsHeal(acct.currency, acct.currencyMinorFactor)) {
-      const healed = await healAccountCurrencyAndSpend(this.prisma, acct);
+      const healed = await reconcileAccountScaleForSync(this.prisma, acct);
       acct = { ...acct, currencyMinorFactor: healed };
-      console.log(
-        `[currency-heal] syncChunked ${acct.externalAccountId} ${acct.currency} factor → ${healed}`,
-      );
     }
     const since = job.windowSince;
     const until = job.windowUntil;
