@@ -279,6 +279,59 @@ async function main() {
   const deletedTotal = (dupA.body?.rowsDeleted ?? 0) + (dupB.body?.rowsDeleted ?? 0);
   check('the same approval sent twice concurrently: no 5xx, no deadlock, the batch is deleted exactly once (rows deleted in total = the batch), nothing else touched', [dupA.status, dupB.status].every((st) => st === 200 || st === 409) && deletedTotal === g5.body.orphanRows && (await dry()).body.orphanRows === 0 && (await rowsOf())['r1'] === 3, [dupA.status, dupB.status, dupA.body?.rowsDeleted, dupB.body?.rowsDeleted, g5.body.orphanRows]);
 
+  // ── 4b. a row that changes while the approval waits for its lock ─────
+  // (review findings ORPH-03 / ORPH-04). Under READ COMMITTED the DELETE re-checked only `d.id = o.id` after a lock wait: a row that
+  // a concurrent writer re-keyed onto a LIVE campaign meanwhile was still deleted, and two identical approvals both answered
+  // "deleted". The statement now runs REPEATABLE READ: a row of the batch changed or deleted by someone else aborts it.
+  console.log('\n── 4b. a concurrent writer during the approval: nothing is deleted, a double approval applies once ──');
+  const waitForLockWait = async (n: number, ms = 15000) => {
+    const t0 = Date.now();
+    for (;;) {
+      const r = await pool.query(`select count(*)::int as n from pg_stat_activity where datname = current_database() and wait_event_type = 'Lock' and query like '%DELETE FROM daily_stats%'`);
+      if (r.rows[0].n >= n) return true;
+      if (Date.now() - t0 > ms) return false;
+      await new Promise((r2) => setTimeout(r2, 25));
+    }
+  };
+  const liveCamp = await prisma.campaign.findFirstOrThrow({ where: { adAccountId: A.account.id } });
+  {
+    const lwIds = Array.from({ length: 6 }, (_, i) => `lw1_${sfx}_${i}`);
+    for (let i = 0; i < lwIds.length; i++) await prisma.dailyStat.create({ data: { id: lwIds[i]!, entityType: EntityType.CAMPAIGN, entityId: `orph_lw1_${sfx}`, date: day(300 + i), spend: 5n } });
+    const gLw = await dry();
+    const liveBefore = await prisma.dailyStat.count({ where: { entityId: liveCamp.id } });
+    const holder = await pool.connect();
+    await holder.query('BEGIN');
+    await holder.query(`update daily_stats set entity_id = $1, date = '2001-02-03' where id = $2`, [liveCamp.id, lwIds[3]]);   // re-keyed onto a LIVE campaign, uncommitted
+    const pLw = post(`?expectedRows=${gLw.body.orphanRows}&batchId=${gLw.body.batchId}`);
+    const blocked = await waitForLockWait(1);
+    await holder.query('COMMIT'); holder.release();
+    const rLw = await pLw;
+    const stillThere = await prisma.dailyStat.count({ where: { id: { in: lwIds } } });
+    const moved = await prisma.dailyStat.findUnique({ where: { id: lwIds[3]! } });
+    check('(setup) the approval really was blocked on the writer\'s row lock', blocked);
+    check('a row re-keyed onto a LIVE campaign while the approval waited is NOT deleted: the approval answers 409 skipped_concurrent_change and deletes NOTHING (all six rows survive)', rLw.status === 409 && rLw.body?.status === 'skipped_concurrent_change' && rLw.body?.rowsDeleted === 0 && stillThere === 6 && moved?.entityId === liveCamp.id, [rLw.status, rLw.body?.status, stillThere, moved?.entityId]);
+    check('…the live campaign\'s statistics are intact (its own rows + the moved one)', (await prisma.dailyStat.count({ where: { entityId: liveCamp.id } })) === liveBefore + 1);
+    await prisma.dailyStat.deleteMany({ where: { id: { in: lwIds } } });
+  }
+  {
+    const lwIds = Array.from({ length: 12 }, (_, i) => `lw2_${sfx}_${i}`);
+    for (let i = 0; i < lwIds.length; i++) await prisma.dailyStat.create({ data: { id: lwIds[i]!, entityType: EntityType.CAMPAIGN, entityId: `orph_lw2_${sfx}_${i % 3}`, date: day(320 + i), spend: 5n } });
+    const gLw = await dry();
+    const holder = await pool.connect();
+    await holder.query('BEGIN');
+    await holder.query(`select 1 from daily_stats where id = $1 for update`, [lwIds[5]]);   // both approvals queue behind this row lock
+    const pA = post(`?expectedRows=${gLw.body.orphanRows}&batchId=${gLw.body.batchId}`);
+    const pB = post(`?expectedRows=${gLw.body.orphanRows}&batchId=${gLw.body.batchId}`);
+    const bothBlocked = await waitForLockWait(2);
+    await holder.query('ROLLBACK'); holder.release();
+    const [rA, rB] = await Promise.all([pA, pB]);
+    const wins = [rA, rB].filter((x) => x.status === 200 && x.body?.status === 'deleted');
+    const losses = [rA, rB].filter((x) => x.status === 409);
+    check('(setup) both identical approvals were blocked on the same row lock', bothBlocked);
+    check('two IDENTICAL approvals overlapping in time: exactly one answers 200 deleted (with the batch\'s row count), the other 409 — never two "deleted"', wins.length === 1 && losses.length === 1 && wins[0]!.body.rowsDeleted === gLw.body.orphanRows && losses[0]!.body.rowsDeleted === 0, [rA.status, rA.body?.status, rA.body?.rowsDeleted, rB.status, rB.body?.status, rB.body?.rowsDeleted]);
+    check('…and the batch is gone exactly once (no orphan left, no live row touched)', (await dry()).body.orphanRows === 0 && (await rowsOf())['r1'] === 3 && (await rowsOf())['liveA'] === 3);
+  }
+
   // ── 5. the scheduler REPORTS; it never deletes ───────────────────────
   console.log('\n── 5. the scheduled integrity sweep reports orphans and deletes nothing ──');
   const { runIntegritySweep } = await import('./src/workers/backgroundScheduler');

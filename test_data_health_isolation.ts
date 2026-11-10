@@ -53,8 +53,12 @@ async function main() {
 
   // ── 1. who may reach the global module ───────────────────────────────
   console.log('\n── 1. the GLOBAL orphan cleanup is reachable only by the platform ──');
+  // ANY mention of the module path counts — `from '…/platformOrphanCleanup'`, with a .js/.ts suffix, `export … from`,
+  // `export * from`, dynamic `import('…')`, `require('…')`: the previous pattern (a quote right after the name, after `from`)
+  // let `'./platformOrphanCleanup.js'` and a dynamic import through (review finding ORPH-06). Comments are stripped first.
+  const MODULE_REF = /['"`][^'"`\n]*\/platformOrphanCleanup(?:\.[cm]?[jt]s)?['"`]/;
   const importers = walk(path.join(ROOT, 'src'))
-    .filter((f) => /from\s+['"][^'"]*\/platformOrphanCleanup['"]/.test(readFileSync(f, 'utf8')))
+    .filter((f) => MODULE_REF.test(code(readFileSync(f, 'utf8'))))
     .map((f) => path.relative(ROOT, f).replace(/\\/g, '/')).sort();
   check('only server.ts (platform-admin routes) and the scheduler import platformOrphanCleanup', JSON.stringify(importers) === JSON.stringify(['src/api/server.ts', 'src/workers/backgroundScheduler.ts']), importers);
   const globalCallers = hs.filter((h) => /cleanupOrphanedCampaignStatsGlobal|describeOrphanBatchGlobal/.test(h.text));
@@ -65,8 +69,15 @@ async function main() {
     .map((f) => path.relative(ROOT, f).replace(/\\/g, '/'));
   check('exactly ONE module calls the global delete: server.ts — and the scheduler is not among them', JSON.stringify(cleanupCallers) === JSON.stringify(['src/api/server.ts']), cleanupCallers);
   const sched = code(read('src/workers/backgroundScheduler.ts'));
-  const schedImport = /import\s*\{([^}]*)\}\s*from\s*['"][^'"]*\/platformOrphanCleanup['"]/.exec(sched);
-  check('the scheduler imports ONLY the read-only report from platformOrphanCleanup', !!schedImport && schedImport[1]!.split(',').map((x) => x.trim()).filter(Boolean).join() === 'reportOrphanedCampaignStatsGlobal', schedImport?.[1]);
+  const schedImport = /import\s*\{([^}]*)\}\s*from\s*['"][^'"]*\/platformOrphanCleanup(?:\.[cm]?[jt]s)?['"]/.exec(sched);
+  // the ORIGINAL name of every imported binding (`{ a as b }` → a): an alias cannot hide a deleting function
+  const origNames = (clause: string) => clause.split(',').map((x) => x.trim().replace(/^type\s+/, '').split(/\s+as\s+/)[0]!.trim()).filter(Boolean);
+  check('the scheduler imports ONLY the read-only report from platformOrphanCleanup (alias-aware)', !!schedImport && origNames(schedImport[1]!).join() === 'reportOrphanedCampaignStatsGlobal', schedImport?.[1]);
+  const schedAllImports = [...sched.matchAll(/import\s*(?:type\s*)?\{([^}]*)\}\s*from\s*['"]([^'"]+)['"]/g)].flatMap((m) => origNames(m[1]!).map((n) => `${n} from ${m[2]}`));
+  check('no binding the scheduler imports — under ANY alias, from ANY module — is a delete/cleanup/purge of orphans', !schedAllImports.some((x) => /(delete|cleanup|purge|remove|destroy)\w*Orphan/i.test(x.split(' from ')[0]!)), schedAllImports.filter((x) => /orphan/i.test(x)));
+  check('…and no namespace/default import or dynamic import() of platformOrphanCleanup / campaignDataIsolation in the scheduler', !/import\s*\*\s*as\s+\w+\s+from\s*['"][^'"]*\/(platformOrphanCleanup|campaignDataIsolation)/.test(sched) && !/import\(\s*['"`][^'"`]*\/(platformOrphanCleanup|campaignDataIsolation)/.test(sched) && !/require\(\s*['"`][^'"`]*\/(platformOrphanCleanup|campaignDataIsolation)/.test(sched));
+  const tenantDeleters = walk(path.join(ROOT, 'src')).filter((f) => /\bdeleteOwnedOrphanedCampaignStats\s*\(/.test(code(readFileSync(f, 'utf8'))) && !/campaignDataIsolation\.ts$/.test(f)).map((f) => path.relative(ROOT, f).replace(/\\/g, '/'));
+  check('the tenant-scoped delete is called from server.ts only (not from the scheduler or any helper it could import)', JSON.stringify(tenantDeleters) === JSON.stringify(['src/api/server.ts']), tenantDeleters);
   check('the scheduler has no delete of orphans: no cleanup call, no scheduler principal, no raw/ORM delete of daily stats',
     !/cleanupOrphanedCampaignStatsGlobal|deleteOwnedOrphaned|system-scheduler|skipped_orphan_fraction|maxOrphanFraction/.test(sched) && !/DELETE\s+FROM\s+daily_stats|dailyStat\.delete/i.test(sched) && !/\$executeRaw/.test(sched));
   check('…it reports counts and says plainly that nothing was deleted', /reportOrphanedCampaignStatsGlobal\(prisma\)/.test(sched) && /REPORT ONLY/.test(read('src/workers/backgroundScheduler.ts')));
@@ -113,8 +124,9 @@ async function main() {
   const P = await import('./src/lib/platformOrphanCleanup');
   const HEX = 'a'.repeat(64);
   const OTHER = 'b'.repeat(64);
-  const fake = (o: { total?: number; orphan_rows?: number; orphan_ids?: number; stmtN?: number; stmtH?: string; deleted?: number } = {}) => {
+  const fake = (o: { total?: number; orphan_rows?: number; orphan_ids?: number; stmtN?: number; stmtH?: string; deleted?: number; serializationFailure?: boolean } = {}) => {
     const calls: string[] = [];
+    const txOptions: unknown[] = [];
     const client = {
       $queryRaw: async (strings: TemplateStringsArray) => {
         const text = strings.join('?');
@@ -123,8 +135,13 @@ async function main() {
         return [{ total: o.total ?? 100, orphan_rows: o.orphan_rows ?? 6, orphan_ids: o.orphan_ids ?? 2, batch_id: HEX }];
       },
       $executeRaw: async () => { calls.push('executeRaw'); return 0; },
+      $transaction: async (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) => {
+        calls.push('tx'); txOptions.push(opts);
+        if (o.serializationFailure) throw Object.assign(new Error('Transaction failed due to a write conflict or a deadlock. Please retry your transaction'), { code: 'P2034' });
+        return fn(client);
+      },
     } as unknown as import('@prisma/client').PrismaClient;
-    return { client, calls };
+    return { client, calls, txOptions };
   };
   const admin = { kind: 'platform-admin', userId: 'u', email: 'a@x' } as const;
   let f = fake();
@@ -150,6 +167,23 @@ async function main() {
   r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 0, batchId: HEX });
   check('"0 rows" approved against a batch that is not the empty one: nothing deleted', r.status === 'skipped_batch_mismatch' && r.rowsDeleted === 0, r.status);
   check('no code path issues a delete outside the guarded statement ($executeRaw is never used)', !f.calls.includes('executeRaw'));
+  f = fake({ stmtN: 6, stmtH: HEX, deleted: 6 });
+  await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('the approval runs in ONE REPEATABLE READ transaction (a row changed after the snapshot aborts the delete instead of being deleted) with a timeout above the 5 s default', f.calls[0] === 'tx' && f.txOptions.length === 1 && (f.txOptions[0] as { isolationLevel?: string }).isolationLevel === 'RepeatableRead' && Number((f.txOptions[0] as { timeout?: number }).timeout) >= 60_000, f.txOptions);
+  f = fake({ serializationFailure: true });
+  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('a serialization failure / write conflict (SQLSTATE 40001, P2034) during the statement → skipped_concurrent_change, nothing deleted, a fresh dry run returned', r.status === 'skipped_concurrent_change' && r.rowsDeleted === 0 && 'current' in r && r.current.batchId === HEX && !f.calls.includes('delete'), r.status);
+  const tooBig = [2_147_483_648, 3_000_000_000, Number.MAX_SAFE_INTEGER];
+  threw = 0; f = fake();
+  for (const n of tooBig) { try { await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: n, batchId: HEX }); } catch { threw++; } }
+  check('expectedRows above int4 (2147483647) is refused before any statement runs — it can never be a real count, and used to reach Postgres as a 500', threw === tooBig.length && f.calls.length === 0 && P.MAX_EXPECTED_ROWS === 2_147_483_647, [threw, f.calls]);
+  {
+    let other: unknown = null; f = fake({ stmtN: 6, stmtH: HEX, deleted: 6, serializationFailure: false });
+    (f.client as unknown as { $transaction: () => Promise<unknown> }).$transaction = async () => { throw new Error('connection terminated'); };
+    try { await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX }); } catch (e) { other = e; }
+    check('any OTHER database error is not swallowed as a "concurrent change" — it propagates', other instanceof Error && /connection terminated/.test(other.message), String(other));
+  }
+  check('the POST route bounds expectedRows by MAX_EXPECTED_ROWS (400, not a 500)', /MAX_EXPECTED_ROWS/.test(code(read('src/api/server.ts'))) && /Number\(rawRows\) <= MAX_EXPECTED_ROWS/.test(code(read('src/api/server.ts'))));
   const rep = await P.reportOrphanedCampaignStatsGlobal(fake({ total: 10, orphan_rows: 3, orphan_ids: 1 }).client);
   check('the scheduler report is aggregate only: no ids, no digest in its shape', JSON.stringify(Object.keys(rep).sort()) === JSON.stringify(['campaignStatRows', 'orphanCampaignIds', 'orphanFraction', 'orphanRows']), Object.keys(rep));
   check('…and its fraction is orphans / all campaign stats (an empty table is 0, not an emergency)', Math.abs(rep.orphanFraction - 0.3) < 1e-9 && (await P.reportOrphanedCampaignStatsGlobal(fake({ total: 0, orphan_rows: 0, orphan_ids: 0 }).client)).orphanFraction === 0);

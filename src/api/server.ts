@@ -236,7 +236,7 @@ import { runDataIntegrityCheck } from '../services/dataIntegrityMonitor';
 import { deleteOwnedOrphanedCampaignStats } from '../lib/campaignDataIsolation';
 // … and the GLOBAL one, reachable only from the platform-admin routes below and the
 // scheduler. test_data_health_isolation.ts fails the build if anything else imports it.
-import { cleanupOrphanedCampaignStatsGlobal, describeOrphanBatchGlobal, ORPHAN_BATCH_ID_FORMAT } from '../lib/platformOrphanCleanup';
+import { cleanupOrphanedCampaignStatsGlobal, describeOrphanBatchGlobal, MAX_EXPECTED_ROWS, ORPHAN_BATCH_ID_FORMAT } from '../lib/platformOrphanCleanup';
 import { campaignsToCsv, insightsToCsv } from '../services/reports/csvExport';
 
 /** Map resolved purpose family → objective key for KPI math helpers. */
@@ -1632,7 +1632,7 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const gate = await requirePlatformAdmin(req, prisma);
     if (!gate.ok) return c.json(gate.response.body, gate.response.status as 401 | 403 | 503);
     const rawRows = req.query['expectedRows'];
-    const expectedRows = rawRows !== undefined && /^\d+$/.test(String(rawRows)) && Number.isSafeInteger(Number(rawRows)) ? Number(rawRows) : undefined;
+    const expectedRows = rawRows !== undefined && /^\d+$/.test(String(rawRows)) && Number.isSafeInteger(Number(rawRows)) && Number(rawRows) <= MAX_EXPECTED_ROWS ? Number(rawRows) : undefined;
     const rawBatch = req.query['batchId'];
     const batchId = typeof rawBatch === 'string' && ORPHAN_BATCH_ID_FORMAT.test(rawBatch) ? rawBatch : undefined;
     if (expectedRows === undefined || batchId === undefined) {

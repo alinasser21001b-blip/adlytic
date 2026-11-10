@@ -29,6 +29,15 @@
 //  same snapshot, and deletes only the rows of that snapshot, only if the digest
 //  and the row count both equal what the admin approved. A different batch — a
 //  row more, a row fewer, a different row — deletes nothing (409).
+//
+//  The statement runs in a REPEATABLE READ transaction. Under READ COMMITTED a row that
+//  a concurrent writer changed while the DELETE waited for its lock is re-checked against
+//  the DELETE's own quals only — so a row re-keyed onto a live campaign meanwhile was still
+//  deleted, and two identical approvals both answered "deleted" (one with 0 rows). Under
+//  REPEATABLE READ any row of the batch that changed or vanished after the snapshot aborts
+//  the statement (SQLSTATE 40001) and the answer is `skipped_concurrent_change`: nothing
+//  deleted, run the dry run again. A campaign INSERTED after the snapshot (touching none of
+//  the batch's rows) is ordered after the delete, which is what the snapshot means.
 // ════════════════════════════════════════════════════════════════════════
 
 import type { PrismaClient } from '@prisma/client';
@@ -55,7 +64,20 @@ export interface OrphanBatch extends OrphanCounts {
 export type GlobalCleanupResult =
   | { status: 'deleted'; rowsDeleted: number; counts: OrphanCounts; batchId: string }
   | { status: 'skipped_expected_rows_mismatch'; rowsDeleted: 0; current: OrphanBatch }
-  | { status: 'skipped_batch_mismatch'; rowsDeleted: 0; current: OrphanBatch };
+  | { status: 'skipped_batch_mismatch'; rowsDeleted: 0; current: OrphanBatch }
+  /** A row of the batch changed or was deleted by someone else while the statement ran (SQLSTATE 40001): nothing was deleted. */
+  | { status: 'skipped_concurrent_change'; rowsDeleted: 0; current: OrphanBatch };
+
+/** The count of a batch is an int4 in the statement: anything above it can never be a real count. */
+export const MAX_EXPECTED_ROWS = 2_147_483_647;
+
+/** Serialization failure / write conflict, however the driver adapter spells it. */
+function isConcurrentChange(e: unknown): boolean {
+  const x = e as { code?: unknown; message?: unknown; meta?: unknown; cause?: unknown } | null;
+  let blob = `${String(x?.code ?? '')} ${String(x?.message ?? '')}`;
+  try { blob += ` ${JSON.stringify(x?.meta ?? {})} ${JSON.stringify(x?.cause ?? {})}`; } catch { /* circular: the message above is enough */ }
+  return /P2034|40001|40P01|TransactionWriteConflict|could not serialize access|write conflict|deadlock detected/i.test(blob);
+}
 
 /** Domain separator: a digest of this kind cannot be confused with any other sha256 of ids. */
 const BATCH_DOMAIN = 'adlytic-orphan-batch:v1:';
@@ -65,7 +87,7 @@ export const ORPHAN_BATCH_ID_FORMAT = /^[0-9a-f]{64}$/;
  * READ-ONLY, aggregate only (never returns an id): counts and the share of orphans.
  * The scheduler's whole contact surface with this module. No digest, so it stays cheap.
  */
-export async function reportOrphanedCampaignStatsGlobal(prisma: PrismaClient): Promise<OrphanCounts & { orphanFraction: number }> {
+export async function reportOrphanedCampaignStatsGlobal(prisma: Pick<PrismaClient, '$queryRaw'>): Promise<OrphanCounts & { orphanFraction: number }> {
   // ONE pass: a LEFT JOIN decides "no campaign row" once per stat row. The previous form
   // repeated a correlated NOT EXISTS inside each FILTER, i.e. two index probes per row:
   // 8.9 s over 2.2 M rows against 1.4 s for this form (identical counts).
@@ -132,16 +154,23 @@ export async function cleanupOrphanedCampaignStatsGlobal(
   if (!auth || auth.kind !== 'platform-admin') {
     throw new Error('global orphan cleanup requires a platform-admin PlatformAuthorization');
   }
-  if (!approval || !Number.isSafeInteger(approval.expectedRows) || approval.expectedRows < 0) {
-    throw new Error('global orphan cleanup requires expectedRows (a non-negative integer from the dry run)');
+  if (!approval || !Number.isSafeInteger(approval.expectedRows) || approval.expectedRows < 0 || approval.expectedRows > MAX_EXPECTED_ROWS) {
+    throw new Error(`global orphan cleanup requires expectedRows (a non-negative integer up to ${MAX_EXPECTED_ROWS}, from the dry run)`);
   }
   if (typeof approval.batchId !== 'string' || !ORPHAN_BATCH_ID_FORMAT.test(approval.batchId)) {
     throw new Error('global orphan cleanup requires batchId (the 64-hex digest from the dry run)');
   }
   const { expectedRows, batchId } = approval;
-  const before = await reportOrphanedCampaignStatsGlobal(prisma);
 
-  const r = await prisma.$queryRaw<Array<{ deleted: number; n: number; h: string }>>`
+  // ONE transaction, REPEATABLE READ: the counts, the digest and the delete all see the same snapshot,
+  // and a row of the batch that someone else changed after that snapshot aborts the DELETE (40001).
+  let before: OrphanCounts & { orphanFraction: number };
+  let r: Array<{ deleted: number; n: number; h: string }>;
+  try {
+    ({ before, r } = await prisma.$transaction(
+      async (tx) => {
+        const counts = await reportOrphanedCampaignStatsGlobal(tx);
+        const rows = await tx.$queryRaw<Array<{ deleted: number; n: number; h: string }>>`
     WITH orphan AS (
       SELECT d.id FROM daily_stats d
       WHERE d.entity_type = 'CAMPAIGN'::"EntityType"
@@ -159,6 +188,16 @@ export async function cleanupOrphanedCampaignStatsGlobal(
       RETURNING d.id
     )
     SELECT (SELECT count(*) FROM del)::int AS deleted, (SELECT n FROM batch) AS n, (SELECT h FROM batch) AS h`;
+        return { before: counts, r: rows };
+      },
+      // The statement scans and deletes up to millions of rows (≈ 16 s measured at 2 M): the interactive-transaction
+      // default (5 s) would roll it back.
+      { isolationLevel: 'RepeatableRead', timeout: 10 * 60_000, maxWait: 15_000 },
+    ));
+  } catch (e) {
+    if (!isConcurrentChange(e)) throw e;
+    return { status: 'skipped_concurrent_change', rowsDeleted: 0, current: await describeOrphanBatchGlobal(prisma) };
+  }
   const row = r[0];
   const n = Number(row?.n ?? 0);
   const h = String(row?.h ?? '');
