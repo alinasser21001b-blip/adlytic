@@ -581,6 +581,12 @@ async function main() {
   // only the LATEST tick of a campaign counts: an older withheld tick next to a newer clean one (the window was repaired) is not a verdict
   const staleHeld = [snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', heldPayload, 3), snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'SCALE_BUDGET', 82, 'HIGH', {}, 0)];
   const aiStale: any = await (computeAIRecommendations as any)(aiFake(staleHeld), 'ws_1', { spendWithheld: null });
+  // the reason of a per-campaign verdict follows what the Brain stored; over-scale outranks unverified when both occur
+  const overPayload = { decision: { spendEvidence: { withheld: true, reason: 'SPEND_SCALE_OVERSCALED', withheldAction: 'SCALE_BUDGET' } } };
+  const aiPerOver: any = await (computeAIRecommendations as any)(aiFake([snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', overPayload)]), 'ws_1', { spendWithheld: null });
+  const aiPerMixed: any = await (computeAIRecommendations as any)(aiFake([snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', overPayload), snap('c_beast2', 'Beast2', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 80, 'NORMAL', heldPayload)]), 'ws_1', { spendWithheld: null });
+  check('SE-1: a per-campaign withheld verdict keeps its own reason (OVERSCALED), and OVERSCALED outranks UNVERIFIED when both occur',
+    typeof snapshotSpendWithheld === 'function' && snapshotSpendWithheld(overPayload) === 'SPEND_SCALE_OVERSCALED' && aiPerOver.spendWithheld?.reason === 'SPEND_SCALE_OVERSCALED' && aiPerMixed.spendWithheld?.reason === 'SPEND_SCALE_OVERSCALED', [aiPerOver.spendWithheld, aiPerMixed.spendWithheld]);
   const newerHeld = [snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'SCALE_BUDGET', 82, 'HIGH', {}, 3), snap('c_beast', 'Beast', 'SCALABLE_BEAST', 'HOLD_AND_MONITOR', 81, 'NORMAL', heldPayload, 0)];
   const aiNewerHeld: any = await (computeAIRecommendations as any)(aiFake(newerHeld), 'ws_1', { spendWithheld: null });
   check('SE-1: a withheld OLDER snapshot does not hide the scale card when the campaign\'s LATEST snapshot is clean…', aiStale.recommendations.some((r: any) => r.id === 'det-scale') && !('spendWithheld' in aiStale), aiStale);
