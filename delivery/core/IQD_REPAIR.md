@@ -37,8 +37,8 @@ Row B is the price of choosing A: a viewer no longer fixes data by looking at it
 
 ## 3. Evidence
 
-* `npm run typecheck` ✓ · `npm run test:all` ✓ (exit 0, 86 s, clean CI-like environment, includes `test_iqd_no_get_writes.ts`, 31 assertions).
-* `npm run test:iqd-repair-pg` — **48 assertions on a synthetic local Postgres** (loopback, database `adlytic_repro*` only; exits 2 rather than pass if it cannot run): correct rows never rewritten; 22 read routes write nothing **to the four tables it snapshots — `ad_accounts`, `campaigns`, `daily_stats`, `raw_insights` — (xmin of every row unchanged)**; the 22 include `GET …/recommendations`, which for an OWNER/MANAGER token still inserts one `recommendation_logs` row per call (a table this test does not snapshot; `RECOMMENDATION_WRITE_AUTH.md` §2) and answer identically for a stale and a canonical account; replay is a no-op; 6 simultaneous repairs rescale exactly once; a concurrent writer wins; an injected failure rolls back rows **and** flag; stranded rows repaired; ambiguous rows intact; another tenant untouched; VIEWER still 403; sync-side behaviour; integrity signal.
+* `npm run typecheck` ✓ · `npm run test:all` ✓ (exit 0, clean CI-like environment, load-dependent run time of one to a few minutes, includes `test_iqd_no_get_writes.ts`, 31 assertions).
+* `npm run test:iqd-repair-pg` — **64 assertions on a synthetic local Postgres** (48 in the first version) (loopback, database `adlytic_repro*` only; exits 2 rather than pass if it cannot run): correct rows never rewritten; 22 read routes write nothing **to the four tables it snapshots — `ad_accounts`, `campaigns`, `daily_stats`, `raw_insights` — (xmin of every row unchanged)**; the 22 include `GET …/recommendations`, which for an OWNER/MANAGER token still inserts one `recommendation_logs` row per call (a table this test does not snapshot; `RECOMMENDATION_WRITE_AUTH.md` §2) and answer identically for a stale and a canonical account; replay is a no-op; 6 simultaneous repairs rescale exactly once; a concurrent writer wins; an injected failure rolls back rows **and** flag; stranded rows repaired; ambiguous rows intact; another tenant untouched; VIEWER still 403; sync-side behaviour; integrity signal.
 * **Mutation checks** (each makes the suite red, then reverted): no CAS/lock (2) · flag outside the transaction (5) · cross-tenant scope (12) · heuristic back (3) · `getAccount()` repairs again (7) · `weeklyReport` trusts the column (3).
 * The static test fails 11 assertions against the previous GET/sync code.
 
@@ -54,6 +54,6 @@ Row B is the price of choosing A: a viewer no longer fixes data by looking at it
 
 1. Read-only sizing: `select count(*) from ad_accounts where currency='IQD' and currency_minor_factor <> 1;`
 2. `DATABASE_URL=… npx tsx scripts/repair-iqd-factors.ts` — **report only**: per account `proven-x100`, `verified`, `left-intact`.
-3. Back up the rows that would change (`COPY (SELECT … FROM daily_stats WHERE entity_id IN (…)) TO …`) — the repair rewrites in place and has no undo besides re-deriving from `raw_insights`.
+3. Back up the rows that would change with psql's client-side `\copy (SELECT … FROM daily_stats WHERE entity_id IN (…)) TO 'rows.csv' CSV` on the operator's disk — **not** a server-side `COPY … TO '<file>'`, which would write to the Postgres server's volume (the volume the recovery runbook says must never receive dumps and is nearly full) — the repair rewrites in place and has no undo besides re-deriving from `raw_insights`.
 4. Owner reviews the report, then `--apply` (or `POST …/repair-iqd` per workspace). Re-run: second run must report `rescaled=0`.
 5. Rollback of the *code* is a revert + redeploy (no schema change). Rows already rewritten are not reverted by it.

@@ -5,10 +5,13 @@
 //  WHY THIS EXISTS
 //  The /api/* middleware in server.ts is NOT an auth gate. Read it:
 //
-//      const authHeader = c.req.header('authorization');
-//      if (!authHeader?.startsWith('Bearer ')) return next();   // ← no token: through
-//      const userId = await getUserId(authHeader.slice(7));
+//      const bearer = bearerTokenFrom(c.req.header('authorization'));
+//      if (!bearer) return next();                              // ← no token: through
+//      const userId = await getUserId(bearer);
 //      if (!userId) return next();                              // ← bad token: through
+//
+//  (bearerTokenFrom is the same parser the handlers use; before it, the gate
+//  sliced the header its own way and "Bearer  <jwt>" skipped it.)
 //
 //  Every failure path calls next(). It is an ACTIVE-USER gate: it exists to
 //  block deactivated accounts, and it deliberately lets anonymous requests

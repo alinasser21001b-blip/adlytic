@@ -1107,8 +1107,10 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     // address, so whoever registered an allowlisted address first would have
     // become a platform admin. Refused here, BEFORE anything is read or written
     // (no user, workspace or membership, no token, no cookie), with the same
-    // answer as an address that is already taken so the refusal does not reveal
-    // which addresses are admins. Admins are provisioned out of band
+    // answer as an address that is already taken. (That hides the exact address,
+    // not the fact: the NFKC fold also refuses a fold-equivalent VARIANT of an
+    // allowlisted address, so a caller who guesses an address can learn whether
+    // it is allowlisted — RECOMMENDATION_WRITE_AUTH.md §4, limit 15.) Admins are provisioned out of band
     // (scripts/upsert-owner-login.ts, scripts/create-user.ts) — see
     // delivery/core/RECOMMENDATION_WRITE_AUTH.md.
     if (isReservedForPlatformAdmin(email)) return c.json({ error: 'Email already in use' }, 409);
