@@ -19,9 +19,13 @@
 #      a non-zero exit — never "Backup complete" for an empty or cut-off dump.
 #      Exception: SIGKILL (or a power cut) cannot run the cleanup, so it can
 #      leave a *.sql.gz.partial — never named *.sql.gz, never verified: delete it.
-#    · It never prints the connection string, the user name or the password.
-#      The password reaches pg_dump through the environment of that one process
-#      (PGPASSWORD), not through the command line, so it is not in `ps`.
+#    · It never prints the connection string or the password, nor the user name
+#      (the one exception: a user name that equals the database name, which is
+#      shown as the database name). The connection settings and the password
+#      reach pg_dump ALONE, as the environment of that one process, set in a
+#      subshell that `exec`s it — never as an argument of any process, so they
+#      are not in `ps`/`/proc/*/cmdline`. Every ambient libpq variable (PG*) is
+#      cleared first, so PGSERVICE/PGHOSTADDR/PGOPTIONS cannot redirect the dump.
 #      pg_dump's own error text is relayed on failure with the password (and
 #      its %-encoded form) replaced by *** and the user name by <user>.
 #      The URL is parsed at its LAST `@`, so a raw `@` inside a password is
@@ -235,15 +239,21 @@ relay_redacted() {
 }
 
 # ── 2. Dump (read-only). pipefail makes a failing pg_dump fail the pipeline. ──
-# The connection settings (and the password) go to pg_dump alone, through its environment: not to gzip, not to the shell.
-# `-u PGPASSWORD` first (env takes options only before the first NAME=value): an ambient PGPASSWORD is never used.
-pg_env=(-u PGPASSWORD PGHOST="$db_host" PGPORT="$db_port" PGUSER="$db_user" PGDATABASE="$db_name")
-[ -n "$db_sslmode" ] && pg_env+=(PGSSLMODE="$db_sslmode")
-[ -n "$db_pass" ] && pg_env+=(PGPASSWORD="$db_pass")
-
+# The connection settings (and the password) reach pg_dump ALONE, as the environment of that one process, set inside a
+# subshell that then `exec`s pg_dump: they are never an argument of any process (an `env NAME=value pg_dump …` would put
+# them on `env`'s command line for the moment before it execs — readable in `ps`/`/proc` by every local user), not in
+# gzip's environment, not in this shell's. Every ambient libpq variable (PGSERVICE, PGSERVICEFILE, PGHOSTADDR, PGOPTIONS,
+# PGPASSFILE, PGPASSWORD, PGSSL*, …) is cleared first, so nothing in the caller's environment can redirect the dump to another
+# host or database while the output still names the URL's database. (A ~/.pgpass at its default path is still read by
+# libpq itself when the URL has no password; `--no-password` only forbids a prompt.)
 dump_failed=0
-env "${pg_env[@]}" pg_dump --no-password --no-owner --no-privileges 2>"$ERR_FILE" | gzip > "$PARTIAL" || dump_failed=1
-unset pg_env
+(
+  for v in $(compgen -e | grep -E '^PG'); do unset "$v"; done
+  export PGHOST="$db_host" PGPORT="$db_port" PGUSER="$db_user" PGDATABASE="$db_name"
+  if [ -n "$db_sslmode" ]; then export PGSSLMODE="$db_sslmode"; fi
+  if [ -n "$db_pass" ]; then export PGPASSWORD="$db_pass"; fi
+  exec pg_dump --no-password --no-owner --no-privileges
+) 2>"$ERR_FILE" | gzip > "$PARTIAL" || dump_failed=1
 if [ "$dump_failed" -ne 0 ]; then
   echo -e "${RED}✗ pg_dump failed — no backup was written.${NC}" >&2
   [ -s "$ERR_FILE" ] && relay_redacted
@@ -264,5 +274,6 @@ echo "Backup retention: keep for at least 7 days; the file contains customer dat
 echo "Restore (into an EMPTY, separate database — never over the live one). One line for bash or zsh: it checks the file first, and COMMITs only after the whole file was read:"
 q_file="$(printf '%q' "$BACKUP_FILE")"
 q_self="$(printf '%q' "$SELF")"
-restore_cmd="$q_self --verify $q_file && ( set -o pipefail; { echo 'BEGIN;'; gzip -dc $q_file && echo 'COMMIT;'; } | psql -q --set ON_ERROR_STOP=1 <target-connection-string> )"
+restore_cmd="$q_self --verify $q_file && ( set -o pipefail; { echo 'BEGIN;'; gzip -dc $q_file && echo 'COMMIT;'; } | psql -X -q --set ON_ERROR_STOP=1 <target-connection-string> )"
 printf '  %s\n' "$restore_cmd"
+echo "Put the target's password in ~/.pgpass or PGPASSWORD, not in the URL (a URL on the command line is visible in \`ps\`); -X ignores any ~/.psqlrc that could switch ON_ERROR_STOP off. A dump with large objects is not covered (its own BEGIN/COMMIT would end the wrapper's transaction early)."

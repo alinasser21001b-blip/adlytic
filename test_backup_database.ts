@@ -47,7 +47,7 @@ const SHIM_LOG = path.join(work, 'shim.log');
 const shim = (name: string, body: string) => { const f = path.join(shimDir, name); writeFileSync(f, `#!/bin/bash\n${body}\n`); chmodSync(f, 0o755); };
 shim('pg_dump', `
 hex=""; for ((i = 0; i < \${#PGPASSWORD}; i++)); do printf -v x '%02x' "'\${PGPASSWORD:i:1}"; hex+=$x; done
-{ echo "ARGS:$*"; echo "ENV:PGHOST=$PGHOST PGPORT=$PGPORT PGUSER=$PGUSER PGDATABASE=$PGDATABASE PGSSLMODE=\${PGSSLMODE:-}"; echo "PASSWORD_SET:\${PGPASSWORD:+yes}"; echo "PASSWORD_VALUE:\${PGPASSWORD:-}"; echo "PASSWORD_HEX:$hex"; echo "USER_HEX:$(printf '%s' "$PGUSER" | od -An -tx1 | tr -d ' \\n')"; } >> "$SHIM_LOG"
+{ echo "ARGS:$*"; echo "ENV:PGHOST=$PGHOST PGPORT=$PGPORT PGUSER=$PGUSER PGDATABASE=$PGDATABASE PGSSLMODE=\${PGSSLMODE:-}"; echo "PASSWORD_SET:\${PGPASSWORD:+yes}"; echo "PASSWORD_VALUE:\${PGPASSWORD:-}"; echo "PASSWORD_HEX:$hex"; echo "USER_HEX:$(printf '%s' "$PGUSER" | od -An -tx1 | tr -d ' \\n')"; echo "AMBIENT:PGSERVICE=\${PGSERVICE:-} PGSERVICEFILE=\${PGSERVICEFILE:-} PGHOSTADDR=\${PGHOSTADDR:-} PGOPTIONS=\${PGOPTIONS:-} PGPASSFILE=\${PGPASSFILE:-} PGAPPNAME=\${PGAPPNAME:-}"; } >> "$SHIM_LOG"
 if [ -f "$DUMP_DIR/$SHIM_MODE.sql" ]; then                 # data-driven modes: the exact bytes pg_dump writes, what it says on stderr, and how it exits
   cat "$DUMP_DIR/$SHIM_MODE.sql"
   if [ -f "$DUMP_DIR/$SHIM_MODE.err" ]; then e="$(cat "$DUMP_DIR/$SHIM_MODE.err")"; e="\${e//@USER_ENC@/\${ENC_USER:-}}"; e="\${e//@PASS_ENC@/\${ENC_PASS:-}}"; e="\${e//@USER@/$PGUSER}"; e="\${e//@PASS@/$PGPASSWORD}"; echo "$e" >&2; fi
@@ -75,6 +75,9 @@ esac
 echo "GZIP_ENV: PGPASSWORD=\${PGPASSWORD:+set} PGUSER=\${PGUSER:+set}" >> "$SHIM_LOG"
 if [ -n "\${GZIP_MODE:-}" ] && [ "$GZIP_MODE" != lie_t ]; then exec "$NODE_BIN" "$DAMAGE_JS" "$GZIP_MODE"; fi
 exec "$REAL_GZIP" "$@"`);
+// `env` is shimmed to LOG its own command line (then run the real one): if the script ever passes the connection settings or the
+// password as arguments of `env NAME=value pg_dump …`, they are on a process command line — readable by every local user in `ps` / `/proc`.
+shim('env', 'echo "ENV_CALL:$*" >> "$SHIM_LOG"; exec "$REAL_ENV" "$@"');
 shim('date', 'echo 20260101_000000');                     // a fixed clock: two runs in the "same second"
 shim('npx', 'echo "npx $*" >> "$SHIM_LOG_CALLS"; exit 0');
 shim('prisma', 'echo "prisma $*" >> "$SHIM_LOG_CALLS"; exit 0');
@@ -145,7 +148,7 @@ function run(opts: { env?: string | null; mode?: string; noPgDump?: boolean; ext
   if (opts.noPgDump && !existsSync(noPgDir)) { mkdirSync(noPgDir); for (const n of ['npx', 'prisma', 'psql']) symlinkSync(path.join(shimDir, n), path.join(noPgDir, n)); }
   const env: Record<string, string> = {
     PATH: opts.noPgDump ? `${noPgDir}:${binDir}` : pathVar, HOME: work, TMPDIR: work, SHIM_MODE: opts.mode ?? 'ok', SHIM_LOG, SHIM_LOG_CALLS: CALLS_LOG,
-    DUMP_DIR, REAL_GZIP, NODE_BIN: process.execPath, DAMAGE_JS, GZIP_COUNTER: path.join(work, 'gzip.counter'), ...(opts.extraEnv ?? {}),
+    DUMP_DIR, REAL_GZIP, REAL_ENV: spawnSync('sh', ['-c', 'command -v env'], { encoding: 'utf8' }).stdout.trim(), NODE_BIN: process.execPath, DAMAGE_JS, GZIP_COUNTER: path.join(work, 'gzip.counter'), ...(opts.extraEnv ?? {}),
   };
   const r = spawnSync(path.join(binDir, 'bash'), [script, ...(opts.args ?? [])], { cwd: opts.cwd ?? dir, env, encoding: 'utf8', timeout: 60_000 });
   const bdir = path.join(dir, 'backups');
@@ -170,10 +173,20 @@ check('NOTHING secret is printed: not the password (plain or encoded), not the u
 check('…it names only the database and host:port', /Database: prod_db on db\.example\.invalid:6543/.test(r.out));
 check('pg_dump got the decoded password through its ENVIRONMENT, and not on its command line', /PASSWORD_VALUE:S3cr3t:P@ss\/w0rd#1\?x/.test(r.shimLog) && !/ARGS:.*(S3cr3t|P@ss|bk\.user)/.test(r.shimLog), r.shimLog);
 check('…user, host, port, database and sslmode were decoded from the URL', /PGHOST=db\.example\.invalid PGPORT=6543 PGUSER=bk\.user PGDATABASE=prod_db PGSSLMODE=require/.test(r.shimLog), r.shimLog);
+check('NO process is started with the password, user, host or database on its command line (the `env NAME=value pg_dump` form leaks them to `ps`/`/proc` for the moment before env execs)', !/ENV_CALL:.*(S3cr3t|P@ss|bk\.user|prod_db|db\.example\.invalid|PGPASSWORD|PGUSER|PGHOST|PGDATABASE)/.test(r.shimLog) && !/ARGS:.*(S3cr3t|P@ss|bk\.user|prod_db|db\.example)/.test(r.shimLog), r.shimLog.split('\n').filter((l) => /^ENV_CALL/.test(l)));
 check('…pg_dump was called with --no-password (never prompts) and nothing that writes', /ARGS:--no-password --no-owner --no-privileges\b/.test(r.shimLog) && !/--clean|--create|-f |--file/.test(r.shimLog), r.shimLog);
 check('…and neither npx nor prisma was ever run', r.calls === '', r.calls);
 
 // ── 2. every way a dump can fail, fails the command ─────────────────────
+console.log('\n── 1b. the caller\'s own libpq environment cannot redirect the dump ──');
+const AMBIENT = { PGSERVICE: 'evil_service', PGSERVICEFILE: '/tmp/evil_service.conf', PGHOSTADDR: '203.0.113.9', PGOPTIONS: '-c default_transaction_read_only=off', PGPASSFILE: '/tmp/evil_pgpass', PGAPPNAME: 'evil', PGPASSWORD: 'ambient-secret-password', PGSSLMODE: 'disable', PGHOST: 'evil.example.invalid', PGUSER: 'ambient_user', PGDATABASE: 'ambient_db', PGPORT: '1' };
+r = run({ env: dotenv(), mode: 'ok', extraEnv: AMBIENT });
+check('exit 0, and pg_dump saw NONE of the ambient PGSERVICE / PGSERVICEFILE / PGHOSTADDR / PGOPTIONS / PGPASSFILE / PGAPPNAME', r.status === 0 && /AMBIENT:PGSERVICE= PGSERVICEFILE= PGHOSTADDR= PGOPTIONS= PGPASSFILE= PGAPPNAME=\s*$/m.test(r.shimLog), r.shimLog);
+check('…it connected with the URL\'s host, port, user, database and sslmode — not the ambient ones', /PGHOST=db\.example\.invalid PGPORT=6543 PGUSER=bk\.user PGDATABASE=prod_db PGSSLMODE=require/.test(r.shimLog) && !/evil|ambient|203\.0\.113/.test(r.shimLog.replace(/ENV_CALL:[^\n]*/g, '')), r.shimLog);
+check('…the ambient password was not used (the URL\'s was)', /PASSWORD_VALUE:S3cr3t:P@ss\/w0rd#1\?x/.test(r.shimLog) && !/ambient-secret-password/.test(r.all + r.shimLog), r.shimLog);
+r = run({ env: `DATABASE_URL=postgresql://bk.user@db.example.invalid:6543/prod_db\n`, mode: 'ok', extraEnv: AMBIENT });
+check('a URL WITHOUT a password does not fall back to an ambient PGPASSWORD either', r.status === 0 && /PASSWORD_SET:\s*$/m.test(r.shimLog) && !/ambient-secret-password/.test(r.shimLog), r.shimLog);
+
 console.log('\n── 2. a failing dump fails the command and leaves no file ──');
 const modes: Array<[string, string]> = [
   ['pg_dump exits 1 with nothing on stdout (the old script: gzip\'s status won, "Backup complete", a 20-byte file)', 'fail'],
@@ -364,6 +377,7 @@ const goodFile = path.join(base.dir, 'backups', base.files[0]!);
 const printed = printedRestore(base.out);
 const realSql = gunzipSync(readFileSync(goodFile)).toString();
 check('the script prints ONE restore command line naming the file, the script itself (--verify), gzip -dc, BEGIN/COMMIT, ON_ERROR_STOP and the target placeholder', printed.includes(goodFile) && printed.includes('--verify') && printed.includes('backup_database.command') && /gzip -dc/.test(printed) && /BEGIN;/.test(printed) && /COMMIT;/.test(printed) && /ON_ERROR_STOP=1/.test(printed) && printed.includes('<target-connection-string>') && !printed.includes('\n'), printed);
+check('…psql is run with -X, so an ambient ~/.psqlrc cannot switch ON_ERROR_STOP off (it would exit 0 with errors, or commit a partial restore)', /psql -X -q --set ON_ERROR_STOP=1/.test(printed), printed);
 check('…it is not the old "gunzip < file | psql --single-transaction", which commits whatever psql read before the end of a cut-off stream', !/gunzip </.test(printed) && !/--single-transaction/.test(printed), printed);
 const sqlCut = (s: string) => { const i = s.indexOf('COPY public.t (id) FROM stdin;\n1\n'); return s.slice(0, i + 'COPY public.t (id) FROM stdin;\n1\n'.length); };   // right after a data row: psql treats EOF inside COPY as the end of the data
 const goodGz = readFileSync(goodFile);
