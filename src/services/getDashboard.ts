@@ -438,8 +438,10 @@ export interface DashboardDTO {
    * or proven ×100, or a surface was withheld for it. Never for another currency or a fully verified account).
    * `flags` carries the same SPEND_SCALE_UNVERIFIED / SPEND_SCALE_OVERSCALED code the data-health check uses:
    * the window of this read first, then the prior one marked `window: 'prior'` (shown as stored; only the
-   * comparison against it is in doubt). `withheld` names every spend-dependent surface of THIS dashboard that
-   * was left out because of it — none is silent.
+   * comparison against it is in doubt). When neither the 30-day window nor the prior one is in doubt but the weekly
+   * report's own 7+7 day CAMPAIGN-level reconciliation fails, that flag is carried marked `window: 'weekly'` (SP-3): it
+   * gates the weekly report only and says nothing about the account's own spend. `withheld` names every spend-dependent
+   * surface of THIS dashboard that was left out because of it — none is silent.
    * src/lib/spendEvidence.ts · delivery/core/SPEND_EVIDENCE_GATING.md
    */
   dataQuality?: {
@@ -1840,6 +1842,8 @@ export async function getDashboard(
     flagFromWindow(spendWindow),
     flagFromWindow(priorSpendWindow, { prior: true }),
   ].filter((f): f is SpendScaleFlag => f !== null);
+  // The weekly report's own flag is carried only when nothing else is in doubt (the 30-day window's flag already says "not
+  // verified"); it arrives marked `window: 'weekly'`, so a reader can tell it from the verdict of the 30-day window (SP-3).
   if (dataQualityFlags.length === 0) dataQualityFlags.push(...(weeklyReport?.dataQuality?.flags ?? []));
   const dataQuality = dataQualityFlags.length > 0 || spendWithheldSurfaces.length > 0
     ? { flags: dataQualityFlags, withheld: spendWithheldSurfaces }

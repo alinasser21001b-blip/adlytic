@@ -262,7 +262,7 @@ export async function generateWeeklyReport(
     recommendationsAr,
     generatedAt: now.toISOString(),
     source,
-    ...(spendGated && { dataQuality: { flags: [flagFromWindow(evidence)].filter((f): f is SpendScaleFlag => f !== null), withheld } }),
+    ...(spendGated && { dataQuality: { flags: [flagFromWindow(evidence, { weekly: true })].filter((f): f is SpendScaleFlag => f !== null), withheld } }),
   };
 }
 

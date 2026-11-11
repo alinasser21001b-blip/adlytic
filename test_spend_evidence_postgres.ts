@@ -27,6 +27,9 @@
 //       stored row, the prior window, and a raw_insights that cannot be read
 // ═════════════════════════════════════════════════════════════════════════
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+
 process.env['NODE_ENV'] = 'test';
 process.env['JWT_SECRET'] = 'synthetic-repro-jwt-secret-0123456789abcdef0123';
 process.env['TOKEN_ENCRYPTION_KEY'] = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -519,6 +522,49 @@ async function main() {
   check('SE-4: it gates nothing — nothing is withheld (current window verified), and the KPI deltas are still shown as stored (as documented), so the flag is the only warning', (dpB.body.dataQuality?.withheld ?? []).length === 0 && !!dpB.body.kpis?.find((k: any) => k.key === 'spend'), dpB.body.dataQuality?.withheld);
   check('SE-4 control: the same account with a VERIFIED prior window has no dataQuality key at all; neither does the USD twin with the same unverified-looking prior rows', dpO.body.dataQuality === undefined && dpU.body.dataQuality === undefined, [dpO.body.dataQuality, dpU.body.dataQuality]);
   check('SE-4: a current-window flag, when there is one, comes FIRST and is not marked prior (the unverified Brain-twin dashboard)', dsU.body.dataQuality?.flags?.[0]?.window === undefined && dsU.body.dataQuality?.flags?.[0]?.code === REASON, dsU.body.dataQuality?.flags);
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n── 9. review round 3, SP-3: a VERIFIED IQD account whose campaigns do not reconcile only in the weekly window ──');
+  // Every ACCOUNT row has its raw counterpart (verified, 61 days: current AND prior window clean). Two campaigns add up to 100 % of
+  // the account row, except on days 3, 4, 5 ago where they add up to 85 % (a deleted / unsynced campaign): ONLY the weekly
+  // report's CAMPAIGN-level 7+7 day reconciliation fails. Nothing the recommendations list is built from is in doubt.
+  const wkOnlyRows = (n: number): CampRow[] => Array.from({ length: n }, (_, i) => ({ ago: i + 1, spend: i + 1 >= 3 && i + 1 <= 5 ? 42_500 : 50_000 }));
+  const wkOnly = await seed('wk-only', { factor: 1, account: steady(61, () => 'match'), campaigns: [wkOnlyRows(61), wkOnlyRows(61)], objective: 'MESSAGES' });
+  const wkOnlyUsd = await seed('wk-only-usd', { currency: 'USD', factor: 100, account: steady(61, () => 'none'), campaigns: [wkOnlyRows(61), wkOnlyRows(61)], objective: 'MESSAGES' });
+  const [hWk, dWk, rWk, xWk, dWkU, rWkU] = [await health(wkOnly), await dash(wkOnly), await recsOf(wkOnly), await weekly(wkOnly), await dash(wkOnlyUsd), await recsOf(wkOnlyUsd)];
+  check('SP-3 precondition: data-health says ALL CLEAR for the account (no SPEND_SCALE check, 0 unverified in its window) — the account IS verified', !hWk.body.checks?.some((c: any) => c.code.startsWith('SPEND_SCALE')) && hWk.body.spendScale?.window?.unverified === 0, [hWk.body.checks?.map((c: any) => c.code), hWk.body.spendScale?.window]);
+  const wkFlag = dWk.body.dataQuality?.flags?.[0];
+  check('SP-3: the weekly report fails closed on its own (flag at CAMPAIGN level, 3 of 14 days), as before — its advice is withheld and its X-Data-Quality is set',
+    xWk.r.status === 200 && dq(xWk.r) === REASON && xWk.body.dataQuality?.flags?.[0]?.level === 'CAMPAIGN' && xWk.body.dataQuality.flags[0].rows === 3 && xWk.body.dataQuality.flags[0].of === 14 && !xWk.body.recommendationsAr?.some((x: string) => /فكّر بزيادة ميزانيتها|أوقفها|لحماية الميزانية/.test(x)), [dq(xWk.r), xWk.body.dataQuality?.flags]);
+  check('SP-3: the dashboard\'s dataQuality carries that flag MARKED as the weekly report\'s (window "weekly") — it can no longer be read as the verdict of the 30-day window', dWk.body.dataQuality?.flags?.length === 1 && wkFlag?.window === 'weekly' && wkFlag.level === 'CAMPAIGN' && wkFlag.rows === 3, dWk.body.dataQuality?.flags);
+  check('SP-3: …its text says what is withheld (the WEEKLY REPORT) in both languages, and does not say the account\'s spend is unverified', /weekly report/i.test(wkFlag?.message ?? '') && /التقرير الأسبوعي/.test(wkFlag?.messageAr ?? ''), [wkFlag?.message, wkFlag?.messageAr]);
+  check('SP-3: every withheld entry of that dashboard is a weeklyReport one — nothing the recommendations list is made of (priorityAction, issues, knowledgeBase, steadyState) was withheld', (dWk.body.dataQuality?.withheld ?? []).length > 0 && dWk.body.dataQuality.withheld.every((w: any) => w.surface === 'weeklyReport'), dWk.body.dataQuality?.withheld);
+  check('SP-3: GET /recommendations sends NO X-Data-Quality and NO X-Recommendations-Withheld — nothing was withheld from the list, and the window is clean', rWk.r.status === 200 && dq(rWk.r) === null && rWk.r.headers.get('x-recommendations-withheld') === null, [dq(rWk.r), rWk.r.headers.get('x-recommendations-withheld')]);
+  const pagesDir = (rel: string) => readFileSync(path.join(__dirname, rel), 'utf8');
+  const liftFn = (src: string, name: string): string | null => {
+    const at = src.indexOf(`function ${name}(`); if (at < 0) return null;
+    let depth = 0; let started = false;
+    for (let i = src.indexOf('{', at); i < src.length; i++) { if (src[i] === '{') { depth++; started = true; } else if (src[i] === '}') { depth--; if (started && depth === 0) return src.slice(at, i + 1); } }
+    return null;
+  };
+  const escH = (x: unknown) => String(x ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  const banner = (rel: string, payload: unknown) => {
+    const fn = liftFn(pagesDir(rel), 'renderDataQualityBanner'); if (!fn) return null;
+    const box: any = { style: { display: 'none' }, innerHTML: '' };
+    new Function('document', 'escHtml', 'lbl', `${fn}; renderDataQualityBanner(${JSON.stringify(payload)});`)({ getElementById: (id: string) => (id === 'data-quality-banner' ? box : null) }, escH, (_en: string, ar: string) => ar);
+    return box as { style: { display: string }; innerHTML: string };
+  };
+  const recBanner = banner('src/web/pages/recommendationsPage.ts', dWk.body);
+  const dashBanner = banner('src/web/pages/dashboardPage.ts', dWk.body);
+  check('SP-3: the RECOMMENDATIONS page (run on the real payload) shows NO banner — it does not call the list "deliberately incomplete" when nothing was withheld from it', recBanner?.style.display === 'none' && recBanner.innerHTML === '' && !/ناقصة/.test(recBanner?.innerHTML ?? ''), recBanner);
+  check('SP-3: the DASHBOARD page (run on the real payload) shows a banner that names the weekly report, does not use the "spend is not verified" title and does not claim the recommendations list is incomplete',
+    dashBanner?.style.display === 'flex' && /التقرير الأسبوعي/.test(dashBanner.innerHTML) && !/الإنفاق غير موثَّق/.test(dashBanner.innerHTML) && !/ناقصة/.test(dashBanner.innerHTML), dashBanner);
+  check('SP-3: the USD twin of the same rows: no dataQuality, no header, no banner (exactly as before)', dWkU.body.dataQuality === undefined && dq(rWkU.r) === null, [dWkU.body.dataQuality, dq(rWkU.r)]);
+  // fail closed is intact on the account's OWN window: an unverified account still says so, on both pages, and still calls the list incomplete
+  const recBannerU = banner('src/web/pages/recommendationsPage.ts', dsU.body);
+  const dashBannerU = banner('src/web/pages/dashboardPage.ts', dsU.body);
+  check('SP-3 control: an UNVERIFIED account keeps the "spend is not verified" title on both pages and the recommendations page still says its list may be incomplete',
+    recBannerU?.style.display === 'flex' && /الإنفاق غير موثَّق/.test(recBannerU.innerHTML) && /ناقصة/.test(recBannerU.innerHTML) && dashBannerU?.style.display === 'flex' && /الإنفاق غير موثَّق/.test(dashBannerU.innerHTML), [recBannerU?.innerHTML.slice(0, 300), dashBannerU?.innerHTML.slice(0, 300)]);
 
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect();

@@ -738,12 +738,45 @@ async function main() {
     const hidden = runBanner(src, 'AR', {});
     const hidden2 = runBanner(src, 'AR', { dataQuality: { flags: [], withheld: [] } });
     check(`SE-5: the ${label} banner stays hidden when there is no dataQuality (verified IQD, USD) — and when it is empty`, !!hidden && hidden.style.display === 'none' && hidden.innerHTML === '' && !!hidden2 && hidden2.style.display === 'none', [hidden, hidden2]);
-    const onlyWithheld = runBanner(src, 'AR', { dataQuality: { flags: [], withheld: [{ surface: 'aiRecommendations', reason: REASON }] } });
+    // (a surface this page renders: the recommendations page only reports what its own list is made of — see SP-3 below)
+    const onlyWithheld = runBanner(src, 'AR', { dataQuality: { flags: [], withheld: [{ surface: label === 'dashboard' ? 'aiRecommendations' : 'priorityAction', reason: REASON }] } });
     check(`SE-5: the ${label} banner says so even when only a surface was withheld (no flag text) — a generic Arabic line, not nothing`, !!onlyWithheld && onlyWithheld.style.display === 'flex' && /لم يُتحقق منه/.test(onlyWithheld.innerHTML), onlyWithheld);
   }
   const priorOnlyDash = runBanner(dashPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
   const priorOnlyRec = runBanner(recPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
   check('SE-5/SE-4: a prior-window flag alone IS shown on the dashboard (its KPI deltas are in doubt) but NOT on the recommendations page (it is about advice)', priorOnlyDash?.style.display === 'flex' && priorOnlyDash.innerHTML.includes('الفترة السابقة') && priorOnlyRec?.style.display === 'none', [priorOnlyDash, priorOnlyRec]);
+  // SP-3 — a flag that is not about the account's own window must not relabel it "unverified", and must not make the
+  // recommendations page call its list incomplete. The weekly report's own flag is marked window 'weekly'.
+  const wkFlagPure = (S as any).flagFromWindow(S.summarizeWindow([{ day: iso(3), account: 'VERIFIED', accountSpend: 100, campaignSpend: 85, campaignRows: 2 }], 'CAMPAIGN', iso(14), iso(1)), { weekly: true });
+  const curFlagPure = (S as any).flagFromWindow(S.summarizeWindow([{ day: iso(3), account: 'VERIFIED', accountSpend: 100, campaignSpend: 85, campaignRows: 2 }], 'CAMPAIGN', iso(14), iso(1)));
+  check('SP-3: flagFromWindow(…, { weekly: true }) marks the flag window "weekly" and names the WEEKLY REPORT in both languages; without the option the flag is exactly the old one (no window key)',
+    wkFlagPure?.window === 'weekly' && /^weekly report:/.test(wkFlagPure.message) && /^التقرير الأسبوعي/.test(wkFlagPure.messageAr) && wkFlagPure.code === REASON && wkFlagPure.level === 'CAMPAIGN' && wkFlagPure.rows === 1 && !('window' in curFlagPure) && curFlagPure.message.endsWith('spend-based advice for this period is withheld'), [wkFlagPure, curFlagPure]);
+  const unreadWk = (S as any).flagFromWindow(S.unreadableWindow('IQD', 'CAMPAIGN', iso(14), iso(1)), { weekly: true });
+  check('SP-3: an unreadable weekly window is a weekly flag too (window "weekly", unreadable, names the report)', unreadWk?.window === 'weekly' && unreadWk.unreadable === true && /^weekly report:/.test(unreadWk.message) && /التقرير الأسبوعي/.test(unreadWk.messageAr), unreadWk);
+  const weeklyOnlyPayload = { dataQuality: { flags: [{ code: REASON, message: 'weekly report: 3 of 14 …', messageAr: 'التقرير الأسبوعي: 3 من 14 …', window: 'weekly', level: 'CAMPAIGN' }], withheld: [{ surface: 'weeklyReport', reason: REASON, detail: 'recommendations: x' }, { surface: 'weeklyReport', reason: REASON, detail: 'delta: y' }] } };
+  const wkDash = runBanner(dashPage, 'AR', weeklyOnlyPayload);
+  const wkRec = runBanner(recPage, 'AR', weeklyOnlyPayload);
+  check('SP-3: weekly flag ALONE → the dashboard banner is shown, titled as a PART of the spend (not "spend is not verified"), names the weekly report, says what was withheld (the report, twice) and that the account\'s own spend is verified',
+    wkDash?.style.display === 'flex' && /تعذّر التحقق من جزء من الإنفاق/.test(wkDash.innerHTML) && !/الإنفاق غير موثَّق/.test(wkDash.innerHTML) && /التقرير الأسبوعي: 3 من 14/.test(wkDash.innerHTML) && /المحجوب من هذه الصفحة: التقرير الأسبوعي \(2\)/.test(wkDash.innerHTML) && /إنفاق الحساب نفسه[^<]*موثَّق/.test(wkDash.innerHTML), wkDash);
+  check('SP-3: weekly flag ALONE → the recommendations page shows NO banner (nothing its list is made of was withheld) and never the "list may be incomplete" line', wkRec?.style.display === 'none' && wkRec.innerHTML === '', wkRec);
+  const wkPlusAi = runBanner(dashPage, 'AR', { dataQuality: { flags: weeklyOnlyPayload.dataQuality.flags, withheld: [...weeklyOnlyPayload.dataQuality.withheld, { surface: 'aiRecommendations', reason: REASON }] } });
+  check('SP-3: …but when something ELSE was withheld too (aiRecommendations), the dashboard does not claim that only the weekly report is affected', !!wkPlusAi && !/إنفاق الحساب نفسه/.test(wkPlusAi.innerHTML) && /بطاقات التوصيات الذكية \(1\)/.test(wkPlusAi.innerHTML) && /التقرير الأسبوعي \(2\)/.test(wkPlusAi.innerHTML), wkPlusAi);
+  const mixedBanner = runBanner(dashPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'N', messageAr: '3 من 30 صف إنفاق …', level: 'ACCOUNT' }, ...weeklyOnlyPayload.dataQuality.flags], withheld: [{ surface: 'issues', reason: REASON, detail: 'HIGH_CPM' }] } });
+  check('SP-3: a flag on the 30-day window keeps the "spend is not verified" title on the dashboard (and no "only the weekly report" claim)', !!mixedBanner && /الإنفاق غير موثَّق/.test(mixedBanner.innerHTML) && !/تعذّر التحقق من جزء/.test(mixedBanner.innerHTML) && !/إنفاق الحساب نفسه/.test(mixedBanner.innerHTML), mixedBanner);
+  const priorOnlyTitle = runBanner(dashPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'prior window: …', messageAr: 'الفترة السابقة: …', window: 'prior' }], withheld: [] } });
+  check('SP-3: a prior-window flag alone no longer relabels the current window either — the dashboard title says a PART of the spend', !!priorOnlyTitle && /تعذّر التحقق من جزء من الإنفاق/.test(priorOnlyTitle.innerHTML) && !/الإنفاق غير موثَّق/.test(priorOnlyTitle.innerHTML) && !/إنفاق الحساب نفسه/.test(priorOnlyTitle.innerHTML), priorOnlyTitle);
+  const ownFlagRec = runBanner(recPage, 'AR', { dataQuality: { flags: [{ code: REASON, message: 'N', messageAr: '3 من 30 صف إنفاق …', level: 'ACCOUNT' }, ...weeklyOnlyPayload.dataQuality.flags], withheld: [] } });
+  check('SP-3: an own-window flag (even next to a weekly one) still shows the recommendations banner, with its text, the title and the incomplete-list line — but NOT the weekly flag\'s text', ownFlagRec?.style.display === 'flex' && /الإنفاق غير موثَّق/.test(ownFlagRec.innerHTML) && /ناقصة/.test(ownFlagRec.innerHTML) && /3 من 30 صف إنفاق/.test(ownFlagRec.innerHTML) && !/التقرير الأسبوعي/.test(ownFlagRec.innerHTML), ownFlagRec);
+  const recOnlyAi = runBanner(recPage, 'AR', { dataQuality: { flags: [], withheld: [{ surface: 'aiRecommendations', reason: REASON }, { surface: 'weeklyReport', reason: REASON }, { surface: 'forecast', reason: REASON }] } });
+  check('SP-3: surfaces the recommendations page does not render (aiRecommendations, weeklyReport, forecast…) alone do NOT trigger its banner', recOnlyAi?.style.display === 'none', recOnlyAi);
+  for (const surface of ['priorityAction', 'issues', 'knowledgeBase', 'steadyState']) {
+    const b = runBanner(recPage, 'AR', { dataQuality: { flags: [], withheld: [{ surface, reason: REASON }] } });
+    check(`SP-3: a withheld ${surface} (part of the list) does trigger the recommendations banner, with the generic line and the incomplete-list line`, b?.style.display === 'flex' && /لم يُتحقق منه/.test(b.innerHTML) && /ناقصة/.test(b.innerHTML), b);
+  }
+  const hostileWk = runBanner(dashPage, 'AR', { dataQuality: { flags: [], withheld: [{ surface: '<img src=x onerror=alert(1)>', reason: REASON }] } });
+  check('SP-3: an unknown withheld surface name from the server is escaped, never interpreted', !!hostileWk && !hostileWk.innerHTML.includes('<img') && hostileWk.innerHTML.includes('&lt;img'), hostileWk);
+  check('SP-3 wiring: the weekly report builds its flag with { weekly: true }, and the dashboard still carries it only when nothing else is in doubt',
+    /flagFromWindow\(evidence,\s*\{\s*weekly:\s*true\s*\}\)/.test(wkSrc) && /if \(dataQualityFlags\.length === 0\) dataQualityFlags\.push\(\.\.\.\(weeklyReport\?\.dataQuality\?\.flags \?\? \[\]\)\)/.test(dash2), []);
   function runWeeklyRender(report: any) {
     const fn = lift(dashPage, 'renderWeeklyReport');
     if (!fn) return null;

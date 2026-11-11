@@ -2660,6 +2660,11 @@ export function dashboardPage(): string {
   // Unverified IQD spend. The server (src/lib/spendEvidence.ts) decides which periods cannot be checked against raw
   // Meta data and which advice it therefore withheld, and ships it as dashData.dataQuality; this only shows it, so
   // an empty advice area is never read as "nothing to do". Server text is escaped, nothing is recomputed here.
+  //
+  // The banner says what is ACTUALLY in doubt. A flag marked window 'prior' (the comparison window) or 'weekly' (the
+  // weekly report's own campaign-level reconciliation) is not a verdict on the 30-day window, so on its own it must not
+  // label that window "unverified" (SP-3): the title then names a part of the spend, and the list below names each
+  // surface that was withheld.
   function renderDataQualityBanner(dashData) {
     var box = document.getElementById('data-quality-banner');
     if (!box) return;
@@ -2667,6 +2672,12 @@ export function dashboardPage(): string {
     var flags = (dq && Array.isArray(dq.flags)) ? dq.flags : [];
     var withheld = (dq && Array.isArray(dq.withheld)) ? dq.withheld : [];
     if (!flags.length && !withheld.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
+    var ownWindow = flags.filter(function (f) { return f && f.window !== 'prior' && f.window !== 'weekly'; });
+    var weeklyOnly = flags.length > 0 && flags.every(function (f) { return f && f.window === 'weekly'; })
+      && withheld.every(function (w) { return w && w.surface === 'weeklyReport'; });
+    var title = (ownWindow.length || !flags.length)
+      ? lbl('Spend is not verified', 'الإنفاق غير موثَّق')
+      : lbl('Part of the spend could not be verified', 'تعذّر التحقق من جزء من الإنفاق');
     var lines = flags.map(function (f) { return '<div>' + escHtml(lbl(f.message, f.messageAr)) + '</div>'; });
     if (!lines.length) {
       lines.push('<div>' + escHtml(lbl(
@@ -2674,13 +2685,39 @@ export function dashboardPage(): string {
         'حُجبت بعض التوصيات المبنية على الإنفاق لأن الإنفاق لم يُتحقق منه ببيانات Meta الخام.'
       )) + '</div>');
     }
-    if (withheld.length) {
+    if (weeklyOnly) {
       lines.push('<div style="font-size:12px;margin-top:2px;color:var(--text-2);">' + escHtml(lbl(
-        withheld.length + ' spend-based item(s) withheld from this page.',
-        'عدد المخرجات المبنية على الإنفاق المحجوبة من هذه الصفحة: ' + withheld.length
+        'The spend of the account itself (the last 30 days and the 30 before) is verified; only the weekly report is affected.',
+        'إنفاق الحساب نفسه (آخر 30 يوماً والـ30 قبلها) موثَّق؛ المتأثر هو التقرير الأسبوعي فقط.'
       )) + '</div>');
     }
-    box.innerHTML = '<div style="flex:1;"><div style="font-weight:600;">' + escHtml(lbl('Spend is not verified', 'الإنفاق غير موثَّق')) + '</div>' + lines.join('') + '</div>';
+    if (withheld.length) {
+      var SURFACE = {
+        priorityAction: ['priority action', 'الإجراء ذو الأولوية'],
+        issues: ['issues', 'المشكلات'],
+        knowledgeBase: ['knowledge-base advice', 'توصيات قاعدة المعرفة'],
+        drain: ['budget drain', 'هدر الميزانية'],
+        forecast: ['spend forecast', 'توقّع الإنفاق'],
+        bleedAlert: ['bleed alert', 'تنبيه النزيف'],
+        steadyState: ['steady-state verdicts', 'تقييمات الاستقرار'],
+        predictions: ['budget-exhaustion prediction', 'توقّع نفاد الميزانية'],
+        aiRecommendations: ['AI recommendation cards', 'بطاقات التوصيات الذكية'],
+        weeklyReport: ['weekly report', 'التقرير الأسبوعي']
+      };
+      var counts = {}; var order = [];
+      withheld.forEach(function (w) {
+        var k = w && w.surface;
+        if (!k) return;
+        if (!counts[k]) { counts[k] = 0; order.push(k); }
+        counts[k]++;
+      });
+      var names = order.map(function (k) { var n = SURFACE[k]; return (n ? lbl(n[0], n[1]) : String(k)) + ' (' + counts[k] + ')'; }).join(lbl(', ', '، '));
+      lines.push('<div style="font-size:12px;margin-top:2px;color:var(--text-2);">' + escHtml(lbl(
+        'Withheld from this page: ' + names,
+        'المحجوب من هذه الصفحة: ' + names
+      )) + '</div>');
+    }
+    box.innerHTML = '<div style="flex:1;"><div style="font-weight:600;">' + escHtml(title) + '</div>' + lines.join('') + '</div>';
     box.style.display = 'flex';
   }
 

@@ -642,13 +642,18 @@ export function recommendationsPage(): string {
   // Unverified IQD spend. The server (src/lib/spendEvidence.ts) decides which periods cannot be checked against raw
   // Meta data and which advice it therefore withheld, and ships it as dashData.dataQuality (apiFetch hands a page the
   // body, not the X-Data-Quality header); this only shows it. Server text is escaped, nothing is recomputed here.
+  //
+  // The banner is about THIS page's list, so it appears only when something the list is made of is in doubt (SP-3): a
+  // flag on the account's own window, or a withheld surface this page renders. The prior-window flag (KPI comparisons)
+  // and the weekly report's own flag (a report this page does not show) say nothing about the list, and a verified
+  // account must not be told its list is "deliberately incomplete" because of them.
   function renderDataQualityBanner(d) {
     var box = document.getElementById('data-quality-banner');
     if (!box) return;
+    var LIST_SURFACES = { priorityAction: 1, issues: 1, knowledgeBase: 1, steadyState: 1 };
     var dq = d && d.dataQuality;
-    // The prior-window flag is about KPI comparisons on the dashboard, not about advice.
-    var flags = (dq && Array.isArray(dq.flags) ? dq.flags : []).filter(function (f) { return f && f.window !== 'prior'; });
-    var withheld = (dq && Array.isArray(dq.withheld)) ? dq.withheld : [];
+    var flags = (dq && Array.isArray(dq.flags) ? dq.flags : []).filter(function (f) { return f && f.window !== 'prior' && f.window !== 'weekly'; });
+    var withheld = ((dq && Array.isArray(dq.withheld)) ? dq.withheld : []).filter(function (w) { return w && LIST_SURFACES[w.surface] === 1; });
     if (!flags.length && !withheld.length) { box.style.display = 'none'; box.innerHTML = ''; return; }
     var lines = flags.map(function (f) { return '<div>' + escHtml(f.messageAr || '') + '</div>'; });
     if (!lines.length) {

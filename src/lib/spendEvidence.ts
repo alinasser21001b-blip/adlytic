@@ -327,15 +327,20 @@ export interface SpendScaleFlag {
   periods: SpendPeriod[];
   /**
    * 'prior' = the window BEFORE the one that was read, which period-over-period comparisons (KPI
-   * deltas) are computed against. Absent = the window that was read itself.
+   * deltas) are computed against. 'weekly' = the weekly report's OWN 7+7 day CAMPAIGN-level window, which
+   * says nothing about the account's own rows and gates only that report. Absent = the window that was read itself.
    */
-  window?: 'prior';
+  window?: 'prior' | 'weekly';
   /** true = the evidence could not be READ, so the window is treated as unverified (fail closed). */
   unreadable?: true;
 }
 
-/** Pure. null for a clean or not-applicable window. `opts.prior` marks the flag as the comparison window's. */
-export function flagFromWindow(w: SpendWindowEvidence, opts: { prior?: boolean } = {}): SpendScaleFlag | null {
+/**
+ * Pure. null for a clean or not-applicable window. `opts.prior` marks the flag as the comparison window's;
+ * `opts.weekly` marks it as the weekly report's own window (SP-3): the text then says that THE WEEKLY REPORT is
+ * what is withheld, because the same flag is shown next to a fully verified 30-day window.
+ */
+export function flagFromWindow(w: SpendWindowEvidence, opts: { prior?: boolean; weekly?: boolean } = {}): SpendScaleFlag | null {
   if (!w.applies || w.clean || !w.reason) return null;
   const over = w.reason === SPEND_SCALE_OVERSCALED;
   const n = over ? w.overscaled : w.unverified;
@@ -343,6 +348,30 @@ export function flagFromWindow(w: SpendWindowEvidence, opts: { prior?: boolean }
   const campaign = w.level === 'CAMPAIGN';
   const what = campaign ? 'campaign-level day(s)' : 'account-level spend row(s)';
   const whatAr = campaign ? 'يوم على مستوى الحملات' : 'صف إنفاق على مستوى الحساب';
+  if (opts.weekly) {
+    // The weekly report's own window. It is judged at CAMPAIGN level over its 7+7 days; a failure here is not a verdict on
+    // the account's 30-day spend, so the text names the report, not "spend".
+    if (w.unreadable) {
+      return {
+        code: w.reason,
+        severity: 'WARN',
+        message: `weekly report: the raw Meta evidence for ${span} could not be read — the weekly report's spend-based advice and comparisons are withheld`,
+        messageAr: `التقرير الأسبوعي: تعذّرت قراءة بيانات Meta الخام للتحقق من الفترة ${span} — تُحجب توصيات التقرير الأسبوعي ومقارناته المبنية على الإنفاق`,
+        level: w.level, rows: 0, of: 0, from: w.from, to: w.to, periods: [], window: 'weekly', unreadable: true,
+      };
+    }
+    return {
+      code: w.reason,
+      severity: over ? 'CRITICAL' : 'WARN',
+      message: over
+        ? `weekly report: ${n} of ${w.rows} ${what} in ${span} are exactly 100x raw Meta spend — the weekly report's spend-based advice and comparisons are withheld`
+        : `weekly report: ${n} of ${w.rows} ${what} in ${span} cannot be checked against raw Meta data${campaign ? ' (account row unproven, or the campaigns do not add up to it)' : ''} — the weekly report's spend-based advice and comparisons are withheld`,
+      messageAr: over
+        ? `التقرير الأسبوعي: ${n} من ${w.rows} ${whatAr} في ${span} أكبر ×100 من بيانات Meta الخام — تُحجب توصيات التقرير الأسبوعي ومقارناته المبنية على الإنفاق`
+        : `التقرير الأسبوعي: ${n} من ${w.rows} ${whatAr} في ${span} لا يمكن التحقق منها ببيانات Meta الخام${campaign ? ' (صف الحساب غير موثَّق، أو أن مجموع الحملات لا يطابقه)' : ''} — تُحجب توصيات التقرير الأسبوعي ومقارناته المبنية على الإنفاق`,
+      level: w.level, rows: n, of: w.rows, from: w.from, to: w.to, periods: w.periods, window: 'weekly',
+    };
+  }
   if (w.unreadable) {
     return {
       code: w.reason,
