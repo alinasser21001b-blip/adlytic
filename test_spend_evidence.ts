@@ -967,6 +967,19 @@ async function main() {
   check('SP-2 wiring: no spend-reading tool is left reading spend without the gate — the six gated tools import spendGate; the others are the documented residual',
     ['simulateBudgetShift', 'rankCampaigns', 'comparePeriods', 'detectAnomaly', 'listCampaigns', 'getCampaignDetails'].every((n) => /from '\.\.\/spendGate'/.test(tool(n))), []);
 
+  // ── 12. review round 3, SP-4 / SP-7 (wiring; the behaviour is in the Postgres twin) ───────────────────────────────
+  console.log('\n── 12. review round 3: /issues is gated like the dashboard, and the data-quality headers are CORS-exposed ──');
+  const server3 = code(read('src/api/server.ts'));
+  const issuesRoute = /app\.get\('\/api\/workspaces\/:workspaceId\/issues'[\s\S]*?\n {2}\}\);/.exec(server3)?.[0] ?? '';
+  check('SP-4: GET /issues judges the account\'s 30-day ACCOUNT window (fail closed), drops the spend-dependent issue codes, and sets X-Data-Quality + X-Issues-Withheld; ?include=suppressed carries the flag in the body',
+    /spendScaleFlagFailClosed\(prisma,\s*account,\s*accountLocalDateFloor\(account\.timezone,\s*30\),\s*null,\s*'ACCOUNT'\)/.test(issuesRoute) && /!isSpendDependentIssueCode\(i\.issueCode\)/.test(issuesRoute) && /c\.header\(DATA_QUALITY_HEADER,\s*windowFlag\.code\)/.test(issuesRoute) && /X-Issues-Withheld/.test(issuesRoute) && /include'\]\s*===\s*'suppressed'/.test(issuesRoute) && /if \(!windowFlag\) return c\.json\(safeJson\(issues\)\)/.test(issuesRoute), issuesRoute.slice(0, 400));
+  const corsBlock = /cors\(\{[\s\S]*?\}\)/.exec(server3)?.[0] ?? '';
+  check('SP-7: the CORS config exposes X-Data-Quality, X-Recommendations-Withheld and X-Issues-Withheld to cross-origin browser clients, and its policy is otherwise as it was (methods, allowed headers, credentials)',
+    /exposeHeaders:\s*\[[^\]]*'X-Data-Quality'[^\]]*\]/.test(corsBlock) && /exposeHeaders:\s*\[[^\]]*'X-Recommendations-Withheld'[^\]]*\]/.test(corsBlock) && /exposeHeaders:\s*\[[^\]]*'X-Issues-Withheld'[^\]]*\]/.test(corsBlock)
+      && /allowHeaders:\s*\['Content-Type',\s*'Authorization'\]/.test(corsBlock) && /allowMethods:\s*\['GET',\s*'POST',\s*'PUT',\s*'PATCH',\s*'DELETE',\s*'OPTIONS'\]/.test(corsBlock) && /credentials:\s*true/.test(corsBlock), corsBlock);
+  check('SP-7: every header name the spend gate sets is in the exposed list (DATA_QUALITY_HEADER and the two counts) — nothing the doc calls "for API consumers" is invisible to a browser consumer',
+    S.DATA_QUALITY_HEADER === 'X-Data-Quality' && [...server3.matchAll(/c\.header\('(X-[A-Za-z-]*Withheld)'/g)].every((m) => new RegExp(`exposeHeaders:[^\\]]*'${m[1]}'`).test(corsBlock)), [...server3.matchAll(/c\.header\('(X-[A-Za-z-]*Withheld)'/g)].map((m) => m[1]));
+
   // the doc says what the code does (the first version's claims were wrong)
   const docSrc = read('delivery/core/SPEND_EVIDENCE_GATING.md');
   check('DOC: the claim that aiRecommendations is "already judged at its own tick" is gone, and aiRecommendations / weeklyReport are in the gated list',

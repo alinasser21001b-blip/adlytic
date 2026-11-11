@@ -220,7 +220,7 @@ import {
   resolveEntityIntelligenceForGuard,
 } from '../services/entityIntelligence';
 import { permitAction } from '../analytics/intelligence/hierarchy';
-import { DATA_QUALITY_HEADER, partitionRecommendationsBySpendEvidence, spendScaleFlagFailClosed } from '../lib/spendEvidence';
+import { DATA_QUALITY_HEADER, isSpendDependentIssueCode, partitionRecommendationsBySpendEvidence, spendScaleFlagFailClosed } from '../lib/spendEvidence';
 import { buildBrainObservatory } from '../services/brainObservatory';
 import { getCampaignWhy } from '../services/campaignWhy';
 import {
@@ -537,6 +537,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
         : '*',
       allowMethods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
       allowHeaders: ['Content-Type', 'Authorization'],
+      // Array-shaped reads (/insights, /campaigns, /recommendations, /issues) cannot grow a data-quality key, so the spend gate's
+      // verdict travels on these response headers. A browser hides every custom header from a cross-origin page unless it is
+      // listed here: without this the flag was invisible to any browser consumer on another allowed origin.
+      // (delivery/core/SPEND_EVIDENCE_GATING.md §3)
+      exposeHeaders: ['X-Data-Quality', 'X-Recommendations-Withheld', 'X-Issues-Withheld'],
       credentials: true,
     })
   );
@@ -5076,7 +5081,9 @@ export function buildRoutes(prisma: PrismaClient): Hono {
 
   /** GET /api/workspaces/:workspaceId/issues — detected issues (Rules Engine output).
    *  Latest detector run only, one row per issueCode — detectors write a full
-   *  replacement set per date, so reading all dates duplicated every issue. */
+   *  replacement set per date, so reading all dates duplicated every issue.
+   *  Spend-dependent issues are withheld on unverified IQD spend (X-Data-Quality, X-Issues-Withheld),
+   *  exactly as the dashboard withholds them — delivery/core/SPEND_EVIDENCE_GATING.md §3. */
   app.get('/api/workspaces/:workspaceId/issues', async (c) => {
     const req = await honoToApiRequest(c);
     if (!req.bearerToken) return c.json({ error: 'Unauthorized' }, 401);
@@ -5086,7 +5093,24 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     const { account } = await getAccount(req.params['workspaceId']);
     if (!account) return c.json([]);
     const issues = await loadCurrentIssues(prisma, account.id);
-    return c.json(safeJson(issues));
+    // The same display gate the dashboard applies to these stored rows: an issue that rests on spend (RISING_COST_PER_RESULT,
+    // HIGH_CPM, BUDGET_BURNING_FAST) is not served while the account's own 30-day window holds IQD spend that is not verified
+    // (an unreadable evidence read counts as not verified). The array shape cannot grow a key: the flag and the count are on the
+    // headers, and in full on ?include=suppressed. A USD account and a verified window are served exactly as before.
+    const windowFlag = await spendScaleFlagFailClosed(prisma, account, accountLocalDateFloor(account.timezone, 30), null, 'ACCOUNT');
+    if (!windowFlag) return c.json(safeJson(issues));
+    const kept = issues.filter((i) => !isSpendDependentIssueCode(i.issueCode));
+    const suppressed = issues.filter((i) => isSpendDependentIssueCode(i.issueCode));
+    c.header(DATA_QUALITY_HEADER, windowFlag.code);
+    c.header('X-Issues-Withheld', String(suppressed.length));
+    if (req.query['include'] === 'suppressed') {
+      return c.json(safeJson({
+        issues: kept,
+        suppressed: suppressed.map((i) => ({ issueCode: i.issueCode, severity: i.severity, date: i.date, reason: windowFlag.code })),
+        dataQuality: { spendWithheldCount: suppressed.length, flags: [windowFlag] },
+      }));
+    }
+    return c.json(safeJson(kept));
   });
 
   // ════════════════════════════════════════════════════════════════════════

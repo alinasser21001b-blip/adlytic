@@ -767,6 +767,44 @@ async function main() {
     if (keys[1] === undefined) delete process.env['OPENAI_API_KEY']; else process.env['OPENAI_API_KEY'] = keys[1];
   }
 
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n── 11. review round 3, SP-4: GET /api/workspaces/:id/issues serves the stored issues through the same gate as the dashboard ──');
+  // Stored detector output of the latest run: two rest on spend (RISING_COST_PER_RESULT, HIGH_CPM), one does not (HIGH_FREQUENCY).
+  const withIssues = async (t: Tenant) => { await prisma.detectedIssue.createMany({ data: ['RISING_COST_PER_RESULT', 'HIGH_CPM', 'HIGH_FREQUENCY'].map((c) => ({ entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(0), issueCode: c as any, severity: 'HIGH' as any, evidenceJson: [] })) }); return t; };
+  const isU = await withIssues(await seed('is-unver', { factor: 1, account: steady(35, () => 'none'), objective: 'MESSAGES' }));
+  const isV = await withIssues(await seed('is-ver', { factor: 1, account: steady(35, () => 'match'), objective: 'MESSAGES' }));
+  const isD = await withIssues(await seed('is-usd', { currency: 'USD', factor: 100, account: steady(35, () => 'none'), objective: 'MESSAGES' }));
+  const issuesOf = async (t: Tenant, q = '') => { const r = await quiet(() => get(`/api/workspaces/${t.ws.id}/issues${q}`, t.token))(); return { r, body: (await r.json()) as any }; };
+  const issueCodesOf = (b: any) => (Array.isArray(b) ? b : b.issues).map((i: any) => i.issueCode).sort().join();
+  const [iU, iV, iD, iUs] = [await issuesOf(isU), await issuesOf(isV), await issuesOf(isD), await issuesOf(isU, '?include=suppressed')];
+  check('SP-4 baseline: a VERIFIED IQD account and a USD account get all three stored issues, and NO data-quality header (the body is the same array as before)', iV.r.status === 200 && issueCodesOf(iV.body) === 'HIGH_CPM,HIGH_FREQUENCY,RISING_COST_PER_RESULT' && issueCodesOf(iD.body) === issueCodesOf(iV.body) && dq(iV.r) === null && dq(iD.r) === null && iV.r.headers.get('x-issues-withheld') === null && iD.r.headers.get('x-issues-withheld') === null && Array.isArray(iV.body), [issueCodesOf(iV.body), dq(iV.r)]);
+  check('SP-4: an UNVERIFIED IQD account gets only the spend-free issue (HIGH_FREQUENCY) — the spend-dependent ones (RISING_COST_PER_RESULT, HIGH_CPM) are withheld, as the dashboard withholds them', iU.r.status === 200 && Array.isArray(iU.body) && issueCodesOf(iU.body) === 'HIGH_FREQUENCY', [issueCodesOf(iU.body)]);
+  check('SP-4: …and it says so on the headers (X-Data-Quality: SPEND_SCALE_UNVERIFIED, X-Issues-Withheld: 2) — an empty or short list is not "nothing wrong"', dq(iU.r) === REASON && iU.r.headers.get('x-issues-withheld') === '2', [dq(iU.r), iU.r.headers.get('x-issues-withheld')]);
+  check('SP-4: ?include=suppressed returns { issues, suppressed, dataQuality } with the window flag in the body too, and the withheld issues listed with their reason', iUs.r.status === 200 && issueCodesOf(iUs.body) === 'HIGH_FREQUENCY' && iUs.body.suppressed?.map((x: any) => x.issueCode).sort().join() === 'HIGH_CPM,RISING_COST_PER_RESULT' && iUs.body.suppressed.every((x: any) => x.reason === REASON) && iUs.body.dataQuality?.flags?.[0]?.code === REASON && iUs.body.dataQuality.spendWithheldCount === 2, iUs.body);
+  const dIs = await dash(isU);
+  check('SP-4: the dashboard of the same account withholds exactly the same two codes (its issues list and dataQuality.withheld) — the two reads agree', !dIs.body.issues.some((x: any) => S.isSpendDependentIssueCode(x.code)) && ['RISING_COST_PER_RESULT', 'HIGH_CPM'].every((c) => dIs.body.dataQuality?.withheld?.some((w: any) => w.surface === 'issues' && w.detail === c)), dIs.body.dataQuality?.withheld);
+  rawBroken = true;
+  const iBr = await issuesOf(isV);
+  const iBrD = await issuesOf(isD);
+  rawBroken = false;
+  check('SP-4: with raw_insights UNREADABLE the verified account\'s /issues fails closed — 200, spend-dependent issues withheld, X-Data-Quality set — and a USD account is untouched', iBr.r.status === 200 && issueCodesOf(iBr.body) === 'HIGH_FREQUENCY' && dq(iBr.r) === REASON && iBrD.r.status === 200 && issueCodesOf(iBrD.body) === 'HIGH_CPM,HIGH_FREQUENCY,RISING_COST_PER_RESULT' && dq(iBrD.r) === null, [iBr.r.status, issueCodesOf(iBr.body), dq(iBr.r)]);
+  const noAcct = await seed('is-noacct', { factor: 1, account: [] });
+  await prisma.adAccount.delete({ where: { id: noAcct.account.id } });
+  const iNone = await issuesOf(noAcct);
+  check('SP-4: a workspace without an ad account still answers [] (unchanged)', iNone.r.status === 200 && same(iNone.body, []), iNone.body);
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n── 12. review round 3, SP-7: a cross-origin browser client can read the data-quality headers ──');
+  const withOrigin = (path: string, t: Tenant) => quiet(() => app.request(path, { headers: { authorization: `Bearer ${t.token}`, origin: 'https://app.example.test' } }))();
+  const corsInsights = await withOrigin(`/api/workspaces/${isU.ws.id}/insights?days=30`, isU);
+  const corsRecs = await withOrigin(`/api/workspaces/${isU.ws.id}/recommendations`, isU);
+  const corsIssues = await withOrigin(`/api/workspaces/${isU.ws.id}/issues`, isU);
+  const exposed = (r: Response) => (r.headers.get('access-control-expose-headers') ?? '').split(',').map((x) => x.trim().toLowerCase());
+  check('SP-7: the actual responses carry Access-Control-Expose-Headers naming X-Data-Quality, X-Recommendations-Withheld and X-Issues-Withheld (a browser hides every other custom header from a cross-origin page)',
+    ['x-data-quality', 'x-recommendations-withheld', 'x-issues-withheld'].every((h) => exposed(corsInsights).includes(h) && exposed(corsRecs).includes(h) && exposed(corsIssues).includes(h)), [corsInsights.headers.get('access-control-expose-headers')]);
+  check('SP-7: …and the headers it names are really on those responses (X-Data-Quality on /insights, /recommendations and /issues; the two counts on theirs)', dq(corsInsights) === REASON && dq(corsRecs) === REASON && dq(corsIssues) === REASON && corsRecs.headers.get('x-recommendations-withheld') !== null && corsIssues.headers.get('x-issues-withheld') === '2', [dq(corsInsights), dq(corsRecs), dq(corsIssues)]);
+  check('SP-7: the CORS policy itself is unchanged — same allowed methods and headers, credentials still on', /GET/.test(corsInsights.headers.get('access-control-allow-credentials') ? 'GET' : '') && corsInsights.headers.get('access-control-allow-credentials') === 'true', [corsInsights.headers.get('access-control-allow-credentials')]);
+
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect();
   await pool.end();
