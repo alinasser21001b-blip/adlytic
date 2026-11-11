@@ -356,7 +356,7 @@ function getSortValue(item: CampaignListItem, key: ListCampaignsArgs['sortBy']):
  *   worst = bottom 25% by health OR (spend>median AND messages == 0)
  *   mid   = otherwise
  */
-function applyTiers(items: CampaignListItem[], spendWithheld = false): void {
+export function applyTiers(items: CampaignListItem[], spendWithheld = false): void {
   if (items.length < MIN_CAMPAIGNS_FOR_TIERING) {
     for (const i of items) i.tier = 'mid';
     return;
@@ -402,7 +402,7 @@ function median(values: number[]): number {
  *   3. Arabic phrasing per direction
  *   4. small-workspace fallback
  */
-function applyWhyLabels(items: CampaignListItem[], spendWithheld = false): void {
+export function applyWhyLabels(items: CampaignListItem[], spendWithheld = false): void {
   if (items.length < MIN_CAMPAIGNS_FOR_TIERING) {
     for (const i of items) {
       i.whyLabel = 'حساب صغير — لا مقارنة كافية';
@@ -469,7 +469,7 @@ function applyWhyLabels(items: CampaignListItem[], spendWithheld = false): void 
 }
 
 // re-export the factory constructor and type
-export type { ListCampaignsArgs, ListCampaignsResult };
+export type { ListCampaignsArgs, ListCampaignsResult, CampaignListItem };
 // Small `PrismaClient` reference just to silence "unused import" when the file
 // is compiled without the runtime — Prisma is used in `ctx.prisma`.
 void (undefined as unknown as PrismaClient | undefined);

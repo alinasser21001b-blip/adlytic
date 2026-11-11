@@ -673,6 +673,14 @@ async function main() {
     anU.ok && !metricsIn(anU).some((m) => ['spend', 'cpm', 'cost_per_message'].includes(m)) && metricsIn(anU).includes('messages') && !anU.data.canonicalIssueCodes.includes('RISING_COST_PER_RESULT') && anU.data.canonicalIssueCodes.includes('HIGH_FREQUENCY') && anU.data.spendEvidence?.code === REASON && anU.data.spendEvidence.level === 'ACCOUNT', [metricsIn(anU), anU.data?.canonicalIssueCodes, anU.data?.spendEvidence]);
   check('SP-2: …a campaign-scope scan is gated at CAMPAIGN level', anUc.ok && anUc.data.spendEvidence?.level === 'CAMPAIGN' && !metricsIn(anUc).some((m) => ['spend', 'cpm', 'cost_per_message'].includes(m)), [anUc.data?.spendEvidence]);
 
+  // the window is the span of rows the tool READS: the account is verified for the last 30 days only, the 30 days before are not
+  const agP = await seed('ag-prior-gap', { factor: 1, account: agentAccount('match').map((r) => (r.ago > 30 ? { ...r, raw: 'none' as RawMode } : r)), campaigns: [agentCamp(0), agentCamp(1)], budget: 60_000n, objective: 'MESSAGES' });
+  const [simP, rkP, cpP, dtP, lsP, anP] = [await callTool(agP, 'simulate_budget_shift', SIM(agP)), await rnk(agP, 'cost_per_message'), await cmp(agP, 'ACCOUNT'), await dtl(agP), await lst(agP), await ano(agP)];
+  check('SP-2 windows: with the last 30 days verified and only OLDER days unproven, the tools that read 30 days or less are untouched — simulate, rank by cost per message and a 7-day comparison answer as on a verified account',
+    simP.ok && !('spendEvidence' in simP.data) && rkP.ok && cpP.ok && !('spendEvidence' in cpP.data) && Math.round(cpP.data.deltas.spendPct) === 20, [simP.ok, rkP.ok, cpP.ok]);
+  check('SP-2 windows: …while the tools whose comparison reads the prior window (get_campaign_details, list_campaigns: 60 days) and the anomaly baseline (7 + 30 days) ARE gated by those unproven older days — each is judged over exactly the rows it reads',
+    dtP.ok && dtP.data.spendEvidence?.unverified > 0 && lsP.ok && lsP.data.spendEvidence?.unverified > 0 && anP.ok && anP.data.spendEvidence?.unverified > 0 && dtP.data.spendEvidence.unverified === lsP.data.spendEvidence.unverified, [dtP.data?.spendEvidence?.unverified, lsP.data?.spendEvidence?.unverified, anP.data?.spendEvidence?.unverified]);
+
   // fail closed: an evidence read that fails withholds (IQD), and never touches USD
   rawBroken = true;
   const [simBr, dtBr, lsBr, simBrUsd, dtBrUsd] = [await callTool(agV, 'simulate_budget_shift', SIM(agV)), await dtl(agV), await lst(agV), await callTool(agD, 'simulate_budget_shift', SIM(agD)), await dtl(agD)];
@@ -717,6 +725,8 @@ async function main() {
     const seenU = seen.splice(0);
     check('SP-1 (model prompt): the provider IS reached (stub) for both — so the next two checks prove something', seenV.length >= 1 && seenU.length >= 1, [seenV.length, seenU.length]);
     check('SP-1 (model prompt): for a VERIFIED account the model is handed the pacing (pctOfBudget) and nothing about spend evidence — the prompt is what it always was', seenV.some((x) => /pctOfBudget/.test(x.user)) && seenV.every((x) => !/spendEvidence|SPEND_SCALE/.test(x.user + x.system)), seenV.map((x) => x.user.slice(0, 200)));
+    check('SP-1 (model prompt): the audience / creative sections the model gets are ranked by cost_per_message for a verified account and by ctr for an unverified one',
+      seenV.some((x) => /audience[^]*?metric[^]*?cost_per_message/.test(x.user) && !/\\"metric\\":\\"ctr\\"/.test(x.user)) && seenU.some((x) => /\\"metric\\":\\"ctr\\"/.test(x.user) && !/cost_per_message\\"[,}]/.test(x.user.replace(/withheld[^\]]*\]/, ''))), [seenV.map((x) => x.user.slice(0, 400)), seenU.map((x) => x.user.slice(0, 400))]);
     check('SP-1 (model prompt): for an UNVERIFIED account the model is handed spendEvidence (reason code, the instruction) and NO pacing numbers, and its instructions say what to do with it',
       seenU.some((x) => /spendEvidence/.test(x.user) && /SPEND_SCALE_UNVERIFIED/.test(x.user) && !/pctOfBudget\\":9|burnRatePerHour\\":[0-9]/.test(x.user) && /spendEvidence/.test(x.system)), seenU.map((x) => [x.system.slice(-300), x.user.slice(0, 300)]));
   } finally {

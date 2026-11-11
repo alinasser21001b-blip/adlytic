@@ -906,6 +906,31 @@ async function main() {
   const cmpBroken = await cmpH.run(cmpArgs, simCtx(cmpDb('IQD', { throwOnQuery: true }))) as any;
   check('SP-2: …an unreadable evidence read gates the comparison too (spendEvidence.unreadable, confidence low) — still answered, never on a guess', cmpBroken.ok && cmpBroken.data.spendEvidence?.unreadable === true && cmpBroken.data.verdicts.confidence === 'low' && cmpBroken.data.deltas.spendPct === null, cmpBroken.data?.spendEvidence);
 
+  // list_campaigns: the tiering and the why-labels, pure — the spend-median and CPM / cost-per-message clauses are left out while gated
+  const LC: any = await import('./src/services/agent/tools/listCampaigns');
+  const pair = (current: number | null) => ({ current, prior: current, deltaPct: 0 });
+  const item = (id: string, o: { health: number; spend: number; roas: number; msgs: number; cpm?: number; cpmsg?: number }) => ({
+    id, name: id, status: 'ACTIVE', healthScore: o.health, healthBand: 'good', tier: 'mid',
+    metrics: { spend: pair(o.spend), messages: pair(o.msgs), ctr: pair(2), cpm: pair(o.cpm ?? 100), cost_per_message: pair(o.cpmsg ?? 10), roas: pair(o.roas) },
+    whyLabel: '', whyReasons: [],
+  });
+  // X: weak health (so not best by the composite) but roas > 2 with spend above the median → "best" ONLY through the spend clause
+  const tierSet = () => [item('x', { health: 60, spend: 900, roas: 3, msgs: 10 }), item('a', { health: 90, spend: 100, roas: 3, msgs: 10 }), item('b', { health: 90, spend: 100, roas: 3, msgs: 10 }), item('c', { health: 90, spend: 100, roas: 3, msgs: 10 }), item('d', { health: 40, spend: 100, roas: 3, msgs: 10 }), item('e', { health: 40, spend: 100, roas: 3, msgs: 10 })];
+  const tClean = tierSet(); LC.applyTiers(tClean);
+  const tGated = tierSet(); LC.applyTiers(tGated, true);
+  check('SP-2: applyTiers — a campaign that is "best" only because its spend is above the median (roas > 2) is best on verified spend and NOT best while the spend is unverified', tClean.find((i: any) => i.id === 'x')?.tier === 'best' && tGated.find((i: any) => i.id === 'x')?.tier !== 'best', [tClean.map((i: any) => i.tier), tGated.map((i: any) => i.tier)]);
+  // Z: healthy by score, but spend above the median with ZERO messages → "worst" ONLY through the spend clause
+  const worstSet = () => [item('z', { health: 90, spend: 900, roas: 0, msgs: 0 }), item('l1', { health: 50, spend: 100, roas: 1, msgs: 10 }), item('l2', { health: 50, spend: 100, roas: 1, msgs: 10 }), item('a', { health: 90, spend: 100, roas: 1, msgs: 10 }), item('b', { health: 90, spend: 100, roas: 1, msgs: 10 })];
+  const wtClean = worstSet(); LC.applyTiers(wtClean);
+  const wtGated = worstSet(); LC.applyTiers(wtGated, true);
+  check('SP-2: applyTiers — a campaign that is "worst" only because it spends above the median with no messages is worst on verified spend and NOT worst while the spend is unverified', wtClean.find((i: any) => i.id === 'z')?.tier === 'worst' && wtGated.find((i: any) => i.id === 'z')?.tier !== 'worst', [wtClean.map((i: any) => i.tier), wtGated.map((i: any) => i.tier)]);
+  const wSet = () => [item('a', { health: 80, spend: 100, roas: 1, msgs: 10 }), item('b', { health: 80, spend: 100, roas: 1, msgs: 10 }), item('c', { health: 80, spend: 100, roas: 1, msgs: 10 }), item('d', { health: 80, spend: 100, roas: 1, msgs: 10, cpm: 1000, cpmsg: 100 })];
+  const wClean = wSet(); LC.applyWhyLabels(wClean);
+  const wGated = wSet(); LC.applyWhyLabels(wGated, true);
+  const dOf = (xs: any[]) => xs.find((i: any) => i.id === 'd');
+  check('SP-2: applyWhyLabels — a campaign distinguished only by CPM / cost per message gets a "CPM … higher than average" label on verified spend and the neutral one while the spend is unverified', /CPM|تكلفة الرسالة/.test(dOf(wClean).whyLabel) && dOf(wGated).whyLabel === 'أداء متوسط عبر كل المؤشرات' && !/CPM|تكلفة الرسالة/.test(dOf(wGated).whyReasons.join()), [dOf(wClean).whyLabel, dOf(wGated).whyLabel]);
+  check('SP-2: …with no verdict (the default argument) both are exactly what they were', (() => { const a = tierSet(); LC.applyTiers(a); const b = tierSet(); LC.applyTiers(b, false); const c = wSet(); LC.applyWhyLabels(c); const d = wSet(); LC.applyWhyLabels(d, false); return same(a, b) && same(c, d); })());
+
   // the investigate narratives (pure): what the tab says on unverified spend
   const { buildDeterministicInvestigationNarratives: narr } = await import('./src/services/agent/investigateNarratives');
   const pacing = { todaySpend: 97_000, dailyBudget: 100_000, pctOfBudget: 97, burnRatePerHour: 5_000 };
