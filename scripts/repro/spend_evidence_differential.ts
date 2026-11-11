@@ -15,6 +15,11 @@
 //        # USD: empty. verified IQD: empty, or only the additive data-health keys against a pre-gate base.
 //        # iqd-unverified is in the dump to SHOW the gate (it is expected to differ), never to be compared for identity.
 //
+//  `count <file>` does not compare behaviour: it COUNTS SQL statements (Prisma's query log) per route, per agent tool and per engine
+//  run for each tenant — total, and how many read raw_insights / daily_stats — so the cost of the gate is measured, not asserted:
+//    DATABASE_URL=$DB npx tsx scripts/repro/spend_evidence_differential.ts count /tmp/counts_new.json   (and again on the old source)
+//  Each action runs once to warm the caches and is counted on its second run.
+//
 //  `dump` runs the real engines (rules, recommendation, V5, Brain) for each tenant, reads every IQD-reaching route
 //  through the real app — including the weekly report, a 61-day history (so the PRIOR window is read), and the campaign
 //  "investigate" tab — and runs the AI agent's read tools through the real dispatcher (list / details / rank / compare /
@@ -39,7 +44,7 @@ if (!['127.0.0.1', 'localhost'].includes(parsed.hostname) || !dbName.startsWith(
 }
 const mode = process.argv[2];
 const outFile = process.argv[3];
-if (mode !== 'seed' && mode !== 'dump') { console.error('usage: seed | dump <file>'); process.exit(2); }
+if (mode !== 'seed' && mode !== 'dump' && mode !== 'count') { console.error('usage: seed | dump <file> | count <file>'); process.exit(2); }
 
 const TENANTS = [
   { key: 'usd', currency: 'USD', factor: 100, raws: false },
@@ -93,6 +98,62 @@ async function main() {
     }
     console.log('seeded', TENANTS.map((t) => t.key).join(', '));
     await prisma.$disconnect(); await pool.end();
+    return;
+  }
+
+  if (mode === 'count') {
+    await prisma.$disconnect();
+    const counting = new PrismaClient({ adapter: new PrismaPg(pool), log: [{ emit: 'event', level: 'query' }] }) as any;
+    let sql: string[] = [];
+    counting.$on('query', (e: { query: string }) => { sql.push(e.query); });
+    const { buildRoutes: build } = await import('../../src/api/server');
+    const { RulesEngine: RE } = await import('../../src/engines/rules/RulesEngine');
+    const { RecommendationEngine: RecE } = await import('../../src/engines/recommendation/RecommendationEngine');
+    const { AdlyticIntelligenceSystem: V5 } = await import('../../src/engines/intelligence/AdlyticIntelligenceSystem');
+    const { ToolDispatcher: TD } = await import('../../src/services/agent/dispatcher');
+    const { ToolCache: TC } = await import('../../src/services/agent/cache');
+    const { RateLimiter: RL } = await import('../../src/services/agent/rateLimit');
+    const { buildAgentToolHandlers: handlers } = await import('../../src/services/agent/tools');
+    const capp = build(counting);
+    const qt = async <T,>(fn: () => Promise<T>): Promise<T> => { const l = console.log, i = console.info, w = console.warn, er = console.error; console.log = console.info = console.warn = console.error = () => {}; try { return await fn(); } finally { console.log = l; console.info = i; console.warn = w; console.error = er; } };
+    const result: Record<string, Record<string, { total: number; raw_insights: number; daily_stats: number }>> = {};
+    for (const t of TENANTS) {
+      const id = ids(t.key);
+      const token = signToken({ sub: id.user, email: `${id.user}@repro.invalid`, ver: 0 });
+      const asOf = new Date();
+      const get = (path: string, method = 'GET') => async () => { const r = await capp.request(path, { method, headers: { authorization: `Bearer ${token}` } }); await r.text(); };
+      const tool = (name: string, args: unknown) => async () => { await new TD(handlers() as any, { prisma: counting, workspaceId: id.ws, userId: id.user } as any, { cache: new TC(), rateLimiter: new RL({ capacity: 10_000 }) }).dispatch(name, args); };
+      const actions: Array<[string, () => Promise<unknown>]> = [
+        ['GET /api/dashboard', get(`/api/dashboard/${id.ws}`)],
+        ['GET /recommendations', get(`/api/workspaces/${id.ws}/recommendations`)],
+        ['GET /insights?days=30', get(`/api/workspaces/${id.ws}/insights?days=30`)],
+        ['GET /campaigns?days=30', get(`/api/workspaces/${id.ws}/campaigns?days=30`)],
+        ['GET /issues', get(`/api/workspaces/${id.ws}/issues`)],
+        ['GET /weekly-report', get(`/api/weekly-report/${id.ws}`)],
+        ['GET /data-health', get(`/api/workspaces/${id.ws}/data-health`)],
+        ['RulesEngine.run', async () => { await new RE(counting).run(EntityType.ACCOUNT, id.acct, { asOf }); }],
+        ['RecommendationEngine.run', async () => { await new RecE(counting).run(EntityType.ACCOUNT, id.acct, { asOf }); }],
+        ['V5 shadow engine.run', async () => { await new V5(counting).run(id.acct, asOf); }],
+        ['tool list_campaigns', tool('list_campaigns', {})],
+        ['tool get_campaign_details', tool('get_campaign_details', { campaignId: id.camp(0) })],
+        ['tool rank_campaigns cost_per_message', tool('rank_campaigns', { metric: 'cost_per_message' })],
+        ['tool rank_campaigns ctr', tool('rank_campaigns', { metric: 'ctr' })],
+        ['tool compare_periods ACCOUNT', tool('compare_periods', { entityType: 'ACCOUNT', entityId: id.acct, windowA: { sinceDaysAgo: 7, untilDaysAgo: 1 }, windowB: { sinceDaysAgo: 14, untilDaysAgo: 8 } })],
+        ['tool detect_anomaly workspace', tool('detect_anomaly', { scope: 'workspace', lookbackDays: 7 })],
+        ['tool simulate_budget_shift', tool('simulate_budget_shift', { fromCampaignId: id.camp(0), toCampaignId: id.camp(1), shiftAmount: { value: 20, unit: 'pct_of_from' }, projectionDays: 7 })],
+      ];
+      const per: Record<string, { total: number; raw_insights: number; daily_stats: number }> = {};
+      for (const [label, fn] of actions) {
+        await qt(fn);            // warm-up
+        sql = [];
+        await qt(fn);            // counted
+        per[label] = { total: sql.length, raw_insights: sql.filter((q) => /raw_insights/.test(q)).length, daily_stats: sql.filter((q) => /daily_stats/.test(q)).length };
+      }
+      result[t.key] = per;
+    }
+    writeFileSync(outFile!, JSON.stringify(result, null, 1));
+    console.log('wrote', outFile);
+    await counting.$disconnect(); await pool.end();
     return;
   }
 
