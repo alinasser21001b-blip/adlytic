@@ -5,17 +5,21 @@
 //
 //  Synthetic loopback Postgres only (database name adlytic_repro*). Never real data.
 //
-//    DB=postgresql://adlytic@127.0.0.1:54329/adlytic_repro_rc2
+//    DB=postgresql://adlytic@127.0.0.1:54329/adlytic_repro_rc2      # a FRESH clone: seed once
 //    DATABASE_URL=$DB npx tsx scripts/repro/spend_evidence_differential.ts seed
 //    DATABASE_URL=$DB npx tsx scripts/repro/spend_evidence_differential.ts dump /tmp/new.json
 //    git checkout <old-rev> -- src            # the old source; the script is not under src/
 //    DATABASE_URL=$DB npx tsx scripts/repro/spend_evidence_differential.ts dump /tmp/old.json
 //    git checkout HEAD -- src
-//    diff /tmp/old.json /tmp/new.json         # USD: empty. verified IQD: only the additive data-health keys
+//    for t in usd iqd-verified; do diff <(jq ".\"$t\"" /tmp/old.json) <(jq ".\"$t\"" /tmp/new.json); done
+//        # USD: empty. verified IQD: empty, or only the additive data-health keys against a pre-gate base.
+//        # iqd-unverified is in the dump to SHOW the gate (it is expected to differ), never to be compared for identity.
 //
-//  `dump` runs the real engines (rules, recommendation, V5, Brain) for each tenant and
-//  then reads every IQD-reaching route through the real app; volatile fields and row ids
-//  are normalised so only behaviour is compared.
+//  `dump` runs the real engines (rules, recommendation, V5, Brain) for each tenant, reads every IQD-reaching route
+//  through the real app — including the weekly report, a 61-day history (so the PRIOR window is read), and the campaign
+//  "investigate" tab — and runs the AI agent's read tools through the real dispatcher (list / details / rank / compare /
+//  anomaly / simulate). Volatile fields (clock-dependent burn rate, staleness, timings) and row ids are normalised so
+//  only behaviour is compared.
 // ═════════════════════════════════════════════════════════════════════════
 
 process.env['NODE_ENV'] = 'test';
@@ -40,7 +44,10 @@ if (mode !== 'seed' && mode !== 'dump') { console.error('usage: seed | dump <fil
 const TENANTS = [
   { key: 'usd', currency: 'USD', factor: 100, raws: false },
   { key: 'iqd-verified', currency: 'IQD', factor: 1, raws: true },
+  // No raw evidence at all: in the dump to SHOW what the gate changes. Never compared for identity.
+  { key: 'iqd-unverified', currency: 'IQD', factor: 1, raws: false },
 ] as const;
+const HISTORY_DAYS = 61; // ACCOUNT and CAMPAIGN rows ago 0..61: the current 30-day window, the prior one, and the agent tools' 60-day reads
 const ids = (k: string) => ({ user: `diffu_${k}`, ws: `diffw_${k}`, acct: `diffa_${k}`, camp: (i: number) => `diffc${i}_${k}` });
 
 async function main() {
@@ -64,13 +71,13 @@ async function main() {
       await prisma.workspaceMember.create({ data: { workspaceId: id.ws, userId: id.user, role: 'OWNER' } });
       await prisma.adAccount.create({ data: { id: id.acct, workspaceId: id.ws, externalAccountId: `act_${t.key}`, name: 'Synthetic account', currency: t.currency, currencyMinorFactor: t.factor, timezone: 'UTC', metaAccountStatus: 1, lastSyncedAt: new Date() } });
       for (let c = 0; c < 3; c++) await prisma.campaign.create({ data: { id: id.camp(c), adAccountId: id.acct, externalCampaignId: `c${c}_${t.key}`, name: `Campaign ${c}`, objective: 'MESSAGES', dailyBudget: 5_000_000n } });
-      for (let a = 0; a <= 20; a++) {
+      for (let a = 0; a <= HISTORY_DAYS; a++) {
         const spend = a === 0 ? 80_000 : 100_000;
         const msgs = a === 0 ? 0 : a <= 7 ? 10 : 20;
         await prisma.dailyStat.create({ data: { entityType: EntityType.ACCOUNT, entityId: id.acct, date: day(a), spend: BigInt(spend), impressions: 25_000n, clicks: 500n, linkClicks: 500n, messages: BigInt(msgs), ctr: 2.0, frequency: 2.0, cpm: spend / 25, cpc: spend / 500 } });
         if (t.raws) await prisma.rawInsight.create({ data: { entityType: EntityType.ACCOUNT, entityId: id.acct, date: day(a), rawJson: { spend: String(spend) } } });
       }
-      for (let c = 0; c < 3; c++) for (let a = 0; a <= 15; a++) {
+      for (let c = 0; c < 3; c++) for (let a = 0; a <= HISTORY_DAYS; a++) {
         const spend = a === 0 ? 26_667 : 33_333;
         await prisma.dailyStat.create({ data: { entityType: EntityType.CAMPAIGN, entityId: id.camp(c), date: day(a), spend: BigInt(spend), impressions: 8_000n, clicks: 160n, linkClicks: 160n, messages: BigInt(a === 0 ? 0 : a <= 7 ? 3 : 6), ctr: 2.0, frequency: 2.0, cpm: spend / 8, cpc: spend / 160 } });
       }
@@ -95,16 +102,24 @@ async function main() {
   const { RecommendationEngine } = await import('../../src/engines/recommendation/RecommendationEngine');
   const { AdlyticIntelligenceSystem } = await import('../../src/engines/intelligence/AdlyticIntelligenceSystem');
   const { runBrainOrchestrator } = await import('../../src/workers/runBrainOrchestrator');
+  const { ToolDispatcher } = await import('../../src/services/agent/dispatcher');
+  const { ToolCache } = await import('../../src/services/agent/cache');
+  const { RateLimiter } = await import('../../src/services/agent/rateLimit');
+  const { buildAgentToolHandlers } = await import('../../src/services/agent/tools');
   const app = buildRoutes(prisma);
   const noMeta: any = new Proxy({}, { get: () => () => { throw new Error('no network'); } });
-  const VOLATILE = new Set(['checkedAt', 'generatedAt', 'syncAgeHours', 'fetchedAt', 'createdAt', 'updatedAt', 'durationMs', 'computedAt', 'timestamp', 'narrationGeneratedAt']);
+  const VOLATILE = new Set(['checkedAt', 'generatedAt', 'syncAgeHours', 'fetchedAt', 'createdAt', 'updatedAt', 'durationMs', 'computedAt', 'timestamp', 'narrationGeneratedAt',
+    // clock-dependent: the agent tools' envelope and today's burn rate / staleness
+    'executionMs', 'cachedSeconds', 'stalenessMinutes', 'burnRatePerHour']);
+  /** Narrative text carries the clock-dependent burn rate ("معدل الحرق 5,000 لكل ساعة", "(5,000/ساعة)", "لحوالي 3 ساعات"): digits masked there only. */
+  const maskClock = (t: string) => t.replace(/(معدل الحرق )[0-9.,]+/g, '$1#').replace(/\(?[0-9.,]+\/ساعة\)?/g, '#/ساعة').replace(/(لحوالي |لأقل من )[0-9.,]+/g, '$1#');
   const norm = (v: unknown): unknown => {
     // arrays of plain strings (e.g. id lists) come back in an unspecified order from some routes: compare them as sets
     if (Array.isArray(v)) return v.every((x) => typeof x === 'string') ? [...(v as string[])].sort() : v.map(norm);
     if (v && typeof v === 'object') {
       return Object.fromEntries(Object.keys(v as object).sort().filter((k) => !VOLATILE.has(k)).map((k) => [k, k === 'id' || k === 'reportId' || k === 'campaignRowId' ? 'ID' : norm((v as Record<string, unknown>)[k])]));
     }
-    return typeof v === 'bigint' ? v.toString() : v;
+    return typeof v === 'bigint' ? v.toString() : typeof v === 'string' ? maskClock(v) : v;
   };
   const quiet = async <T,>(fn: () => Promise<T>): Promise<T> => { const l = console.log, i = console.info, w = console.warn; console.log = console.info = console.warn = () => {}; try { return await fn(); } finally { console.log = l; console.info = i; console.warn = w; } };
 
@@ -122,14 +137,33 @@ async function main() {
     const routes = [
       `/api/dashboard/${id.ws}`, `/api/workspaces/${id.ws}/recommendations`, `/api/workspaces/${id.ws}/insights?days=30`, `/api/workspaces/${id.ws}/campaigns?days=30`,
       `/api/workspaces/${id.ws}/data-health`, `/api/workspaces/${id.ws}/issues`, `/api/workspaces/${id.ws}/insights/trends`, `/api/workspaces/${id.ws}/campaigns/${id.camp(0)}/inspector`,
+      `/api/weekly-report/${id.ws}`, `POST:/api/workspaces/${id.ws}/campaigns/${id.camp(0)}/investigate`,
     ];
     const res: Record<string, unknown> = {};
-    for (const r of routes) {
-      const resp = await quiet(() => app.request(r, { headers: { authorization: `Bearer ${token}` } }));
+    for (const r0 of routes) {
+      const isPost = r0.startsWith('POST:');
+      const r = isPost ? r0.slice(5) : r0;
+      const resp = await quiet(() => app.request(r, { method: isPost ? 'POST' : 'GET', headers: { authorization: `Bearer ${token}` } }));
       const headers = Object.fromEntries([...resp.headers.entries()].filter(([k]) => k.startsWith('x-') && k !== 'x-recommendation-log-id' && k !== 'x-request-id').sort());
       let body: unknown; try { body = await resp.json(); } catch { body = null; }
-      res[r.replace(id.ws, ':ws').replace(id.camp(0), ':camp')] = { status: resp.status, headers, body: norm(body) };
+      res[`${isPost ? 'POST ' : ''}${r.replace(id.ws, ':ws').replace(id.camp(0), ':camp')}`] = { status: resp.status, headers, body: norm(body) };
     }
+    // the AI agent's read tools through the real dispatcher (a fresh cache and limiter per call: the envelope the model gets)
+    const callTool = async (name: string, args: unknown) => quiet(() => new ToolDispatcher(buildAgentToolHandlers() as any, { prisma, workspaceId: id.ws, userId: id.user } as any, { cache: new ToolCache(), rateLimiter: new RateLimiter({ capacity: 10_000 }) }).dispatch(name, args));
+    const acctCmp = (entityType: string, entityId: string) => ({ entityType, entityId, windowA: { sinceDaysAgo: 7, untilDaysAgo: 1 }, windowB: { sinceDaysAgo: 14, untilDaysAgo: 8 } });
+    const toolCalls: Array<[string, string, unknown]> = [
+      ['tool:list_campaigns', 'list_campaigns', {}],
+      ['tool:list_campaigns sortBy cost_per_message', 'list_campaigns', { sortBy: 'cost_per_message' }],
+      ['tool:get_campaign_details', 'get_campaign_details', { campaignId: id.camp(0) }],
+      ['tool:rank_campaigns cost_per_message', 'rank_campaigns', { metric: 'cost_per_message' }],
+      ['tool:rank_campaigns ctr', 'rank_campaigns', { metric: 'ctr' }],
+      ['tool:compare_periods ACCOUNT', 'compare_periods', acctCmp('ACCOUNT', id.acct)],
+      ['tool:compare_periods CAMPAIGN', 'compare_periods', acctCmp('CAMPAIGN', id.camp(0))],
+      ['tool:detect_anomaly workspace', 'detect_anomaly', { scope: 'workspace', lookbackDays: 7 }],
+      ['tool:detect_anomaly campaign', 'detect_anomaly', { scope: 'campaign', campaignId: id.camp(0), lookbackDays: 7 }],
+      ['tool:simulate_budget_shift', 'simulate_budget_shift', { fromCampaignId: id.camp(0), toCampaignId: id.camp(1), shiftAmount: { value: 20, unit: 'pct_of_from' }, projectionDays: 7 }],
+    ];
+    for (const [label, name, args] of toolCalls) res[label] = norm(await callTool(name, args));
     res['rows:detected_issues'] = norm(await prisma.detectedIssue.findMany({ where: { entityId: id.acct }, orderBy: [{ date: 'asc' }, { issueCode: 'asc' }] }));
     res['rows:recommendations'] = norm(await prisma.recommendation.findMany({ where: { entityId: id.acct }, orderBy: [{ date: 'asc' }, { actionCode: 'asc' }] }));
     res['rows:campaign_brain_snapshots'] = norm(await prisma.campaignBrainSnapshot.findMany({ where: { workspaceId: id.ws }, orderBy: [{ externalCampaignId: 'asc' }] }));

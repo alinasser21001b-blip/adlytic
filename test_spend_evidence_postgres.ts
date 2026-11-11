@@ -575,7 +575,7 @@ async function main() {
   const { investigateCampaign } = await import('./src/services/agent/investigate');
   // One fresh dispatcher per call (no cache, a roomy limiter): the envelope the MODEL gets, through the real dispatcher.
   const callTool = async (t: Tenant, name: string, args: unknown): Promise<any> =>
-    quiet(() => new ToolDispatcher(buildAgentToolHandlers() as any, { prisma, workspaceId: t.ws.id, userId: t.user.id } as any, { cache: new ToolCache(), rateLimiter: new RateLimiter({ maxCalls: 10_000 } as any) }).dispatch(name, args))();
+    quiet(() => new ToolDispatcher(buildAgentToolHandlers() as any, { prisma, workspaceId: t.ws.id, userId: t.user.id } as any, { cache: new ToolCache(), rateLimiter: new RateLimiter({ capacity: 10_000 }) }).dispatch(name, args))();
   // Two campaigns that always add up to the account row. Spend: today 107k; the last 7 days 120k; before that 99k/101k alternating.
   // Messages: 9/11 alternating before the window, 10 inside it, and ONE on ago 1 — so a spend anomaly AND a spend-free (messages) anomaly exist.
   const acctSpendAt = (ago: number) => (ago === 0 ? 107_000 : ago <= 7 ? 120_000 : ago % 2 === 0 ? 99_000 : 101_000);
