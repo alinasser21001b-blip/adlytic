@@ -23,6 +23,7 @@ process.env['DATABASE_URL'] = process.env['DATABASE_URL'] ?? 'postgresql://user:
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 
 let pass = 0;
 let fail = 0;
@@ -38,6 +39,36 @@ const code = (s: string) => s.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"
 function walk(dir: string, out: string[] = []): string[] {
   for (const n of readdirSync(dir)) { const p = path.join(dir, n); if (statSync(p).isDirectory()) walk(p, out); else if (p.endsWith('.ts')) out.push(p); }
   return out;
+}
+
+/**
+ * A PARSE, not a regex: every file of src/ and scripts/ in every JS/TS flavour (.ts .tsx .mts .cts .js .mjs .cjs) is read with the
+ * TypeScript parser, and what it uses is taken from the syntax tree — string literals, identifiers (an import alias keeps the original
+ * name as a separate identifier) — so a `//` inside a string, an unusual extension or indentation, `app.on(...)`, an alias or a dynamic
+ * `import()` cannot hide a use. (The previous guard stripped comments with a regex and walked only *.ts.)
+ */
+const FLAVOURS = /\.(?:[cm]?[jt]sx?)$/;
+function walkAll(dir: string, out: string[] = []): string[] {
+  for (const n of readdirSync(dir)) {
+    if (n === 'node_modules' || n === '.git') continue;
+    const p = path.join(dir, n);
+    if (statSync(p).isDirectory()) walkAll(p, out); else if (FLAVOURS.test(p)) out.push(p);
+  }
+  return out;
+}
+function facts(file: string): { strings: string[]; identifiers: Set<string> } {
+  const text = readFileSync(file, 'utf8');
+  const kind = /\.[cm]?tsx$|\.jsx$/.test(file) ? ts.ScriptKind.TSX : /\.[cm]?js$/.test(file) ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, kind);
+  const strings: string[] = []; const identifiers = new Set<string>();
+  const visit = (n: ts.Node) => {
+    if (ts.isStringLiteralLike(n)) strings.push(n.text);
+    else if (ts.isTemplateExpression(n)) { strings.push(n.head.text); n.templateSpans.forEach((sp) => strings.push(sp.literal.text)); }
+    else if (ts.isIdentifier(n)) identifiers.add(n.text);
+    ts.forEachChild(n, visit);
+  };
+  visit(sf);
+  return { strings, identifiers };
 }
 function handlers(src: string): Array<{ verb: string; route: string; text: string }> {
   const re = /^ {2}app\.(get|post|put|patch|delete)\(\s*(['"`])([^'"`]+)\2/gm;
@@ -60,6 +91,22 @@ async function main() {
   const importers = walk(path.join(ROOT, 'src'))
     .filter((f) => MODULE_REF.test(code(readFileSync(f, 'utf8'))))
     .map((f) => path.relative(ROOT, f).replace(/\\/g, '/')).sort();
+  {
+    const rel = (f: string) => path.relative(ROOT, f).replace(/\\/g, '/');
+    const prod = [...walkAll(path.join(ROOT, 'src')), ...walkAll(path.join(ROOT, 'scripts'))].filter((f) => !/src\/lib\/platformOrphanCleanup\.ts$/.test(f));
+    const F = new Map(prod.map((f) => [rel(f), facts(f)] as const));
+    const mentions = [...F].filter(([, v]) => v.strings.some((x) => /platformOrphanCleanup/.test(x))).map(([k]) => k).sort();
+    check(`(parsed, ${prod.length} files of src/ and scripts/ in every JS/TS flavour) only server.ts and the scheduler mention the module path in any string literal, import, re-export, dynamic import() or require`, JSON.stringify(mentions) === JSON.stringify(['src/api/server.ts', 'src/workers/backgroundScheduler.ts']), mentions);
+    const GLOBAL_FNS = ['cleanupOrphanedCampaignStatsGlobal', 'describeOrphanBatchGlobal'];
+    const users = [...F].filter(([, v]) => GLOBAL_FNS.some((g) => v.identifiers.has(g))).map(([k]) => k).sort();
+    check('(parsed) the global delete and the dry-run function appear, under any alias, in server.ts ONLY', JSON.stringify(users) === JSON.stringify(['src/api/server.ts']), users);
+    const sch = F.get('src/workers/backgroundScheduler.ts');
+    // (cleanupOrphanedSyncJobs is the unrelated stuck-sync-job sweep: the pattern is about orphaned campaign STATS)
+    const bad = [...(sch?.identifiers ?? [])].filter((i) => /(delete|cleanup|purge|remove|destroy)\w*Orphan\w*(Stat|Campaign)/i.test(i) || /Orphan\w*(Stat|Campaign)\w*(delete|cleanup|purge|remove|destroy)/i.test(i));
+    check('(parsed) no identifier of the scheduler — an import, an alias, a property — names a delete/cleanup/purge of orphaned campaign stats', !!sch && bad.length === 0, bad);
+    const tenantDel = [...F].filter(([, v]) => v.identifiers.has('deleteOwnedOrphanedCampaignStats')).map(([k]) => k).sort();
+    check('(parsed) the tenant-scoped delete is used by server.ts and its own module only', JSON.stringify(tenantDel.filter((k) => k !== 'src/lib/campaignDataIsolation.ts')) === JSON.stringify(['src/api/server.ts']), tenantDel);
+  }
   check('only server.ts (platform-admin routes) and the scheduler import platformOrphanCleanup', JSON.stringify(importers) === JSON.stringify(['src/api/server.ts', 'src/workers/backgroundScheduler.ts']), importers);
   const globalCallers = hs.filter((h) => /cleanupOrphanedCampaignStatsGlobal|describeOrphanBatchGlobal/.test(h.text));
   check('inside server.ts the global functions appear ONLY in /api/admin/ handlers', globalCallers.length === 2 && globalCallers.every((h) => h.route.startsWith('/api/admin/')), globalCallers.map((h) => `${h.verb} ${h.route}`));
