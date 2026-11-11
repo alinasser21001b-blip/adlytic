@@ -991,6 +991,13 @@ async function main() {
   check('DOC: the claim that aiRecommendations is "already judged at its own tick" is gone, and aiRecommendations / weeklyReport are in the gated list',
     !/already judged at its own tick/.test(docSrc) && /aiRecommendations/.test(docSrc) && /weeklyReport/.test(docSrc) && /SE-3/.test(docSrc), []);
 
+  check('DOC (third round): the claims the second review found false are gone — "Non-IQD accounts add none", "two to three small reads", "zero evidence queries", "`of` account rows in the range", "nothing in `src` reads that copy back"',
+    !/Non-IQD accounts add none/.test(docSrc) && !/two to three small indexed reads/.test(docSrc) && !/\*\*zero\*\* evidence queries/.test(docSrc) && !/`of` account rows in the range/.test(docSrc) && !/nothing in `src` reads that copy back/.test(docSrc), []);
+  check('DOC (third round): what replaced them is there — the measured cost (one `ad_accounts` lookup for USD, +10 on the IQD dashboard, the count command), the `weekly` window marker, /issues in the surface tables with its headers, the CORS exposure, the agent tools and spendGate.ts, the residual tools, the admin-settings exposure',
+    /one extra `ad_accounts` lookup/.test(docSrc) && /spend_evidence_differential\.ts count/.test(docSrc) && /\*\*\+10\*\* on the dashboard/.test(docSrc) && /window\?: 'prior' \| 'weekly'/.test(docSrc) && /GET \/api\/workspaces\/:id\/issues/.test(docSrc) && /X-Issues-Withheld/.test(docSrc) && /Access-Control-Expose-Headers/.test(docSrc) && /src\/services\/agent\/spendGate\.ts/.test(docSrc) && /get_audience_breakdown/.test(docSrc) && /GET \/api\/admin\/settings/.test(docSrc) && /audienceInsight/.test(docSrc), []);
+  check('DOC (third round): the agent tools and /issues are in the gated rows of the §8.3 table and no longer listed as "not gated" (getCampaignDetails is not in the not-gated row)',
+    /AI agent read tools \(`simulate_budget_shift`[^|]*\| \*\*gated\*\*/.test(docSrc) && /`GET \/issues` \| \*\*gated\*\*/.test(docSrc) && !/CSV exports, `campaignInspector`, `getCampaignDetails`/.test(docSrc), []);
+
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
 }
