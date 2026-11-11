@@ -594,6 +594,22 @@ async function main() {
       { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(1), issueCode: IssueCode.HIGH_FREQUENCY, severity: 'MEDIUM', evidenceJson: [] },
     ] });
   }
+  // What get_campaign_details reads besides daily rows: the latest V5 report (issues + recommendations) and the campaign's Brain verdict.
+  // A cost issue (RISING_COST_PER_RESULT), a budget recommendation (INCREASE_BUDGET) and a SCALE_BUDGET verdict rest on spend; LOW_CTR and a creative refresh do not.
+  for (const t of [agV, agU, agD]) {
+    await prisma.campaignIntelligenceReport.create({ data: {
+      adAccountId: t.account.id, date: day(0), healthScore: 70,
+      issues: { create: [
+        { entityId: t.campaigns[0]!.id, issueCode: 'RISING_COST_PER_RESULT', severity: 'high', strength: 0.9, evidence: ['cost per result up'] },
+        { entityId: t.campaigns[0]!.id, issueCode: 'LOW_CTR', severity: 'medium', strength: 0.5, evidence: ['ctr low'] },
+      ] },
+      recommendations: { create: [
+        { entityId: t.campaigns[0]!.id, actionCode: 'INCREASE_BUDGET', priority: 'HIGH', strength: 0.9, text: 'REC-BUDGET زِد الميزانية' },
+        { entityId: t.campaigns[0]!.id, actionCode: 'REFRESH_CREATIVE', priority: 'MEDIUM', strength: 0.4, text: 'REC-CREATIVE جدّد الإبداع' },
+      ] },
+    } });
+    await prisma.campaignBrainSnapshot.create({ data: { workspaceId: t.ws.id, campaignId: t.campaigns[0]!.id, externalCampaignId: `ext_${t.campaigns[0]!.id}`, tickDate: day(0), action: 'SCALE_BUDGET', priority: 'HIGH', patternSignature: 'SCALABLE_BEAST', finalScore: 80, payload: {} } });
+  }
   /** A result with this tenant's ids and the time-dependent burn rate taken out, so twin tenants can be compared byte for byte. */
   const scrub = (t: Tenant, v: unknown): string => {
     let j = JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? x.toString() : x));
@@ -630,7 +646,13 @@ async function main() {
   check('SP-1: …what does not rest on spend is exactly the verified account\'s: CTR and messages (current, prior, delta), the CTR / messages baseline deltas, the learning phase, the campaign block',
     JSON.stringify([dtU.data.windowMetrics.ctr, dtU.data.windowMetrics.messages, dtU.data.vsBaseline.ctrPct, dtU.data.vsBaseline.messagesPct, dtU.data.learningPhase]) === JSON.stringify([dtV.data.windowMetrics.ctr, dtV.data.windowMetrics.messages, dtV.data.vsBaseline.ctrPct, dtV.data.vsBaseline.messagesPct, dtV.data.learningPhase]), [dtU.data?.windowMetrics?.ctr, dtV.data?.windowMetrics?.ctr]);
   check('SP-1: …the absolute spend figures are shown as stored (the gate withholds advice and comparisons, not money)', dtU.data.windowMetrics.spend.current === dtV.data.windowMetrics.spend.current && dtU.data.spendPacing.todaySpend === dtV.data.spendPacing.todaySpend && dtU.data.spendPacing.dailyBudget === dtV.data.spendPacing.dailyBudget);
-  check('SP-1: a spend-dependent stored issue (RISING_COST_PER_RESULT) never reaches the details of an unverified account: topIssues has none', (dtU.data.topIssues ?? []).every((i: any) => !S.isSpendDependentIssueCode(i.code)), dtU.data?.topIssues);
+  const codes = (r: any) => (r.data.topIssues ?? []).map((i: any) => i.code).sort().join();
+  const recTexts = (r: any) => (r.data.topRecommendations ?? []).map((x: any) => x.text).join(' | ');
+  check('SP-1 baseline: on VERIFIED IQD spend (and USD) the stored issues, recommendations and Brain verdict come through whole: the cost issue, the budget recommendation, SCALE_BUDGET',
+    codes(dtV) === 'LOW_CTR,RISING_COST_PER_RESULT' && /REC-BUDGET/.test(recTexts(dtV)) && /REC-CREATIVE/.test(recTexts(dtV)) && dtV.data.latestBrainAction?.action === 'SCALE_BUDGET' && codes(dtD) === codes(dtV) && dtD.data.latestBrainAction?.action === 'SCALE_BUDGET', [codes(dtV), recTexts(dtV), dtV.data?.latestBrainAction]);
+  check('SP-1: on UNVERIFIED spend the spend-dependent ones are left out — the RISING_COST_PER_RESULT issue, the INCREASE_BUDGET recommendation, the SCALE_BUDGET verdict — and the others stay (LOW_CTR, the creative refresh); spendEvidence.withheld names each',
+    codes(dtU) === 'LOW_CTR' && !/REC-BUDGET/.test(recTexts(dtU)) && /REC-CREATIVE/.test(recTexts(dtU)) && dtU.data.latestBrainAction === null
+      && dtU.data.spendEvidence.withheld.some((w: string) => /^topIssues: RISING_COST_PER_RESULT/.test(w)) && dtU.data.spendEvidence.withheld.some((w: string) => /^topRecommendations: INCREASE_BUDGET/.test(w)) && dtU.data.spendEvidence.withheld.some((w: string) => /^latestBrainAction: SCALE_BUDGET/.test(w)), [codes(dtU), recTexts(dtU), dtU.data?.latestBrainAction, dtU.data?.spendEvidence?.withheld]);
   check('SP-1: levels — the account rows are verified but the campaigns do not reconcile (days 3-5): the CAMPAIGN-level details are gated too (the same verdict the Brain and save_recommendation use)', dtR.ok && dtR.data.spendEvidence?.code === REASON && dtR.data.spendEvidence.level === 'CAMPAIGN' && dtR.data.spendEvidence.unverified === 3 && dtR.data.spendPacing.pctOfBudget === null, dtR.data?.spendEvidence);
 
   // list_campaigns
@@ -702,6 +724,7 @@ async function main() {
     ivU.r.status === 200 && !/ارفع الميزانية|قلّل الإنفاق|ارفع/.test(section(ivU.body, 'budget')) && /لم يُتحقق|تعذّر التحقق|غير موثَّق/.test(section(ivU.body, 'budget')) && section(ivU.body, 'budget') !== section(ivV.body, 'budget'), section(ivU.body, 'budget'));
   check('SP-1: …the report carries spendEvidence (SPEND_SCALE_UNVERIFIED) next to the sections, and the structure and historical sections state no spend / CPM comparison against the baseline and say why',
     ivU.body.spendEvidence?.code === REASON && !/الإنفاق مقابل الأساس|تكلفة الألف ظهور مقابل الأساس/.test(section(ivU.body, 'historical_trend')) && /لم يُتحقق|غير موثَّق/.test(section(ivU.body, 'historical_trend')) && !/إنفاق النافذة الحالية [0-9,.]+ \(/.test(section(ivU.body, 'structure')) && /إنفاق النافذة الحالية [0-9,.]+ \(/.test(section(ivV.body, 'structure')) && /الإنفاق مقابل الأساس/.test(section(ivV.body, 'historical_trend')), [ivU.body.spendEvidence?.code, section(ivU.body, 'historical_trend'), section(ivU.body, 'structure')]);
+  check('SP-1: …the historical section\'s verdict is about engagement and results only ("التفاعل والنتائج قريبان…"), not the verified account\'s "الأداء الحالي قريب…" which speaks for spend too', /التفاعل والنتائج قريبان/.test(section(ivU.body, 'historical_trend')) && !/الأداء الحالي قريب/.test(section(ivU.body, 'historical_trend')) && /الأداء الحالي قريب/.test(section(ivV.body, 'historical_trend')), [section(ivU.body, 'historical_trend')]);
   check('SP-1: …and what does not rest on spend is the same as the verified account\'s (learning phase, pixel health sections)', section(ivU.body, 'learning_phase') === section(ivV.body, 'learning_phase') && section(ivU.body, 'pixel_health') === section(ivV.body, 'pixel_health'));
   const sameDay = ivU.body.sections.map((x: any) => x.key).join() === ivV.body.sections.map((x: any) => x.key).join();
   check('SP-1: the same eight sections come back for the unverified campaign (the tab does not break)', sameDay && ivU.body.sections.length === 8, ivU.body.sections?.map((x: any) => x.key));
@@ -709,6 +732,8 @@ async function main() {
   // the LLM path: a stubbed provider (no network) shows what the MODEL is handed
   const realFetch = globalThis.fetch;
   const seen: Array<{ system: string; user: string }> = [];
+  /** The JSON the narrative prompt hands the model (the user message of the provider request). */
+  const promptData = (x: { user: string }): any => { try { return JSON.parse(JSON.parse(x.user)[0].content); } catch { return null; } };
   (globalThis as any).fetch = async (_u: unknown, init: any) => {
     const b = JSON.parse(String(init?.body ?? '{}'));
     seen.push({ system: JSON.stringify(b.system ?? ''), user: JSON.stringify(b.messages ?? []) });
@@ -725,10 +750,17 @@ async function main() {
     const seenU = seen.splice(0);
     check('SP-1 (model prompt): the provider IS reached (stub) for both — so the next two checks prove something', seenV.length >= 1 && seenU.length >= 1, [seenV.length, seenU.length]);
     check('SP-1 (model prompt): for a VERIFIED account the model is handed the pacing (pctOfBudget) and nothing about spend evidence — the prompt is what it always was', seenV.some((x) => /pctOfBudget/.test(x.user)) && seenV.every((x) => !/spendEvidence|SPEND_SCALE/.test(x.user + x.system)), seenV.map((x) => x.user.slice(0, 200)));
-    check('SP-1 (model prompt): the audience / creative sections the model gets are ranked by cost_per_message for a verified account and by ctr for an unverified one',
-      seenV.some((x) => /audience[^]*?metric[^]*?cost_per_message/.test(x.user) && !/\\"metric\\":\\"ctr\\"/.test(x.user)) && seenU.some((x) => /\\"metric\\":\\"ctr\\"/.test(x.user) && !/cost_per_message\\"[,}]/.test(x.user.replace(/withheld[^\]]*\]/, ''))), [seenV.map((x) => x.user.slice(0, 400)), seenU.map((x) => x.user.slice(0, 400))]);
+    const rankedBy = (xs: Array<{ user: string }>) => xs.map(promptData).filter(Boolean).map((d: any) => [d.audience?.metric, d.creative_fatigue?.creative?.metric].join('/'));
+    check('SP-1 (model prompt): the audience / creative sections the model gets are ranked by cost_per_message for a verified account and by ctr for an unverified one', same(rankedBy(seenV), ['cost_per_message/cost_per_message']) && same(rankedBy(seenU), ['ctr/ctr']), [rankedBy(seenV), rankedBy(seenU)]);
     check('SP-1 (model prompt): for an UNVERIFIED account the model is handed spendEvidence (reason code, the instruction) and NO pacing numbers, and its instructions say what to do with it',
       seenU.some((x) => /spendEvidence/.test(x.user) && /SPEND_SCALE_UNVERIFIED/.test(x.user) && !/pctOfBudget\\":9|burnRatePerHour\\":[0-9]/.test(x.user) && /spendEvidence/.test(x.system)), seenU.map((x) => [x.system.slice(-300), x.user.slice(0, 300)]));
+    // the verdict is unknown when get_campaign_details FAILS: the spend ranking is not asked for either (fail closed)
+    const llmF = await agentTenant('ag-ver-detailsfail', { raw: 'match' });
+    const origFindFirst = (prisma as any).campaignIntelligenceReport.findFirst;
+    (prisma as any).campaignIntelligenceReport.findFirst = () => Promise.reject(new Error('injected: details cannot be read'));
+    try { await quiet(() => investigateCampaign({ prisma, workspaceId: llmF.ws.id, userId: llmF.user.id, campaignId: llmF.campaigns[0]!.id }))(); } finally { (prisma as any).campaignIntelligenceReport.findFirst = origFindFirst; }
+    const seenF = seen.splice(0);
+    check('SP-1 (model prompt): when the campaign details FAIL (the verdict is unknown) the audience / creative sections are ranked by ctr, not cost per message — fail closed; the structure section is null', same(rankedBy(seenF), ['ctr/ctr']) && promptData(seenF[0]!)?.structure === null, [rankedBy(seenF)]);
   } finally {
     (globalThis as any).fetch = realFetch; delete process.env['AI_AGENT_V2_ENABLED'];
     if (keys[0] === undefined) delete process.env['ANTHROPIC_API_KEY']; else process.env['ANTHROPIC_API_KEY'] = keys[0];
