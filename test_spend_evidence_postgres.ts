@@ -805,6 +805,20 @@ async function main() {
   check('SP-7: …and the headers it names are really on those responses (X-Data-Quality on /insights, /recommendations and /issues; the two counts on theirs)', dq(corsInsights) === REASON && dq(corsRecs) === REASON && dq(corsIssues) === REASON && corsRecs.headers.get('x-recommendations-withheld') !== null && corsIssues.headers.get('x-issues-withheld') === '2', [dq(corsInsights), dq(corsRecs), dq(corsIssues)]);
   check('SP-7: the CORS policy itself is unchanged — same allowed methods and headers, credentials still on', /GET/.test(corsInsights.headers.get('access-control-allow-credentials') ? 'GET' : '') && corsInsights.headers.get('access-control-allow-credentials') === 'true', [corsInsights.headers.get('access-control-allow-credentials')]);
 
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n── 13. review round 3, SP-6: the two gate behaviours no earlier test pinned ──');
+  // (a) the dashboard's evidence read FAILS: its flag must say "could not be read" (unreadable), not "0 of 0 rows", for the 30-day AND the prior window
+  const dqBr = dshBr.body.dataQuality;
+  const curBr = (dqBr?.flags ?? []).find((f: any) => f.window === undefined);
+  const priBr = (dqBr?.flags ?? []).find((f: any) => f.window === 'prior');
+  check('SP-6: the dashboard\'s own-window flag, when the raw_insights read fails, is marked unreadable and says "could not be read" in both languages (never "0 of 0 rows"), and nothing is claimed verified',
+    curBr?.unreadable === true && curBr.code === REASON && curBr.rows === 0 && curBr.of === 0 && /could not be read/.test(curBr.message) && /تعذّرت/.test(curBr.messageAr), curBr);
+  check('SP-6: …and so is the prior-window flag (window "prior", unreadable)', priBr?.unreadable === true && priBr.code === REASON && /could not be read/.test(priBr.message), priBr);
+  check('SP-6: …the spend-dependent surfaces are withheld on that fail-closed verdict (the dashboard names them), not shown on a guess', (dqBr?.withheld ?? []).length > 0 && (dqBr.withheld as any[]).every((w) => w.reason === REASON), dqBr?.withheld);
+  // (b) the weekly report's flag is merged into the dashboard's dataQuality ONLY when nothing else is in doubt (pinned by section 9; restated here by name)
+  check('SP-6: the weekly report\'s own flag reaches the dashboard\'s dataQuality.flags when the 30-day and prior windows are clean (section 9 account), and is NOT added next to an own-window flag (the unverified dashboard has exactly one own-window flag and no weekly one)',
+    dWk.body.dataQuality?.flags?.length === 1 && dWk.body.dataQuality.flags[0].window === 'weekly' && (dsU.body.dataQuality?.flags ?? []).every((f: any) => f.window !== 'weekly') && (dsU.body.dataQuality?.flags ?? []).length >= 1, [dWk.body.dataQuality?.flags?.map((f: any) => f.window), dsU.body.dataQuality?.flags?.map((f: any) => f.window)]);
+
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect();
   await pool.end();
