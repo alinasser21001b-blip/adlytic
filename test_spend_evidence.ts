@@ -980,6 +980,12 @@ async function main() {
   check('SP-7: every header name the spend gate sets is in the exposed list (DATA_QUALITY_HEADER and the two counts) — nothing the doc calls "for API consumers" is invisible to a browser consumer',
     S.DATA_QUALITY_HEADER === 'X-Data-Quality' && [...server3.matchAll(/c\.header\('(X-[A-Za-z-]*Withheld)'/g)].every((m) => new RegExp(`exposeHeaders:[^\\]]*'${m[1]}'`).test(corsBlock)), [...server3.matchAll(/c\.header\('(X-[A-Za-z-]*Withheld)'/g)].map((m) => m[1]));
 
+  // SP-6 (static, the CI-safe half): the dashboard's fail-closed verdict and the weekly flag merge are pinned in the source too
+  check('SP-6: the dashboard\'s fail-closed verdict is unreadableWindow(currency, "ACCOUNT", …) — marked unreadable, never clean — and is the fallback AND the catch of BOTH windows (current and prior)',
+    /function spendEvidenceUnreadable\([^)]*\): SpendWindowEvidence \{\s*return unreadableWindow\(currency, 'ACCOUNT', since\.toISOString\(\)\.slice\(0, 10\), to\);\s*\}/.test(dash2)
+      && (dash2.match(/spendEvidenceUnreadable\(/g) ?? []).length === 5 && /softStage\('spendEvidence', spendEvidenceUnreadable\(account\.currency, sinceDate\)/.test(dash2) && /softStage\('spendEvidencePrior', spendEvidenceUnreadable\(account\.currency, priorSinceDate, addDaysIso\(isoDay\(sinceDate\), -1\)\)/.test(dash2), (dash2.match(/spendEvidenceUnreadable\(/g) ?? []).length);
+  check('SP-6: the weekly report\'s flags are merged into dataQuality.flags only when the 30-day and prior flags are absent (not always, not never)', /\[\s*flagFromWindow\(spendWindow\),\s*flagFromWindow\(priorSpendWindow,\s*\{\s*prior:\s*true\s*\}\),?\s*\]\.filter/.test(dash2) && /if \(dataQualityFlags\.length === 0\) dataQualityFlags\.push\(\.\.\.\(weeklyReport\?\.dataQuality\?\.flags \?\? \[\]\)\)/.test(dash2), []);
+
   // the doc says what the code does (the first version's claims were wrong)
   const docSrc = read('delivery/core/SPEND_EVIDENCE_GATING.md');
   check('DOC: the claim that aiRecommendations is "already judged at its own tick" is gone, and aiRecommendations / weeklyReport are in the gated list',
