@@ -65,8 +65,14 @@ export type GlobalCleanupResult =
   | { status: 'deleted'; rowsDeleted: number; counts: OrphanCounts; batchId: string }
   | { status: 'skipped_expected_rows_mismatch'; rowsDeleted: 0; current: OrphanBatch }
   | { status: 'skipped_batch_mismatch'; rowsDeleted: 0; current: OrphanBatch }
-  /** A row of the batch changed or was deleted by someone else while the statement ran (SQLSTATE 40001): nothing was deleted. */
-  | { status: 'skipped_concurrent_change'; rowsDeleted: 0; current: OrphanBatch };
+  /** A row of the batch changed or was deleted by someone else while the statement ran (SQLSTATE 40001), or a writer held a row lock longer than the lock timeout (55P03): nothing was deleted. */
+  | { status: 'skipped_concurrent_change'; rowsDeleted: 0; current: OrphanBatch }
+  /** The statement hit its time limit (57014 / an expired transaction): rolled back as a whole, nothing was deleted. */
+  | { status: 'skipped_timeout'; rowsDeleted: 0; current: OrphanBatch };
+
+/** How long the approval waits for a row lock another writer holds, and how long the whole statement may run. */
+export const APPROVAL_LOCK_TIMEOUT = '10s';
+export const APPROVAL_STATEMENT_TIMEOUT = '600s';
 
 /** The count of a batch is an int4 in the statement: anything above it can never be a real count. */
 export const MAX_EXPECTED_ROWS = 2_147_483_647;
@@ -76,7 +82,15 @@ function isConcurrentChange(e: unknown): boolean {
   const x = e as { code?: unknown; message?: unknown; meta?: unknown; cause?: unknown } | null;
   let blob = `${String(x?.code ?? '')} ${String(x?.message ?? '')}`;
   try { blob += ` ${JSON.stringify(x?.meta ?? {})} ${JSON.stringify(x?.cause ?? {})}`; } catch { /* circular: the message above is enough */ }
-  return /P2034|40001|40P01|TransactionWriteConflict|could not serialize access|write conflict|deadlock detected/i.test(blob);
+  return /P2034|40001|40P01|55P03|TransactionWriteConflict|could not serialize access|write conflict|deadlock detected|lock timeout|could not obtain lock/i.test(blob);
+}
+
+/** The statement ran out of time (statement_timeout, or Prisma's own transaction timeout): the transaction was rolled back. */
+function isTimeout(e: unknown): boolean {
+  const x = e as { code?: unknown; message?: unknown; meta?: unknown; cause?: unknown } | null;
+  let blob = `${String(x?.code ?? '')} ${String(x?.message ?? '')}`;
+  try { blob += ` ${JSON.stringify(x?.meta ?? {})} ${JSON.stringify(x?.cause ?? {})}`; } catch { /* the message above is enough */ }
+  return /57014|P2028|statement timeout|canceling statement|expired transaction/i.test(blob);
 }
 
 /** Domain separator: a digest of this kind cannot be confused with any other sha256 of ids. */
@@ -169,6 +183,9 @@ export async function cleanupOrphanedCampaignStatsGlobal(
   try {
     ({ before, r } = await prisma.$transaction(
       async (tx) => {
+        // A writer holding a row of the batch must not hold the approval (and a pool connection) for the whole
+        // transaction timeout: wait 10 s for a lock, run at most 10 min, then give up — nothing is deleted either way.
+        await tx.$queryRaw`SELECT set_config('lock_timeout', ${APPROVAL_LOCK_TIMEOUT}, true), set_config('statement_timeout', ${APPROVAL_STATEMENT_TIMEOUT}, true)`;
         const counts = await reportOrphanedCampaignStatsGlobal(tx);
         const rows = await tx.$queryRaw<Array<{ deleted: number; n: number; h: string }>>`
     WITH orphan AS (
@@ -195,8 +212,9 @@ export async function cleanupOrphanedCampaignStatsGlobal(
       { isolationLevel: 'RepeatableRead', timeout: 10 * 60_000, maxWait: 15_000 },
     ));
   } catch (e) {
-    if (!isConcurrentChange(e)) throw e;
-    return { status: 'skipped_concurrent_change', rowsDeleted: 0, current: await describeOrphanBatchGlobal(prisma) };
+    if (isConcurrentChange(e)) return { status: 'skipped_concurrent_change', rowsDeleted: 0, current: await describeOrphanBatchGlobal(prisma) };
+    if (isTimeout(e)) return { status: 'skipped_timeout', rowsDeleted: 0, current: await describeOrphanBatchGlobal(prisma) };
+    throw e;
   }
   const row = r[0];
   const n = Number(row?.n ?? 0);

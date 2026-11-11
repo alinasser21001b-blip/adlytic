@@ -21,6 +21,7 @@
 //    - Overall deadline    → 45s hard cap.
 // ════════════════════════════════════════════════════════════════════════
 
+import { hasUnstorableText } from '../recommendationWriteGuard';
 import { AiMessageRole, Prisma, type PrismaClient, type Locale } from '@prisma/client';
 import type { ToolResult } from './envelope';
 import type { ToolHandler } from './dispatcher';
@@ -115,7 +116,7 @@ export async function runAgentTurn(args: RunAgentTurnArgs): Promise<RunAgentTurn
     // The id comes from the request body. Before it is used to READ history into the model's prompt or to
     // WRITE messages, it must be this caller's own conversation in this workspace — membership of the
     // workspace alone says nothing about another tenant's conversation id (review finding authz-F2).
-    if (typeof conversationId !== 'string') throw new ConversationNotFoundError();
+    if (typeof conversationId !== 'string' || conversationId.length > 128 || hasUnstorableText(conversationId)) throw new ConversationNotFoundError();
     const owned = await prisma.aiConversation.findFirst({ where: { id: conversationId, workspaceId, userId }, select: { id: true } });
     if (!owned) throw new ConversationNotFoundError();
   }

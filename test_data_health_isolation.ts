@@ -124,13 +124,14 @@ async function main() {
   const P = await import('./src/lib/platformOrphanCleanup');
   const HEX = 'a'.repeat(64);
   const OTHER = 'b'.repeat(64);
-  const fake = (o: { total?: number; orphan_rows?: number; orphan_ids?: number; stmtN?: number; stmtH?: string; deleted?: number; serializationFailure?: boolean } = {}) => {
+  const fake = (o: { total?: number; orphan_rows?: number; orphan_ids?: number; stmtN?: number; stmtH?: string; deleted?: number; serializationFailure?: boolean; failWith?: Error } = {}) => {
     const calls: string[] = [];
     const txOptions: unknown[] = [];
     const client = {
       $queryRaw: async (strings: TemplateStringsArray) => {
         const text = strings.join('?');
         if (/DELETE FROM/.test(text)) { calls.push('delete'); return [{ deleted: o.deleted ?? 0, n: o.stmtN ?? 0, h: o.stmtH ?? '' }]; }
+        if (/set_config/.test(text)) { calls.push('set_config'); return [{}]; }
         calls.push('read');
         return [{ total: o.total ?? 100, orphan_rows: o.orphan_rows ?? 6, orphan_ids: o.orphan_ids ?? 2, batch_id: HEX }];
       },
@@ -138,6 +139,7 @@ async function main() {
       $transaction: async (fn: (tx: unknown) => Promise<unknown>, opts?: unknown) => {
         calls.push('tx'); txOptions.push(opts);
         if (o.serializationFailure) throw Object.assign(new Error('Transaction failed due to a write conflict or a deadlock. Please retry your transaction'), { code: 'P2034' });
+        if (o.failWith) throw o.failWith;
         return fn(client);
       },
     } as unknown as import('@prisma/client').PrismaClient;
@@ -173,6 +175,18 @@ async function main() {
   f = fake({ serializationFailure: true });
   r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
   check('a serialization failure / write conflict (SQLSTATE 40001, P2034) during the statement → skipped_concurrent_change, nothing deleted, a fresh dry run returned', r.status === 'skipped_concurrent_change' && r.rowsDeleted === 0 && 'current' in r && r.current.batchId === HEX && !f.calls.includes('delete'), r.status);
+  f = fake({ stmtN: 6, stmtH: HEX, deleted: 6 });
+  await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('the statement is bounded INSIDE the transaction: a 10 s lock wait and a 600 s statement limit are set (set_config … is_local) before the first read or the delete', f.calls.join() === 'tx,set_config,read,delete' && P.APPROVAL_LOCK_TIMEOUT === '10s' && P.APPROVAL_STATEMENT_TIMEOUT === '600s', f.calls);
+  f = fake({ failWith: Object.assign(new Error('canceling statement due to lock timeout'), { code: '55P03' }) });
+  r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+  check('a lock timeout (55P03: a writer held a row of the batch) → skipped_concurrent_change, nothing deleted', r.status === 'skipped_concurrent_change' && r.rowsDeleted === 0 && !f.calls.includes('delete'), r.status);
+  for (const [label, err] of [['statement_timeout (57014)', Object.assign(new Error('canceling statement due to statement timeout'), { code: '57014' })], ['Prisma\'s own transaction timeout (P2028)', Object.assign(new Error('A commit cannot be executed on an expired transaction'), { code: 'P2028' })]] as Array<[string, Error]>) {
+    f = fake({ failWith: err });
+    r = await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: 6, batchId: HEX });
+    check(`${label} → skipped_timeout (rolled back as a whole, nothing deleted), not a bare 500`, r.status === 'skipped_timeout' && r.rowsDeleted === 0 && !f.calls.includes('delete'), r.status);
+  }
+  check('the POST route answers a timeout with 503 and its own message (and logs the batch), not the 409 "batch changed" text', /skipped_timeout/.test(code(read('src/api/server.ts'))) && /503\)/.test(code(read('src/api/server.ts')).slice(code(read('src/api/server.ts')).indexOf("result.status === 'skipped_timeout'"), code(read('src/api/server.ts')).indexOf("result.status === 'skipped_timeout'") + 400)));
   const tooBig = [2_147_483_648, 3_000_000_000, Number.MAX_SAFE_INTEGER];
   threw = 0; f = fake();
   for (const n of tooBig) { try { await P.cleanupOrphanedCampaignStatsGlobal(f.client, admin, { expectedRows: n, batchId: HEX }); } catch { threw++; } }

@@ -377,6 +377,10 @@ async function main() {
   await refused('A\'s MANAGER, A\'s workspace, but the conversation of another USER (A\'s owner)', 404, () => chat(A.ws.id, A.manager.token, convA.id));
   await refused('A\'s OWNER with the private conversation of A\'s MANAGER', 404, () => chat(A.ws.id, A.owner.token, convAmgr.id));
   const cu = await refused('B\'s OWNER with a conversationId that exists nowhere', 404, () => chat(B.ws.id, B.owner.token, `conv_nowhere_${sfx}`));
+  for (const [label, id] of [['a NUL character (Postgres would raise 22021 and the route used to answer 500 with the offline reply)', `conv\u0000${sfx}`], ['a lone surrogate', `conv\uD800${sfx}`], ['129 characters', 'c'.repeat(129)]] as const) {
+    await refused(`B\'s OWNER with a conversationId of ${label}`, 404, () => chat(B.ws.id, B.owner.token, id));
+  }
+  await refused('a chat POST with no JSON body at all → 400 (it used to throw on `body.message` and answer 500)', 400, () => send('POST', chatPath(B.ws.id), B.owner.token, undefined, undefined));
   check('a foreign conversation and an unknown one are indistinguishable (same status, same body)', cb.status === cu.status && JSON.stringify(cb.body) === JSON.stringify(cu.body), [cb.body, cu.body]);
   check('…and none of those requests reached the model: no secret of A was ever sent to it', !sawSecret('TENANT-A-SECRET') && !sawSecret('A-MANAGER-PRIVATE'), llmSeen.length - llmBefore);
   const msgsA = await prisma.aiMessage.count({ where: { conversationId: convA.id } });

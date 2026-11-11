@@ -332,6 +332,24 @@ async function main() {
     check('…and the batch is gone exactly once (no orphan left, no live row touched)', (await dry()).body.orphanRows === 0 && (await rowsOf())['r1'] === 3 && (await rowsOf())['liveA'] === 3);
   }
 
+  // A writer that holds a row of the batch for LONGER than the lock timeout must not hold the approval (and a pool connection) for the
+  // whole transaction timeout: after 10 s the approval gives up, nothing is deleted, and the answer is a 409 (review finding G-3).
+  {
+    const lwIds = Array.from({ length: 6 }, (_, i) => `lw3_${sfx}_${i}`);
+    for (let i = 0; i < lwIds.length; i++) await prisma.dailyStat.create({ data: { id: lwIds[i]!, entityType: EntityType.CAMPAIGN, entityId: `orph_lw3_${sfx}`, date: day(340 + i), spend: 5n } });
+    const gLw = await dry();
+    const holder = await pool.connect();
+    await holder.query('BEGIN');
+    await holder.query(`select 1 from daily_stats where id = $1 for update`, [lwIds[2]]);   // held for longer than the 10 s lock timeout
+    const t0 = Date.now();
+    const rLw = await post(`?expectedRows=${gLw.body.orphanRows}&batchId=${gLw.body.batchId}`);
+    const waited = Date.now() - t0;
+    await holder.query('ROLLBACK'); holder.release();
+    check('a row lock held past the lock timeout: the approval gives up after ~10 s (not after the 10-minute transaction timeout) with 409 skipped_concurrent_change and deletes NOTHING', rLw.status === 409 && rLw.body?.status === 'skipped_concurrent_change' && waited >= 9000 && waited < 40000 && (await prisma.dailyStat.count({ where: { id: { in: lwIds } } })) === 6, [rLw.status, rLw.body?.status, waited]);
+    const again = await post(`?expectedRows=${gLw.body.orphanRows}&batchId=${gLw.body.batchId}`);
+    check('…and once the writer is gone, the same approval goes through (200, the full batch)', again.status === 200 && again.body?.status === 'deleted' && again.body?.rowsDeleted === gLw.body.orphanRows, [again.status, again.body?.status]);
+  }
+
   // ── 5. the scheduler REPORTS; it never deletes ───────────────────────
   console.log('\n── 5. the scheduled integrity sweep reports orphans and deletes nothing ──');
   const { runIntegritySweep } = await import('./src/workers/backgroundScheduler');

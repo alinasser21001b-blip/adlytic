@@ -1640,8 +1640,11 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     const result = await cleanupOrphanedCampaignStatsGlobal(prisma, { kind: 'platform-admin', userId: gate.userId, email: gate.email }, { expectedRows, batchId });
     if (result.status !== 'deleted') {
-      console.warn(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… REFUSED (${result.status}): nothing deleted`);
-      return c.json({ error: 'The orphan batch changed since the dry run; nothing was deleted. Re-run the dry run and approve the new batch.', scope: 'platform-global', ...result }, 409);
+      console.warn(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… batch=${batchId.slice(0, 12)}… REFUSED (${result.status}): nothing deleted`);
+      if (result.status === 'skipped_timeout') {
+        return c.json({ error: 'The approval ran out of time and was rolled back; nothing was deleted. Re-run the dry run (check the free volume space first) and approve again.', scope: 'platform-global', ...result }, 503);
+      }
+      return c.json({ error: 'The orphan batch changed since the dry run (or a writer held its rows); nothing was deleted. Re-run the dry run and approve the new batch.', scope: 'platform-global', ...result }, 409);
     }
     console.log(`[adlytic:admin] global orphan cleanup by ${gate.userId.slice(0, 8)}… batch=${result.batchId.slice(0, 12)}… deleted=${result.rowsDeleted}`);
     return c.json({ scope: 'platform-global', ...result });
@@ -5322,12 +5325,12 @@ export function buildRoutes(prisma: PrismaClient): Hono {
     }
     if (!workspaceId) return c.json({ error: 'Missing workspaceId' }, 400);
 
-    const body = req.body as {
+    const body = (req.body ?? {}) as {
       message?: string;
       conversationId?: string;
       sessionContext?: Record<string, unknown>;
     };
-    const message = (body.message ?? '').trim();
+    const message = (typeof body.message === 'string' ? body.message : '').trim();
     if (!message) return c.json({ error: 'Message is required' }, 400);
     if (message.length > 4000) return c.json({ error: 'Message too long (max 4000 chars)' }, 400);
 
