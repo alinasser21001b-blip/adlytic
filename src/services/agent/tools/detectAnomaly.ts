@@ -36,6 +36,8 @@ import { EntityType, IssueCode, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
+import { isSpendDependentIssueCode } from '../../../lib/spendEvidence';
+import { SPEND_METRIC_KEYS, agentDay, agentSpendWindow, describeAgentSpend, isSpendGated, type AgentSpendEvidence } from '../spendGate';
 
 interface DetectAnomalyArgs {
   scope: 'workspace' | 'campaign';
@@ -73,6 +75,12 @@ interface DetectAnomalyResult {
   canonicalIssueCodes: string[];
   /** Always present so the model cannot miss the authority boundary. */
   note: string;
+  /**
+   * Present ONLY when the IQD spend of the scanned range (baseline + window) is not verified against raw Meta data
+   * (src/services/agent/spendGate.ts): the z-scores over spend, CPM and cost per message are then not reported — a spend spike
+   * across a x100 boundary is not an anomaly — and spend-dependent stored issue codes are not listed. Absent for USD / verified.
+   */
+  spendEvidence?: AgentSpendEvidence;
 }
 
 const SUPPLEMENTARY_NOTE =
@@ -171,6 +179,13 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
       const baselineUntil = utcMidnight(now.getTime() - args.lookbackDays * 864e5);
       const baselineSince = utcMidnight(now.getTime() - (args.lookbackDays + BASELINE_DAYS) * 864e5);
 
+      // Spend-evidence gate (IQD only). Judged over exactly the rows scanned — the baseline and the window — at the level of the
+      // entity (account rows for scope 'workspace', campaign days for scope 'campaign'). Not clean, or unreadable → fail closed.
+      const spendVerdict = await agentSpendWindow(
+        prisma, account, args.scope === 'workspace' ? 'ACCOUNT' : 'CAMPAIGN', baselineSince, agentDay(now, 0),
+      );
+      const spendGated = isSpendGated(spendVerdict);
+
       const rows = await prisma.dailyStat.findMany({
         where: {
           entityType: { in: targets.map((t) => t.entityType) },
@@ -201,7 +216,9 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
         set.add(iss.issueCode);
         canonicalIssueCodesByEntity.set(key, set);
       }
-      const canonicalIssueCodes = [...new Set(knownIssues.map((i) => i.issueCode as string))];
+      const allCanonicalCodes = [...new Set(knownIssues.map((i) => i.issueCode as string))];
+      const canonicalIssueCodes = spendGated ? allCanonicalCodes.filter((c) => !isSpendDependentIssueCode(c)) : allCanonicalCodes;
+      const droppedIssueCodes = allCanonicalCodes.filter((c) => !canonicalIssueCodes.includes(c));
 
       const anomalies: AnomalyRow[] = [];
       let totalChecked = 0;
@@ -218,6 +235,8 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
         if (baselineRows.length < 7) continue;   // baseline too thin for a meaningful σ
 
         for (const spec of METRIC_SPECS) {
+          // A z-score over stored spend (spend, CPM, cost per message) is a statement about spend: not made on unverified spend.
+          if (spendGated && SPEND_METRIC_KEYS.has(spec.key)) continue;
           const baselineValues = baselineRows
             .map((r) => extractMetric(r, spec.key, factor))
             .filter((v): v is number => v != null);
@@ -280,6 +299,12 @@ export function detectAnomalyHandler(): ToolHandler<DetectAnomalyArgs, DetectAno
           },
           canonicalIssueCodes,
           note: SUPPLEMENTARY_NOTE,
+          ...(spendGated
+            ? { spendEvidence: describeAgentSpend(spendVerdict, [
+                'anomalies over spend, cpm and cost_per_message',
+                ...(droppedIssueCodes.length > 0 ? [`canonicalIssueCodes: ${droppedIssueCodes.join(', ')}`] : []),
+              ])! }
+            : {}),
         },
         {
           sourceTable: 'daily_stats',

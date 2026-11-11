@@ -102,6 +102,15 @@ function joinSentences(parts: Array<string | null | undefined>): string {
   return clean.length ? clean.join(' ') : NO_DATA;
 }
 
+/**
+ * Said under a section whose tool result carries `spendEvidence` (unverified IQD spend, src/services/agent/spendGate.ts): the
+ * spend, CPM and cost-per-message comparisons were withheld, and why. Arabic, no internal codes.
+ */
+const SPEND_UNVERIFIED_NOTE =
+  'ملاحظة: لم يُتحقق من الإنفاق ببيانات Meta الخام لهذه الفترة، لذلك لا تُعرض مقارنات الإنفاق وتكلفة الألف ظهور وتكلفة الرسالة.';
+
+const hasSpendEvidence = (root: Record<string, unknown> | null): boolean => !!root && asRecord(root['spendEvidence']) != null;
+
 function structureNarrative(data: unknown): string {
   const root = asRecord(data);
   if (!root) return NO_DATA;
@@ -182,12 +191,16 @@ function structureNarrative(data: unknown): string {
     action = 'استمر في المراقبة وقارن نتائج هذه الفترة بالفترة السابقة.';
   }
 
-  return joinSentences([evidence, diagnosis, action]);
+  return joinSentences([evidence, diagnosis, action, hasSpendEvidence(root) ? SPEND_UNVERIFIED_NOTE : null]);
 }
 
 function budgetNarrative(data: unknown): string {
   const pacing = asRecord(data);
   if (!pacing) return NO_DATA;
+  // Unverified IQD spend: no pacing, no burn rate and above all no budget move. Said plainly; nothing is computed from today's spend.
+  if (hasSpendEvidence(pacing)) {
+    return 'تعذّر التحقق من إنفاق هذه الحملة ببيانات Meta الخام، لذلك لا نقدّم قراءة لوتيرة الإنفاق ولا توصية بتعديل الميزانية الآن. أعد فتح التحقيق بعد مزامنة جديدة تُحدّث بيانات التحقق، أو راجع الميزانية في Meta Ads Manager مباشرة.';
+  }
   const todaySpend = Number(pacing['todaySpend'] ?? NaN);
   const dailyBudget = Number(pacing['dailyBudget'] ?? NaN);
   const pctOfBudget = Number(pacing['pctOfBudget'] ?? NaN);
@@ -555,7 +568,9 @@ function historicalNarrative(data: unknown): string {
   } else if (spendDown) {
     diagnosis = `الإنفاق انخفض بنسبة ${spendPctStr} مقابل الأساس — تحقق من سبب التراجع.`;
   } else {
-    diagnosis = 'الأداء الحالي قريب من خط الأساس التاريخي — لا انحراف جوهري.';
+    diagnosis = hasSpendEvidence(root)
+      ? 'التفاعل والنتائج قريبان من خط الأساس التاريخي — لا انحراف جوهري فيهما.'
+      : 'الأداء الحالي قريب من خط الأساس التاريخي — لا انحراف جوهري.';
   }
 
   // Build specific action
@@ -570,7 +585,7 @@ function historicalNarrative(data: unknown): string {
     action = 'راقب الاتجاه خلال الأيام القادمة قبل إجراء تعديلات كبيرة.';
   }
 
-  return joinSentences([evidence, diagnosis, action]);
+  return joinSentences([evidence, diagnosis, action, hasSpendEvidence(root) ? SPEND_UNVERIFIED_NOTE : null]);
 }
 
 /**

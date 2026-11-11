@@ -23,6 +23,7 @@ import { EntityType, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
+import { SPEND_REFUSAL_SUGGESTION, agentDay, agentSpendWindow, isSpendGated, spendRefusalMessage } from '../spendGate';
 
 interface ShiftAmount {
   value: number;
@@ -121,6 +122,17 @@ export function simulateBudgetShiftHandler(): ToolHandler<SimulateBudgetShiftArg
       const factor = resolveCurrencyMinorFactor(fromCamp.adAccount.currency, fromCamp.adAccount.currencyMinorFactor);
       const now = new Date();
       const sinceDate = utcMidnight(now.getTime() - HISTORY_DAYS * 864e5);
+
+      // Spend-evidence gate (IQD only; src/services/agent/spendGate.ts). A budget projection IS spend: cost-per-message and the
+      // daily spend of each campaign over the trailing window. On spend that is not verified against raw Meta data it is refused
+      // — the same verdict, at the same level, that save_recommendation applies to the budget move it would record — instead of
+      // answering "confidence: high, caveats: []". Judged over exactly the rows read below; an unreadable read refuses too.
+      for (const acct of new Map([fromCamp.adAccount, toCamp.adAccount].map((a) => [a.id, a] as const)).values()) {
+        const verdict = await agentSpendWindow(prisma, acct, 'CAMPAIGN', sinceDate, agentDay(now, 0));
+        if (isSpendGated(verdict)) {
+          return fail('STALE_DATA', spendRefusalMessage('this budget projection', verdict), { retryable: false, suggestion: SPEND_REFUSAL_SUGGESTION });
+        }
+      }
 
       const [fromRows, toRows] = await Promise.all([
         prisma.dailyStat.findMany({

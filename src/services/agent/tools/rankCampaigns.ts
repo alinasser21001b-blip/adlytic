@@ -13,6 +13,7 @@ import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
 import { HEALTH_ALGORITHM_VERSION } from '../../../engines/health/HealthScoreEngine';
+import { SPEND_METRIC_KEYS, SPEND_REFUSAL_SUGGESTION, agentDay, agentSpendWindow, isSpendGated, spendRefusalMessage } from '../spendGate';
 
 type Metric = 'roas' | 'ctr' | 'cpm' | 'cost_per_message' | 'spend' | 'messages' | 'health';
 
@@ -112,6 +113,17 @@ export function rankCampaignsHandler(): ToolHandler<RankCampaignsArgs, RankCampa
 
       const campaignIds = campaigns.map((c) => c.id);
       const sinceDate = new Date(new Date(Date.now() - args.windowDays * 864e5).toISOString().slice(0, 10));
+
+      // Spend-evidence gate (IQD only; src/services/agent/spendGate.ts). A ranking BY spend, CPM or cost per message is a cost
+      // comparison between campaigns: refused while the spend it ranks is not verified against raw Meta data (CAMPAIGN level, the
+      // rows read below). A ranking by CTR, ROAS (Meta's own ratio, not computed from stored spend), messages or health does not
+      // rest on spend and is untouched — and costs no evidence query.
+      if (SPEND_METRIC_KEYS.has(args.metric)) {
+        const verdict = await agentSpendWindow(prisma, account, 'CAMPAIGN', sinceDate, agentDay(new Date(), 0));
+        if (isSpendGated(verdict)) {
+          return fail('STALE_DATA', spendRefusalMessage(`a ranking by ${args.metric}`, verdict), { field: 'metric', retryable: false, suggestion: SPEND_REFUSAL_SUGGESTION });
+        }
+      }
 
       const [dailyRows, healthRows] = await Promise.all([
         prisma.dailyStat.findMany({

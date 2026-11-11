@@ -15,6 +15,7 @@ import { EntityType, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
+import { agentDay, agentSpendWindow, describeAgentSpend, lowerConfidence, type AgentSpendEvidence } from '../spendGate';
 
 interface WindowSpec {
   sinceDaysAgo: number;
@@ -65,6 +66,12 @@ interface ComparePeriodsResult {
     confidence: 'high' | 'low';
     reasons: string[];
   };
+  /**
+   * Present ONLY when the IQD spend of the compared range is not verified against raw Meta data (src/services/agent/spendGate.ts):
+   * the spend / CPM / cost-per-message deltas are then null, the verdict is made from what does not rest on spend, and
+   * confidence is 'low'. Absent — not null — for a USD account and for a verified range.
+   */
+  spendEvidence?: AgentSpendEvidence;
 }
 
 export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, ComparePeriodsResult> {
@@ -121,6 +128,8 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
       let currency = 'USD';
       let factor = 100;
       let stalenessMinutes: number | null = null;
+      // The ad account the entity belongs to — what the spend-evidence verdict is read for.
+      let evidenceAccount: { id: string; currency: string } | null = null;
 
       if (args.entityType === 'CAMPAIGN') {
         const camp = await prisma.campaign.findFirst({
@@ -134,6 +143,7 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
           });
         }
         entityName = camp.name;
+        evidenceAccount = { id: camp.adAccount.id, currency: camp.adAccount.currency };
         currency = camp.adAccount.currency;
         factor = resolveCurrencyMinorFactor(currency, camp.adAccount.currencyMinorFactor);
         stalenessMinutes = camp.adAccount.lastSyncedAt
@@ -149,6 +159,7 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
           });
         }
         entityName = acct.name;
+        evidenceAccount = { id: acct.id, currency: acct.currency };
         currency = acct.currency;
         factor = resolveCurrencyMinorFactor(currency, acct.currencyMinorFactor);
         stalenessMinutes = acct.lastSyncedAt
@@ -161,6 +172,7 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
         });
         if (!adset) return fail('NOT_FOUND', `AdSet "${args.entityId}" not found`, { field: 'entityId', retryable: false });
         entityName = adset.name;
+        evidenceAccount = { id: adset.campaign.adAccount.id, currency: adset.campaign.adAccount.currency };
         currency = adset.campaign.adAccount.currency;
         factor = resolveCurrencyMinorFactor(currency, adset.campaign.adAccount.currencyMinorFactor);
         stalenessMinutes = adset.campaign.adAccount.lastSyncedAt
@@ -173,6 +185,7 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
         });
         if (!ad) return fail('NOT_FOUND', `Ad "${args.entityId}" not found`, { field: 'entityId', retryable: false });
         entityName = ad.name;
+        evidenceAccount = { id: ad.adSet.campaign.adAccount.id, currency: ad.adSet.campaign.adAccount.currency };
         currency = ad.adSet.campaign.adAccount.currency;
         factor = resolveCurrencyMinorFactor(currency, ad.adSet.campaign.adAccount.currencyMinorFactor);
         stalenessMinutes = ad.adSet.campaign.adAccount.lastSyncedAt
@@ -237,8 +250,27 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
         roasPct: pctChange(A.ratios.roas, B.ratios.roas),
       };
 
-      const confidence: 'high' | 'low' = A.days >= 7 && B.days >= 7 ? 'high' : 'low';
+      let confidence: 'high' | 'low' = A.days >= 7 && B.days >= 7 ? 'high' : 'low';
+
+      // Spend-evidence gate (IQD only; src/services/agent/spendGate.ts), judged over exactly the rows read above: an account
+      // comparison at ACCOUNT level, anything below it (campaign, ad set, ad) at CAMPAIGN level — the account row must be verified
+      // AND the campaigns must add up to it. Not clean (or unreadable) → the spend, CPM and cost-per-message CHANGES are not
+      // reported (across a x100 boundary they read as a 99 % swing), the verdict is made from what does not rest on spend, and
+      // confidence is low. The absolute totals stay as stored. A USD account and a verified range skip all of this: no key is added.
+      const spendEvidence = evidenceAccount
+        ? describeAgentSpend(
+            await agentSpendWindow(prisma, evidenceAccount, args.entityType === 'ACCOUNT' ? 'ACCOUNT' : 'CAMPAIGN', earliest, latest),
+            ['deltas.spendPct', 'deltas.cpmPct', 'deltas.costPerMessagePct', 'the spend / CPM / cost-per-message reasons of the verdict', 'verdicts.confidence (lowered to low)'],
+          )
+        : null;
+      if (spendEvidence) {
+        deltas.spendPct = null;
+        deltas.cpmPct = null;
+        deltas.costPerMessagePct = null;
+        confidence = lowerConfidence(confidence);
+      }
       const verdict = deriveVerdict(deltas);
+      if (spendEvidence) verdict.reasons.push('لم يُتحقق من الإنفاق ببيانات Meta الخام، لذلك لم تُقارَن الفترتان من حيث الإنفاق وCPM وتكلفة الرسالة.');
 
       return ok<ComparePeriodsResult>(
         {
@@ -253,6 +285,7 @@ export function comparePeriodsHandler(): ToolHandler<ComparePeriodsArgs, Compare
             confidence,
             reasons: verdict.reasons,
           },
+          ...(spendEvidence ? { spendEvidence } : {}),
         },
         {
           sourceTable: 'daily_stats',

@@ -17,6 +17,7 @@ import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
 import { HEALTH_ALGORITHM_VERSION } from '../../../engines/health/HealthScoreEngine';
+import { agentDay, agentSpendWindow, describeAgentSpend, isSpendGated, type AgentSpendEvidence } from '../spendGate';
 
 const MIN_CAMPAIGNS_FOR_TIERING = 4;
 
@@ -58,6 +59,12 @@ interface ListCampaignsResult {
   windowDays: number;
   totalActive: number;
   campaigns: CampaignListItem[];
+  /**
+   * Present ONLY when the IQD spend of the compared windows is not verified against raw Meta data (src/services/agent/spendGate.ts):
+   * the spend / CPM / cost-per-message deltas are then null, tiers and whyLabels are made without spend, and a sort by a spend
+   * metric is not honoured. Absent — not null — for a USD account and for verified windows.
+   */
+  spendEvidence?: AgentSpendEvidence;
 }
 
 export function listCampaignsHandler(): ToolHandler<ListCampaignsArgs, ListCampaignsResult> {
@@ -125,6 +132,11 @@ export function listCampaignsHandler(): ToolHandler<ListCampaignsArgs, ListCampa
       const now = new Date();
       const sinceDate = utcMidnight(now.getTime() - args.windowDays * 864e5);
       const priorSinceDate = utcMidnight(now.getTime() - args.windowDays * 2 * 864e5);
+
+      // Spend-evidence gate (IQD only). Judged at CAMPAIGN level over exactly the rows read: the current AND the prior window.
+      // An evidence read that fails is "not clean" (fail closed).
+      const spendVerdict = await agentSpendWindow(prisma, account, 'CAMPAIGN', priorSinceDate, agentDay(now, 0));
+      const spendGated = isSpendGated(spendVerdict);
 
       // Bulk fetch — current + prior window at once, filter in memory.
       const [allDaily, allHealth] = await Promise.all([
@@ -196,22 +208,42 @@ export function listCampaignsHandler(): ToolHandler<ListCampaignsArgs, ListCampa
         item.metrics.cost_per_message.display = item.metrics.cost_per_message.current == null ? '—' : fmtMoney(item.metrics.cost_per_message.current * factor, curr, factor);
       }
 
+      // On unverified spend a period-over-period change in spend, CPM or cost per message is not reported (across a x100
+      // boundary it reads as a 99 % swing); the figures themselves stay as stored.
+      if (spendGated) {
+        for (const item of items) {
+          item.metrics.spend.deltaPct = null;
+          item.metrics.cpm.deltaPct = null;
+          item.metrics.cost_per_message.deltaPct = null;
+        }
+      }
+
       // Tiering (best / mid / worst)
-      applyTiers(items);
+      applyTiers(items, spendGated);
 
       // whyLabel — z-score-based Arabic reasons
-      applyWhyLabels(items);
+      applyWhyLabels(items, spendGated);
 
-      // Sort + limit
-      const sortKey = args.sortBy;
+      // Sort + limit. An ordering by a spend metric ranks campaigns by unverified spend: not honoured while gated (by health instead).
+      const sortWithheld = spendGated && (args.sortBy === 'spend' || args.sortBy === 'cost_per_message');
+      const sortKey = sortWithheld ? 'health' : args.sortBy;
       const sign = args.direction === 'asc' ? 1 : -1;
       items.sort((a, b) => sign * (getSortValue(a, sortKey) - getSortValue(b, sortKey)));
       const limited = items.slice(0, args.limit);
 
       const latestDaily = allDaily[allDaily.length - 1]?.date ?? null;
 
+      const spendEvidence = spendGated
+        ? describeAgentSpend(spendVerdict, [
+            'metrics.spend / cpm / cost_per_message deltaPct',
+            'whyLabel reasons over cpm and cost_per_message',
+            'tier conditions over spend',
+            ...(sortWithheld ? [`sortBy ${args.sortBy} (sorted by health instead)`] : []),
+          ])
+        : null;
+
       return ok<ListCampaignsResult>(
-        { windowDays: args.windowDays, totalActive, campaigns: limited },
+        { windowDays: args.windowDays, totalActive, campaigns: limited, ...(spendEvidence ? { spendEvidence } : {}) },
         {
           sourceTable: 'daily_stats',
           latestRowDate: latestDaily?.toISOString().slice(0, 10) ?? null,
@@ -324,7 +356,7 @@ function getSortValue(item: CampaignListItem, key: ListCampaignsArgs['sortBy']):
  *   worst = bottom 25% by health OR (spend>median AND messages == 0)
  *   mid   = otherwise
  */
-function applyTiers(items: CampaignListItem[]): void {
+function applyTiers(items: CampaignListItem[], spendWithheld = false): void {
   if (items.length < MIN_CAMPAIGNS_FOR_TIERING) {
     for (const i of items) i.tier = 'mid';
     return;
@@ -343,12 +375,13 @@ function applyTiers(items: CampaignListItem[]): void {
   const worstHealthThreshold = sortedHealth[Math.floor(sortedHealth.length * 0.25)] ?? 0;
 
   items.forEach((item, idx) => {
+    // The clauses that compare a campaign's spend with the median are left out while the spend is unverified.
     const isBest =
       composite[idx]! >= bestThreshold ||
-      ((item.metrics.roas.current ?? 0) > 2 && (item.metrics.spend.current ?? 0) > medianSpend);
+      (!spendWithheld && (item.metrics.roas.current ?? 0) > 2 && (item.metrics.spend.current ?? 0) > medianSpend);
     const isWorst =
       item.healthScore <= worstHealthThreshold ||
-      ((item.metrics.spend.current ?? 0) > medianSpend && (item.metrics.messages.current ?? 0) === 0);
+      (!spendWithheld && (item.metrics.spend.current ?? 0) > medianSpend && (item.metrics.messages.current ?? 0) === 0);
     if (isBest && !isWorst) item.tier = 'best';
     else if (isWorst && !isBest) item.tier = 'worst';
     else item.tier = 'mid';
@@ -369,7 +402,7 @@ function median(values: number[]): number {
  *   3. Arabic phrasing per direction
  *   4. small-workspace fallback
  */
-function applyWhyLabels(items: CampaignListItem[]): void {
+function applyWhyLabels(items: CampaignListItem[], spendWithheld = false): void {
   if (items.length < MIN_CAMPAIGNS_FOR_TIERING) {
     for (const i of items) {
       i.whyLabel = 'حساب صغير — لا مقارنة كافية';
@@ -377,7 +410,7 @@ function applyWhyLabels(items: CampaignListItem[]): void {
     }
     return;
   }
-  const metricSpecs: Array<{
+  const allMetricSpecs: Array<{
     key: keyof CampaignListItem['metrics'];
     label: string;
     higherIsBetter: boolean;
@@ -388,6 +421,8 @@ function applyWhyLabels(items: CampaignListItem[]): void {
     { key: 'cost_per_message', label: 'تكلفة الرسالة', higherIsBetter: false },
     { key: 'messages', label: 'الرسائل', higherIsBetter: true },
   ];
+  // A z-score over CPM / cost per message is a statement about spend: not made while the spend is unverified.
+  const metricSpecs = spendWithheld ? allMetricSpecs.filter((m) => m.key !== 'cpm' && m.key !== 'cost_per_message') : allMetricSpecs;
   // Precompute μ + σ per metric across all items
   const stats = new Map<string, { mean: number; std: number }>();
   for (const spec of metricSpecs) {

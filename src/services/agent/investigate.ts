@@ -25,6 +25,7 @@ import { postCheckReply, buildRetryNudge } from './postcheck';
 import { buildDeterministicInvestigationNarratives } from './investigateNarratives';
 import { classifyLlmError } from '../../lib/llmErrors';
 import { generateStructured, isAIAvailable } from '../ai/aiService';
+import type { AgentSpendEvidence } from './spendGate';
 
 const MAX_POSTCHECK_RETRIES = 2;
 const OVERALL_TIMEOUT_MS = 45_000;
@@ -40,6 +41,13 @@ export interface InvestigationReport {
   campaignId: string;
   generatedAt: string;
   sections: InvestigationSection[];
+  /**
+   * Present ONLY when the campaign's IQD spend (the compared windows, CAMPAIGN level) is not verified against raw Meta data:
+   * the budget section then gives no pacing and no budget move, the structure / historical sections drop their spend, CPM and
+   * cost-per-message comparisons, and the audience / creative / placement / hourly sections are ranked by CTR instead of cost per
+   * message. Same object get_campaign_details returns (src/services/agent/spendGate.ts). Absent for USD / verified.
+   */
+  spendEvidence?: AgentSpendEvidence;
   /** True when narratives came from tool data without Claude. */
   usedOffline?: boolean;
   /** Stable product code when offline due to LLM failure. */
@@ -81,14 +89,22 @@ export async function investigateCampaign(args: {
     { onCall: logToolCall },
   );
 
-  const [details, anomaly, audienceAge, placement, creative, hourly, pixel] = await Promise.all([
-    dispatcher.dispatch('get_campaign_details', { campaignId }),
+  // The live Meta call starts at once; the campaign details come first because they carry the spend-evidence verdict
+  // (get_campaign_details, CAMPAIGN level) the other sections follow. A clean or non-IQD campaign is asked for exactly what it
+  // always was — the same arguments, so the same results.
+  const pixelPromise = dispatcher.dispatch('check_pixel_health', {});
+  const details = await dispatcher.dispatch('get_campaign_details', { campaignId });
+  const spendEvidence = details.ok ? (details.data as { spendEvidence?: AgentSpendEvidence }).spendEvidence : undefined;
+  // On spend that is not verified (or when the verdict is unknown because the details failed) the audience / creative / hourly
+  // tools rank by CTR instead of their default, cost per message — a ranking by cost per result is a cost comparison.
+  const spendFree = !details.ok || spendEvidence != null ? { metric: 'ctr' } : {};
+  const [anomaly, audienceAge, placement, creative, hourly, pixel] = await Promise.all([
     dispatcher.dispatch('detect_anomaly', { scope: 'campaign', campaignId }),
-    dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'age' }),
-    dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'placement' }),
-    dispatcher.dispatch('get_creative_performance', { campaignId }),
-    dispatcher.dispatch('get_hourly_pattern', { scope: 'campaign', campaignId }),
-    dispatcher.dispatch('check_pixel_health', {}),
+    dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'age', ...spendFree }),
+    dispatcher.dispatch('get_audience_breakdown', { campaignId, dimension: 'placement', ...spendFree }),
+    dispatcher.dispatch('get_creative_performance', { campaignId, ...spendFree }),
+    dispatcher.dispatch('get_hourly_pattern', { scope: 'campaign', campaignId, ...spendFree }),
+    pixelPromise,
   ]);
 
   const toolResults = [
@@ -116,7 +132,8 @@ export async function investigateCampaign(args: {
 
   const dataForPrompt: Record<string, unknown> = {
     structure: details.ok ? details.data : null,
-    budget: details.ok ? (details.data as { spendPacing?: unknown }).spendPacing ?? null : null,
+    // Pacing is what "raise the budget" is made of: on unverified spend the section carries the evidence and nothing else.
+    budget: details.ok ? (spendEvidence ? { spendEvidence } : (details.data as { spendPacing?: unknown }).spendPacing ?? null) : null,
     learning_phase: learningPhaseForPrompt,
     audience: audienceAge.ok ? audienceAge.data : null,
     creative_fatigue: {
@@ -186,6 +203,7 @@ export async function investigateCampaign(args: {
     campaignId,
     generatedAt: new Date().toISOString(),
     sections,
+    ...(spendEvidence ? { spendEvidence } : {}),
     ...(usedOffline ? { usedOffline: true, offlineCode } : {}),
   };
 }
@@ -215,6 +233,10 @@ async function writeNarratives(
 ): Promise<Record<string, string>> {
   if (!isAIAvailable()) return {};
 
+  // Only when a section carries spendEvidence (unverified IQD spend); otherwise the prompt is exactly what it always was.
+  const spendNote = JSON.stringify(dataForPrompt).includes('"spendEvidence"')
+    ? 'SPEND EVIDENCE: a section whose JSON has `spendEvidence` has spend that could not be verified against raw Meta data. For it give NO budget, pacing, forecast, pause-for-cost or cost-per-result advice and NO spend / CPM / cost comparison; say in one sentence that the spend could not be verified (see spendEvidence.note) and write only what does not rest on spend. Every number must still appear verbatim in the JSON.'
+    : null;
   const system = [
     'You are writing a structured campaign investigation report for an Arabic-speaking Meta Ads merchant.',
     'Follow global media-buyer standards: evidence → diagnosis → recommended check. Write 2-3 short sentences per section in Modern Standard Arabic.',
@@ -222,6 +244,7 @@ async function writeNarratives(
     'STRICT RULE: every number you write MUST appear verbatim in the provided JSON. Never compute a new number, never estimate, never round differently than the source.',
     'If a section\'s JSON is null or empty, write exactly: "لا تتوفر بيانات كافية لهذا القسم حالياً." — do not guess.',
     'Disclose uncertainty when sample size is thin or fields are missing — do not overstate confidence.',
+    ...(spendNote ? [spendNote] : []),
     'Output ONLY a JSON object mapping each section key to its narrative string. No markdown, no code fences, no extra keys.',
     `Section keys: ${keys.join(', ')}`,
   ].join('\n');

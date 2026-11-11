@@ -794,6 +794,154 @@ async function main() {
   check('SE-5: the dashboard\'s weekly-report block offers the best campaign\'s "Scale this" budget link on a clean report and NOT while report.dataQuality is set (the worst campaign\'s diagnose link stays)',
     !!wkHtmlClean && wkHtmlClean.includes('best-action') && wkHtmlClean.includes('worst-action') && !!wkHtmlHeld && !wkHtmlHeld.includes('best-action') && wkHtmlHeld.includes('worst-action') && wkHtmlHeld.includes('Alpha'), [wkHtmlClean?.length, wkHtmlHeld?.length]);
 
+  // ── 11. review round 3 — SP-1 / SP-2: the AI agent's READ tools and the investigate tab obey the same rule ─────────────
+  console.log('\n── 11. review round 3: the agent read tools (simulate_budget_shift, rank_campaigns, compare_periods, detect_anomaly, list_campaigns, get_campaign_details) and the investigate tab ──');
+  const G: any = await import('./src/services/agent/spendGate');
+  const ago = (n: number) => new Date(Date.now() - n * 86_400_000).toISOString().slice(0, 10);
+  const winRows = (days: number, o: { verified: boolean; unverifiedAgo?: number[] }) => {
+    const account = Array.from({ length: days + 1 }, (_, i) => ({ day: ago(i), spend: 100_000 }));
+    const raws = account.filter((r, i) => o.verified && !(o.unverifiedAgo ?? []).includes(i)).map((r) => ({ day: r.day, spend: r.spend }));
+    const campaigns = account.map((r) => ({ day: r.day, total: r.spend, n: 2 }));
+    return { account, raws, campaigns };
+  };
+  // pure: the verdict → the object a gated result carries
+  const verdictOf = (o: object) => S.summarizeWindow(Array.from({ length: 5 }, (_, i) => ({ day: ago(i), account: (i < 2 ? 'UNVERIFIED' : 'VERIFIED') as any, accountSpend: 100, campaignSpend: 100, campaignRows: 2, ...o })), 'CAMPAIGN', ago(4), ago(0));
+  const cleanV = S.summarizeWindow([{ day: ago(0), account: 'VERIFIED', accountSpend: 100, campaignSpend: 100, campaignRows: 2 }], 'CAMPAIGN', ago(4), ago(0));
+  check('SP-2: describeAgentSpend is null for a clean window, for a non-IQD window and for nothing — a tool then adds no key at all', G.describeAgentSpend(cleanV, ['x']) === null && G.describeAgentSpend(S.notApplicable('CAMPAIGN', ago(4), ago(0)), ['x']) === null && G.describeAgentSpend(null, ['x']) === null && G.isSpendGated(cleanV) === false && G.isSpendGated(null) === false);
+  const evPure = G.describeAgentSpend(verdictOf({}), ['deltas.spendPct', 'pacing']);
+  check('SP-2: describeAgentSpend carries the reason code, the level, the window, the counts, what was left out and an instruction for the model that says SPEND_SCALE_UNVERIFIED and forbids budget / pacing / cost advice',
+    evPure?.code === REASON && evPure.level === 'CAMPAIGN' && evPure.unverified === 2 && evPure.rows === 5 && evPure.from === ago(4) && same(evPure.withheld, ['deltas.spendPct', 'pacing']) && /^SPEND_SCALE_UNVERIFIED:/.test(evPure.note) && /Do NOT give budget, pacing, forecast, pause-for-cost or cost-per-result advice/.test(evPure.note) && /deltas\.spendPct; pacing/.test(evPure.note) && !('unreadable' in evPure), evPure);
+  const overV = S.summarizeWindow([{ day: ago(0), account: 'OVERSCALED', accountSpend: 10_000, campaignSpend: 10_000, campaignRows: 1 }], 'ACCOUNT', ago(4), ago(0));
+  const evOver = G.describeAgentSpend(overV, []);
+  check('SP-2: a proven x100 window keeps its own (stronger) reason code', evOver?.code === 'SPEND_SCALE_OVERSCALED' && /^SPEND_SCALE_OVERSCALED:/.test(evOver.note) && /100x raw Meta spend/.test(evOver.note), evOver);
+  const evUnread = G.describeAgentSpend(S.unreadableWindow('IQD', 'CAMPAIGN', ago(4), ago(0)), []);
+  check('SP-2: an unreadable window says so (unreadable: true, "could not be read") and is still SPEND_SCALE_UNVERIFIED — fail closed', evUnread?.unreadable === true && evUnread.code === REASON && /could not be read/.test(evUnread.note), evUnread);
+  check('SP-2: a confidence level can only go down because of unverified spend', G.lowerConfidence('high') === 'low' && G.lowerConfidence('medium') === 'low' && G.lowerConfidence('low') === 'low');
+  check('SP-2: the spend metrics are exactly spend, cpm and cost_per_message (roas is Meta\'s own ratio, ctr / messages / health do not rest on spend)', [...G.SPEND_METRIC_KEYS].sort().join() === 'cost_per_message,cpm,spend');
+  // the window helper: fail closed, no query for USD
+  const brokenA = fakeDb({ currency: 'IQD', throwOnQuery: true });
+  const errNoise = console.error; console.error = () => {};
+  const wBroken = await G.agentSpendWindow(brokenA, { id: 'acct_1', currency: 'IQD' }, 'CAMPAIGN', ago(30), ago(0));
+  console.error = errNoise;
+  check('SP-2: agentSpendWindow on an unreadable IQD read is NOT clean (unreadable, SPEND_SCALE_UNVERIFIED) — it never throws into a tool', wBroken.clean === false && wBroken.unreadable === true && wBroken.reason === REASON && G.isSpendGated(wBroken));
+  const usdA = fakeDb({ currency: 'USD', throwOnQuery: true });
+  const wUsd = await G.agentSpendWindow(usdA, { id: 'acct_1', currency: 'USD' }, 'CAMPAIGN', ago(30), ago(0));
+  check('SP-2: agentSpendWindow for USD makes no query and is not applicable (so no key, no gate)', wUsd.applies === false && wUsd.clean === true && usdA.log.queries === 0 && !G.isSpendGated(wUsd));
+  check('SP-2: the refusal wording is the one save_recommendation uses — the code first, then the counts', /^SPEND_SCALE_UNVERIFIED: this budget projection rests on spend that could not be verified against raw Meta data \(2 unverified, 0 over-scaled of 5 day\(s\) in /.test(G.spendRefusalMessage('this budget projection', verdictOf({}))) && /could not be read/.test(G.spendRefusalMessage('x', S.unreadableWindow('IQD', 'CAMPAIGN', ago(4), ago(0)))));
+
+  // simulate_budget_shift (fake prisma): refused where save_recommendation refuses, answered (and no key added) elsewhere
+  const { simulateBudgetShiftHandler } = await import('./src/services/agent/tools/simulateBudgetShift');
+  const simDb = (currency: string, ev: FakeOpts) => {
+    const base = fakeDb({ currency, ...ev });
+    const camp = (id: string) => ({ id, name: id, dailyBudget: 60_000n, adAccount: { id: 'acct_1', currency, currencyMinorFactor: currency === 'USD' ? 100 : 1, lastSyncedAt: new Date() } });
+    const rows = Array.from({ length: 12 }, (_, i) => ({ date: new Date(Date.now() - i * 86_400_000), spend: 50_000n, messages: 5n }));
+    return Object.assign(base, {
+      campaign: { findFirst: async ({ where }: any) => camp(where.id) },
+      dailyStat: { findMany: async () => rows },
+    });
+  };
+  const simArgs = { fromCampaignId: 'c_a', toCampaignId: 'c_b', shiftAmount: { value: 20, unit: 'pct_of_from' as const }, projectionDays: 7 };
+  const simCtx = (db: any) => ({ prisma: db, workspaceId: 'ws_1', userId: 'u_1' });
+  const simH = simulateBudgetShiftHandler();
+  const simVer = await simH.run(simArgs, simCtx(simDb('IQD', winRows(32, { verified: true }))));
+  const simBad = await simH.run(simArgs, simCtx(simDb('IQD', winRows(32, { verified: false }))));
+  const simHole = await simH.run(simArgs, simCtx(simDb('IQD', winRows(32, { verified: true, unverifiedAgo: [3] }))));
+  const simUsdDb = simDb('USD', winRows(32, { verified: false }));
+  const simUsd = await simH.run(simArgs, simCtx(simUsdDb));
+  const simBroken = await simH.run(simArgs, simCtx(simDb('IQD', { throwOnQuery: true })));
+  check('SP-2: simulate_budget_shift on VERIFIED IQD spend answers as before: a projection, confidence high, caveats [], and no spendEvidence key', simVer.ok && (simVer as any).data.confidence === 'high' && same((simVer as any).data.caveats, []) && !('spendEvidence' in (simVer as any).data), simVer);
+  check('SP-2: …on UNVERIFIED IQD spend it REFUSES — STALE_DATA, SPEND_SCALE_UNVERIFIED in the message, a suggestion, no data (the case that used to answer "confidence: high, caveats: []")',
+    !simBad.ok && (simBad as any).error.code === 'STALE_DATA' && /^SPEND_SCALE_UNVERIFIED:/.test((simBad as any).error.message) && /cannot be verified/.test((simBad as any).error.suggestion) && (simBad as any).error.retryable === false && !('data' in simBad), simBad);
+  check('SP-2: …one unverified day anywhere in the 30 days it reads is enough (strict, as everywhere), and the message counts it', !simHole.ok && /1 unverified, 0 over-scaled of 31 day\(s\)/.test((simHole as any).error.message), (simHole as any).error?.message);
+  check('SP-2: …a USD account is answered as before, with NO evidence query (and no spendEvidence key)', simUsd.ok && simUsdDb.log.queries === 0 && !('spendEvidence' in (simUsd as any).data), [simUsd.ok, simUsdDb.log.queries]);
+  check('SP-2: …evidence UNREADABLE → refused (fail closed), never answered on a guess', !simBroken.ok && (simBroken as any).error.code === 'STALE_DATA' && /could not be read/.test((simBroken as any).error.message), simBroken);
+
+  // rank_campaigns (fake prisma): only the spend metrics ask for evidence
+  const { rankCampaignsHandler } = await import('./src/services/agent/tools/rankCampaigns');
+  const rankDb = (currency: string, ev: FakeOpts) => {
+    const base = fakeDb({ currency, ...ev });
+    const rows = (id: string) => Array.from({ length: 10 }, (_, i) => ({ entityId: id, date: new Date(Date.now() - i * 86_400_000), spend: 50_000n, impressions: 10_000n, clicks: id === 'c_a' ? 300n : 100n, messages: 5n, roas: null }));
+    return Object.assign(base, {
+      workspace: { findUnique: async () => ({ id: 'ws_1', adAccounts: [{ id: 'acct_1', currency, currencyMinorFactor: currency === 'USD' ? 100 : 1, lastSyncedAt: new Date() }] }) },
+      campaign: { findMany: async () => [{ id: 'c_a', name: 'Alpha' }, { id: 'c_b', name: 'Beta' }] },
+      dailyStat: { findMany: async () => [...rows('c_a'), ...rows('c_b')] },
+      healthScore: { findMany: async () => [] },
+    });
+  };
+  const rankH = rankCampaignsHandler();
+  const rkArgs = (metric: string) => ({ metric: metric as any, direction: 'best' as const, windowDays: 30, limit: 5, minSpendPctOfTotal: 1 });
+  const rankBad = rankDb('IQD', winRows(32, { verified: false }));
+  const rCpm = await rankH.run(rkArgs('cost_per_message'), simCtx(rankBad));
+  const queriesAfterSpendRank = rankBad.log.queries;
+  const rCtr = await rankH.run(rkArgs('ctr'), simCtx(rankBad));
+  check('SP-2: rank_campaigns by cost_per_message / cpm / spend on UNVERIFIED IQD spend REFUSES (STALE_DATA, SPEND_SCALE_UNVERIFIED, field metric)', !rCpm.ok && (rCpm as any).error.code === 'STALE_DATA' && /SPEND_SCALE_UNVERIFIED/.test((rCpm as any).error.message) && (rCpm as any).error.field === 'metric' && !(await rankH.run(rkArgs('cpm'), simCtx(rankDb('IQD', winRows(32, { verified: false }))))).ok && !(await rankH.run(rkArgs('spend'), simCtx(rankDb('IQD', winRows(32, { verified: false }))))).ok, rCpm);
+  check('SP-2: …a ranking by CTR on the same unverified account is answered, unchanged, with no spendEvidence key — and asks for no evidence at all', rCtr.ok && (rCtr as any).data.ranked[0]?.campaignName === 'Alpha' && !('spendEvidence' in (rCtr as any).data) && rankBad.log.queries === queriesAfterSpendRank, [rCtr.ok, rankBad.log.queries, queriesAfterSpendRank]);
+  const rankVer = rankDb('IQD', winRows(32, { verified: true }));
+  const rankUsd = rankDb('USD', winRows(32, { verified: false }));
+  check('SP-2: …verified IQD and USD rank by cost per message as before (USD with zero evidence queries)', (await rankH.run(rkArgs('cost_per_message'), simCtx(rankVer))).ok && (await rankH.run(rkArgs('cost_per_message'), simCtx(rankUsd))).ok && rankUsd.log.queries === 0);
+
+  // compare_periods (fake prisma)
+  const { comparePeriodsHandler } = await import('./src/services/agent/tools/comparePeriods');
+  const cmpDb = (currency: string, ev: FakeOpts) => {
+    const base = fakeDb({ currency, ...ev });
+    const acct = { id: 'acct_1', name: 'Acct', currency, currencyMinorFactor: currency === 'USD' ? 100 : 1, lastSyncedAt: new Date() };
+    const rows = Array.from({ length: 16 }, (_, i) => ({ entityType: 'ACCOUNT', entityId: 'acct_1', date: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate()) - i * 86_400_000), spend: BigInt(i < 7 ? 120_000 : 100_000), impressions: 10_000n, clicks: 200n, messages: BigInt(i < 7 ? 10 : 12), roas: null })).reverse();
+    return Object.assign(base, {
+      adAccount: { findFirst: async () => acct },
+      dailyStat: { findMany: async () => rows },
+    });
+  };
+  const cmpH = comparePeriodsHandler();
+  const cmpArgs = { entityType: 'ACCOUNT' as const, entityId: 'acct_1', windowA: { sinceDaysAgo: 7, untilDaysAgo: 1 }, windowB: { sinceDaysAgo: 14, untilDaysAgo: 8 } };
+  const cmpVer = await cmpH.run(cmpArgs, simCtx(cmpDb('IQD', winRows(16, { verified: true })))) as any;
+  const cmpBad = await cmpH.run(cmpArgs, simCtx(cmpDb('IQD', winRows(16, { verified: false })))) as any;
+  const cmpUsdDb = cmpDb('USD', winRows(16, { verified: false }));
+  const cmpUsd = await cmpH.run(cmpArgs, simCtx(cmpUsdDb)) as any;
+  check('SP-2: compare_periods on VERIFIED IQD spend: the spend / CPM / cost-per-message deltas are there, confidence high, no spendEvidence key; USD the same with no evidence query',
+    cmpVer.ok && cmpVer.data.deltas.spendPct != null && cmpVer.data.deltas.cpmPct != null && cmpVer.data.deltas.costPerMessagePct != null && cmpVer.data.verdicts.confidence === 'high' && !('spendEvidence' in cmpVer.data) && cmpUsd.ok && cmpUsd.data.deltas.spendPct != null && cmpUsd.data.verdicts.confidence === 'high' && cmpUsdDb.log.queries === 0, [cmpVer.data?.deltas, cmpVer.data?.verdicts]);
+  check('SP-2: …on UNVERIFIED IQD spend the three spend-derived deltas are null, the verdict is made from messages / CTR, confidence is LOW, spendEvidence (ACCOUNT level) says why, and the verdict reasons say so',
+    cmpBad.ok && cmpBad.data.deltas.spendPct === null && cmpBad.data.deltas.cpmPct === null && cmpBad.data.deltas.costPerMessagePct === null && cmpBad.data.deltas.messagesPct === cmpVer.data.deltas.messagesPct && cmpBad.data.deltas.ctrPct === cmpVer.data.deltas.ctrPct
+      && cmpBad.data.verdicts.confidence === 'low' && cmpBad.data.spendEvidence?.code === REASON && cmpBad.data.spendEvidence.level === 'ACCOUNT' && cmpBad.data.verdicts.reasons.at(-1)?.includes('لم يُتحقق من الإنفاق') && !cmpBad.data.verdicts.reasons.slice(0, -1).some((r: string) => /الإنفاق|CPM|تكلفة الرسالة/.test(r)), [cmpBad.data?.deltas, cmpBad.data?.verdicts]);
+  check('SP-2: …the absolute totals stay as stored (the gate withholds comparisons, not money)', cmpBad.data.windowA.totals.spend === cmpVer.data.windowA.totals.spend && cmpBad.data.windowB.ratios.cpm === cmpVer.data.windowB.ratios.cpm);
+  const cmpBroken = await cmpH.run(cmpArgs, simCtx(cmpDb('IQD', { throwOnQuery: true }))) as any;
+  check('SP-2: …an unreadable evidence read gates the comparison too (spendEvidence.unreadable, confidence low) — still answered, never on a guess', cmpBroken.ok && cmpBroken.data.spendEvidence?.unreadable === true && cmpBroken.data.verdicts.confidence === 'low' && cmpBroken.data.deltas.spendPct === null, cmpBroken.data?.spendEvidence);
+
+  // the investigate narratives (pure): what the tab says on unverified spend
+  const { buildDeterministicInvestigationNarratives: narr } = await import('./src/services/agent/investigateNarratives');
+  const pacing = { todaySpend: 97_000, dailyBudget: 100_000, pctOfBudget: 97, burnRatePerHour: 5_000 };
+  const evForNarr = G.describeAgentSpend(verdictOf({}), ['spendPacing.pctOfBudget / burnRatePerHour']);
+  const nClean = narr({ budget: pacing }, ['budget']);
+  const nGated = narr({ budget: { spendEvidence: evForNarr } }, ['budget']);
+  const nGatedWithFigures = narr({ budget: { ...pacing, spendEvidence: evForNarr } }, ['budget']);
+  check('SP-1: a clean campaign\'s budget narrative still says "raise the budget" at 97 % (the baseline this test protects)', /ارفع الميزانية اليومية/.test(nClean['budget'] ?? ''), nClean);
+  check('SP-1: the budget narrative of a campaign whose spend is unverified gives NO budget move — no "raise the budget", no "cut spend", no pacing figure — and says the spend could not be verified',
+    /تعذّر التحقق من إنفاق هذه الحملة/.test(nGated['budget'] ?? '') && !/ارفع|قلّل|رفع/.test(nGated['budget'] ?? '') && !/97|5,000/.test(nGated['budget'] ?? '') && nGatedWithFigures['budget'] === nGated['budget'], [nGated, nGatedWithFigures]);
+  const details = (extra: object) => ({ campaign: { name: 'Alpha', status: 'ACTIVE', objective: 'MESSAGES' }, windowMetrics: { spend: { current: 1_000_000, prior: 900_000, deltaPct: 11.1 }, ctr: { current: 2, prior: 2, deltaPct: 0 }, cpm: { current: 4_000, prior: 3_500, deltaPct: 14.3 }, messages: { current: 100, prior: 90, deltaPct: 11.1 } }, historicalBaseline: { days: 60, ctrMean: 2, cpmMean: 3_800, dailySpendMean: 30_000, dailyMessagesMean: 3, costPerMessageMean: 10_000 }, vsBaseline: { ctrPct: 0, cpmPct: 5.2, spendPct: 11.1, messagesPct: 4 }, topIssues: [], topRecommendations: [], ...extra });
+  const hClean = narr({ structure: details({}), historical_trend: details({}) }, ['structure', 'historical_trend']);
+  const gatedDetails = details({ windowMetrics: { spend: { current: 1_000_000, prior: 900_000, deltaPct: null }, ctr: { current: 2, prior: 2, deltaPct: 0 }, cpm: { current: 4_000, prior: 3_500, deltaPct: null }, messages: { current: 100, prior: 90, deltaPct: 11.1 } }, vsBaseline: { ctrPct: 0, cpmPct: null, spendPct: null, messagesPct: 4 }, spendEvidence: evForNarr });
+  const hGated = narr({ structure: gatedDetails, historical_trend: gatedDetails }, ['structure', 'historical_trend']);
+  check('SP-1: a clean campaign\'s structure and historical sections state the spend and CPM comparisons', /\(\+11\.1% مقابل الفترة السابقة\)/.test(hClean['structure'] ?? '') && /الإنفاق مقابل الأساس \+11\.1%/.test(hClean['historical_trend'] ?? '') && /تكلفة الألف ظهور مقابل الأساس/.test(hClean['historical_trend'] ?? ''), hClean);
+  check('SP-1: …an unverified one states none of them, keeps the CTR / messages comparisons, and says why in both sections',
+    !/\(\+?-?[0-9.]+% مقابل الفترة السابقة\)/.test((hGated['structure'] ?? '').replace(/\(0\.0%\)/g, '')) && !/الإنفاق مقابل الأساس|تكلفة الألف ظهور مقابل الأساس/.test(hGated['historical_trend'] ?? '') && /النتائج\/الرسائل مقابل الأساس \+4\.0%/.test(hGated['historical_trend'] ?? '') && (hGated['structure'] ?? '').includes('لم يُتحقق من الإنفاق') && (hGated['historical_trend'] ?? '').includes('لم يُتحقق من الإنفاق'), hGated);
+
+  // wiring (static): the gate is in each tool, investigate follows the details' verdict, and the loop hands the whole result to the model
+  const tool = (n: string) => code(read(`src/services/agent/tools/${n}.ts`));
+  check('SP-2 wiring: simulate_budget_shift and rank_campaigns refuse through agentSpendWindow + isSpendGated (CAMPAIGN level) with the save_recommendation wording',
+    /agentSpendWindow\(prisma,\s*acct,\s*'CAMPAIGN',\s*sinceDate/.test(tool('simulateBudgetShift')) && /isSpendGated\(verdict\)/.test(tool('simulateBudgetShift')) && /fail\('STALE_DATA',\s*spendRefusalMessage\(/.test(tool('simulateBudgetShift'))
+      && /SPEND_METRIC_KEYS\.has\(args\.metric\)/.test(tool('rankCampaigns')) && /agentSpendWindow\(prisma,\s*account,\s*'CAMPAIGN'/.test(tool('rankCampaigns')) && /fail\('STALE_DATA',\s*spendRefusalMessage\(/.test(tool('rankCampaigns')), []);
+  check('SP-2 wiring: compare_periods (ACCOUNT level for an account, CAMPAIGN level below it), detect_anomaly (by scope) and list_campaigns / get_campaign_details (CAMPAIGN level) evaluate the window they read and add spendEvidence only when gated',
+    /args\.entityType === 'ACCOUNT' \? 'ACCOUNT' : 'CAMPAIGN',\s*earliest,\s*latest/.test(tool('comparePeriods')) && /\.\.\.\(spendEvidence \? \{ spendEvidence \} : \{\}\)/.test(tool('comparePeriods')) && /lowerConfidence\(confidence\)/.test(tool('comparePeriods'))
+      && /args\.scope === 'workspace' \? 'ACCOUNT' : 'CAMPAIGN',\s*baselineSince/.test(tool('detectAnomaly')) && /spendGated && SPEND_METRIC_KEYS\.has\(spec\.key\)/.test(tool('detectAnomaly')) && /isSpendDependentIssueCode/.test(tool('detectAnomaly'))
+      && /agentSpendWindow\(prisma,\s*account,\s*'CAMPAIGN',\s*priorSinceDate/.test(tool('listCampaigns')) && /applyTiers\(items,\s*spendGated\)/.test(tool('listCampaigns')) && /applyWhyLabels\(items,\s*spendGated\)/.test(tool('listCampaigns'))
+      && /agentSpendWindow\(prisma,\s*account,\s*'CAMPAIGN',\s*sincePrior/.test(tool('getCampaignDetails')) && /spendPacing\.pctOfBudget = null/.test(tool('getCampaignDetails')) && /vsBaseline\.cpmPct = null/.test(tool('getCampaignDetails')), []);
+  const inv = code(read('src/services/agent/investigate.ts'));
+  check('SP-1 wiring: investigate takes the verdict from get_campaign_details, gives the budget section only the evidence when gated, ranks the audience / creative / hourly sections by CTR then, and tells the model (a conditional prompt line)',
+    /const details = await dispatcher\.dispatch\('get_campaign_details'/.test(inv) && /spendEvidence \? \{ spendEvidence \} :/.test(inv) && /\{ metric: 'ctr' \}/.test(inv) && /\.\.\.spendFree/.test(inv) && /includes\('"spendEvidence"'\)/.test(inv) && /\.\.\.\(spendEvidence \? \{ spendEvidence \} : \{\}\)/.test(inv), []);
+  const loopSrc = code(read('src/services/agent/loop.ts'));
+  check('SP-2 wiring: the chat loop hands the model the WHOLE tool result (JSON.stringify(result)) — a spendEvidence key and a STALE_DATA refusal are seen by the model, not filtered', /content:\s*JSON\.stringify\(result\)/.test(loopSrc), []);
+  check('SP-2 wiring: no spend-reading tool is left reading spend without the gate — the six gated tools import spendGate; the others are the documented residual',
+    ['simulateBudgetShift', 'rankCampaigns', 'comparePeriods', 'detectAnomaly', 'listCampaigns', 'getCampaignDetails'].every((n) => /from '\.\.\/spendGate'/.test(tool(n))), []);
+
   // the doc says what the code does (the first version's claims were wrong)
   const docSrc = read('delivery/core/SPEND_EVIDENCE_GATING.md');
   check('DOC: the claim that aiRecommendations is "already judged at its own tick" is gone, and aiRecommendations / weeklyReport are in the gated list',

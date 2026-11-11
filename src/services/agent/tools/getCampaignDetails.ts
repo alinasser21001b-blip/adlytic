@@ -16,6 +16,8 @@ import { EntityType, type PrismaClient } from '@prisma/client';
 import type { ToolHandler } from '../dispatcher';
 import { ok, fail } from '../envelope';
 import { resolveCurrencyMinorFactor } from '../../../lib/currency';
+import { BRAIN_SPEND_DEPENDENT_ACTIONS, isSpendDependentActionCode, isSpendDependentIssueCode } from '../../../lib/spendEvidence';
+import { agentDay, agentSpendWindow, describeAgentSpend, isSpendGated, type AgentSpendEvidence } from '../spendGate';
 
 interface GetCampaignDetailsArgs {
   campaignId: string;
@@ -94,6 +96,13 @@ interface CampaignDetailsResult {
     pctOfBudget: number | null;
     burnRatePerHour: number | null;
   };
+  /**
+   * Present ONLY when the IQD spend of the compared windows is not verified against raw Meta data (src/services/agent/spendGate.ts):
+   * the pacing (`pctOfBudget`, `burnRatePerHour`), the spend / CPM / cost-per-message deltas, the vs-baseline spend / CPM /
+   * cost-per-message deltas, spend-dependent stored issues / recommendations and a spend-dependent Brain verdict are then withheld
+   * (null / left out) and `spendEvidence.withheld` names each. Absent — not null — for a USD account and for verified windows.
+   */
+  spendEvidence?: AgentSpendEvidence;
 }
 
 export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs, CampaignDetailsResult> {
@@ -135,6 +144,13 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
       const sinceCurrent = utcMidnight(now.getTime() - args.windowDays * 864e5);
       const sincePrior = utcMidnight(now.getTime() - args.windowDays * 2 * 864e5);
       const sinceBaseline = utcMidnight(now.getTime() - args.baselineDays * 864e5);
+
+      // Spend-evidence gate (IQD only; src/services/agent/spendGate.ts). Judged at CAMPAIGN level over the rows the current-vs-prior
+      // comparison reads (this window and the one before it, ending today): the account row of each day must be verified AND the
+      // campaigns must add up to it. History older than that, which only feeds the baseline mean, is not part of the verdict — it
+      // is past the raw-evidence horizon for most accounts, so judging it would withhold the baseline of every IQD account forever.
+      // An evidence read that fails is "not clean" (fail closed). A USD account makes no query.
+      const spendVerdictPromise = agentSpendWindow(prisma, account, 'CAMPAIGN', sincePrior, agentDay(now, 0));
 
       // Bulk fetch all needed rows in parallel.
       const [dailyRows, latestReport, latestSnapshot, todayStat, adSets] = await Promise.all([
@@ -277,7 +293,7 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
       const hoursSinceMidnight = Math.max(0.1, (Date.now() - utcMidnight(now.getTime()).getTime()) / 3.6e6);
       const burnRatePerHour = +(todaySpend / hoursSinceMidnight).toFixed(2);
 
-      const spendPacing = {
+      const spendPacing: CampaignDetailsResult['spendPacing'] = {
         todaySpend,
         dailyBudget,
         pctOfBudget,
@@ -285,6 +301,40 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
       };
 
       const latestRowDate = dailyRows.length > 0 ? dailyRows[dailyRows.length - 1]!.date.toISOString().slice(0, 10) : null;
+
+      // Apply the verdict. Everything below is a no-op for a USD account and for a verified window: no key is added, no value changes.
+      const spendVerdict = await spendVerdictPromise;
+      let spendEvidence: AgentSpendEvidence | null = null;
+      let issuesOut = topIssues;
+      let recommendationsOut = topRecommendations;
+      let brainActionOut = latestBrainAction;
+      if (isSpendGated(spendVerdict)) {
+        const withheld: string[] = [];
+        // Comparisons over spend: across a x100 boundary they read as a 99 % swing. The figures themselves stay as stored.
+        windowMetrics.spend.deltaPct = null;
+        windowMetrics.cpm.deltaPct = null;
+        windowMetrics.cost_per_message.deltaPct = null;
+        withheld.push('windowMetrics.spend / cpm / cost_per_message deltaPct');
+        vsBaseline.spendPct = null;
+        vsBaseline.cpmPct = null;
+        vsBaseline.costPerMessagePct = null;
+        withheld.push('vsBaseline.spendPct / cpmPct / costPerMessagePct');
+        // Pacing: today's spend against the budget and the hourly burn rate — what "raise the budget" is made of.
+        spendPacing.pctOfBudget = null;
+        spendPacing.burnRatePerHour = null;
+        withheld.push('spendPacing.pctOfBudget / burnRatePerHour');
+        const keptIssues = topIssues.filter((i) => !isSpendDependentIssueCode(i.code));
+        if (keptIssues.length !== topIssues.length) withheld.push(`topIssues: ${topIssues.filter((i) => isSpendDependentIssueCode(i.code)).map((i) => i.code).join(', ')}`);
+        issuesOut = keptIssues;
+        const keptRecs = recRows.filter((r) => !isSpendDependentActionCode(r.actionCode)).map((r) => ({ text: r.text, priority: r.priority, strength: r.strength }));
+        if (keptRecs.length !== topRecommendations.length) withheld.push(`topRecommendations: ${recRows.filter((r) => isSpendDependentActionCode(r.actionCode)).map((r) => r.actionCode).join(', ')}`);
+        recommendationsOut = keptRecs;
+        if (latestBrainAction && (BRAIN_SPEND_DEPENDENT_ACTIONS.has(latestBrainAction.action) || isSpendDependentActionCode(latestBrainAction.action))) {
+          withheld.push(`latestBrainAction: ${latestBrainAction.action}`);
+          brainActionOut = null;
+        }
+        spendEvidence = describeAgentSpend(spendVerdict, withheld);
+      }
 
       return ok<CampaignDetailsResult>(
         {
@@ -308,11 +358,12 @@ export function getCampaignDetailsHandler(): ToolHandler<GetCampaignDetailsArgs,
           windowMetrics,
           historicalBaseline,
           vsBaseline,
-          topIssues,
-          topRecommendations,
-          latestBrainAction,
+          topIssues: issuesOut,
+          topRecommendations: recommendationsOut,
+          latestBrainAction: brainActionOut,
           learningPhase,
           spendPacing,
+          ...(spendEvidence ? { spendEvidence } : {}),
         },
         {
           sourceTable: 'daily_stats',

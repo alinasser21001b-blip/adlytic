@@ -84,7 +84,7 @@ async function main() {
   type RawMode = 'match' | 'none' | 'x100';
   interface Row { ago: number; spend: number; raw: RawMode; messages?: number; clicks?: number; freq?: number; ctr?: number }
   interface CampRow { ago: number; spend: number; messages?: number }
-  interface SeedOpts { currency?: string; factor?: number; account: Row[]; campaigns?: CampRow[][]; trend?: 'furniture' | 'fatigue'; budgets?: boolean; objective?: string }
+  interface SeedOpts { currency?: string; factor?: number; account: Row[]; campaigns?: CampRow[][]; trend?: 'furniture' | 'fatigue'; budgets?: boolean; budget?: bigint; objective?: string }
 
   async function seed(label: string, o: SeedOpts) {
     const n = `${label}-${++seq}-${Math.random().toString(36).slice(2, 7)}`;
@@ -96,7 +96,7 @@ async function main() {
     });
     const campaigns = [];
     for (let c = 0; c < (o.campaigns?.length ?? 0); c++) {
-      campaigns.push(await prisma.campaign.create({ data: { adAccountId: account.id, externalCampaignId: `c${c}_${n}`, name: `Campaign ${c}`, objective: o.objective ?? 'OUTCOME_ENGAGEMENT', dailyBudget: o.budgets ? 5_000_000n : null } }));
+      campaigns.push(await prisma.campaign.create({ data: { adAccountId: account.id, externalCampaignId: `c${c}_${n}`, name: `Campaign ${c}`, objective: o.objective ?? 'OUTCOME_ENGAGEMENT', dailyBudget: o.budget ?? (o.budgets ? 5_000_000n : null) } }));
     }
     for (const r of o.account) {
       const clicks = r.clicks ?? 500;
@@ -565,6 +565,165 @@ async function main() {
   const dashBannerU = banner('src/web/pages/dashboardPage.ts', dsU.body);
   check('SP-3 control: an UNVERIFIED account keeps the "spend is not verified" title on both pages and the recommendations page still says its list may be incomplete',
     recBannerU?.style.display === 'flex' && /الإنفاق غير موثَّق/.test(recBannerU.innerHTML) && /ناقصة/.test(recBannerU.innerHTML) && dashBannerU?.style.display === 'flex' && /الإنفاق غير موثَّق/.test(dashBannerU.innerHTML), [recBannerU?.innerHTML.slice(0, 300), dashBannerU?.innerHTML.slice(0, 300)]);
+
+  // ═════════════════════════════════════════════════════════════════════
+  console.log('\n── 10. review round 3, SP-1 / SP-2: the AI agent\'s READ tools and the campaign "investigate" tab obey the same evidence rule ──');
+  const { ToolDispatcher } = await import('./src/services/agent/dispatcher');
+  const { ToolCache } = await import('./src/services/agent/cache');
+  const { RateLimiter } = await import('./src/services/agent/rateLimit');
+  const { buildAgentToolHandlers } = await import('./src/services/agent/tools');
+  const { investigateCampaign } = await import('./src/services/agent/investigate');
+  // One fresh dispatcher per call (no cache, a roomy limiter): the envelope the MODEL gets, through the real dispatcher.
+  const callTool = async (t: Tenant, name: string, args: unknown): Promise<any> =>
+    quiet(() => new ToolDispatcher(buildAgentToolHandlers() as any, { prisma, workspaceId: t.ws.id, userId: t.user.id } as any, { cache: new ToolCache(), rateLimiter: new RateLimiter({ maxCalls: 10_000 } as any) }).dispatch(name, args))();
+  // Two campaigns that always add up to the account row. Spend: today 107k; the last 7 days 120k; before that 99k/101k alternating.
+  // Messages: 9/11 alternating before the window, 10 inside it, and ONE on ago 1 — so a spend anomaly AND a spend-free (messages) anomaly exist.
+  const acctSpendAt = (ago: number) => (ago === 0 ? 107_000 : ago <= 7 ? 120_000 : ago % 2 === 0 ? 99_000 : 101_000);
+  const acctMsgsAt = (ago: number) => (ago === 1 ? 1 : ago <= 7 ? 10 : ago % 2 === 0 ? 9 : 11);
+  const agentAccount = (raw: RawMode): Row[] => Array.from({ length: 62 }, (_, ago) => ({ ago, spend: acctSpendAt(ago), raw, messages: acctMsgsAt(ago) }));
+  const agentCamp = (c: number, drift = false): CampRow[] => Array.from({ length: 62 }, (_, ago) => ({ ago, spend: ago === 0 ? (c === 0 ? 57_000 : 50_000) : (drift && ago >= 3 && ago <= 5 ? 0.85 : 1) * acctSpendAt(ago) / 2, messages: Math.max(1, Math.round(acctMsgsAt(ago) / 2)) }));
+  const agentTenant = (label: string, o: { currency?: string; factor?: number; raw: RawMode; drift?: boolean }) =>
+    seed(label, { currency: o.currency, factor: o.factor ?? 1, account: agentAccount(o.raw), campaigns: [agentCamp(0, o.drift), agentCamp(1, o.drift)], budget: 60_000n, objective: 'MESSAGES' });
+  const agV = await agentTenant('ag-ver', { raw: 'match' });
+  const agU = await agentTenant('ag-unver', { raw: 'none' });
+  const agD = await agentTenant('ag-usd', { currency: 'USD', factor: 100, raw: 'none' });
+  const agR = await agentTenant('ag-recon', { raw: 'match', drift: true });   // account rows verified; the campaigns do not reconcile on days 3-5
+  for (const t of [agV, agU, agD, agR]) {
+    await prisma.detectedIssue.createMany({ data: [
+      { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(1), issueCode: IssueCode.RISING_COST_PER_RESULT, severity: 'HIGH', evidenceJson: [] },
+      { entityType: EntityType.ACCOUNT, entityId: t.account.id, date: day(1), issueCode: IssueCode.HIGH_FREQUENCY, severity: 'MEDIUM', evidenceJson: [] },
+    ] });
+  }
+  /** A result with this tenant's ids and the time-dependent burn rate taken out, so twin tenants can be compared byte for byte. */
+  const scrub = (t: Tenant, v: unknown): string => {
+    let j = JSON.stringify(v, (_k, x) => (typeof x === 'bigint' ? x.toString() : x));
+    for (const [i, c] of t.campaigns.entries()) j = j.split(c.id).join(`CAMP${i}`);
+    return j.split(t.account.id).join('ACCT').replace(/"(firstSeenInAdlyticAt|burnRatePerHour|executionMs|cachedSeconds|stalenessMinutes)":[^,}]*,?/g, '').replace(/,\}/g, '}');
+  };
+  const SIM = (t: Tenant) => ({ fromCampaignId: t.campaigns[0]!.id, toCampaignId: t.campaigns[1]!.id, shiftAmount: { value: 20, unit: 'pct_of_from' }, projectionDays: 7 });
+  const spendMsg = (r: any) => String(r?.error?.message ?? '');
+
+  // simulate_budget_shift — a budget move rests on spend entirely
+  const [simV, simU, simD, simR] = [await callTool(agV, 'simulate_budget_shift', SIM(agV)), await callTool(agU, 'simulate_budget_shift', SIM(agU)), await callTool(agD, 'simulate_budget_shift', SIM(agD)), await callTool(agR, 'simulate_budget_shift', SIM(agR))];
+  check('SP-2 baseline: on VERIFIED IQD spend simulate_budget_shift answers (ok, a projection, confidence high, no spendEvidence key)', simV.ok && simV.data.confidence === 'high' && simV.data.projected?.workspaceTotal != null && !('spendEvidence' in simV.data), simV);
+  // (A USD account has factor 100, so its figures are in other units: byte-identity with the OLD source is proven by the
+  // differential, scripts/repro/spend_evidence_differential.ts. Here: the USD answer is the ungated one.)
+  check('SP-2: the USD twin answers as the verified account does — a projection, confidence high, no spendEvidence key, and not one evidence query was needed', simD.ok && simD.data.confidence === 'high' && simD.data.projected?.workspaceTotal != null && !('spendEvidence' in simD.data), simD);
+  check('SP-2: on UNVERIFIED IQD spend it REFUSES (STALE_DATA, SPEND_SCALE_UNVERIFIED in the message, a suggestion) — no projection, no "confidence: high, caveats: []"',
+    !simU.ok && simU.error.code === 'STALE_DATA' && /SPEND_SCALE_UNVERIFIED/.test(spendMsg(simU)) && /cannot be verified/.test(simU.error.suggestion ?? '') && !('data' in simU), simU);
+  check('SP-2: …and it refuses exactly where save_recommendation refuses: a CAMPAIGN-level budget move on campaigns that do not reconcile with the verified account row', !simR.ok && simR.error.code === 'STALE_DATA', simR);
+  const saveR = await quiet(() => saveRecommendationHandler().run({ entityType: 'CAMPAIGN', entityId: agR.campaigns[0]!.id, text: 'نص توصية طويل بما يكفي للتحقق', actionCode: 'INCREASE_BUDGET' as any, priority: 'HIGH', reasoning: 'This is a sufficiently long AI reasoning string for validation.' }, { prisma, workspaceId: agR.ws.id, userId: agR.user.id } as any))();
+  check('SP-2: …(control) save_recommendation refuses the same budget move on the same tenant — the read tool and the write tool agree', !saveR.ok && (saveR as any).error.code === 'STALE_DATA', saveR);
+
+  // get_campaign_details — spendPacing / vs-baseline are budget and cost advice in waiting
+  const dtl = (t: Tenant) => callTool(t, 'get_campaign_details', { campaignId: t.campaigns[0]!.id });
+  const [dtV, dtU, dtD, dtR] = [await dtl(agV), await dtl(agU), await dtl(agD), await dtl(agR)];
+  check('SP-1 baseline: on VERIFIED IQD spend get_campaign_details has the pacing (95 % of budget, a burn rate), the spend / CPM / cost-per-message deltas, and no spendEvidence key',
+    dtV.ok && dtV.data.spendPacing.pctOfBudget === 95 && typeof dtV.data.spendPacing.burnRatePerHour === 'number' && dtV.data.windowMetrics.cpm.deltaPct != null && dtV.data.vsBaseline.cpmPct != null && dtV.data.vsBaseline.spendPct != null && !('spendEvidence' in dtV.data), dtV.data?.spendPacing);
+  check('SP-1: the USD twin returns the ungated details: pacing, comparisons, no spendEvidence key', dtD.ok && dtD.data.spendPacing.pctOfBudget === 95 && dtD.data.windowMetrics.cpm.deltaPct != null && dtD.data.vsBaseline.cpmPct != null && !('spendEvidence' in dtD.data), dtD.data?.spendPacing);
+  const evU = dtU.data?.spendEvidence;
+  check('SP-1: on UNVERIFIED IQD spend the details carry spendEvidence (SPEND_SCALE_UNVERIFIED, CAMPAIGN level, the window, counts, what was left out, an instruction for the model)',
+    dtU.ok && evU?.code === REASON && evU.level === 'CAMPAIGN' && evU.unverified > 0 && typeof evU.from === 'string' && Array.isArray(evU.withheld) && evU.withheld.length >= 3 && /Do NOT give budget, pacing/.test(evU.note) && /SPEND_SCALE_UNVERIFIED/.test(evU.note), evU);
+  check('SP-1: …the pacing is withheld (no % of budget, no burn rate — the numbers an "raise the budget" sentence is made of), and so are the spend / CPM / cost-per-message comparisons against the prior window and the baseline',
+    dtU.data.spendPacing.pctOfBudget === null && dtU.data.spendPacing.burnRatePerHour === null && dtU.data.windowMetrics.spend.deltaPct === null && dtU.data.windowMetrics.cpm.deltaPct === null && dtU.data.windowMetrics.cost_per_message.deltaPct === null
+      && dtU.data.vsBaseline.spendPct === null && dtU.data.vsBaseline.cpmPct === null && dtU.data.vsBaseline.costPerMessagePct === null, [dtU.data?.spendPacing, dtU.data?.vsBaseline]);
+  check('SP-1: …what does not rest on spend is exactly the verified account\'s: CTR and messages (current, prior, delta), the CTR / messages baseline deltas, the learning phase, the campaign block',
+    JSON.stringify([dtU.data.windowMetrics.ctr, dtU.data.windowMetrics.messages, dtU.data.vsBaseline.ctrPct, dtU.data.vsBaseline.messagesPct, dtU.data.learningPhase]) === JSON.stringify([dtV.data.windowMetrics.ctr, dtV.data.windowMetrics.messages, dtV.data.vsBaseline.ctrPct, dtV.data.vsBaseline.messagesPct, dtV.data.learningPhase]), [dtU.data?.windowMetrics?.ctr, dtV.data?.windowMetrics?.ctr]);
+  check('SP-1: …the absolute spend figures are shown as stored (the gate withholds advice and comparisons, not money)', dtU.data.windowMetrics.spend.current === dtV.data.windowMetrics.spend.current && dtU.data.spendPacing.todaySpend === dtV.data.spendPacing.todaySpend && dtU.data.spendPacing.dailyBudget === dtV.data.spendPacing.dailyBudget);
+  check('SP-1: a spend-dependent stored issue (RISING_COST_PER_RESULT) never reaches the details of an unverified account: topIssues has none', (dtU.data.topIssues ?? []).every((i: any) => !S.isSpendDependentIssueCode(i.code)), dtU.data?.topIssues);
+  check('SP-1: levels — the account rows are verified but the campaigns do not reconcile (days 3-5): the CAMPAIGN-level details are gated too (the same verdict the Brain and save_recommendation use)', dtR.ok && dtR.data.spendEvidence?.code === REASON && dtR.data.spendEvidence.level === 'CAMPAIGN' && dtR.data.spendEvidence.unverified === 3 && dtR.data.spendPacing.pctOfBudget === null, dtR.data?.spendEvidence);
+
+  // list_campaigns
+  const lst = (t: Tenant, extra: object = {}) => callTool(t, 'list_campaigns', { ...extra });
+  const [lsV, lsU, lsD] = [await lst(agV), await lst(agU), await lst(agD)];
+  const metricsOf = (r: any) => r.data.campaigns.map((c: any) => c.metrics);
+  check('SP-2 baseline: verified IQD list_campaigns carries the spend / CPM / cost-per-message deltas and no spendEvidence key; so does the USD twin', lsV.ok && lsV.data.campaigns.every((c: any) => c.metrics.spend.deltaPct != null && c.metrics.cpm.deltaPct != null) && !('spendEvidence' in lsV.data) && lsD.ok && lsD.data.campaigns.every((c: any) => c.metrics.spend.deltaPct != null && c.metrics.cpm.deltaPct != null) && !('spendEvidence' in lsD.data), [lsV.data?.campaigns?.[0]?.metrics?.spend]);
+  check('SP-2: on UNVERIFIED IQD spend list_campaigns carries spendEvidence, and the spend / CPM / cost-per-message deltas are null while CTR / messages / ROAS are exactly the verified ones',
+    lsU.ok && lsU.data.spendEvidence?.code === REASON && metricsOf(lsU).every((m: any) => m.spend.deltaPct === null && m.cpm.deltaPct === null && m.cost_per_message.deltaPct === null)
+      && JSON.stringify(metricsOf(lsU).map((m: any) => [m.ctr, m.messages, m.roas])) === JSON.stringify(metricsOf(lsV).map((m: any) => [m.ctr, m.messages, m.roas])), [lsU.data?.spendEvidence, metricsOf(lsU)[0]?.spend]);
+  const lsUSorted = await lst(agU, { sortBy: 'cost_per_message' });
+  check('SP-2: …a request to SORT by a spend metric is not honoured on unverified spend (the order is by health) and the result says so', lsUSorted.ok && lsUSorted.data.spendEvidence?.withheld?.some((w: string) => /sort/i.test(w)), lsUSorted.data?.spendEvidence?.withheld);
+
+  // rank_campaigns
+  const rnk = (t: Tenant, metric: string) => callTool(t, 'rank_campaigns', { metric });
+  const [rkVc, rkUc, rkDc, rkVt, rkUt] = [await rnk(agV, 'cost_per_message'), await rnk(agU, 'cost_per_message'), await rnk(agD, 'cost_per_message'), await rnk(agV, 'ctr'), await rnk(agU, 'ctr')];
+  check('SP-2: rank_campaigns by cost_per_message — verified IQD and USD answer (same ranking, no spendEvidence); UNVERIFIED IQD refuses (STALE_DATA, SPEND_SCALE_UNVERIFIED): a ranking by cost per result is a cost comparison',
+    rkVc.ok && rkDc.ok && !('spendEvidence' in rkVc.data) && !('spendEvidence' in rkDc.data) && rkDc.data.ranked.map((r: any) => r.campaignName).join() === rkVc.data.ranked.map((r: any) => r.campaignName).join() && !rkUc.ok && rkUc.error.code === 'STALE_DATA' && /SPEND_SCALE_UNVERIFIED/.test(spendMsg(rkUc)), [rkVc.ok, rkUc]);
+  check('SP-2: …the same refusal for the other spend metrics (cpm, spend), while a ranking by CTR / messages / health is untouched on unverified spend (same answer as the verified account, no spendEvidence key)',
+    !(await rnk(agU, 'cpm')).ok && !(await rnk(agU, 'spend')).ok && rkUt.ok && !('spendEvidence' in rkUt.data) && scrub(agU, rkUt.data) === scrub(agV, rkVt.data) && (await rnk(agU, 'messages')).ok && (await rnk(agU, 'health')).ok, [rkUt]);
+
+  // compare_periods
+  const cmp = (t: Tenant, entityType: 'ACCOUNT' | 'CAMPAIGN') => callTool(t, 'compare_periods', { entityType, entityId: entityType === 'ACCOUNT' ? t.account.id : t.campaigns[0]!.id, windowA: { sinceDaysAgo: 7, untilDaysAgo: 1 }, windowB: { sinceDaysAgo: 14, untilDaysAgo: 8 } });
+  const [cpV, cpU, cpD, cpVc, cpUc, cpRa, cpRc] = [await cmp(agV, 'ACCOUNT'), await cmp(agU, 'ACCOUNT'), await cmp(agD, 'ACCOUNT'), await cmp(agV, 'CAMPAIGN'), await cmp(agU, 'CAMPAIGN'), await cmp(agR, 'ACCOUNT'), await cmp(agR, 'CAMPAIGN')];
+  check('SP-2 baseline: verified IQD compare_periods has the spend delta (+20 %), confidence high, and no spendEvidence key; so has the USD twin', cpV.ok && Math.round(cpV.data.deltas.spendPct) === 20 && cpV.data.verdicts.confidence === 'high' && !('spendEvidence' in cpV.data) && cpD.ok && Math.round(cpD.data.deltas.spendPct) === 20 && cpD.data.verdicts.confidence === 'high' && !('spendEvidence' in cpD.data), [cpV.data?.deltas, cpV.data?.verdicts]);
+  check('SP-2: on UNVERIFIED IQD spend the spend / CPM / cost-per-message deltas are null, the verdict is made from what does not rest on spend, confidence is LOW, spendEvidence says why',
+    cpU.ok && cpU.data.deltas.spendPct === null && cpU.data.deltas.cpmPct === null && cpU.data.deltas.costPerMessagePct === null && cpU.data.deltas.messagesPct === cpV.data.deltas.messagesPct && cpU.data.deltas.ctrPct === cpV.data.deltas.ctrPct
+      && cpU.data.verdicts.confidence === 'low' && cpU.data.spendEvidence?.code === REASON && cpU.data.spendEvidence.level === 'ACCOUNT' && !cpU.data.verdicts.reasons.some((r: string) => /الإنفاق|CPM|تكلفة الرسالة/.test(r) && !/حُجب|لم يُتحقق/.test(r)), [cpU.data?.deltas, cpU.data?.verdicts, cpU.data?.spendEvidence]);
+  check('SP-2: …a campaign-level comparison on unverified spend is gated at CAMPAIGN level', cpUc.ok && cpUc.data.spendEvidence?.level === 'CAMPAIGN' && cpUc.data.deltas.spendPct === null && cpUc.data.verdicts.confidence === 'low' && cpVc.ok && !('spendEvidence' in cpVc.data) && cpVc.data.verdicts.confidence === 'high', [cpUc.data?.spendEvidence, cpVc.data?.verdicts]);
+  check('SP-2: …levels: on the tenant whose account rows are verified but whose campaigns do not reconcile, the ACCOUNT comparison is clean and the CAMPAIGN comparison is gated',
+    cpRa.ok && !('spendEvidence' in cpRa.data) && Math.round(cpRa.data.deltas.spendPct) === 20 && cpRc.ok && cpRc.data.spendEvidence?.level === 'CAMPAIGN' && cpRc.data.deltas.spendPct === null, [cpRa.data?.spendEvidence, cpRc.data?.spendEvidence]);
+
+  // detect_anomaly
+  const ano = (t: Tenant, scope: 'workspace' | 'campaign' = 'workspace') => callTool(t, 'detect_anomaly', scope === 'workspace' ? { scope, lookbackDays: 7 } : { scope, campaignId: t.campaigns[0]!.id, lookbackDays: 7 });
+  const [anV, anU, anD, anUc] = [await ano(agV), await ano(agU), await ano(agD), await ano(agU, 'campaign')];
+  const metricsIn = (r: any) => [...new Set((r.data.anomalies as any[]).map((a) => a.metric))].sort();
+  check('SP-2 baseline: verified IQD detect_anomaly flags the spend spike (and the messages drop), lists the stored issue codes incl. RISING_COST_PER_RESULT, no spendEvidence key; so does the USD twin',
+    anV.ok && metricsIn(anV).includes('spend') && metricsIn(anV).includes('messages') && anV.data.canonicalIssueCodes.includes('RISING_COST_PER_RESULT') && !('spendEvidence' in anV.data) && anD.ok && metricsIn(anD).includes('spend') && anD.data.canonicalIssueCodes.includes('RISING_COST_PER_RESULT') && !('spendEvidence' in anD.data), [metricsIn(anV), anV.data?.canonicalIssueCodes]);
+  check('SP-2: on UNVERIFIED IQD spend the z-scores over spend, CPM and cost per message are not reported (a spend spike across a x100 boundary is not an anomaly), the messages anomaly IS, the spend-dependent stored issue is not listed, spendEvidence says why',
+    anU.ok && !metricsIn(anU).some((m) => ['spend', 'cpm', 'cost_per_message'].includes(m)) && metricsIn(anU).includes('messages') && !anU.data.canonicalIssueCodes.includes('RISING_COST_PER_RESULT') && anU.data.canonicalIssueCodes.includes('HIGH_FREQUENCY') && anU.data.spendEvidence?.code === REASON && anU.data.spendEvidence.level === 'ACCOUNT', [metricsIn(anU), anU.data?.canonicalIssueCodes, anU.data?.spendEvidence]);
+  check('SP-2: …a campaign-scope scan is gated at CAMPAIGN level', anUc.ok && anUc.data.spendEvidence?.level === 'CAMPAIGN' && !metricsIn(anUc).some((m) => ['spend', 'cpm', 'cost_per_message'].includes(m)), [anUc.data?.spendEvidence]);
+
+  // fail closed: an evidence read that fails withholds (IQD), and never touches USD
+  rawBroken = true;
+  const [simBr, dtBr, lsBr, simBrUsd, dtBrUsd] = [await callTool(agV, 'simulate_budget_shift', SIM(agV)), await dtl(agV), await lst(agV), await callTool(agD, 'simulate_budget_shift', SIM(agD)), await dtl(agD)];
+  rawBroken = false;
+  check('SP-2: evidence UNREADABLE → fail closed: simulate refuses, details and list are gated with spendEvidence.unreadable (never answered on a guess); the USD account never reads raw_insights and is unaffected',
+    !simBr.ok && simBr.error.code === 'STALE_DATA' && dtBr.ok && dtBr.data.spendEvidence?.unreadable === true && dtBr.data.spendPacing.pctOfBudget === null && lsBr.ok && lsBr.data.spendEvidence?.unreadable === true && simBrUsd.ok && dtBrUsd.ok && !('spendEvidence' in dtBrUsd.data), [simBr, dtBr.data?.spendEvidence, simBrUsd.ok]);
+  const rawReads = async (t: Tenant, fn: () => Promise<unknown>) => { let n = 0; const orig = (prisma as any).$queryRaw; (prisma as any).$queryRaw = (q: any, ...v: any[]) => { if ((Array.isArray(q) ? q.join('?') : '').includes('raw_insights')) n++; return orig(q, ...v); }; try { await fn(); } finally { (prisma as any).$queryRaw = orig; } return n; };
+  check('SP-2: USD makes no evidence query for any of the six tools; an IQD account reads raw_insights', (await rawReads(agD, async () => { await Promise.all([callTool(agD, 'simulate_budget_shift', SIM(agD)), dtl(agD), lst(agD), rnk(agD, 'cost_per_message'), cmp(agD, 'ACCOUNT'), ano(agD)]); })) === 0 && (await rawReads(agV, async () => { await dtl(agV); })) > 0);
+
+  // the campaign "investigate" tab — POST /api/workspaces/:ws/campaigns/:camp/investigate (offline narratives: AI_AGENT_V2_ENABLED is unset)
+  delete process.env['AI_AGENT_V2_ENABLED'];
+  const investigate = async (t: Tenant) => { const r = await quiet(() => post(`/api/workspaces/${t.ws.id}/campaigns/${t.campaigns[0]!.id}/investigate`, t.token))(); return { r, body: (await r.json()) as any }; };
+  const [ivV, ivU, ivD] = [await investigate(agV), await investigate(agU), await investigate(agD)];
+  const section = (b: any, key: string): string => String((b.sections ?? []).find((x: any) => x.key === key)?.narrative ?? '');
+  const maskBurn = (x: string) => x.replace(/معدل الحرق [0-9.,]+ لكل ساعة/g, 'معدل الحرق N لكل ساعة').replace(/[0-9.,]+\/ساعة/g, 'N/ساعة');
+  check('SP-1 baseline: on VERIFIED IQD spend the investigate tab\'s budget section tells the merchant to raise the budget (97 % → 95 %: "ارفع الميزانية اليومية"), as before', ivV.r.status === 200 && /ارفع الميزانية اليومية/.test(section(ivV.body, 'budget')) && ivV.body.spendEvidence === undefined, [ivV.r.status, section(ivV.body, 'budget')]);
+  check('SP-1: the USD twin\'s investigation is the ungated one: the same raise-the-budget budget section (burn rate, which depends on the clock, masked), eight sections, no spendEvidence', ivD.r.status === 200 && ivD.body.sections.length === 8 && maskBurn(section(ivD.body, 'budget')) === maskBurn(section(ivV.body, 'budget')) && ivD.body.spendEvidence === undefined, [section(ivD.body, 'budget')]);
+  check('SP-1: on UNVERIFIED IQD spend the budget section gives NO budget move — no "raise the budget", no "cut spend on the pricier placements" — and says the spend could not be verified',
+    ivU.r.status === 200 && !/ارفع الميزانية|قلّل الإنفاق|ارفع/.test(section(ivU.body, 'budget')) && /لم يُتحقق|تعذّر التحقق|غير موثَّق/.test(section(ivU.body, 'budget')) && section(ivU.body, 'budget') !== section(ivV.body, 'budget'), section(ivU.body, 'budget'));
+  check('SP-1: …the report carries spendEvidence (SPEND_SCALE_UNVERIFIED) next to the sections, and the structure and historical sections state no spend / CPM comparison against the baseline and say why',
+    ivU.body.spendEvidence?.code === REASON && !/الإنفاق مقابل الأساس|تكلفة الألف ظهور مقابل الأساس/.test(section(ivU.body, 'historical_trend')) && /لم يُتحقق|غير موثَّق/.test(section(ivU.body, 'historical_trend')) && !/إنفاق النافذة الحالية [0-9,.]+ \(/.test(section(ivU.body, 'structure')) && /إنفاق النافذة الحالية [0-9,.]+ \(/.test(section(ivV.body, 'structure')) && /الإنفاق مقابل الأساس/.test(section(ivV.body, 'historical_trend')), [ivU.body.spendEvidence?.code, section(ivU.body, 'historical_trend'), section(ivU.body, 'structure')]);
+  check('SP-1: …and what does not rest on spend is the same as the verified account\'s (learning phase, pixel health sections)', section(ivU.body, 'learning_phase') === section(ivV.body, 'learning_phase') && section(ivU.body, 'pixel_health') === section(ivV.body, 'pixel_health'));
+  const sameDay = ivU.body.sections.map((x: any) => x.key).join() === ivV.body.sections.map((x: any) => x.key).join();
+  check('SP-1: the same eight sections come back for the unverified campaign (the tab does not break)', sameDay && ivU.body.sections.length === 8, ivU.body.sections?.map((x: any) => x.key));
+
+  // the LLM path: a stubbed provider (no network) shows what the MODEL is handed
+  const realFetch = globalThis.fetch;
+  const seen: Array<{ system: string; user: string }> = [];
+  (globalThis as any).fetch = async (_u: unknown, init: any) => {
+    const b = JSON.parse(String(init?.body ?? '{}'));
+    seen.push({ system: JSON.stringify(b.system ?? ''), user: JSON.stringify(b.messages ?? []) });
+    return new Response(JSON.stringify({ id: 'msg_1', type: 'message', role: 'assistant', model: 'claude-haiku-4-5', content: [{ type: 'text', text: JSON.stringify({ budget: 'x' }) }], stop_reason: 'end_turn', stop_sequence: null, usage: { input_tokens: 1, output_tokens: 1 } }), { status: 200, headers: { 'content-type': 'application/json' } });
+  };
+  const keys = [process.env['ANTHROPIC_API_KEY'], process.env['OPENAI_API_KEY']];
+  process.env['ANTHROPIC_API_KEY'] = 'sk-ant-test-not-real'; delete process.env['OPENAI_API_KEY']; process.env['AI_AGENT_V2_ENABLED'] = 'true';
+  const llmV = await agentTenant('ag-ver-llm', { raw: 'match' });
+  const llmU = await agentTenant('ag-unver-llm', { raw: 'none' });
+  try {
+    await quiet(() => investigateCampaign({ prisma, workspaceId: llmV.ws.id, userId: llmV.user.id, campaignId: llmV.campaigns[0]!.id }))();
+    const seenV = seen.splice(0);
+    await quiet(() => investigateCampaign({ prisma, workspaceId: llmU.ws.id, userId: llmU.user.id, campaignId: llmU.campaigns[0]!.id }))();
+    const seenU = seen.splice(0);
+    check('SP-1 (model prompt): the provider IS reached (stub) for both — so the next two checks prove something', seenV.length >= 1 && seenU.length >= 1, [seenV.length, seenU.length]);
+    check('SP-1 (model prompt): for a VERIFIED account the model is handed the pacing (pctOfBudget) and nothing about spend evidence — the prompt is what it always was', seenV.some((x) => /pctOfBudget/.test(x.user)) && seenV.every((x) => !/spendEvidence|SPEND_SCALE/.test(x.user + x.system)), seenV.map((x) => x.user.slice(0, 200)));
+    check('SP-1 (model prompt): for an UNVERIFIED account the model is handed spendEvidence (reason code, the instruction) and NO pacing numbers, and its instructions say what to do with it',
+      seenU.some((x) => /spendEvidence/.test(x.user) && /SPEND_SCALE_UNVERIFIED/.test(x.user) && !/pctOfBudget\\":9|burnRatePerHour\\":[0-9]/.test(x.user) && /spendEvidence/.test(x.system)), seenU.map((x) => [x.system.slice(-300), x.user.slice(0, 300)]));
+  } finally {
+    (globalThis as any).fetch = realFetch; delete process.env['AI_AGENT_V2_ENABLED'];
+    if (keys[0] === undefined) delete process.env['ANTHROPIC_API_KEY']; else process.env['ANTHROPIC_API_KEY'] = keys[0];
+    if (keys[1] === undefined) delete process.env['OPENAI_API_KEY']; else process.env['OPENAI_API_KEY'] = keys[1];
+  }
 
   console.log(`\n${pass} passed, ${fail} failed   (database: ${dbName})`);
   await prisma.$disconnect();
